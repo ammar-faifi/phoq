@@ -1,0 +1,59 @@
+# Publishes phoq to PyPI when a version tag (v1.2.3) is pushed, using PyPI trusted publishing:
+# no API token is stored in GitHub. One-time setup on https://pypi.org/manage/account/publishing/:
+# project "phoq", owner/repository of this repo, workflow "publish.yml", environment "pypi" —
+# and create the "pypi" environment under the repository's Settings → Environments.
+name: Publish to PyPI
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Install Python and the project
+        run: |
+          uv python install 3.14
+          uv sync --locked --all-extras --dev
+
+      - name: Check that the tag matches the package version
+        run: |
+          version="$(uv version --short)"
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "tag $GITHUB_REF_NAME does not match pyproject version $version" >&2
+            exit 1
+          fi
+
+      - name: Run the tests
+        run: uv run pytest -q
+
+      - name: Build the sdist and wheel
+        run: uv build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/phoq/
+    permissions:
+      id-token: write        # trusted publishing (OIDC)
+      contents: read
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish
+        uses: pypa/gh-action-pypi-publish@release/v1

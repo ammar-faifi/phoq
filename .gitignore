@@ -1,0 +1,13 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# phoq autosaves (`phoq serve setup.py` writes setup.json next to the script)
+examples/*.json

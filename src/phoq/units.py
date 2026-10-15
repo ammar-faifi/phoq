@@ -1,0 +1,108 @@
+"""Physical constants, unit conversions and material data used across the lab."""
+
+from __future__ import annotations
+
+import math
+
+import numpy as np
+
+H = 6.62607015e-34  # Planck constant [J s]
+C0 = 299_792_458.0  # speed of light [m/s]
+Q_E = 1.602176634e-19  # elementary charge [C]
+K_B = 1.380649e-23  # Boltzmann constant [J/K]
+
+N_GROUP = 1.4682  # SMF-28 group index
+N_EFF = 1.4677  # SMF-28 effective (phase) index
+FIBER_DELAY = N_GROUP / C0  # [s/m], about 4.9 ns per metre
+CONNECTOR_LOSS_DB = 0.3  # one mated FC/PC pair
+
+COMMON_WAVELENGTHS = (635e-9, 780e-9, 850e-9, 1310e-9, 1550e-9)
+
+
+def db_to_t(db: float) -> float:
+    """Power transmission for a loss in dB."""
+    return 10.0 ** (-db / 10.0)
+
+
+def dbm_to_w(dbm: float) -> float:
+    return 1e-3 * 10.0 ** (dbm / 10.0)
+
+
+def w_to_dbm(w: float) -> float:
+    return 10.0 * math.log10(w / 1e-3) if w > 0 else -math.inf
+
+
+def photon_energy(wavelength: float) -> float:
+    return H * C0 / wavelength
+
+
+# Photodiode responsivity [A/W] against wavelength [nm] (typical datasheet curves).
+RESPONSIVITY = {
+    "InGaAs": (
+        [800, 900, 1000, 1100, 1200, 1300, 1400, 1550, 1600, 1650, 1700],
+        [0.00, 0.25, 0.55, 0.70, 0.80, 0.90, 0.93, 0.95, 0.90, 0.60, 0.15],
+    ),
+    "Si": (
+        [350, 400, 500, 600, 700, 800, 900, 960, 1000, 1050, 1100, 1150],
+        [0.10, 0.20, 0.30, 0.40, 0.48, 0.55, 0.62, 0.60, 0.45, 0.25, 0.05, 0.00],
+    ),
+    "Ge": (
+        [800, 900, 1000, 1100, 1300, 1400, 1550, 1600, 1700, 1800],
+        [0.15, 0.25, 0.35, 0.45, 0.60, 0.65, 0.70, 0.55, 0.15, 0.00],
+    ),
+}
+DARK_CURRENT = {"InGaAs": 1e-9, "Si": 0.3e-9, "Ge": 50e-9}
+
+# SMF-28 attenuation [dB/km] against wavelength [nm].
+FIBER_ATTENUATION = (
+    [600, 635, 700, 850, 1000, 1310, 1383, 1450, 1550, 1625, 1700],
+    [9.0, 8.0, 5.0, 2.2, 0.8, 0.33, 0.35, 0.25, 0.19, 0.21, 0.30],
+)
+
+
+def responsivity(material: str, wavelength: float) -> float:
+    xs, ys = RESPONSIVITY[material]
+    return float(np.interp(wavelength * 1e9, xs, ys, left=0.0, right=0.0))
+
+
+def fiber_attenuation(wavelength: float) -> float:
+    """SMF-28 loss in dB/km."""
+    xs, ys = FIBER_ATTENUATION
+    return float(np.interp(wavelength * 1e9, xs, ys))
+
+
+_PREFIXES = [
+    (1e9, "G"),
+    (1e6, "M"),
+    (1e3, "k"),
+    (1.0, ""),
+    (1e-3, "m"),
+    (1e-6, "µ"),
+    (1e-9, "n"),
+    (1e-12, "p"),
+    (1e-15, "f"),
+]
+
+
+def fmt_si(value: float, unit: str = "", digits: int = 3) -> str:
+    """Format with an SI prefix: fmt_si(2.3e-4, 'A') -> '230 µA'."""
+    if value is None or not math.isfinite(value):
+        return "—"
+    if value == 0:
+        return f"0 {unit}".strip()
+    a = abs(value)
+    for scale, prefix in _PREFIXES:
+        if a >= scale * 0.9995:
+            return f"{value / scale:.{digits}g} {prefix}{unit}"
+    return f"{value / 1e-15:.{digits}g} f{unit}"
+
+
+def seq125(lo: float, hi: float) -> list[float]:
+    """1-2-5 sequence between lo and hi inclusive (oscilloscope style)."""
+    out = []
+    for e in range(math.floor(math.log10(lo)) - 1, math.ceil(math.log10(hi)) + 2):
+        for m in (1, 2, 5):
+            v = float(f"{m * 10.0 ** e:.3g}")
+            if lo * 0.999 <= v <= hi * 1.001:
+                out.append(v)
+    return out

@@ -1,0 +1,474 @@
+# phoq
+
+[![CI](https://github.com/ammar-faifi/phoq/actions/workflows/ci.yml/badge.svg)](https://github.com/ammar-faifi/phoq/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/phoq.svg)](https://pypi.org/project/phoq/)
+
+**phoq** is a headless photonics and quantum-communication lab for Python. Build fiber-optic
+experiments from parts — lasers, modulators, couplers, attenuators, photodiodes, single-photon
+detectors, function generators, time taggers, oscilloscopes — run them, post-process the clicks
+with your own scripts, and run multi-party protocols such as QKD with every party in its own
+process talking over real sockets. A 3D virtual lab in the browser shows the same Python objects
+live and lets you edit them.
+
+## Install
+
+```bash
+pip install phoq
+```
+
+`pip install "phoq[plot]"` adds matplotlib for the plotting helpers. Python 3.14 or newer.
+Inside this repository, `uv sync` installs everything and commands are run with `uv run …`.
+
+## Quick start
+
+```python
+from phoq import Setup, Laser, Fiber, Photodiode, Oscilloscope
+
+laser = Laser(power_dbm=-7, mode="pulsed", rep_rate=10e6, pulse_width=5e-9)
+setup = Setup.from_chain(laser, Fiber(length=2), Photodiode(bandwidth=1e9), Oscilloscope(timebase=20e-9))
+
+print(setup.run().summary())     # OSC-1: ch1 ← PD-1: mean 163 µA, pk-pk 2.99 mA, f 10 MHz
+laser.power_dbm = 0              # parameters are plain, validated attributes
+setup.serve()                    # optional: http://127.0.0.1:8000 shows it live in 3D
+```
+
+```bash
+phoq run examples/delay_line.py              # headless
+```
+
+```bash
+phoq serve examples/basic_link.py            # the virtual lab at http://127.0.0.1:8000
+```
+
+```bash
+phoq serve --protocol examples/mpqkd         # MP-QKD: Alice, Bob and Charlie as processes
+```
+
+## Concepts
+
+| | |
+| --- | --- |
+| **Component** | A piece of equipment. Settings are `Param` class attributes, so `laser.wavelength = 1310e-9` is validated against the type, range and choices, and is observable. |
+| **Port** | `laser.out`, `pd.inp`, `pd.rf`, … Each is `optical` or `electrical`. |
+| **Setup** | Owns named components and port connections. `connect(a, b)` joins two ports. Two bulkhead optical ports automatically get a 1 m `Fiber` patch cord between them. `chain(...)` wires items one after another. |
+| **Runner** | `setup.run()` acquires every instrument. `Runner(setup).sweep(comp, "param", values, measure)` sweeps a parameter. |
+| **Instruments** | `Oscilloscope` (traces + measurements; selectable analogue `bandwidth`, `sample_rate` and record memory `max_points`; `Runner.single(osc)` waits for the first trigger and holds that sweep), `PhotonCounter` (click record per pulse), `PowerMeter`. |
+
+Units are SI throughout: metres, seconds, hertz and watts. Powers use `power_dbm` and losses `*_db`.
+
+### Components
+
+| Category | Classes |
+| --- | --- |
+| Sources | `Laser` (CW / pulsed / sine / OOK, linewidth, detuning, per-pulse phase randomisation) |
+| Fiber | `Fiber` (patch cord), `FiberSpool` |
+| Passive | `Attenuator`, `BeamSplitter` (alias `Coupler`), `PhaseShifter`, `Isolator` |
+| Modulators | `PhaseModulator` (φ = π·V/Vπ), `IntensityModulator` (Mach–Zehnder, extinction) — voltage comes only through their `rf` and `bias` inputs |
+| Detectors | `Photodiode`, `SinglePhotonDetector`, `PowerMeter` |
+| Instruments | `Oscilloscope`, `PhotonCounter`, `FunctionGenerator` (2 outputs: dc / sine / square / triangle / ramp / loaded pattern), `DCPowerSupply` (2 outputs, ±30 V) |
+
+Run `phoq catalog` for every port and parameter.
+
+## Command line
+
+```bash
+phoq run examples/delay_line.py --plot traces.png   # headless
+```
+
+```bash
+phoq serve examples/mpqkd                  # API + 3D visualizer
+```
+
+```bash
+phoq export examples/basic_link.json --format python
+```
+
+`run`, `serve` and `export` accept a `.py` file that defines `setup` (or `build()`), or a saved
+`.json`. While serving, every edit made in the browser sets the attribute on the Python
+instance and is autosaved. The default target is `<script>.json` next to the script; change it
+with `--save PATH`, or turn it off with `--no-save`. Serve that JSON to carry on, or press
+**Export .py** to get the setup back as a Python script (`setup.to_python()`).
+
+### Driving modulators
+
+Modulators have no drive settings of their own. Each has two electrical inputs whose voltages
+add on the electrodes: `rf` for a function-generator output and `bias` for a DC supply output.
+
+```python
+psu = setup.add(DCPowerSupply(ch1_voltage=im.v_pi / 2))                      # quadrature bias
+setup.connect(psu.ch1, im.bias)
+fg = setup.add(FunctionGenerator())
+setup.connect(fg.ch1, im.rf)
+fg.set(ch1_shape="sine", ch1_freq=10e6, ch1_vpp=1.0)                           # linear modulation
+fg.set_pattern("ch2", pm.voltage_for(2 * np.pi * k / 16), rate=laser.rep_rate)   # one voltage per pulse
+```
+
+For the intensity modulator 0 V is maximum transmission, Vπ/2 quadrature and Vπ the null.
+`im.voltage_for(T)` and `pm.voltage_for(phase)` convert a wanted transmission or phase into the
+rf voltage needed on top of whatever bias is connected, so protocol code works in optical terms. `set_pattern` sets the channel's amplitude
+and offset from the pattern's extremes, and `chN_freq` is the symbol rate. The generator's time
+base (`trigger`) is *aligned* by default: symbol k reaches the modulator together with pulse k of
+the laser feeding it, as a calibrated AWG would. Use *laser* to set `chN_delay` yourself, or
+*free* for a free-running generator. A generator output can also go straight to an oscilloscope
+channel to look at the drive. Patterns are data, not parameters: they are not saved in the JSON
+setup and have to be loaded by code.
+
+## Post-processing clicks with your own script
+
+Write the analysis in a file of its own, decorate a function, and point the lab at it. Every
+batch a time tagger records is handed to the function, which can keep state between batches:
+
+```python
+# my_analysis.py
+import numpy as np
+from phoq.analysis import task
+
+@task("TAGGER")                         # the counter(s) feeding it; bare @task means every counter
+def coincidences(batch):
+    t_l, t_r = batch.timestamps("ch1"), batch.timestamps("ch2")   # absolute seconds, continuous
+    print(f"batch {batch.seq}: {t_l.size} L, {t_r.size} R, {batch.coincidences('ch1', 'ch2')} both")
+    return {"L rate [cps]": batch.rates["ch1"], "R rate [cps]": batch.rates["ch2"]}   # live read-outs
+```
+
+```bash
+phoq serve examples/mpqkd --analysis my_analysis.py      # live, with a console
+```
+
+```bash
+phoq run examples/mpqkd --analysis my_analysis.py --batches 20   # headless
+```
+
+`@task("TAGGER", party="CHARLIE")` puts a task's console on that party's laptop. A batch is a
+`CounterResult`: `clicks[ch]` (one flag per bin), `timestamps(ch)`, `events()`
+(time-ordered `(t, ch)` records), `counts`, `rates`, `coincidences(a, b)`, `t0`, `seq`. Bins run
+on from one batch to the next, so time stamps are absolute. From Python, `Session(setup).run(10)`
+does the same, and a script can run itself with `analysis.main("setup.py")` under
+`if __name__ == "__main__":`. `examples/analysis_pairing.py` computes Charlie's click statistics
+and the mode-pairing rate against Eq. (4) of the MP-QKD paper.
+
+**How tasks run.** Each task runs in its own worker process (`multiprocessing`, spawn): a thread
+would share the interpreter lock with the simulation and could not be stopped if the user's code
+hung, and `print` cannot be captured per thread; Python 3.14's sub-interpreters would give
+parallelism in one process, but NumPy's support for them is still immature. A process gives full
+isolation, its own interpreter lock, a plain pipe for stdout/stderr that feeds the console, and a
+clean kill. **Restart** re-imports the script, so edits take effect without restarting the lab.
+A task that falls more than two batches behind has the next ones dropped, with a note in its
+console (the tagger's buffer overflowing). An exception is printed to the console and the worker
+goes on with the next batch.
+
+In the virtual lab every process lives on a laptop (its party's, or the lab PC for plain tasks):
+the **Laptops** drawer shows one tab per laptop with its processes' output, status, read-outs,
+Stop / Restart / Clear, and "Load script" to attach another file by path; clicking a laptop on
+the table opens it. The API is `GET /api/tasks`, `POST /api/tasks {path}` and
+`POST /api/tasks/{name}/{restart|stop|start|clear}`; the WebSocket streams `console` messages.
+
+## Parties and the classical channel
+
+A protocol is more than hardware: Alice, Bob and Charlie are *computers* that program their own
+instruments, read their own detectors and talk to each other. `phoq.parties` models that
+split explicitly, following the `[CLASSICAL #N]` annotations in `examples/mpqkd/reference.py`.
+
+| Layer | What | How it is simulated |
+| --- | --- | --- |
+| **Physical** | lasers, modulators, VOAs, fibers, Charlie's coupler, SPDs, the time tagger | one `Setup` in the lab process, because the fields of both stations interfere at Charlie |
+| **Hardware link** | a station's computer ↔ its own instruments (program the AWG, read the tagger) | `self.hw` — request/reply over the party's pipe, limited to the instruments the party `owns`; a USB/PCIe-style local link, not a public channel |
+| **Classical channel** | everything the parties tell each other | `self.net` — real TCP sockets on localhost, one listening port per party, messages pickled, every connection HMAC-authenticated with a pre-shared key: an *authenticated but public* channel, exactly what QKD assumes |
+
+Each party is a `Party` subclass in a file of its own and runs in its own process (the same
+reasons as for analysis tasks). The framework drives them block by block (`Experiment`):
+
+```
+prepare(block, n)   every station programs its transmitter for the next n pulses   [physical]
+      ↓             the lab records the block
+measure(batch)      the party owning the tagger gets the clicks                      [physical]
+      ↓
+receive(message)    whatever the parties say to each other                           [classical]
+```
+
+`examples/mpqkd` is split accordingly — `common.py` (public parameters, the
+hardware, the pairing/sifting maths), `station.py` (what Alice and Bob share), `alice.py`,
+`bob.py`, `charlie.py` — and the annotations map onto messages:
+
+| `examples/mpqkd/reference.py` | Message | Who |
+| --- | --- | --- |
+| #1 announce C_i and L/R | `clicks` (single-click rounds, detector, block) | Charlie → all |
+| #2 pairing with public l | no message: both stations run the same `simple_pairing` on #1 | — |
+| #3 basis announcement | `basis` (one label per pair; never the intensities) | Alice ↔ Bob |
+| #4 alignment angle | `theta` (per X pair) | Alice ↔ Bob |
+| #5 parameter estimation | `xbits` (all X bits, for E_X); `sample` / `sample-reply` (a 10 % sample of Z bits, dropped from the key, for E_Z) | Alice ↔ Bob |
+| #6 error correction, privacy amplification | not implemented | — |
+
+Run it with the three parties as processes, headless or live:
+
+```bash
+phoq run --protocol mpqkd --blocks 20
+```
+
+```bash
+phoq serve --protocol mpqkd
+```
+
+`--protocol` takes a package exposing `PARTIES` and `build()`; `--party my_party.py` adds a file
+that defines a `Party` subclass (an eavesdropper on the switch, for instance). In the virtual lab
+every party gets a laptop on the table showing its console, read-outs and TCP port, wired with
+an Ethernet cable to a (purely visual) layer-3 switch whose port LEDs blink with the traffic;
+clicking a laptop opens its console.
+
+## Physics model
+
+- **Fields, not just powers.** Light is traced as complex amplitudes through every path:
+  connector loss (0.3 dB per mated pair), fiber loss vs λ, propagation phase, a 4.9 ns/m delay,
+  the beam-splitter unitary, attenuators and modulators. Paths from one laser interfere, and
+  different lasers add coherently only if their wavelengths match.
+- **Lasers:** the envelope is averaged over each sample bin, so a 100 ps pulse is exact at any
+  timebase. Phase is a Wiener process from the linewidth, drawn once per acquisition and shared
+  by all paths. That makes interferometer visibility and Alice/Bob phase drift physical.
+- **Photodiode:** I = Σ R(λ)·P + I_dark through a one-pole bandwidth, plus shot noise √(2qIB)
+  and thermal noise √(4kTB/R). It saturates softly above `saturation`.
+- **Single-photon detector:** p(click) = 1 − (1 − p_dark)·exp(−η·n̄) per bin, plus dead time.
+- **Modulators and oscilloscope:** see [Theory](#theory-modulators-and-the-oscilloscope) below.
+- **Steady-state report:** `phoq.report(setup)` gives mean powers, currents, open-connector
+  emission and warnings. It uses the mutual coherence γ(Δτ) = exp(−πΔν|Δτ|) × envelope overlap.
+- **Not modelled:** polarisation, dispersion, nonlinearity, afterpulsing.
+
+## Theory: modulators and the oscilloscope
+
+### Electro-optic modulators
+
+A modulator is a passive device with two electrical inputs. The electrode voltage is the sum of
+what is connected to them, and an open input is 0 V:
+
+$$V(t) = V_\mathrm{rf}(t) + V_\mathrm{bias}(t)$$
+
+Both modulators also have an insertion loss $L$ (dB), applied to the field as
+$\sqrt{10^{-L/10}}$.
+
+**Phase modulator** (`PhaseModulator`). The electro-optic effect shifts the phase in proportion to
+the voltage; $V_\pi$ is the voltage for a shift of π:
+
+$$E_\mathrm{out}(t) = E_\mathrm{in}(t)\,\sqrt{10^{-L/10}}\;e^{\,i\pi V(t)/V_\pi}$$
+
+With $V_\pi = 4$ V, 1 V gives π/4. `pm.voltage_for(phase)` returns $\phi V_\pi/\pi - V_\mathrm{bias}$,
+the rf voltage needed on top of the connected bias. This is the linear (Pockels) electro-optic
+effect: the index change $\Delta n = \tfrac12 n_0^3 r E$ over a length $l$ with electrode gap $d$
+gives $V_\pi = d\lambda_0/(l\,n_0^3 r)$ (Fraunhofer IIS 2024, Eqs. 1–3), so $V_\pi$ grows with the
+wavelength; here it is a device parameter at its design wavelength. The paper writes the shift as
+$\varphi_0 - \pi V/V_\pi$; the sign is a crystal-orientation convention and the code uses $+$.
+
+**Intensity modulator** (`IntensityModulator`). A Mach–Zehnder modulator splits the light into two
+arms carrying $P_1 + P_2 = P_\mathrm{in}$, phase-shifts them in push–pull by $\pm\pi V/2V_\pi$ and
+recombines them. With the arms' phase difference $\varphi = \pi V/V_\pi + \varphi_0$ the output power
+is $P = \tfrac12 P_\mathrm{in} + \sqrt{P_1P_2}\cos\varphi$ (Fraunhofer IIS 2024, Eq. 6), so
+
+$$T(V) = \tfrac12\left[1 + k\cos\!\left(\frac{\pi V}{V_\pi} + \varphi_0\right)\right],
+\qquad k = \frac{2\sqrt{P_1P_2}}{P_\mathrm{in}} = \frac{\mathrm{ER}-1}{\mathrm{ER}+1}$$
+
+A perfectly balanced device ($k = 1$) is the textbook $\cos^2(\pi V/2V_\pi)$ and goes fully dark;
+real devices split slightly unequally, which rounds the null off at $T_\min = 1/(\mathrm{ER}+1)$ and
+caps the maximum at $T_\max = \mathrm{ER}/(\mathrm{ER}+1)$, where ER is the (linear) extinction
+ratio set by `extinction_db`. $\varphi_0$ (`phi0`) is the arms' intrinsic path difference: it
+shifts the whole curve along $V$, and in a real device it drifts with temperature and charge, which
+is what a bias controller nulls (the drift itself is not modelled). The three bias points for
+$\varphi_0 = 0$:
+
+| $V$ | $T$ | Use |
+| --- | --- | --- |
+| 0 | $\mathrm{ER}/(\mathrm{ER}+1)$ | maximum transmission (default, nothing connected) |
+| $V_\pi/2$ | ½ | *quadrature*: $dT/dV = -\pi k/2V_\pi$, the steepest and most linear point, for analogue modulation |
+| $V_\pi$ | $1/(\mathrm{ER}+1)$ | *null*: pulse carving, vacuum / decoy states |
+
+At quadrature a small drive $v$ gives $T \approx \tfrac12 - \tfrac{\pi}{2V_\pi}v$, i.e. a modulation
+depth of $\pi v_\mathrm{pp}/2V_\pi$ for a peak-to-peak drive $v_\mathrm{pp}$ (a 1 Vpp sine on a
+4 V-$V_\pi$ device swings $T$ between about 0.30 and 0.70). `im.voltage_for(T)` inverts the curve,
+$V = (V_\pi/\pi)\left[\arccos\!\big((2T - 1)/k\big) - \varphi_0\right] - V_\mathrm{bias}$, so protocol
+code can ask for a transmission. Asking for 0 or 1 gives the null or the maximum.
+
+**Time base.** A function-generator pattern has one value per symbol, symbol $k$ centred on
+$t = k/f_\mathrm{sym}$. With the default *aligned* time base the generator is treated as a
+calibrated AWG locked to the laser clock: the voltage a pulse sees is evaluated at the pulse's
+emission time, so pulse $k$ meets symbol $k$ in whichever modulator the channel drives, whatever
+the fiber length before it. The *laser* time base uses the time of arrival at the modulator minus
+`chN_delay` (you calibrate the delay), and *free* adds a random start each acquisition.
+
+**Steady-state report.** The live power read-outs use the time-averaged transmission
+$\langle T\rangle$ over one period of the drive (or over all symbols of a pattern) with the bias
+taken as DC; `IntensityModulator.info()` shows it. Paths through a time-varying modulator are
+treated as mutually incoherent in that report, which is only an approximation of the full
+time-domain synthesis used for the oscilloscope.
+
+### Oscilloscope
+
+The signal chain is detector → analogue front end → sampler → record → display and measurements.
+
+**Front end.** The input bandwidth $f_\mathrm{BW}$ (`bandwidth`) is modelled as two identical
+first-order poles at $f_1 = 1.554\,f_\mathrm{BW}$, chosen so that $|H(f_\mathrm{BW})|^2 = \tfrac12$:
+
+$$|H(f)| = \frac{1}{1 + (f/f_1)^2}, \qquad t_\mathrm{rise,10\text{–}90} \approx \frac{0.34}{f_\mathrm{BW}}$$
+
+A 20 MHz front end passes a 10 MHz fundamental at 0.91, its third harmonic at 0.52 and its fifth at
+0.28, so a 10 MHz square wave keeps most of its swing but loses its corners, and an SPD click
+pulse of 5 ns is smeared to about 13 ns. The photodiode's own one-pole bandwidth acts before the
+scope's; the slower of the two dominates.
+
+**Sampling.** For a timebase of $s$ s/div the window is $W = 10s$. The effective sample rate is
+limited by the record memory $N_\max$ (`max_points`):
+
+$$f_s = \min\!\left(f_\mathrm{set},\; N_\max / W\right), \qquad N = f_s W, \qquad \Delta t = 1/f_s$$
+
+so a 5 GS/s scope with 20 000 points runs at 5 GS/s up to 400 ns/div and drops to 2 MS/s at
+1 ms/div, as a real instrument does. Internally the analogue signal is computed on a grid
+$\Delta t/k$ with $k = \lceil 6 f_\mathrm{BW}\Delta t\rceil$ (capped) so the front end is resolved,
+then *point-sampled* at the sample instants with no anti-alias filter. A component at frequency
+$f$ therefore appears at the folded frequency
+
+$$f_\mathrm{alias} = \left|f - f_s\,\mathrm{round}(f/f_s)\right|$$
+
+A 9 MHz sine sampled at 10 MS/s reads 1 MHz; a 10 MHz sine sampled at 10 MS/s collapses to a flat
+line. Keep $f_s > 2 f_\mathrm{BW}$ for faithful traces.
+
+**Noise.** The photodiode adds shot noise $\sqrt{2qIB}$ and thermal noise $\sqrt{4k_BTB/R}$ with
+$B$ its noise bandwidth; the scope's front end then narrows it, so the displayed noise RMS falls
+roughly as $\sqrt{f_\mathrm{BW}}$ when the bandwidth is reduced — the usual reason to switch a
+20 MHz limit in.
+
+**Triggering.** *sync* places $t = 0$ on a laser pulse (one division of pre-trigger shows), *edge*
+searches a window twice the record for the first rising crossing of the level on the source
+channel, and *free* starts anywhere. The display marks the trigger instant with a triangle at the
+top and, for edge mode, the level with a "T" arrow on the right edge. **Single shot** (`arm()`,
+`single()`, the SINGLE button) waits for the first trigger, keeps that one record and stops.
+
+**Measurements.** Mean, min, max, peak-to-peak and RMS come from the full record. Frequency is
+measured from hysteretic mid-level crossings (±20 % of the swing) when the signal is clean and
+well sampled (swing > 8× the sample-to-sample noise estimate); otherwise from the spectral peak
+with parabolic interpolation, accepted only if that line carries over 20 % of the AC power — so a
+coarsely sampled or aliased sine still reads its (aliased) frequency, while flat noise reads none.
+Records longer than 2 000 points are drawn as a min/max envelope per screen column; the numbers
+always use every sample.
+
+**Not modelled:** ADC quantisation, equivalent-time sampling, trigger jitter and holdoff,
+probe loading. On the modulators: the electrodes' capacitance and velocity mismatch, which make a
+real EOM a low-pass on its drive (the generator's voltage is applied instantaneously); bias drift
+and its controller; chirp of single-drive devices.
+
+### Checked against the literature
+
+The models above were compared with three references (October 2026):
+
+- *S. J. van Enk, "Coherent states, beam splitters and photons".* §8 and §12–14: a laser mode is
+  a coherent state with Poissonian photon number $P(n) = e^{-|\alpha|^2}|\alpha|^{2n}/n!$ and mean
+  $|\alpha|^2$, its initial phase is unknown, and a coherent state with a random phase equals a
+  Poissonian mixture of number states. The `Laser` follows this: `mean_photon_number` $= E/h\nu$, a
+  uniformly random start phase per acquisition, a Wiener-process phase whose correlation decays
+  with the coherence time $1/\pi\Delta\nu$, and `phase_randomized` for weak-coherent-pulse
+  sources. §16: a beam splitter maps $(\alpha_1, \alpha_2) \to ((\alpha_1 + i\alpha_2)/\sqrt2,
+  (i\alpha_1 + \alpha_2)/\sqrt2)$, the convention `BeamSplitter` uses, and §20 the Mach–Zehnder
+  fringe $(1 - \cos\varphi)/2$ that the MZI tests reproduce.
+- *J. A. T. Santiago, "Photon statistics for Fock and coherent states interfering in a beamsplitter"
+  (arXiv:2508.08223).* Eq. (1.1) is the same beam-splitter transformation with $|t|^2 = $ `ratio`;
+  §4, Eqs. (4.3)–(4.7): two coherent inputs give product coherent outputs $|t\alpha + ir\beta\rangle
+  |ir\alpha + t\beta\rangle$, still Poissonian ($Q = 0$, $g^{(2)}(0) = 1$). That is why the engine may
+  add fields and then treat each detector's photon number as Poissonian with mean
+  $\eta|E|^2\Delta t/h\nu$: the SPD's $p(\mathrm{click}) = 1 - (1 - p_\mathrm{dark})e^{-\eta\bar n}$ is
+  exact for this light, and Charlie's two detectors in MP-QKD click independently. Fock-state
+  inputs (§2–3), including Hong–Ou–Mandel interference, are outside the model: there are no
+  single-photon sources, and a threshold detector facing $|1\rangle$ would click with probability
+  $\eta$, not $1 - e^{-\eta}$.
+- *C. Neumüller et al., "Bias control and linearization of the transfer function of electro-optic
+  and acousto-optic modulators" (Fraunhofer IIS, 2024), §3.1.* Eqs. (1)–(3) give the phase
+  modulator's $\varphi = \pi V/V_\pi$ and the origin of $V_\pi$; Eqs. (4)–(5) the MZM transmission
+  $\cos^2(\varphi/2)$; Eq. (6) the finite extinction ratio from unequal arm powers, which replaced an
+  earlier clamp in `IntensityModulator`; Eq. (7) the sum $V = V_\mathrm{RF} + V_\mathrm{DC}$ that the
+  `rf` and `bias` inputs implement; Eq. (8) the drift term $\varphi_\mathrm{drift}$ behind the new
+  `phi0`; and Eqs. (9)–(10) the push–pull drive. The paper's bias-control and predistortion
+  sections (§4–5) are not modelled. AOMs are not part of the lab.
+
+## Quantum protocols
+
+`examples/mpqkd` builds the MP-QKD hardware: two lasers → intensity and phase
+modulators (each station's AWG drives them) → VOAs calibrated to μ → fiber spools → Charlie's
+coupler → two SPDs → time tagger.
+It then runs the protocol (Charlie's announcement, simple pairing, sifting, key mapping)
+on the simulated clicks:
+
+```python
+from phoq.loading import import_source
+
+mpqkd = import_source("examples/mpqkd")       # the showcase package
+print(mpqkd.run(mpqkd.MPQKDParams(distance=100e3, mu=0.4), rounds=2_000_000, seed=1).summary())
+```
+
+AWG patterns are indexed by pulse number. `PhotonCounter(compensate_delay=True)` removes the
+time of flight, so `clicks[k]` belongs to pulse `k` of the patterns.
+
+## Adding a component
+
+Subclass `Component`, declare `Param`s, create ports in `_build`, and describe the optics in
+`scatter`. The class registers itself, shows up in the visualizer's toolbox and inspector, and
+gets a generic 3D model until you add one in `src/phoq/web/js/parts.js`.
+
+```python
+import math
+from phoq import Component, Param, Transfer
+
+class Mirror(Component):
+    category, prefix, label = "passive", "M", "Fiber mirror"
+    reflectivity = Param(0.99, min=0.0, max=1.0)
+
+    def _build(self):
+        self.add_port("p1")
+
+    def scatter(self, port, wavelength):
+        return [Transfer(port, math.sqrt(self.reflectivity))]
+```
+
+## Server API
+
+`phoq serve …` starts FastAPI. Interactive docs are at `/docs`.
+
+| Method | Path | |
+| --- | --- | --- |
+| GET | `/api/catalog` | component types, ports, parameter specs |
+| GET | `/api/state` | the setup: components, parameters, connections |
+| GET | `/api/report` | mean powers, currents, warnings |
+| POST | `/api/components` | `{type, name?, params?}` adds a part |
+| PATCH | `/api/components/{name}` | `{params}` sets attributes (422 on invalid values) |
+| DELETE | `/api/components/{name}` | removes it and its connections |
+| POST | `/api/connections` | `{a, b}` connects ports (409 if either is in use) |
+| POST | `/api/disconnect` | `{port}` |
+| POST | `/api/instruments/{name}/autoset` | oscilloscope autoset |
+| POST | `/api/run` | acquire all instruments once |
+| POST | `/api/save` | write the autosave file now |
+| GET | `/api/export/python`, `/api/export/json` | the setup as code or JSON |
+| GET / POST | `/api/tasks` | analysis tasks; POST `{path}` loads a script's `@task` functions |
+| POST | `/api/tasks/{name}/{action}` | `restart`, `stop`, `start` or `clear` a task |
+| WS | `/ws` | streams `state`, `report`, `frame` (~15/s), `counter` (~1/s) and `console` (task output) |
+
+## Repository layout
+
+```
+src/phoq/            the package; src/phoq/web is the virtual lab, shipped with it
+examples/            setups, analysis scripts and the MP-QKD showcase
+examples/mpqkd/      Alice, Bob, Charlie (+ station/common), the original single-process
+                     reference.py with its [CLASSICAL #N] notes, and a marimo notebook
+tests/               pytest suite
+.github/workflows/   ci.yml (tests on push / PR), publish.yml (PyPI on a version tag)
+```
+
+## Development and releases
+
+```bash
+uv sync --all-extras && uv run pytest -q
+```
+
+To release: set `version` in `pyproject.toml`, commit, tag it `vX.Y.Z` and push the tag. The
+publish workflow checks that the tag matches the version, runs the tests, builds the sdist and
+wheel with `uv build` and uploads them with PyPI *trusted publishing*, so no token is stored in
+GitHub. One-time setup: on PyPI (Account → Publishing) add a trusted publisher for the project
+`phoq` with this repository, workflow `publish.yml` and environment `pypi`, and create the `pypi`
+environment under the repository's Settings → Environments.
+
+## License
+
+phoq is free software under the [GNU Affero General Public License v3.0 or later](LICENSE)
+(SPDX: `AGPL-3.0-or-later`). If you run a modified phoq as a network service, the AGPL asks you to
+offer its users the corresponding source.

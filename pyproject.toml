@@ -1,0 +1,54 @@
+[project]
+name = "phoq"
+version = "0.1.0"
+description = "Photonics and quantum-communication simulation with an interactive 3D virtual lab"
+readme = "README.md"
+license = "AGPL-3.0-or-later"
+license-files = ["LICENSE"]
+authors = [
+    { name = "Ammar Alfaifi", email = "me@ammarf.sa" }
+]
+requires-python = ">=3.14"
+keywords = ["photonics", "quantum optics", "QKD", "quantum communication", "simulation", "oscilloscope", "fiber optics"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Education",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "fastapi>=0.143.1",
+    "numpy>=2.5.4",
+    "scipy>=1.18.1",
+    "uvicorn[standard]>=0.54.0",
+]
+
+[project.optional-dependencies]
+plot = ["matplotlib>=3.11.2"]
+
+[project.scripts]
+phoq = "phoq.__main__:main"
+
+[project.urls]
+Homepage = "https://github.com/ammar-faifi/phoq"
+Source = "https://github.com/ammar-faifi/phoq"
+Issues = "https://github.com/ammar-faifi/phoq/issues"
+
+[build-system]
+requires = ["uv_build>=0.12.10,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "black>=26.10.1",
+    "httpx2>=2.13.1",
+    "isort>=9.0.2",
+    "matplotlib>=3.11.2",
+    "pytest>=9.1.1",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
