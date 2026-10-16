@@ -49,6 +49,10 @@ phoq serve examples/basic_link.py            # the virtual lab at http://127.0.0
 phoq serve --protocol examples/mpqkd         # MP-QKD: Alice, Bob and Charlie as processes
 ```
 
+```bash
+phoq run --protocol bb84 --party examples/bb84/eve.py   # decoy-state BB84 with an eavesdropper
+```
+
 ## Concepts
 
 | | |
@@ -68,7 +72,7 @@ Units are SI throughout: metres, seconds, hertz and watts. Powers use `power_dbm
 | Sources | `Laser` (CW / pulsed / sine / OOK, linewidth, detuning, per-pulse phase randomisation) |
 | Fiber | `Fiber` (patch cord), `FiberSpool` |
 | Passive | `Attenuator`, `BeamSplitter` (alias `Coupler`), `PhaseShifter`, `Isolator` |
-| Modulators | `PhaseModulator` (φ = π·V/Vπ), `IntensityModulator` (Mach–Zehnder, extinction) — voltage comes only through their `rf` and `bias` inputs |
+| Modulators | `PhaseModulator` (φ = π·V/Vπ), `IntensityModulator` (Mach–Zehnder, extinction) — voltage comes only through their `rf` and `bias` inputs; `OpticalSwitch` (2×2, bar below the threshold voltage on `ctrl`, cross above: a pattern routes pulse by pulse) |
 | Detectors | `Photodiode`, `SinglePhotonDetector`, `PowerMeter` |
 | Instruments | `Oscilloscope`, `PhotonCounter`, `FunctionGenerator` (2 outputs: dc / sine / square / triangle / ramp / loaded pattern), `DCPowerSupply` (2 outputs, ±30 V) |
 
@@ -224,6 +228,13 @@ that defines a `Party` subclass (an eavesdropper on the switch, for instance). I
 every party gets a laptop on the table showing its console, read-outs and TCP port, wired with
 an Ethernet cable to a (purely visual) layer-3 switch whose port LEDs blink with the traffic;
 clicking a laptop opens its console.
+
+A station that re-encodes what it detects — a relay, a trusted node, an eavesdropper — sets
+`stage = 1`. The lab then records its counters first, hands it the batch, waits for its
+`measure()` to return (that is where it programs its own transmitter through `self.hw`) and only
+then records the stations further down the line, so the feed-forward lands in the same block.
+That is what a real station does with some latency, which the receiver's clock calibration
+absorbs. `examples/bb84/eve.py` is one.
 
 ![Laptops for Alice, Charlie and Bob on the optical table, with Alice's console open showing block-by-block pairing, sifting and key growth, and her classical-channel traffic](https://raw.githubusercontent.com/ammar-faifi/phoq/main/docs/images/laptops.webp)
 
@@ -416,6 +427,57 @@ print(mpqkd.run(mpqkd.MPQKDParams(distance=100e3, mu=0.4), rounds=2_000_000, see
 AWG patterns are indexed by pulse number. `PhotonCounter(compensate_delay=True)` removes the
 time of flight, so `clicks[k]` belongs to pulse `k` of the patterns.
 
+### BB84 with decoy states, and an eavesdropper
+
+`examples/bb84` is the second protocol on the same party framework — two parties, no relay —
+and shows that the framework is protocol-agnostic. It is phase-coding BB84 with weak coherent
+pulses and three decoy intensities: Alice's pulsed laser → intensity modulator (μ, ν or vacuum
+per pulse) → unbalanced Mach–Zehnder interferometer with a phase modulator in the long arm
+(φ ∈ {0, π} for Z, {π/2, 3π/2} for X between the early and the late time slot) → VOA calibrated to
+μ → fiber spool → Bob's matching interferometer (phase shifter for the stabilisation, phase
+modulator for θ = 0 or π/2) → two SPDs → time tagger with three bins per pulse. In the middle
+bin the late half of the early slot interferes with the early half of the late slot: DET-0 clicks
+for φ − θ = 0, DET-1 for π, and the satellite bins are ignored. `build()` calibrates μ at the
+fiber input and the interferometer phase, then adds the residual phase error of an imperfectly
+stabilised interferometer (0.2 rad ≈ 1 % QBER).
+
+```bash
+phoq run --protocol bb84 --blocks 20
+```
+
+```bash
+phoq serve --protocol bb84
+```
+
+Per block Bob announces which pulses clicked and his basis string; Alice keeps the detections
+whose bases match, discloses every detection's intensity label, all her X-basis bits and a 10 %
+sample of her Z-μ bits; Bob answers with his bits at those positions. From these public counts
+both consoles and result dicts report the QBER per basis, the decoy-state bounds on the vacuum
+and single-photon yields Y₀, Y₁ and on the single-photon error e₁ (Ma, Qi, Zhao & Lo 2005, with
+the vacuum decoy's true leak through the intensity modulator), the single-photon gain Q₁ and the
+asymptotic GLLP key rate in secret bits per laser pulse:
+R = (N_{μ,Z}/N)·[Q₁(1 − H₂(e₁)) − Q_μ f H₂(E_μ)]. The Z-μ detections minus the sample are the
+raw key; error correction and privacy amplification are not implemented.
+
+```python
+bb84 = import_source("examples/bb84")
+print(bb84.run(bb84.BB84Params(distance=20e3, mu=0.5, nu=0.1), pulses=300_000, seed=1).summary())
+```
+
+Eve is a `--party` file: `phoq run --protocol bb84 --party examples/bb84/eve.py`. A party file
+cannot add hardware, so when an Eve party has been loaded `build()` cuts the fiber at
+`eve_position` and splices in her station (`build(eve=True)` does the same by hand): a 2×2
+`OpticalSwitch` whose bar state lets Alice's pulse pass and whose cross state sends it into Eve's
+receiver — a copy of Bob's — while her own transmitter's pulse, delayed to arrive in the same
+time slot, takes its place. She throws the switch for a random fraction of the pulses
+(`PHOQ_EVE_FRACTION`, default 1), measures them in a random basis and re-sends what she found,
+brighter than Alice to hide the loss of her own detection (`PHOQ_EVE_MU` overrides). She is a
+`stage = 1` party, so the lab records her tagger before Bob's and lets her program her
+transmitter from the clicks within the block. With everything intercepted the QBER rises to about
+25 %, e₁ reaches ½ and the key rate drops to zero; the decoy bounds also register her
+multi-photon re-sends. In the virtual lab her station appears in the fiber and her laptop next to
+Alice's and Bob's.
+
 ## Adding a component
 
 Subclass `Component`, declare `Param`s, create ports in `_build`, and describe the optics in
@@ -466,6 +528,7 @@ src/phoq/            the package; src/phoq/web is the virtual lab, shipped with 
 examples/            setups, analysis scripts and the MP-QKD showcase
 examples/mpqkd/      Alice, Bob, Charlie (+ station/common), the original single-process
                      reference.py with its [CLASSICAL #N] notes, and a marimo notebook
+examples/bb84/       decoy-state BB84: Alice, Bob (+ common), Eve as a --party file
 tests/               pytest suite
 docs/images/         README screenshots of the virtual lab
 .github/workflows/   ci.yml (tests on push / PR), publish.yml (PyPI on a version tag)

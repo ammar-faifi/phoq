@@ -18,7 +18,7 @@ from .detectors import Photodiode, PowerMeter, PowerReading, SinglePhotonDetecto
 from .engine import Network, report, synthesize, trace
 from .generators import DCPowerSupply, FunctionGenerator
 from .instruments import CounterResult, Oscilloscope, PhotonCounter, ScopeResult, Trace
-from .modulators import IntensityModulator, PhaseModulator
+from .modulators import IntensityModulator, OpticalSwitch, PhaseModulator
 from .passive import (
     Attenuator,
     BeamSplitter,
@@ -50,6 +50,7 @@ __all__ = [
     "Isolator",
     "Laser",
     "Network",
+    "OpticalSwitch",
     "Oscilloscope",
     "Param",
     "PhaseModulator",

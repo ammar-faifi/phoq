@@ -244,6 +244,16 @@ class Party:
     instruments: ClassVar[tuple[str, ...]] = ()  # lab instruments this station owns
     abstract: ClassVar[bool] = False
     seed: ClassVar[int | None] = None
+    stage: ClassVar[int] = 0
+    """Where the station sits along the light path when it re-encodes what it detects.
+
+    A relay, a trusted node or an eavesdropper detects the block *before* the stations further
+    down the line see it and re-programs its own transmitter from the result — a feed-forward
+    with some latency that a real receiver's clock calibration absorbs. Give such a station
+    ``stage = 1`` (2 for a relay behind it, …): the lab records its counters first, hands it the
+    batch, waits for its ``measure`` to return (that is where it programs its transmitter) and
+    only then records the next stage and, last, the plain stations (stage 0).
+    """
 
     def __init_subclass__(cls, **kw):
         super().__init_subclass__(**kw)
@@ -523,6 +533,9 @@ class Experiment:
         self.block = 0
         self.phase = "prepare"
         self._asked = False
+        self._stage = 1  # the relay stage being recorded (see Party.stage)
+        self._recorded: set[int] = set()  # relay stages already recorded in this block
+        self._results: dict[str, CounterResult] = {}  # this block's batches so far
         self.last_acquire = 0.0
 
     @property
@@ -589,7 +602,12 @@ class Experiment:
 
     # ---- stepping ------------------------------------------------------------------------------------
     def poll(self) -> dict[str, CounterResult] | None:
-        """Advance by at most one block; returns the block's batches when one was recorded."""
+        """Advance by at most one block; returns the block's batches when one was recorded.
+
+        Relay stations (``Party.stage`` ≥ 1) have their counters recorded first, stage by stage,
+        and the block only goes on once their ``measure`` has returned; the remaining counters
+        are recorded last.
+        """
         senders = [w for w in self.party_workers if w.alive]
         if self.phase == "prepare":
             if not self._asked:
@@ -598,7 +616,12 @@ class Experiment:
                 self._asked = True
             if any(w.prepared <= self.block for w in senders):
                 return None
-            self.phase = "acquire"
+            self.phase, self._stage, self._recorded, self._results = (
+                "relay",
+                1,
+                set(),
+                {},
+            )
         consumers = [
             w
             for w in self.workers
@@ -610,23 +633,44 @@ class Experiment:
         ]
         if any(w.done < self.block - self.blocks_ahead for w in consumers):
             return None  # let the slowest consumer catch up
+        if self.phase == "relay":
+            last = max((w.cls.stage for w in senders), default=0)
+            while self._stage <= last:
+                staged = [w for w in senders if w.cls.stage == self._stage]
+                if self._stage not in self._recorded:
+                    self._recorded.add(self._stage)
+                    self._record(
+                        [
+                            c
+                            for c in self.counters()
+                            if any(w.cls.owns(c.name) for w in staged)
+                        ]
+                    )
+                if any(w.done < w.sent for w in staged):
+                    return None  # their measure() — where they re-encode — must return first
+                self._stage += 1
+            self.phase = "acquire"
+        self._record([c for c in self.counters() if c.name not in self._results])
+        results, self._results = self._results, {}
+        self.last_acquire = time.monotonic()
+        self.block += 1
+        self.phase, self._asked = "prepare", False
+        return results
+
+    def _record(self, counters) -> None:
+        """Record this block on ``counters`` and hand the batches to their owners and the tasks."""
         with self.lock:
             net = trace(self.setup)
-            results = {}
-            for cnt in self.counters():
+            for cnt in counters:
                 res = cnt.acquire(net, self.rng, start=self.block * cnt.slots)
                 res.seq = self.block
-                results[cnt.name] = res
+                self._results[cnt.name] = res
                 for w in self.party_workers:
                     if w.cls.owns(cnt.name):
                         w.send(res)
                 for t in self.task_workers:
                     if t.task.accepts(cnt.name):
                         t.send(res)
-        self.last_acquire = time.monotonic()
-        self.block += 1
-        self.phase, self._asked = "prepare", False
-        return results
 
     def echo(self, stream=None) -> None:
         echo_lines(self.workers, stream)

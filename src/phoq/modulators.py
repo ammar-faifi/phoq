@@ -3,7 +3,8 @@
 A modulator has no drive of its own: it applies a voltage-dependent factor to the light passing
 through it. The voltage is the sum of what is plugged into its two electrical inputs, ``rf``
 (normally a :class:`~phoq.FunctionGenerator` channel) and ``bias`` (normally a
-:class:`~phoq.DCPowerSupply` output). An unconnected input contributes 0 V.
+:class:`~phoq.DCPowerSupply` output). An unconnected input contributes 0 V. The
+:class:`OpticalSwitch` follows the same rule: its route is set by the voltage on ``ctrl``.
 """
 
 from __future__ import annotations
@@ -214,4 +215,161 @@ class IntensityModulator(_Modulator):
             else self.mean_factor()
         )
         out[label] = f"{t:.3g} ({10 * math.log10(max(t, 1e-12)):.1f} dB)"
+        return out
+
+
+class _SwitchRoute:
+    """One of the two routes through an :class:`OpticalSwitch`, as the engine sees it: a
+    time-dependent amplitude factor driven by the switch's control input (same contract as a
+    modulator: ``factor``, ``response``, ``is_static``, ``static_voltage``, ``mean_factor``,
+    ``drivers``)."""
+
+    def __init__(self, switch: OpticalSwitch, crossed: bool):
+        self.switch, self.crossed = switch, crossed
+
+    def drivers(self) -> list:
+        return self.switch.drivers()
+
+    def is_static(self) -> bool:
+        return self.switch.is_static()
+
+    def static_voltage(self) -> float:
+        return self.switch.static_voltage()
+
+    def response(self, volts) -> np.ndarray:
+        return self.switch.route_amplitude(volts, self.crossed)
+
+    def factor(self, t_mod, t_emit) -> np.ndarray:
+        return self.response(self.switch.drive_voltage(t_mod, t_emit))
+
+    def mean_factor(self) -> float:
+        return float(np.mean(np.abs(self.response(self.switch.drive_samples())) ** 2))
+
+    def __repr__(self):
+        return f"<{self.switch.name} {'cross' if self.crossed else 'bar'} route>"
+
+
+class OpticalSwitch(Component):
+    """2×2 electro-optic switch: *bar* (a1→b1, a2→b2) or *cross* (a1→b2, a2→b1).
+
+    Like a modulator it has no setting of its own: the state follows the voltage on its ``ctrl``
+    input — cross at or above ``threshold``, bar below, and bar when nothing is connected (0 V).
+    A function-generator pattern on ``ctrl`` therefore routes pulse by pulse (an eavesdropper's
+    tap, time multiplexing, a protected path). ``voltage_for(cross)`` gives the drive for a wanted
+    sequence of states. The unselected route leaks ``crosstalk_db`` below the selected one, both
+    carry ``insertion_loss_db``, and the device is reciprocal.
+    """
+
+    category = "modulator"
+    prefix = "SW"
+    label = "2×2 optical switch"
+    description = (
+        "Electro-optic 2×2 switch: bar below the threshold voltage on ctrl, cross above"
+    )
+    inputs = ("a1", "a2", "ctrl")
+    outputs = ("b1", "b2")
+
+    threshold = Param(
+        1.0,
+        unit="V",
+        label="Switch threshold",
+        min=0.1,
+        max=30.0,
+        doc="ctrl ≥ threshold selects the cross state; voltage_for() swings 0 … 2×threshold",
+    )
+    insertion_loss_db = Param(1.0, unit="dB", label="Insertion loss", min=0.0, max=20.0)
+    crosstalk_db = Param(
+        40.0,
+        unit="dB",
+        label="Crosstalk",
+        min=0.0,
+        max=100.0,
+        doc="Leak into the route that is not selected",
+    )
+
+    def _build(self):
+        for n in ("a1", "b1", "a2", "b2"):
+            self.add_port(n)
+        self.add_port("ctrl", "electrical", "in", "Control in")
+        self._routes = {
+            False: _SwitchRoute(self, False),
+            True: _SwitchRoute(self, True),
+        }
+
+    # ---- the control input (same contract as the modulators' rf/bias inputs) ------------------
+    def _source(self):
+        peer = self.ports["ctrl"].peer
+        if peer is None or not callable(getattr(peer.component, "voltage", None)):
+            return None
+        return peer.component, peer.name
+
+    def drivers(self) -> list:
+        src = self._source()
+        return [src] if src is not None else []
+
+    def is_static(self) -> bool:
+        src = self._source()
+        return src is None or src[0].is_static(src[1])
+
+    def static_voltage(self) -> float:
+        src = self._source()
+        return 0.0 if src is None else src[0].static_voltage(src[1])
+
+    def drive_voltage(self, t_mod, t_emit=None) -> np.ndarray:
+        src = self._source()
+        if src is None:
+            return np.zeros(np.shape(t_mod))
+        return np.asarray(src[0].voltage(src[1], t_mod, t_emit), dtype=float)
+
+    def drive_samples(self) -> np.ndarray:
+        """The control waveform over one period (or every symbol of a pattern), for averaging."""
+        src = self._source()
+        if src is None or src[0].is_static(src[1]):
+            return np.array([self.static_voltage()])
+        return np.asarray(src[0].waveform(src[1]), dtype=float)
+
+    # ---- routing --------------------------------------------------------------------------------
+    def crossed(self, volts) -> np.ndarray:
+        """True where the control voltage selects the cross state."""
+        return np.asarray(volts, dtype=float) >= self.threshold
+
+    def route_amplitude(self, volts, crossed_route: bool) -> np.ndarray:
+        """Field factor of the bar (False) or cross (True) route at the given control voltages."""
+        leak = math.sqrt(db_to_t(self.crosstalk_db))
+        selected = self.crossed(volts) == crossed_route
+        return np.where(selected, math.sqrt(1.0 - leak * leak), leak)
+
+    def voltage_for(self, cross) -> np.ndarray:
+        """Control voltage per symbol for the wanted state: 0 V for bar, 2×threshold for cross."""
+        return np.where(np.asarray(cross, dtype=bool), 2.0 * self.threshold, 0.0)
+
+    def scatter(self, port, wavelength):
+        t = math.sqrt(db_to_t(self.insertion_loss_db))
+        p = self.ports
+        bar, cross = {
+            "a1": ("b1", "b2"),
+            "a2": ("b2", "b1"),
+            "b1": ("a1", "a2"),
+            "b2": ("a2", "a1"),
+        }[port.name]
+        return [
+            Transfer(p[bar], t, 0.0, self._routes[False]),
+            Transfer(p[cross], t, 0.0, self._routes[True]),
+        ]
+
+    def info(self):
+        src = self._source()
+        out = {
+            "Control": (
+                f"{src[0].name} {src[1].upper()} · {src[0].describe(src[1])}"
+                if src
+                else "none (0 V → bar)"
+            )
+        }
+        if self.is_static():
+            out["State"] = "cross" if self.crossed(self.static_voltage()) else "bar"
+        else:
+            out["Cross fraction"] = (
+                f"{float(np.mean(self.crossed(self.drive_samples()))):.3g}"
+            )
         return out

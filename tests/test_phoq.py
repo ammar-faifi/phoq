@@ -15,6 +15,7 @@ from phoq import (
     FunctionGenerator,
     IntensityModulator,
     Laser,
+    OpticalSwitch,
     Oscilloscope,
     PhaseModulator,
     PhaseShifter,
@@ -26,7 +27,7 @@ from phoq import (
     SinglePhotonDetector,
 )
 from phoq.engine import trace
-from phoq.parties import load_protocol
+from phoq.parties import load_parties, load_protocol
 from phoq.units import CONNECTOR_LOSS_DB, FIBER_DELAY, db_to_t, photon_energy
 
 EXAMPLES = Path(__file__).resolve().parents[1] / "examples"
@@ -309,6 +310,53 @@ def test_modulator_has_no_drive_of_its_own():
     assert s.run()["OPM-1"].power == pytest.approx(
         undriven * db_to_t(30), rel=1e-6
     )  # Vπ → extinction floor
+
+
+def test_optical_switch_routes_statically_and_pulse_by_pulse():
+    s = Setup.from_chain(
+        Laser(mode="cw", power_dbm=0.0, linewidth=0.0),
+        OpticalSwitch("SW"),
+        PowerMeter("M1"),
+    )
+    sw = s["SW"]
+    s.connect(sw.b2, s.add(PowerMeter("M2")).inp)
+    r = s.run()
+    bar, leak = r["M1"].power, r["M2"].power
+    assert sw.info()["State"] == "bar" and sw.is_static()
+    assert 10 * math.log10(bar / leak) == pytest.approx(40.0, abs=0.01)  # crosstalk
+    expected_db = (
+        1.0 + 4 * CONNECTOR_LOSS_DB + 2 * 0.19e-3
+    )  # insertion loss + 4 mated pairs + 2 m
+    assert 10 * math.log10(1e-3 / (bar + leak)) == pytest.approx(expected_db, abs=0.01)
+    psu = s.add(DCPowerSupply(ch1_voltage=2.0))
+    s.connect(psu.ch1, sw.ctrl)
+    r = s.run()
+    assert sw.info()["State"] == "cross"
+    assert r["M2"].power == pytest.approx(bar, rel=1e-9) and r[
+        "M1"
+    ].power == pytest.approx(leak, rel=1e-9)
+    # a pattern on ctrl throws it pulse by pulse: every third pulse goes to the second detector
+    s = Setup(seed=1)
+    laser = s.add(Laser(power_dbm=-60, rep_rate=50e6, pulse_width=200e-12))
+    sw = s.add(OpticalSwitch("SW", crosstalk_db=80))
+    d0, d1 = s.add(
+        SinglePhotonDetector("D0", efficiency=1.0, dark_count_rate=0, dead_time=0),
+        SinglePhotonDetector("D1", efficiency=1.0, dark_count_rate=0, dead_time=0),
+    )
+    cnt = s.add(PhotonCounter("CNT", slots=3000))
+    s.connect(laser.out, sw.a1)
+    s.connect(sw.b1, d0.inp)
+    s.connect(sw.b2, d1.inp)
+    s.connect(d0.out, cnt.ch1)
+    s.connect(d1.out, cnt.ch2)
+    fg = s.add(FunctionGenerator())
+    s.connect(fg.ch1, sw.ctrl)
+    cross = np.arange(3000) % 3 == 0
+    fg.set_pattern("ch1", sw.voltage_for(cross), rate=laser.rep_rate)
+    assert not sw.is_static() and sw.info()["Cross fraction"] == "0.333"
+    c = s.run()["CNT"].clicks
+    assert c["ch2"][cross].all() and not c["ch1"][cross].any()
+    assert c["ch1"][~cross].all() and not c["ch2"][~cross].any()
 
 
 def test_phase_modulator_driven_by_generator_shifts_fringe():
@@ -609,6 +657,157 @@ def test_mpqkd_parties_agree_on_a_key():
     assert (
         charlie.net["sent"] == 4 and alice.net["recv"] >= 2 + 2 * 4
     )  # 2 announcements + basis/theta/xbits/sample per block
+
+
+def test_relay_stage_re_encodes_within_the_block(tmp_path):
+    """A stage-1 party's measure() runs before the stage-0 counters are recorded, so what it
+    programs from its clicks reaches the end station in the same block."""
+    from phoq.parties import Experiment
+
+    script = tmp_path / "relay.py"
+    script.write_text(
+        "from phoq.parties import Party\n"
+        "class Relay(Party):\n"
+        "    name = 'RELAY'; stage = 1; instruments = ('CNT-R', 'VOA-1')\n"
+        "    def measure(self, batch):\n"
+        "        self.hw.set('VOA-1', attenuation_db=80.0 if batch.seq % 2 else 0.0)\n"
+        "        print('block', batch.seq, 'clicks', batch.counts['ch1'])\n"
+        "class End(Party):\n"
+        "    name = 'END'; instruments = ('CNT-E',)\n"
+        "    def measure(self, batch):\n"
+        "        self.report(**{str(batch.seq): batch.counts['ch1']})\n"
+        "        self.counts = getattr(self, 'counts', {}) | {batch.seq: batch.counts['ch1']}\n"
+        "        self.report(**{str(k): v for k, v in self.counts.items()})\n"
+    )
+    s = Setup(seed=1)
+    laser = s.add(
+        Laser(power_dbm=-75, rep_rate=100e6, pulse_width=100e-12, phase_randomized=True)
+    )
+    bs, voa = s.add(BeamSplitter(), Attenuator("VOA-1", attenuation_db=0.0))
+    dr, de = s.add(
+        SinglePhotonDetector("DR", efficiency=0.5, dark_count_rate=0, dead_time=0),
+        SinglePhotonDetector("DE", efficiency=0.5, dark_count_rate=0, dead_time=0),
+    )
+    cr, ce = s.add(
+        PhotonCounter("CNT-R", slots=20_000), PhotonCounter("CNT-E", slots=20_000)
+    )
+    s.connect(laser.out, bs.a1)
+    s.connect(bs.b1, dr.inp)
+    s.connect(bs.b2, voa.p1)
+    s.connect(voa.p2, de.inp)
+    s.connect(dr.out, cr.ch1)
+    s.connect(de.out, ce.ch1)
+    relay, end = load_parties(script)
+    assert relay.stage == 1 and end.stage == 0
+    w_relay, w_end = Experiment(s, [relay, end], seed=2).run(blocks=4, echo=False)
+    assert w_relay.batches == 4 and w_end.batches == 4
+    counts = {int(k): v for k, v in w_end.result.items()}
+    assert counts[0] > 1000 and counts[2] > 1000 and counts[1] == 0 and counts[3] == 0
+
+
+# ---- BB84 with decoy states: reference run, the two parties, and the eavesdropper --------------------
+def test_bb84_hardware_is_calibrated():
+    bb84 = load_protocol(EXAMPLES / "bb84")
+    p = bb84.BB84Params(mu=0.4, phase_error=0.0)
+    setup = bb84.build(p, pulses=10_000, eve=True)
+    net = trace(setup)
+    for tag, port in (("ALICE", "SPL-A.p1"), ("EVE-TX", "EVE-SW.a2")):
+        laser = setup[f"{tag}-LD"]
+        mu = net.port_power[port] / laser.rep_rate / photon_energy(laser.wavelength)
+        assert mu == pytest.approx(0.4, rel=1e-6)
+    # Eve's re-sent pulses land in the same time bins as Alice's: equal flight time to DET-0
+    d_alice = min(net.delays(setup["DET-0"], setup["ALICE-LD"]))
+    d_eve = min(net.delays(setup["DET-0"], setup["EVE-TX-LD"]))
+    assert d_eve == pytest.approx(d_alice, abs=1e-15)
+    # every interferometer pair interferes constructively on DET-0 at zero phase
+    sw, awg = setup["EVE-SW"], setup["EVE-RX-AWG"]
+    for source, det in (
+        ("ALICE-LD", "DET-0"),
+        ("ALICE-LD", "EVE-DET-0"),
+        ("EVE-TX-LD", "DET-0"),
+    ):
+        awg.ch2_offset = (
+            0.0 if det == "DET-0" and source == "ALICE-LD" else 2 * sw.threshold
+        )
+        a, b = (
+            bb84.common._static_amplitude(q)
+            for q in bb84.common.middle_paths(
+                trace(setup), setup[source], setup[det], p.slot
+            )
+        )
+        assert abs(np.angle(a / b)) < 1e-9 and abs(a) == pytest.approx(abs(b), rel=0.1)
+    awg.ch2_offset = 0.0
+    assert "EVE-SW" not in bb84.build(p, pulses=10_000, eve=False)
+
+
+def test_bb84_reference_run_has_positive_key_rate():
+    bb84 = load_protocol(EXAMPLES / "bb84")
+    res = bb84.run(pulses=300_000, seed=3)
+    t, e = res.tally, res.estimate
+    assert (
+        t.pulses == 300_000
+        and t.key_bits > 500
+        and res.alice_key.size == res.bob_key.size
+    )
+    assert (
+        res.qber < 0.04 and e["qber_x"][bb84.I_MU] < 0.04
+    )  # the 0.2 rad phase error: ≈ 1 %
+    assert e["y0"] < 1e-4 and 0.01 < e["y1"] < 0.1 and e["e1"] < 0.08  # decoy bounds
+    assert e["q1"] < e["q_mu"] and e["rate"] > 5e-4
+    g = e["gains"]
+    assert g[bb84.I_MU, 0] > g[bb84.I_NU, 0] > g[bb84.I_VAC, 0] == 0
+    # with a perfectly stabilised interferometer only the lasers' phase diffusion over one time
+    # slot and the arms' unequal loss remain: a few 1e-3
+    perfect = bb84.run(bb84.BB84Params(phase_error=0.0), pulses=100_000, seed=3)
+    assert perfect.qber < 0.01 and perfect.estimate["rate"] > 0
+    assert "R " in res.summary() and "bit/pulse" in res.summary()
+
+
+def test_bb84_parties_agree_on_a_key():
+    from phoq.parties import Experiment
+
+    bb84 = load_protocol(EXAMPLES / "bb84")
+    setup = bb84.build(pulses=100_000, eve=False)
+    alice, bob = Experiment(setup, bb84.PARTIES, seed=8).run(blocks=3, echo=False)
+    assert [w.name for w in (alice, bob)] == ["ALICE", "BOB"] and bob.batches == 3
+    for w in (alice, bob):
+        assert not any("Traceback" in l for l in w.lines)
+        assert w.result["pulses"] == 300_000 and w.result["key bits"] > 600
+        assert w.result["QBER Z (μ, sampled)"] < 0.08 and w.result["QBER X (μ)"] < 0.05
+        assert w.result["e1 ≤"] < 0.15 and w.result["key rate [bit/pulse]"] > 0
+    assert alice.result == {
+        k: v for k, v in bob.result.items() if k not in ("sent [kB]", "received [kB]")
+    } | {
+        "sent [kB]": alice.result["sent [kB]"],
+        "received [kB]": alice.result["received [kB]"],
+    }
+    assert (
+        bob.net["sent"] == 6 and alice.net["sent"] == 3
+    )  # detect + errors per block; sift
+
+
+def test_bb84_intercept_resend_kills_the_key(monkeypatch):
+    from phoq.parties import Experiment
+
+    bb84 = load_protocol(EXAMPLES / "bb84")
+    (eve,) = load_parties(EXAMPLES / "bb84" / "eve.py")
+    assert eve.name == "EVE" and eve.stage == 1 and eve.fraction == 1.0
+    setup = bb84.build(
+        pulses=100_000
+    )  # an Eve party is loaded: build() adds her station
+    assert "EVE-SW" in setup and "EVE-TAGGER" in setup
+    alice, bob, w_eve = Experiment(setup, [*bb84.PARTIES, eve], seed=8).run(
+        blocks=3, echo=False
+    )
+    assert w_eve.batches == 3 and w_eve.result["intercepted"] == 1.0
+    assert not any("Traceback" in l for w in (alice, bob, w_eve) for l in w.lines)
+    for w in (alice, bob):
+        assert w.result["pulses"] == 300_000 and w.result["sifted"] > 300
+        assert (
+            0.18 < w.result["QBER X (μ)"] < 0.38
+        )  # intercept-resend: 25 % in the wrong basis
+        assert w.result["e1 ≤"] > 0.2 and w.result["key rate [bit/pulse]"] == 0.0
+    assert alice.result["key bits"] == bob.result["key bits"]
 
 
 # ---- persistence ----------------------------------------------------------------------------------

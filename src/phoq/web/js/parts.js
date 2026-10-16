@@ -564,6 +564,7 @@ const LABELS = {
   Isolator: () => ({ lines: ['→'], accent: '#94a3b8' }),
   PhaseModulator: (c) => ({ lines: [`Vπ ${c.params.v_pi} V · ${driveText(c, 'rf')}`, driveText(c, 'bias')], accent: '#f472b6' }),
   IntensityModulator: (c) => ({ lines: [`Vπ ${c.params.v_pi} V · ${driveText(c, 'rf')}`, driveText(c, 'bias')], accent: '#fbbf24' }),
+  OpticalSwitch: (c) => ({ lines: ['2×2 switch · a1 a2 ⇄ b1 b2', `ctrl ${driveText(c, 'ctrl').replace('ctrl ', '')}`], accent: '#38bdf8' }),
   FunctionGenerator: () => ({ lines: ['2-ch AWG'], accent: '#a78bfa' }),
   DCPowerSupply: () => ({ lines: ['2 outputs'], accent: '#f87171' }),
   FiberSpool: (c) => ({ lines: [`${(c.params.length / 1e3).toPrecision(3)} km SMF-28`, `delay ${fmtSI(c.params.length * 4.897e-9, 's')}`], accent: '#facc15' }),
