@@ -3,12 +3,17 @@
 [![CI](https://github.com/ammar-faifi/phoq/actions/workflows/ci.yml/badge.svg)](https://github.com/ammar-faifi/phoq/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/phoq.svg)](https://pypi.org/project/phoq/)
 
-**phoq** is a headless photonics and quantum-communication lab for Python. Build fiber-optic
-experiments from parts — lasers, modulators, couplers, attenuators, photodiodes, single-photon
+**phoq** (photon + q, it sounds like Fock) is a quantum optics and quantum-communication lab for Python. Build fiber-optic experiments from parts — lasers, modulators, couplers, attenuators, photodiodes, single-photon
 detectors, function generators, time taggers, oscilloscopes — run them, post-process the clicks
 with your own scripts, and run multi-party protocols such as QKD with every party in its own
 process talking over real sockets. A 3D virtual lab in the browser shows the same Python objects
 live and lets you edit them.
+
+![The phoq virtual lab running the MP-QKD example: Alice's and Bob's transmitters, Charlie's coupler and detectors, the instrument shelf, and one laptop per party wired to a switch](https://raw.githubusercontent.com/ammar-faifi/phoq/main/docs/images/virtual-lab.webp)
+
+*`phoq serve --protocol mpqkd`: Alice and Bob's transmitters, Charlie's coupler and single-photon
+detectors, the generators on the shelf, and a laptop per party on the classical network. The
+inspector shows the selected detector's parameters and the live click statistics computed in Python.*
 
 ## Install
 
@@ -113,6 +118,12 @@ the laser feeding it, as a calibrated AWG would. Use *laser* to set `chN_delay` 
 channel to look at the drive. Patterns are data, not parameters: they are not saved in the JSON
 setup and have to be loaded by code.
 
+![The modulated-link example: a 10 MHz sine from the function generator modulates the laser through the intensity modulator, and the oscilloscope shows the photocurrent next to the drive](https://raw.githubusercontent.com/ammar-faifi/phoq/main/docs/images/oscilloscope.webp)
+
+*`examples/modulated_link.py`: the DC supply holds the intensity modulator at quadrature, the
+generator's CH1 drives it with a 10 MHz sine, and the scope shows the photocurrent (CH1, yellow)
+next to a copy of the drive (CH2, cyan) with its measurements.*
+
 ## Post-processing clicks with your own script
 
 Write the analysis in a file of its own, decorate a function, and point the lab at it. Every
@@ -213,6 +224,11 @@ that defines a `Party` subclass (an eavesdropper on the switch, for instance). I
 every party gets a laptop on the table showing its console, read-outs and TCP port, wired with
 an Ethernet cable to a (purely visual) layer-3 switch whose port LEDs blink with the traffic;
 clicking a laptop opens its console.
+
+![Laptops for Alice, Charlie and Bob on the optical table, with Alice's console open showing block-by-block pairing, sifting and key growth, and her classical-channel traffic](https://raw.githubusercontent.com/ammar-faifi/phoq/main/docs/images/laptops.webp)
+
+*Alice's console: each block's pulses, pairs and sifted Z/X bits with their error rates, the key
+growing, and the messages exchanged with Charlie and Bob over the classical channel.*
 
 ## Physics model
 
@@ -451,6 +467,7 @@ examples/            setups, analysis scripts and the MP-QKD showcase
 examples/mpqkd/      Alice, Bob, Charlie (+ station/common), the original single-process
                      reference.py with its [CLASSICAL #N] notes, and a marimo notebook
 tests/               pytest suite
+docs/images/         README screenshots of the virtual lab
 .github/workflows/   ci.yml (tests on push / PR), publish.yml (PyPI on a version tag)
 ```
 
