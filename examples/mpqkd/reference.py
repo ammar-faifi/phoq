@@ -8,7 +8,9 @@ Implements Box 1 (without decoy states) and Box 2 (simple pairing strategy):
   4. Alice & Bob pair clicked rounds (max interval l), sift bases, map keys
   5. Report pairing rate (vs. Eq. 4), Z-basis QBER, X-basis error rate, raw key
 
-No decoy states => no estimate of q_(1,1) or e^X_(1,1), so no secure key rate.
+No decoy states => no estimate of q_(1,1) or e^X_(1,1), so no secure key rate here. The party
+version of the showcase (alice.py / bob.py / station.py) adds the decoy intensity ν, error
+correction, verification and privacy amplification: see keyrate.py and postprocess.py.
 """
 
 from dataclasses import dataclass
@@ -255,8 +257,12 @@ def run(
         #   announcing everything; such announced bits would then be discarded from the key.
         ez = np.mean(res["ka_z"] != res["kb_z"]) if res["n_z"] else np.nan
         ex = np.mean(res["ka_x"] != res["kb_x"]) if res["n_x"] else np.nan
-        # [NOT IMPLEMENTED, CLASSICAL #6] Error correction (leaks ~ f*H(E_Z) bits per Z bit)
-        #   and privacy amplification (shared hash seed) would both use the public channel.
+        # [CLASSICAL #6] Error correction (leaks ~ f*H(E_Z) bits per Z bit) and privacy
+        #   amplification (shared hash seed) both use the public channel. Not done in this
+        #   single-process reference; the parties in station.py run Cascade on chunks of sifted
+        #   bits (ec-start / ec-query / ec-parity / ec-done), verify with a universal-hash tag
+        #   (verified) and hash with a Toeplitz matrix sized by the MP-QKD key-rate formula (pa);
+        #   keyrate.py has the decoy bounds and postprocess.py the primitives.
         raw = res["n_z"] / p.N
         rows.append((l, rp_sim, rp_th, res["n_z"], ez, res["n_x"], ex, raw))
         print(

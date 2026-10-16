@@ -641,22 +641,159 @@ def test_mpqkd_parties_agree_on_a_key():
     from phoq.parties import Experiment
 
     mpqkd = load_protocol(EXAMPLES / "mpqkd")
-    setup = mpqkd.build(rounds=100_000)
-    workers = Experiment(setup, mpqkd.PARTIES, seed=8).run(blocks=2, echo=False)
+    setup = mpqkd.build(
+        mpqkd.MPQKDParams(distance=10e3), rounds=200_000
+    )  # short link: a chunk fills fast
+    workers = Experiment(setup, mpqkd.PARTIES, seed=8).run(blocks=6, echo=False)
     alice, charlie, bob = workers
-    assert [w.name for w in workers] == ["ALICE", "CHARLIE", "BOB"] and all(
-        w.batches == 2 for w in (charlie,)
-    )
+    assert [w.name for w in workers] == [
+        "ALICE",
+        "CHARLIE",
+        "BOB",
+    ] and charlie.batches == 6
     for w in (alice, bob):
-        assert (
-            w.result["blocks"] == 2 and w.result["key bits"] > 120
-        )  # ≈ 100 Z bits per 100 000 rounds
-        assert w.result["E_Z (disclosed)"] == 0.0 and 0.15 < w.result["E_X"] < 0.35
+        assert w.result["blocks"] == 6 and w.result["sifted bits"] > 1000
+        assert w.result["E_Z (sample)"] < 0.01 and 0.1 < w.result["E_X (μμ)"] < 0.4
         assert not any("Traceback" in l for l in w.lines)
-    assert alice.result["key bits"] == bob.result["key bits"]
+    a, b = alice.result, bob.result
+    # [#6] a chunk was reconciled, verified and amplified, identically on both sides
+    assert a["corrected bits"] == b["corrected bits"] >= 1000
     assert (
-        charlie.net["sent"] == 4 and alice.net["recv"] >= 2 + 2 * 4
-    )  # 2 announcements + basis/theta/xbits/sample per block
+        a["final key bits"] == b["final key bits"] > 0 and a["key rate [bit/pulse]"] > 0
+    )
+    assert a["final key sha256"] == b["final key sha256"]
+    keys = {
+        w.name: [l.split("key ")[-1] for l in w.lines if "final bits · key " in l]
+        for w in (alice, bob)
+    }
+    assert (
+        keys["ALICE"] and keys["ALICE"] == keys["BOB"]
+    )  # the consoles print the same key
+    # leak accounting: every disclosed parity and tag bit is counted, the same on both sides
+    assert a["leak EC [bits]"] == b["leak EC [bits]"] > 0
+    chunks = sum(
+        "bits reconciled" in l for l in bob.lines
+    )  # chunking depends on message timing; a failed tag discards a chunk
+    assert (
+        chunks >= 1
+        and a["leak verify [bits]"] == b["leak verify [bits]"] == 32 * chunks
+    )
+    import re
+
+    sized, leaked = (
+        0,
+        0,
+    )  # every PA step: floor(n × secret fraction − leaked bits) = final bits
+    for l in alice.lines:
+        m = re.search(
+            r"PA: ([\d,]+) corrected bits × secret fraction ([\d.]+) .* − (\d+) leaked → (\d+) final",
+            l,
+        )
+        if m:
+            n, frac, leak, final = (
+                int(m[1].replace(",", "")),
+                float(m[2]),
+                int(m[3]),
+                int(m[4]),
+            )
+            assert abs(final - (n * frac - leak)) <= 1 + 0.0005 * n
+            sized, leaked = sized + final, leaked + leak
+    assert (
+        sized == a["final key bits"]
+        and leaked <= a["leak EC [bits]"] + a["leak verify [bits]"]
+    )
+    assert any("tag matches" in l for l in bob.lines)
+    assert (
+        charlie.net["sent"] == 2 * 6 and alice.net["recv"] >= 6 + 4 * 6 + 3
+    )  # clicks + 4 per block + ec/pa
+
+
+def test_cascade_reconciles_and_both_sides_count_the_same_leak():
+    mpqkd = load_protocol(EXAMPLES / "mpqkd")
+    from phoq.loading import import_source  # noqa: F401
+
+    h = lambda x: -x * math.log2(x) - (1 - x) * math.log2(1 - x)
+    rng = np.random.default_rng(5)
+    for n, q in ((2000, 0.0), (2000, 0.02), (300, 0.08), (1, 0.0)):
+        a = rng.integers(0, 2, n, dtype=np.uint8)
+        b = a.copy()
+        flips = rng.random(n) < q
+        b[flips] ^= 1
+        corrected, ref, cor = mpqkd.cascade_in_process(a, b, seed=3, qber=max(q, 1e-3))
+        assert np.array_equal(corrected, a) and len(cor.corrected) == int(flips.sum())
+        assert (
+            ref.leak == cor.leak > 0
+        )  # Alice counts what she sent, Bob what he received
+        if flips.any():
+            assert (
+                1.0 <= ref.leak / (n * h(flips.mean())) <= 2.5
+            )  # Cascade's usual efficiency
+            assert mpqkd.verification_tag(b, 9, 32) != mpqkd.verification_tag(a, 9, 32)
+        assert mpqkd.verification_tag(corrected, 9, 32) == mpqkd.verification_tag(
+            a, 9, 32
+        )
+
+
+def test_toeplitz_hash_is_the_matrix_product_and_linear():
+    mpqkd = load_protocol(EXAMPLES / "mpqkd")
+    n, m, seed = 23, 7, 11
+    r = np.random.default_rng(seed).integers(0, 2, n + m - 1, dtype=np.uint8)
+    T = np.array([[r[i - j + n - 1] for j in range(n)] for i in range(m)])
+    rng = np.random.default_rng(2)
+    x, y = rng.integers(0, 2, n, dtype=np.uint8), rng.integers(0, 2, n, dtype=np.uint8)
+    assert np.array_equal(mpqkd.toeplitz_hash(x, seed, m), (T @ x) % 2)
+    assert np.array_equal(
+        mpqkd.toeplitz_hash(x ^ y, seed, m),
+        mpqkd.toeplitz_hash(x, seed, m) ^ mpqkd.toeplitz_hash(y, seed, m),
+    )
+    big = rng.integers(0, 2, 20_000, dtype=np.uint8)
+    assert mpqkd.toeplitz_hash(big, seed, 5_000).size == 5_000  # FFT path stays exact
+    assert np.array_equal(
+        mpqkd.toeplitz_hash(big[:300], seed, 40),
+        (
+            np.array(
+                [
+                    [
+                        np.random.default_rng(seed).integers(0, 2, 339, dtype=np.uint8)[
+                            i - j + 299
+                        ]
+                        for j in range(300)
+                    ]
+                    for i in range(40)
+                ]
+            )
+            @ big[:300]
+        )
+        % 2,
+    )
+
+
+def test_mpqkd_keyrate_estimate_reproduces_the_theory():
+    mpqkd = load_protocol(EXAMPLES / "mpqkd")
+    p = mpqkd.MPQKDParams()
+    setup = mpqkd.build(p)
+    eta = mpqkd.arm_transmittance(setup, "ALICE", p)
+    th = mpqkd.theory(p, eta)
+    assert (
+        0 < th.rate_bounds < th.rate and 0 < th.q11_lower < th.q11 < 1 and th.e11 < 0.01
+    )
+    assert 0.2 < th.e_x < 0.3  # weak coherent X pairs: 1/4 plus the phase walk
+    est = mpqkd.estimate(
+        mpqkd.expected_counts(p, eta), p
+    )  # the stations' estimator on expectation values
+    assert est.q11_lower == pytest.approx(th.q11_lower, rel=1e-4)
+    assert est.e11_model == pytest.approx(
+        th.e11, rel=0.01
+    ) and est.eta_fit == pytest.approx(eta, rel=1e-4)
+    assert est.e_x_model == pytest.approx(th.e_x, rel=1e-3)
+    assert math.isnan(
+        est.e11_decoy
+    )  # the X-type yield bound does not close at 2ν, 2μ (see keyrate.py)
+
+    assert (
+        mpqkd.final_length(1000, est, 30, 32)
+        == math.floor(1000 * est.secret_fraction) - 62
+    )
 
 
 def test_relay_stage_re_encodes_within_the_block(tmp_path):

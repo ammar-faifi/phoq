@@ -12,7 +12,9 @@ Parties, each in its own file and its own process, talking over an authenticated
 (TCP sockets, see :mod:`phoq.parties`):
 
 * :class:`Alice` / :class:`Bob` (:mod:`.station`) program their own AWG with random intensities
-  and phases, then pair, sift and estimate errors from Charlie's announcements.
+  and phases, then pair, sift and estimate errors from Charlie's announcements, reconcile the
+  sifted key (Cascade), verify it and distil the secret key (Toeplitz hashing sized by the
+  MP-QKD key-rate formula, :mod:`.keyrate`).
 * :class:`Charlie` (:mod:`.charlie`) reads the time tagger and announces each round's outcome.
 
 ``PARTIES`` and ``build()`` make this a protocol package: ``phoq serve --protocol mpqkd``.
@@ -31,20 +33,43 @@ from .alice import Alice
 from .bob import Bob
 from .charlie import Charlie
 from .common import (
+    B_MIXED,
     B_X,
     B_Z,
     B_ZERO,
     DET_L,
     DET_R,
+    L0,
+    LMU,
+    LNU,
     STATIONS,
     MPQKDParams,
     Topic,
     assign_basis,
     build,
     calibrate_mu,
+    draw_levels,
     pairing_rate_theory,
     sift_and_map,
     simple_pairing,
+    transmissions,
+)
+from .keyrate import (
+    Counts,
+    Estimate,
+    Theory,
+    arm_transmittance,
+    estimate,
+    expected_counts,
+    final_length,
+    theory,
+)
+from .postprocess import (
+    CascadeCorrector,
+    CascadeReference,
+    cascade_in_process,
+    toeplitz_hash,
+    verification_tag,
 )
 
 PARTIES = [Alice, Charlie, Bob]  # left to right on the lab table
@@ -62,6 +87,10 @@ __all__ = [
     "B_ZERO",
     "B_Z",
     "B_X",
+    "B_MIXED",
+    "L0",
+    "LNU",
+    "LMU",
     "DET_L",
     "DET_R",
     "build",
@@ -71,25 +100,41 @@ __all__ = [
     "simple_pairing",
     "pairing_rate_theory",
     "assign_basis",
+    "draw_levels",
+    "transmissions",
     "sift_and_map",
     "params",
+    "Counts",
+    "Estimate",
+    "Theory",
+    "arm_transmittance",
+    "estimate",
+    "expected_counts",
+    "final_length",
+    "theory",
+    "CascadeReference",
+    "CascadeCorrector",
+    "cascade_in_process",
+    "toeplitz_hash",
+    "verification_tag",
 ]
 
 
 def prepare(
     setup: Setup, p: MPQKDParams, rounds: int, rng: np.random.Generator
 ) -> dict[str, tuple[np.ndarray, np.ndarray]]:
-    """God's-eye state preparation: random intensities and phases loaded into both AWGs at once."""
+    """God's-eye state preparation: random intensity levels (vacuum / ν / μ) and phases loaded
+    into both AWGs at once."""
     states = {}
     for tag in STATIONS:
-        bright = rng.random(rounds) < p.p_mu
+        level = draw_levels(rng, rounds, p)
         k = rng.integers(0, p.D, size=rounds)
         laser, im, pm, awg = (setup[f"{tag}-{x}"] for x in ("LD", "IM", "PM", "AWG"))
         awg.set_pattern(
-            "ch1", im.voltage_for(np.where(bright, 1.0, 0.0)), rate=laser.rep_rate
+            "ch1", im.voltage_for(transmissions(p)[level]), rate=laser.rep_rate
         )
         awg.set_pattern("ch2", pm.voltage_for(2 * np.pi * k / p.D), rate=laser.rep_rate)
-        states[tag] = (bright.astype(int), k)
+        states[tag] = (level, k)
     return states
 
 
@@ -136,13 +181,13 @@ def run(
     C = left ^ right
     detector = np.where(left, DET_L, DET_R)
     click_idx = np.flatnonzero(C)
-    (int_a, ph_a), (int_b, ph_b) = states["ALICE"], states["BOB"]
+    (lev_a, ph_a), (lev_b, ph_b) = states["ALICE"], states["BOB"]
     res = MPQKDResult(
         p, rounds, int(click_idx.size), int(np.count_nonzero(left & right))
     )
     for l in l_values:
         F, R = simple_pairing(click_idx, l)
-        s = sift_and_map(F, R, int_a, ph_a, int_b, ph_b, detector, p.D)
+        s = sift_and_map(F, R, lev_a, ph_a, lev_b, ph_b, detector, p.D)
         ez = float(np.mean(s["ka_z"] != s["kb_z"])) if s["n_z"] else float("nan")
         ex = float(np.mean(s["ka_x"] != s["kb_x"])) if s["n_x"] else float("nan")
         res.rows.append(

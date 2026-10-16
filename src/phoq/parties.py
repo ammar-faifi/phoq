@@ -675,6 +675,26 @@ class Experiment:
     def echo(self, stream=None) -> None:
         echo_lines(self.workers, stream)
 
+    def wait_quiet(self, quiet: float = 0.75, timeout: float = 30.0) -> bool:
+        """Block until no party has sent or received anything for ``quiet`` seconds (a dialogue such
+        as error correction keeps going after the last block); False if ``timeout`` ran out first.
+        """
+        end = time.monotonic() + timeout
+        last, since = None, time.monotonic()
+        while time.monotonic() < end:
+            snap = tuple(
+                ((w.net or {}).get("sent", 0), (w.net or {}).get("recv", 0))
+                for w in self.party_workers
+                if w.alive
+            )
+            now = time.monotonic()
+            if snap != last:
+                last, since = snap, now
+            elif now - since >= quiet:
+                return True
+            time.sleep(0.05)
+        return False
+
     def run(
         self, blocks: int = 10, echo: bool = True, timeout: float = 120.0
     ) -> list[ProcessWorker]:
@@ -691,7 +711,9 @@ class Experiment:
                     break
             for w in self.workers:
                 w.wait_idle(timeout)
-            time.sleep(1.0)  # last classical messages in flight
+            self.wait_quiet(
+                timeout=min(timeout, 30.0)
+            )  # the parties' last classical messages
             if echo:
                 self.echo()
         finally:

@@ -208,15 +208,43 @@ hardware, the pairing/sifting maths), `station.py` (what Alice and Bob share), `
 | --- | --- | --- |
 | #1 announce C_i and L/R | `clicks` (single-click rounds, detector, block) | Charlie → all |
 | #2 pairing with public l | no message: both stations run the same `simple_pairing` on #1 | — |
-| #3 basis announcement | `basis` (one label per pair; never the intensities) | Alice ↔ Bob |
-| #4 alignment angle | `theta` (per X pair) | Alice ↔ Bob |
-| #5 parameter estimation | `xbits` (all X bits, for E_X); `sample` / `sample-reply` (a 10 % sample of Z bits, dropped from the key, for E_Z) | Alice ↔ Bob |
-| #6 error correction, privacy amplification | not implemented | — |
+| #3 basis announcement | `basis` (one label per pair and how bright it was — vacuum, ν or μ — never which pulse) | Alice ↔ Bob |
+| #4 alignment angle | `theta` (per pair) | Alice ↔ Bob |
+| #5 parameter estimation | `xbits` (all sifted X bits, for E_X); `sample` / `sample-reply` (a 10 % sample of the key bits, dropped from the key, for E_Z) | Alice ↔ Bob |
+| #6 error correction, verification | `ec-start` / `ec-query` / `ec-parity` / `ec-done`: Cascade on chunks of 1 000 sifted bits, every parity Alice discloses counted as leaked; `verified`: a 32-bit universal-hash tag of Bob's corrected chunk matched Alice's | Alice ↔ Bob |
+| #6 privacy amplification | `pa`: Toeplitz seed and output length — corrected bits × q₁₁ [1 − h(e₁₁)] minus the leaked bits, from the MP-QKD key-rate formula (`keyrate.py`) | Alice → Bob |
+
+Each station's console shows every block's pairs and sifted bits, each chunk's Cascade run
+(errors corrected, parities leaked, tag check) and every privacy-amplification step with the
+final key in hex — the same hex on both laptops. The read-outs give sifted, corrected and final
+key bits, the key rate per pulse, the leak, q₁₁, e₁₁, E_Z, E_X and the key's fingerprint.
+
+**How the key is sized.** The paper's rate is `R = r_p r_s {q₁₁ [1 − h(e₁₁ˣ)] − f h(E_Z)}`. Pulses
+take one of three intensities (vacuum, decoy ν, signal μ); the key comes from Z pairs whose
+bright pulses were μ, every other pair class only feeds the decoy statistics. Both stations tally
+the public class of every pair (basis, intensity level, θ match), so they compute the same
+numbers: q₁₁ from the vacuum + weak decoy lower bound on the single-photon-pair yield of the Z-type
+classes (Appendix C of the paper, the standard MDI two-decoy formula), and e₁₁ˣ — by default —
+from the honest-channel model (laser linewidths and detuning read from the stations' own lasers,
+dark counts, the observed pairing intervals; Eq. (D15)), checked against the measured E_X of the
+signal X pairs. The rigorous decoy bound on e₁₁ˣ is also computed and shown as *unresolved*: it
+is a small difference of X-basis error gains of the weakest decoy class and needs ~10⁹–10¹²
+pulses (what experiments collect, and why the paper's curves are asymptotic; a 20-block run has
+4 × 10⁶), and at this showcase's X intensities (2ν = 0.2, 2μ = 0.8 per pair) the two-intensity
+bound on the X single-photon-pair yield does not close even asymptotically — the paper's own
+simulation takes e₁₁ˣ from the model too (its Eq. D15). `MPQKDParams(estimator="decoy")` sizes
+with the rigorous bound instead and then distils no key here. All sizing is asymptotic; a
+simplified finite-key length (Chernoff/Hoeffding terms, ε = 10⁻¹⁰) is reported next to it,
+clearly labelled, and is zero at this scale.
 
 Run it with the three parties as processes, headless or live:
 
 ```bash
 phoq run --protocol mpqkd --blocks 20
+```
+
+```bash
+uv run python examples/mpqkd/sweep.py --plot sweep.png     # key rate vs fiber length, against the theory curve
 ```
 
 ```bash
@@ -239,7 +267,8 @@ absorbs. `examples/bb84/eve.py` is one.
 ![Laptops for Alice, Charlie and Bob on the optical table, with Alice's console open showing block-by-block pairing, sifting and key growth, and her classical-channel traffic](https://raw.githubusercontent.com/ammar-faifi/phoq/main/docs/images/laptops.webp)
 
 *Alice's console: each block's pulses, pairs and sifted Z/X bits with their error rates, the key
-growing, and the messages exchanged with Charlie and Bob over the classical channel.*
+growing, and the messages exchanged with Charlie and Bob over the classical channel (screenshot
+from before error correction and privacy amplification were added).*
 
 ## Physics model
 
@@ -412,10 +441,13 @@ The models above were compared with three references (October 2026):
 ## Quantum protocols
 
 `examples/mpqkd` builds the MP-QKD hardware: two lasers → intensity and phase
-modulators (each station's AWG drives them) → VOAs calibrated to μ → fiber spools → Charlie's
-coupler → two SPDs → time tagger.
-It then runs the protocol (Charlie's announcement, simple pairing, sifting, key mapping)
-on the simulated clicks:
+modulators (each station's AWG drives them with vacuum / ν / μ and one of D phases) → VOAs
+calibrated to μ → fiber spools → Charlie's coupler → two SPDs → time tagger. The parties
+(`alice.py`, `bob.py`, `charlie.py`) run the whole protocol on the simulated clicks — pairing,
+sifting, parameter estimation, Cascade, verification and Toeplitz privacy amplification sized by
+the MP-QKD key-rate formula (`keyrate.py`, `postprocess.py`) — and `sweep.py` plots the key rate
+against fiber length next to the paper's theory curve. The single-process reference `run()`
+stops after sifting:
 
 ```python
 from phoq.loading import import_source
