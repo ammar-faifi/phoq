@@ -8,7 +8,7 @@ from runpy import run_path
 import numpy as np
 import pytest
 
-from phoq import FunctionGenerator, Laser, Photodiode, Setup, SpectrumAnalyzer
+from phoq import FunctionGenerator, Laser, Photodiode, Runner, Setup, SpectrumAnalyzer, SpectrumResult
 from phoq.engine import trace
 from phoq.units import Q_E
 
@@ -104,19 +104,19 @@ def test_the_lab_streams_and_clears_spectra():
 
 def test_delayed_self_homodyne_measures_the_linewidth():
     ex = run_path(str(EXAMPLES / "linewidth_homodyne.py"))
-    r, fit, w3, w20 = ex["measure"](ex["build"](averages=1000))
+    r, fit, w3, w20 = ex["measure"](ex["build"](linewidth=100e3, averages=1000))
     assert fit == pytest.approx(100e3, rel=0.03)  # the fit uses the whole trace
     # single crossings on a noise-like trace scatter more: the flat top hurts the −3 dB point most
     assert w3 == pytest.approx(100e3, rel=0.12) and w20 == pytest.approx(100e3, rel=0.06)
     # the beat's absolute level: 4 R² P1 P2 / (π Δν) · R_in · RBW at f ≪ Δν
-    setup = ex["build"]()
+    setup = ex["build"](linewidth=100e3)
     pd = setup["PD-1"]
     net = trace(setup)
     p1, p2 = (abs(p.amp) ** 2 * setup["LD-1"].power for p in net.paths[pd])
     peak = 4 * pd.responsivity(1550e-9) ** 2 * p1 * p2 / (math.pi * 100e3) * 50 * r.rbw
     assert r.peak[1] == pytest.approx(10 * math.log10(peak / 1e-3), abs=0.5)
     # a delay shorter than the coherence time overestimates: the sinc² of the delay takes over
-    short = ex["measure"](ex["build"](spool_m=300.0, averages=300))[2]
+    short = ex["measure"](ex["build"](linewidth=100e3, spool_m=300.0, averages=300))[2]
     assert short > 2 * 100e3
 
 
@@ -178,3 +178,51 @@ def test_two_laser_heterodyne_width_is_the_sum_of_the_linewidths(nu_t, nu_r):
     fit = sweep(esa, s, seed=5).fit_lorentzian(center=None)
     assert fit["center"] == pytest.approx(1.5e6, abs=10e3)
     assert 2 * fit["hwhm"] == pytest.approx(nu_t + nu_r, rel=0.05)
+
+
+# ---- narrow lines: the short-delay fit (examples/linewidth_narrow.py) ----------------------------
+def narrow():
+    return run_path(str(EXAMPLES / "linewidth_narrow.py"))
+
+
+@pytest.mark.parametrize("spool_km", [100, 500])
+def test_short_delay_fit_measures_a_100_hz_laser(spool_km):
+    ex = narrow()
+    m = ex["measure"](ex["build"](100.0, spool_km, averages=300))
+    assert m["tau_d"] * math.pi * 100 < 1  # shorter than the coherence time
+    assert m["fit"] == pytest.approx(100.0, rel=0.04)
+    assert not m["lorentzian"] == pytest.approx(100.0, rel=0.2)  # the long-delay fit does not apply
+    assert not m["one_phase"] == pytest.approx(100.0, rel=0.2)  # one bias phase is biased
+
+
+def test_long_delay_fits_agree_for_1_khz():
+    ex = narrow()
+    m = ex["measure"](ex["build"](1e3, 400, averages=500))
+    assert m["fringe_depth"] < 1e-4
+    assert m["fit"] == pytest.approx(1e3, rel=0.04) and m["lorentzian"] == pytest.approx(m["fit"], rel=0.01)
+
+
+def test_spectrum_average_and_its_guards():
+    s, a = tone(rbw=10e3)
+    net, rng = trace(s), np.random.default_rng(3)
+    r1, r2 = a.acquire(net, rng), a.acquire(net, rng)
+    avg = SpectrumResult.average([r1, r2])
+    assert avg.averages == r1.averages + r2.averages and avg.sweeps == 2
+    assert np.allclose(avg.bin_power, (r1.bin_power + r2.bin_power) / 2)
+    assert avg.peak[1] == pytest.approx(r1.peak[1], abs=0.1)
+    a.rbw = 20e3
+    with pytest.raises(ValueError, match="different analyzer settings"):
+        SpectrumResult.average([r1, a.acquire(net, rng)])
+    with pytest.raises(ValueError):
+        SpectrumResult.average([])
+    with pytest.raises(ValueError, match="positive"):
+        r1.fit_self_homodyne(0.0)
+
+
+def test_average_spectrum_restores_the_stepped_parameter():
+    ex = narrow()
+    setup = ex["build"](100.0, 500, averages=20)
+    ps = setup["PS-1"]
+    ps.phase = 0.3
+    r = Runner(setup, seed=1).average_spectrum("ESA-1", ps, "phase", [0.0, math.pi / 2])
+    assert ps.phase == 0.3 and r.sweeps == 2 and r.averages == 40

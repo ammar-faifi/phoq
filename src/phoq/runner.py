@@ -98,3 +98,30 @@ class Runner:
         finally:
             setattr(comp, param, original)
         return Sweep(comp.name, param, np.asarray(values), np.asarray(out, dtype=float))
+
+    def average_spectrum(
+        self,
+        analyzer: Component | str,
+        component: Component | str,
+        param: str,
+        values: Iterable,
+    ):
+        """Acquire ``analyzer`` once per value of ``component.param`` and power-average the
+        spectra (:meth:`~phoq.SpectrumResult.average`); the parameter is restored afterwards.
+
+        For a delayed self-homodyne, step a phase shifter in one arm over the bias phase:
+        ``runner.average_spectrum(esa, ps, "phase", [0, math.pi / 2])``. The θ-dependent part of
+        the beat varies as cos 2θ and sin 2θ, so two settings a quarter wave apart cancel it.
+        """
+        from .instruments import SpectrumResult
+
+        comp = self.setup[component] if isinstance(component, str) else component
+        original = getattr(comp, param)
+        results = []
+        try:
+            for v in values:
+                setattr(comp, param, v)
+                results.append(self.acquire(analyzer))
+        finally:
+            setattr(comp, param, original)
+        return SpectrumResult.average(results)

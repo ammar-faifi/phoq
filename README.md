@@ -74,7 +74,7 @@ Units are SI throughout: metres, seconds, hertz and watts. Powers use `power_dbm
 | Passive | `Attenuator`, `BeamSplitter` (alias `Coupler`), `PhaseShifter`, `Isolator`, `MatingSleeve` (FC–FC adapter joining two cords) |
 | Modulators | `PhaseModulator` (φ = π·V/Vπ), `IntensityModulator` (Mach–Zehnder, extinction) — voltage comes only through their `rf` and `bias` inputs; `OpticalSwitch` (2×2, bar below the threshold voltage on `ctrl`, cross above: a pattern routes pulse by pulse) |
 | Detectors | `Photodiode`, `SinglePhotonDetector`, `PowerMeter` |
-| Instruments | `Oscilloscope`, `SpectrumAnalyzer` (RF spectrum in dBm: RBW, averaging, detectors, trace average and max hold, Lorentzian fit), `PhotonCounter`, `FunctionGenerator` (2 outputs: dc / sine / square / triangle / ramp / loaded pattern), `DCPowerSupply` (2 outputs, ±30 V) |
+| Instruments | `Oscilloscope`, `SpectrumAnalyzer` (RF spectrum in dBm: RBW, averaging, detectors, trace average and max hold, Lorentzian and short-delay linewidth fits), `PhotonCounter`, `FunctionGenerator` (2 outputs: dc / sine / square / triangle / ramp / loaded pattern), `DCPowerSupply` (2 outputs, ±30 V) |
 
 Run `phoq catalog` for every port and parameter.
 
@@ -644,6 +644,9 @@ span:
    signals cover little of the span), the −3 dB width around the peak, the frequency where the
    trace has fallen by $N$ dB, the power integrated over the span, and, when the peak sits at the
    start of the span as a self-homodyne beat does, a Lorentzian fit (`fit_lorentzian()`).
+   `fit_self_homodyne(tau_d)` fits the self-homodyne spectrum for any delay, below. Several
+   sweeps combine with `SpectrumResult.average(results)`, and `Runner.average_spectrum(esa,
+   component, param, values)` steps a parameter (a phase shifter) and averages the sweeps.
 
 The cost of a sweep is about $3.84\,f_\mathrm{stop}/\mathrm{RBW}\times(K+1)/2$ samples (×4 before
 decimation), so a narrow RBW over a wide span is slow, as on a real analyzer.
@@ -757,6 +760,49 @@ trace; and a delay shorter than about two coherence times reports the delay's si
 laser (0.3 km: the −3 dB point sits at $0.443/\tau_d$ = 301 kHz). `phoq serve
 examples/linewidth_homodyne.py` shows the same bench live: the analyzer's trace keeps averaging,
 the window marks the −3 dB point and reports the Lorentzian half width.
+
+**Narrow lines: 1 kHz and 100 Hz.** Five coherence times are 1.6 ms of delay for 1 kHz, 330 km of
+fiber: one spool, and the Lorentzian fit works. For 100 Hz they are 16 ms, 3,300 km and over 600 dB
+of loss, beyond any spool (500 km at most here, and the tracer drops paths below −180 dB) and any
+bench without amplifiers. The way out is a delay shorter than the coherence time and a fit of the
+expression above with the known delay, `fit_self_homodyne(tau_d)` (the review's coherent-envelope
+methods, §4.2, rest on the same Eqs. (28)–(31)). Two conditions make it work:
+
+- **Average over the bias phase.** The expression is the average over $\theta$, and phoq's fiber
+  phase does not drift as a bench's does. The θ-dependent part varies as $\cos 2\theta$ and
+  $\sin 2\theta$, so spectra taken at θ and θ + π/2 (a `PhaseShifter` in the short arm,
+  `Runner.average_spectrum`) cancel it. One phase alone is biased either way, by tens of per cent.
+- **Show several fringes.** For $\tau_d \ll \tau_c$ the linewidth only sets the fringe depth
+  $e^{-2\pi\Delta\nu\tau_d}$, so the span must cover several periods $1/\tau_d$.
+
+`examples/linewidth_narrow.py` measures both lasers. The short arm is left unattenuated: over
+hundreds of km a balanced pair would sit below the analyzer's floor, while the beat scales as
+$\sqrt{P_\mathrm{short}P_\mathrm{long}}$.
+
+```bash
+python examples/linewidth_narrow.py --plot narrow.png
+```
+
+```
+1 kHz laser, coherence time τc = 318 µs
+    spool   loss  τd/τc  depth     RBW     span  short-delay fit     one θ Lorentzian     −3 dB
+    100 km   19 dB   1.54   0.05  100 Hz   20 kHz           995 Hz    977 Hz   1.03 kHz  1.21 kHz
+    200 km   38 dB   3.08   0.00  100 Hz   20 kHz           999 Hz     1 kHz     999 Hz    961 Hz
+    400 km   76 dB   6.15   0.00  100 Hz   20 kHz           992 Hz     1 kHz     992 Hz    971 Hz
+
+100 Hz laser, coherence time τc = 3.18 ms
+    spool   loss  τd/τc  depth     RBW     span  short-delay fit     one θ Lorentzian     −3 dB
+     50 km   10 dB   0.08   0.86   10 Hz 20.4 kHz           100 Hz   33.3 Hz     654 Hz  1.76 kHz
+    100 km   19 dB   0.15   0.74   10 Hz 10.2 kHz          99.1 Hz   69.2 Hz     369 Hz    867 Hz
+    200 km   38 dB   0.31   0.54   10 Hz  5.1 kHz          99.6 Hz   35.5 Hz     217 Hz    463 Hz
+    500 km   95 dB   0.77   0.22   10 Hz 2.04 kHz          99.5 Hz   63.4 Hz     129 Hz    192 Hz
+```
+
+At 1 kHz every column agrees once the delay passes a few $\tau_c$. At 100 Hz only the short-delay
+fit on phase-averaged spectra finds the laser, from 50 km (a tenth of a coherence time) up; the
+Lorentzian and the −3 dB point report the delay instead. In `phoq serve
+examples/linewidth_narrow.py` the analyzer window still shows the plain Lorentzian half width,
+which assumes $\tau_d \gg \tau_c$; the short-delay fit runs from Python.
 
 **What the model leaves out.** Only white frequency noise: real lasers also have 1/f (flicker)
 frequency noise, which adds a Gaussian part that grows with the delay and turns the lineshape into

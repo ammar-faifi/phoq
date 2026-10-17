@@ -790,6 +790,102 @@ class SpectrumResult:
                 p = (*p, center)
         return {"hwhm": 10 ** float(p[1]), "center": float(p[3]), "peak_psd": 10 ** float(p[0]), "floor_psd": 10 ** float(p[2])}
 
+    def fit_self_homodyne(self, tau_d: float, center: float = 0.0) -> dict:
+        """Laser linewidth from a delayed self-homodyne (or, with ``center=f_AOM``, self-heterodyne)
+        beat for any delay ``tau_d`` [s], including delays shorter than the coherence time.
+
+        Fits, in dB, A·Δν/(Δν² + u²)·S₂(u) + S_floor with u = f − f₀ and
+        S₂ = 1 − e^{−2πΔντd}[cos 2πuτd + (Δν/u) sin 2πuτd] (Chen et al., Sensors 24, 3656 (2024),
+        Eqs. (28)–(31)). The model is the average over the interferometer's bias phase θ: a
+        homodyne trace taken at one fixed θ is biased, so average spectra taken at θ and θ + π/2
+        first (:meth:`average`, :meth:`phoq.Runner.average_spectrum`). When τd ≪ 1/πΔν the
+        linewidth only sets the fringe depth e^{−2πΔντd}, so the span should cover several
+        fringes (period 1/τd). The fringes make the cost multimodal: the fit starts from a
+        ladder of linewidths and keeps the best. Bins within 3 RBW of f₀ are skipped.
+        Returns {"linewidth", "fringe_depth", "amplitude", "floor_psd", "rms_db", "tau_d", "center"}.
+        """
+        import warnings
+
+        from scipy.optimize import OptimizeWarning, curve_fit
+
+        if tau_d <= 0:
+            raise ValueError("tau_d must be the (positive) delay difference between the arms")
+        f, psd = self.psd()
+        keep = (np.abs(f - center) > 3 * self.rbw) & (psd > 0)
+        f, lin = f[keep], psd[keep]
+        y = 10 * np.log10(lin)
+        u = f - center
+
+        def shape(dnu):  # A = 1
+            s2 = 1 - np.exp(-2 * np.pi * dnu * tau_d) * (
+                np.cos(2 * np.pi * u * tau_d) + 2 * np.pi * dnu * tau_d * np.sinc(2 * u * tau_d)
+            )
+            return dnu / (dnu**2 + u**2) * np.clip(s2, 0.0, None)
+
+        def model(_, a, b, c):  # log10 of A, Δν and the floor: positive and well conditioned
+            return 10 * np.log10(10**a * shape(10**b) + 10**c)
+
+        floor0 = float(np.median(lin[np.argsort(np.abs(u))[-max(1, lin.size // 10) :]]))  # the far end
+        span = float(np.max(np.abs(u)))
+        best = None
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", OptimizeWarning)
+            warnings.simplefilter("ignore", RuntimeWarning)
+            for dnu0 in np.logspace(math.log10(self.rbw / 10), math.log10(3 * span), 13):
+                g = shape(dnu0)
+                p0 = [math.log10(max(lin.max() - floor0, lin.max() * 1e-3) / max(g.max(), 1e-300)), math.log10(dnu0), math.log10(max(floor0, 1e-300))]
+                try:
+                    p, _ = curve_fit(model, f, y, p0=p0, maxfev=4000)
+                except (RuntimeError, ValueError):
+                    continue
+                cost = float(np.mean((model(f, *p) - y) ** 2))
+                if np.isfinite(cost) and (best is None or cost < best[0]):
+                    best = (cost, p)
+        if best is None:
+            raise RuntimeError("the self-homodyne fit did not converge")
+        cost, (a, b, c) = best
+        dnu = 10 ** float(b)
+        return {
+            "linewidth": dnu,
+            "fringe_depth": math.exp(-2 * math.pi * dnu * tau_d),
+            "amplitude": 10 ** float(a),
+            "floor_psd": 10 ** float(c),
+            "rms_db": math.sqrt(cost),
+            "tau_d": tau_d,
+            "center": center,
+        }
+
+    @classmethod
+    def average(cls, results) -> SpectrumResult:
+        """Power-average sweeps taken with the same analyzer settings into one result (e.g. at
+        several bias phases of an interferometer, for :meth:`fit_self_homodyne`)."""
+        results = list(results)
+        if not results:
+            raise ValueError("nothing to average")
+        first = results[0]
+        for r in results[1:]:
+            if r.bin_freq.shape != first.bin_freq.shape or r.freq.shape != first.freq.shape or r.rbw != first.rbw:
+                raise ValueError("spectra taken with different analyzer settings cannot be averaged")
+        k = len(results)
+        level = 10 * np.log10(sum(10 ** (r.level / 10) for r in results) / k)
+        return cls(
+            first.instrument,
+            first.source,
+            first.freq,
+            level,
+            first.rbw,
+            first.start,
+            first.stop,
+            first.ref_level,
+            first.db_per_div,
+            first.detector,
+            sum(r.averages for r in results),
+            k,
+            first.bin_freq,
+            sum(r.bin_power for r in results) / k,
+            first.bin_spacing,
+        )
+
     def summary(self) -> str:
         f0, l0 = self.peak
         lo, hi = self.width(3.0)
