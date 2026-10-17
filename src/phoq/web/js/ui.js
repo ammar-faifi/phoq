@@ -55,12 +55,46 @@ export class UI {
     $('help-close').onclick = () => this.toggleHelp(false);
     this.help.addEventListener('click', (e) => { if (e.target === this.help) this.toggleHelp(false); });
     $('offline-cmd').textContent = 'phoq serve examples/basic_link.py';
+    this.setupToolboxDrawer();
     let seen = false;
     try { seen = localStorage.getItem('phoq.helpSeen2') === '1'; } catch { /* storage unavailable */ }
     if (!seen) this.toggleHelp(true);
   }
 
   // ---- toolbox ---------------------------------------------------------------------------
+  /**
+   * The toolbox stays hidden and slides out while the pointer is on its tab or on the panel.
+   * Dragging a tool out closes it, so the table is in view for the drop. Clicking or tapping the
+   * tab, or focusing it with the keyboard, opens it too; leaving, Escape or a click on the table
+   * closes it.
+   */
+  setupToolboxDrawer() {
+    const tab = document.getElementById('toolbox-tab'), box = document.getElementById('toolbox');
+    let timer = 0;
+    const set = (open) => {
+      clearTimeout(timer);
+      box.classList.toggle('open', open);
+      tab.setAttribute('aria-expanded', String(open));
+    };
+    const later = (open, ms) => { clearTimeout(timer); timer = setTimeout(() => set(open), ms); };
+    this.toolbox = { open: () => set(true), close: () => set(false) };
+
+    tab.addEventListener('mouseenter', () => later(true, 60));     // a pointer passing by does not open it
+    tab.addEventListener('mouseleave', () => { if (!box.matches(':hover')) later(false, 220); });
+    box.addEventListener('mouseenter', () => clearTimeout(timer));
+    box.addEventListener('mouseleave', () => { if (!box.contains(document.activeElement)) later(false, 220); });
+    tab.addEventListener('click', () => set(true));   // touch has no hover; leaving, Escape or the table close it
+    tab.addEventListener('focus', () => set(true));
+    box.addEventListener('focusout', (e) => { if (!box.contains(e.relatedTarget) && e.relatedTarget !== tab) later(false, 0); });
+    box.addEventListener('dragstart', () => setTimeout(() => set(false), 0));  // after the drag image is taken
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape' || !box.classList.contains('open')) return;
+      if (box.contains(document.activeElement) || document.activeElement === tab) document.activeElement.blur();
+      set(false);
+    });
+    this.lab.viewport.addEventListener('pointerdown', () => set(false), { capture: true });
+  }
+
   buildToolbox(catalog) {
     const byCat = Object.fromEntries(GROUPS.map(([k]) => [k, []]));
     for (const t of catalog.types) (byCat[t.category] ??= []).push(t);
