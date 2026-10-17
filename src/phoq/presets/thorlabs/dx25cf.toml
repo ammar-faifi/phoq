@@ -21,6 +21,7 @@ accessed = 2026-10-16
 conditions = "25 °C and 850 nm unless noted; 4 V bias"
 
 [params]
+connector = { value = "FC/PC", from = "datasheet-typ", spec = "Fiber connector: 2.0 mm narrow key FC/PC (DX25CF)" }
 material = { value = "GaAs", from = "datasheet-typ", spec = "GaAs-based photodetector for 700–870 nm" }
 bandwidth = { value = 25e9, from = "datasheet-typ", spec = "−3 dB bandwidth, measured at 780 nm" }
 ref_responsivity = { value = 0.5, from = "datasheet-typ", spec = "Responsivity, SM fiber", note = "The model scales its GaAs curve (read off this datasheet's spectral-response plot) to this value" }

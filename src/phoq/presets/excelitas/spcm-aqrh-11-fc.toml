@@ -25,6 +25,7 @@ accessed = 2026-10-17
 conditions = "22 °C, all models unless indicated (Table 1)"
 
 [params]
+connector = { value = "FC/PC", from = "datasheet-typ", spec = "-FC option: FC/PC adaptor for fiber pigtails (Table 3B)" }
 efficiency = { value = 0.62, from = "derived", spec = "PDE without FC adaptor at 650 nm", min = 0.50, typ = 0.65, note = "× ≈ 0.95 for the FC adaptor (connectorized modules have about 95 % of the standard PDE, quoted at 550 nm): 0.65 × 0.95 = 0.62" }
 ref_wavelength = { value = 650e-9, from = "datasheet-condition", spec = "Table 1 PDE row at 650 nm" }
 dark_count_rate = { value = 1000.0, from = "datasheet-max", spec = "Dark count, grade W1 (SPCM-AQRH-W1)", note = "Only a maximum is specified per grade; the unit's test report gives its value. Variation ± 10 % over 6 h at 25 °C, ± 20 % over 5–70 °C case temperature" }

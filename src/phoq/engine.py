@@ -22,11 +22,21 @@ from .detectors import Photodiode, PowerMeter, SinglePhotonDetector, _Detector
 from .generators import FunctionGenerator
 from .modulators import _Modulator
 from .sources import Laser
-from .units import CONNECTOR_LOSS_DB, db_to_t, dbm_to_w, fmt_si, photon_energy, w_to_dbm
+from .units import (
+    FRESNEL,
+    MISMATCH_LOSS_DB,
+    angled,
+    dbm_to_w,
+    fmt_si,
+    mating,
+    open_end_reflection,
+    photon_energy,
+    w_to_dbm,
+)
 
 MAX_HOPS = 40
 MIN_GAIN = 1e-18
-_CONN = math.sqrt(db_to_t(CONNECTOR_LOSS_DB))
+MAX_REFLECTIONS = 1  # reflections followed per path
 
 
 @dataclass
@@ -45,6 +55,8 @@ class Network:
     port_power: dict = field(
         default_factory=lambda: defaultdict(float)
     )  # "NAME.port" → W arriving
+    # laser → {(own light?, reflection site or other laser's name) → W entering its output}
+    returned: dict = field(default_factory=lambda: defaultdict(lambda: defaultdict(float)))
 
     def delays(self, detector, source=None) -> list[float]:
         """Propagation delays of every path reaching ``detector`` (optionally from one laser)."""
@@ -108,49 +120,75 @@ def coherence(src: Laser, tau: float) -> float:
 
 
 def trace(setup: Setup) -> Network:
+    """Follow every laser's light through the setup.
+
+    Each mated connector pair transmits and reflects according to its two connector types
+    (:func:`~phoq.units.mating`), and an open connector reflects back into its fiber. Up to
+    ``MAX_REFLECTIONS`` reflections are followed per path: one is enough for the light returning
+    to the lasers and for reflectometry-like paths to detectors; a second (a Fabry–Pérot pass)
+    is ≤ −80 dB for matching connectors.
+    """
     net = Network()
     for src in setup.of_type(Laser):
         if src.power <= 0:
             continue
         wl, P = src.wavelength, src.power
-        stack = [(src.ports["out"], 1.0 + 0j, 0.0, (), 0)]
+        # (port the light leaves through, amplitude, delay, modulators, hops, reflections, site)
+        stack = [(src.ports["out"], 1.0 + 0j, 0.0, (), 0, 0, None)]
         while stack:
-            port, amp, delay, mods, hops = stack.pop()
+            port, amp, delay, mods, hops, refl, site = stack.pop()
             if hops > MAX_HOPS or abs(amp) ** 2 < MIN_GAIN:
                 continue
-            peer = port.peer
+            peer, via = port.peer, ""
+            if peer is not None and peer.component.is_adaptor:
+                # A mating sleeve: the connector here mates with the one in the sleeve's other side.
+                sleeve = peer.component
+                peer, via = sleeve.other(peer.name), f" in {sleeve.name}"
+                if peer is not None and peer.component.is_adaptor:
+                    continue  # sleeve plugged into a sleeve: nothing to mate with
             if peer is None:
-                if port.component.is_cord:  # light leaves through an open connector
+                if port.component.is_cord:  # an open connector: light leaves, a flat end reflects 3.6 %
+                    r = open_end_reflection(port.connector)
                     net.open_ends.append(
                         {
                             "port": port.path,
-                            "power": P * abs(amp) ** 2,
+                            "power": P * abs(amp) ** 2 * (1 - r),
                             "wavelength": wl,
                         }
                     )
+                    if refl < MAX_REFLECTIONS:
+                        here = f"open {port.connector} end {port.path}{via}"
+                        _enter(net, stack, src, port, amp * math.sqrt(r), delay, mods, hops, refl + 1, here)
                 continue
-            amp *= _CONN
-            comp = peer.component
-            net.port_power[peer.path] += P * abs(amp) ** 2
-            if comp.is_cord:
-                flow = net.fibers.setdefault(
-                    comp.name, {"fwd": 0.0, "bwd": 0.0, "wavelength": wl}
-                )
-                flow["fwd" if peer.name == "a" else "bwd"] += P * abs(amp) ** 2
-                if P * abs(amp) ** 2 >= max(flow["fwd"], flow["bwd"]):
-                    flow["wavelength"] = wl
-            if isinstance(comp, _Detector):
-                if peer.name == "inp":
-                    net.paths[comp].append(Path(src, amp, delay, mods))
-                continue
-            for tr in comp.scatter(peer, wl):
-                new_mods = (
-                    mods + ((tr.mod, delay + tr.delay),) if tr.mod is not None else mods
-                )
-                stack.append(
-                    (tr.port, amp * tr.amp, delay + tr.delay, new_mods, hops + 1)
-                )
+            t, r_back, _ = mating(port.connector, peer.connector)
+            if refl < MAX_REFLECTIONS and r_back > 0:
+                here = f"{port.path} ({port.connector}) ↔ {peer.path} ({peer.connector}){via}"
+                _enter(net, stack, src, port, amp * math.sqrt(r_back), delay, mods, hops, refl + 1, here)
+            _enter(net, stack, src, peer, amp * math.sqrt(t), delay, mods, hops, refl, site)
     return net
+
+
+def _enter(net, stack, src, port, amp, delay, mods, hops, refl, site) -> None:
+    """Light of ``src`` enters ``port.component`` through ``port``."""
+    comp, wl = port.component, src.wavelength
+    w = src.power * abs(amp) ** 2
+    net.port_power[port.path] += w
+    if comp.is_cord:
+        flow = net.fibers.setdefault(comp.name, {"fwd": 0.0, "bwd": 0.0, "wavelength": wl})
+        flow["fwd" if port.name == "a" else "bwd"] += w
+        if w >= max(flow["fwd"], flow["bwd"]):
+            flow["wavelength"] = wl
+    if isinstance(comp, _Detector):
+        if port.name == "inp":
+            net.paths[comp].append(Path(src, amp, delay, mods))
+        return
+    if isinstance(comp, Laser):
+        own = comp is src
+        net.returned[comp][(own, (site or "a fiber loop") if own else src.name)] += w
+        return
+    for tr in comp.scatter(port, wl):
+        new_mods = mods + ((tr.mod, delay + tr.delay),) if tr.mod is not None else mods
+        stack.append((tr.port, amp * tr.amp, delay + tr.delay, new_mods, hops + 1, refl, site))
 
 
 def synthesize(
@@ -340,12 +378,60 @@ def report(setup: Setup, net: Network | None = None) -> dict:
                     "text": f"Open connector {e['port']} emits {fmt_si(e['power'], 'W')} at {e['wavelength'] * 1e9:.0f} nm{vis}.",
                 }
             )
+    pairs = [  # every mated pair of connectors: direct, or the two held in a mating sleeve
+        (a, b, "")
+        for a, b in setup.connections()
+        if a.kind == "optical" and not (a.component.is_adaptor or b.component.is_adaptor)
+    ] + [
+        (s.ports["p1"].peer, s.ports["p2"].peer, f" in {s.name}")
+        for s in setup
+        if s.is_adaptor and s.ports["p1"].peer is not None and s.ports["p2"].peer is not None
+    ]
+    for a, b, via in pairs:  # APC against PC/UPC: mechanically fits, optically does not
+        if a.component.is_adaptor or b.component.is_adaptor or angled(a.connector) == angled(b.connector):
+            continue
+        flat = a if not angled(a.connector) else b
+        warnings.append(
+            {
+                "level": "bad",
+                "text": f"{a.path} ({a.connector}) is mated to {b.path} ({b.connector}){via}: an angled end face "
+                f"against a flat one leaves an air gap — about {MISMATCH_LOSS_DB:g} dB lost, "
+                f"{FRESNEL:.1%} reflected back into {flat.path}, and both end faces can be damaged. "
+                "Use matching connectors or a hybrid cord.",
+            }
+        )
     return {
         "detectors": detectors,
+        "sources": _sources(setup, net),
         "fibers": net.fibers,
         "open_ends": net.open_ends,
         "warnings": warnings,
     }
+
+
+def _sources(setup: Setup, net: Network) -> dict:
+    """Per laser: its own light reflected back into its output (the setup's return loss as the
+    laser sees it, with the strongest reflection named) and light injected by other lasers."""
+    out = {}
+    for src in setup.of_type(Laser):
+        came = net.returned.get(src, {})
+        own = {where: w for (is_own, where), w in came.items() if is_own}
+        other = sum(w for (is_own, _), w in came.items() if not is_own)
+        back = sum(own.values())
+        readouts = {}
+        if src.power > 0:
+            readouts["Back-reflection"] = (
+                f"{10 * math.log10(back / src.power):.1f} dB · {fmt_si(back, 'W')}"
+                if back > 0
+                else "—"
+            )
+            if back > 0:
+                site = max(own, key=own.get)
+                readouts["Strongest reflection"] = f"{site} ({10 * math.log10(own[site] / src.power):.1f} dB)"
+        if other > 0:
+            readouts["Light from other lasers"] = fmt_si(other, "W")
+        out[src.name] = {"back_reflection": back, "injected": other, "readouts": readouts}
+    return out
 
 
 def _incident_power(net: Network, comp) -> float:

@@ -70,6 +70,10 @@ KIND_DOC = {
     "unstated": "given without provenance",
 }
 TIERS = (GENERIC, "datasheet", "validated", "vendor")
+# [limits] keys the lab checks live (phoq.engine.report); other limits are kept for reference
+CHECKED_LIMITS = frozenset(
+    {"optical_input_w", "optical_input_dbm", "bias_voltage_v", "rf_input_dbm", "photons_per_pulse"}
+)
 _ID = re.compile(r"[a-z0-9][a-z0-9.\-]*/[a-z0-9][a-z0-9.\-]*")
 _PARAM_KEYS = {"value", "from", "spec", "min", "typ", "max", "note"}
 _CURVE_KEYS = {"wavelength_nm", "value", "from", "spec", "note"}
@@ -176,7 +180,7 @@ class Preset:
             "tier": self.tier,
             "tags": list(self.tags),
             "origin": self.origin,
-            "has_limits": bool(self.limits),
+            "has_limits": bool(CHECKED_LIMITS & set(self.limits)),
             "curves": sorted(self.curves),
         }
 

@@ -5,8 +5,8 @@ from __future__ import annotations
 import cmath
 import math
 
-from .core import Component, Param, Transfer
-from .units import FIBER_DELAY, N_EFF, db_to_t, fiber_attenuation, fmt_si
+from .core import Component, FiberConnectors, Param, Transfer
+from .units import CONNECTORS, FIBER_DELAY, N_EFF, db_to_t, fiber_attenuation, fmt_si
 
 
 def _span(
@@ -19,12 +19,13 @@ def _span(
 
 
 class Fiber(Component):
-    """Single-mode patch cord with FC/PC connectors at ends ``a`` and ``b``."""
+    """Single-mode patch cord. Its ends ``a`` and ``b`` each carry an FC/UPC (blue) or FC/APC
+    (green) connector; a cord with one of each is a hybrid cord."""
 
     category = "cord"
     prefix = "FIB"
     label = "Fiber patch cord"
-    description = "SMF-28, FC/PC ↔ FC/PC"
+    description = "SMF-28, FC/UPC or FC/APC ends"
     inputs = ("a",)
     outputs = ("b",)
     is_cord = True
@@ -32,10 +33,15 @@ class Fiber(Component):
     length = Param(
         1.0, unit="m", min=0.05, max=100.0, presets=(0.5, 1.0, 1.5, 2.0, 3.0, 5.0)
     )
+    connector_a = Param("FC/UPC", choices=CONNECTORS, label="Connector A")
+    connector_b = Param("FC/UPC", choices=CONNECTORS, label="Connector B")
 
     def _build(self):
         self.add_port("a", "optical", "bidi", "end A")
         self.add_port("b", "optical", "bidi", "end B")
+
+    def connector_of(self, port):
+        return self.connector_b if port == "b" else self.connector_a
 
     @property
     def delay(self) -> float:
@@ -50,7 +56,7 @@ class Fiber(Component):
         return {"Propagation delay": fmt_si(self.delay, "s")}
 
 
-class FiberSpool(Component):
+class FiberSpool(FiberConnectors, Component):
     """Long fiber on a spool (delay line / transmission link) with two FC bulkheads."""
 
     category = "passive"
@@ -93,7 +99,52 @@ class FiberSpool(Component):
         }
 
 
-class Attenuator(Component):
+class MatingSleeve(Component):
+    """FC–FC mating sleeve (fiber adapter): joins two patch cords end to end.
+
+    It has no polish of its own: the connectors plugged into its sides ``p1`` and ``p2`` mate with
+    each other inside it, as one mated pair with the loss and reflection of their two types — a
+    FC/APC cord against a FC/UPC one leaves an air gap here like anywhere else. With one side
+    empty, the other cord's end is an open connector. Cascading cords through sleeves shows what
+    every extra connection costs in transmitted power and adds in back-reflection.
+    """
+
+    category = "passive"
+    prefix = "SLV"
+    label = "FC mating sleeve"
+    description = "FC–FC adapter: joins two patch cords, their connectors mate inside"
+    inputs = ("p1",)
+    outputs = ("p2",)
+    is_adaptor = True
+
+    def _build(self):
+        self.add_port("p1", "optical", "bidi", "side 1")
+        self.add_port("p2", "optical", "bidi", "side 2")
+
+    def other(self, port: str):
+        """The port plugged into the opposite side of ``port`` (None while empty)."""
+        return self.ports["p2" if port == "p1" else "p1"].peer
+
+    def connector_of(self, port):
+        far = self.other(port)
+        return None if far is None or far.component.is_adaptor else far.connector
+
+    def info(self):
+        from .units import RETURN_LOSS_DB, mating
+
+        a, b = self.ports["p1"].peer, self.ports["p2"].peer
+        if a is None or b is None:
+            held = a or b
+            return {"Mating": f"{held.path} ({held.connector}) meets an empty side" if held else "empty"}
+        t, ra, rb = mating(a.connector, b.connector)
+        return {
+            "Mating": f"{a.path} ({a.connector}) ↔ {b.path} ({b.connector})",
+            "Insertion loss": f"{-10 * math.log10(t):.2f} dB",
+            "Reflected back": f"{10 * math.log10(ra):.1f} dB into {a.path} · {10 * math.log10(rb):.1f} dB into {b.path}",
+        }
+
+
+class Attenuator(FiberConnectors, Component):
     """Variable optical attenuator."""
 
     category = "passive"
@@ -122,7 +173,7 @@ class Attenuator(Component):
         return {"Total loss": f"{self.attenuation_db + self.insertion_loss_db:.1f} dB"}
 
 
-class BeamSplitter(Component):
+class BeamSplitter(FiberConnectors, Component):
     """2×2 fused fiber coupler. ``ratio`` is the bar-port power fraction (a1→b1).
 
     Field transfer: b1 = √r·a1 + i√(1−r)·a2,  b2 = i√(1−r)·a1 + √r·a2 (and the reverse).
@@ -161,7 +212,7 @@ class BeamSplitter(Component):
 Coupler = BeamSplitter
 
 
-class PhaseShifter(Component):
+class PhaseShifter(FiberConnectors, Component):
     """Static phase shift (e.g. a fiber stretcher or thermal tuner)."""
 
     category = "passive"
@@ -188,7 +239,7 @@ class PhaseShifter(Component):
         ]
 
 
-class Isolator(Component):
+class Isolator(FiberConnectors, Component):
     """Optical isolator: passes p1 → p2, blocks the reverse direction."""
 
     category = "passive"

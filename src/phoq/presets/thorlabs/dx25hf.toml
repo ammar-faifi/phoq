@@ -21,6 +21,7 @@ accessed = 2026-10-17
 conditions = "25 °C, 1550 nm and 9.5 V bias unless noted"
 
 [params]
+connector = { value = "FC/PC", from = "datasheet-typ", spec = "Fiber connector: DX25HF, 2.0 mm narrow key FC/PC" }
 material = { value = "InGaAs", from = "datasheet-typ", spec = "InGaAs photodetector for 980–1625 nm" }
 bandwidth = { value = 25e9, from = "datasheet-typ", spec = "−3 dB bandwidth at 1560 nm" }
 ref_responsivity = { value = 0.45, from = "datasheet-typ", spec = "Responsivity (specifications at 1550 nm, 9.5 V bias)" }

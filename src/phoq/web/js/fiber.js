@@ -1,7 +1,8 @@
-// Visual for a Python `Fiber` patch cord: two draggable FC/PC connectors (ports a and b) and a
-// cable that drapes onto the table. Light flow and open-end glow come from the server report.
+// Visual for a Python `Fiber` patch cord: two draggable FC connectors (ports a and b, blue FC/UPC
+// or green FC/APC) and a cable that drapes onto the table. Light flow and open-end glow come from
+// the server report.
 import * as THREE from 'three';
-import { TABLE, clamp, wavelengthColor } from './util.js';
+import { TABLE, clamp, connectorColor, wavelengthColor } from './util.js';
 import { getGlowTexture, makeFlowTexture } from './textures.js';
 
 const Z = new THREE.Vector3(0, 0, 1);
@@ -61,14 +62,17 @@ export class FiberEnd {
     this.emitLambda = 1550e-9;
     this.dir = new THREE.Vector3(1, 0, 0);
 
+    this.connector = 'FC/UPC';
+    this.bodyMat = connMat.body.clone();   // coloured by connector type
+    this.bootMat = connMat.boot.clone();
     const g = new THREE.Group();
     const along = (mesh, z) => { mesh.rotation.x = Math.PI / 2; mesh.position.z = z; mesh.castShadow = true; g.add(mesh); return mesh; };
     along(new THREE.Mesh(connGeo.nut, connMat.nut), 0.5);
-    along(new THREE.Mesh(connGeo.body, connMat.body), 1.6);
-    const key = new THREE.Mesh(connGeo.key, connMat.body);
+    along(new THREE.Mesh(connGeo.body, this.bodyMat), 1.6);
+    const key = new THREE.Mesh(connGeo.key, this.bodyMat);
     key.position.set(0, 0.48, 1.4);
     g.add(key);
-    along(new THREE.Mesh(connGeo.boot, connMat.boot), 3.1);
+    along(new THREE.Mesh(connGeo.boot, this.bootMat), 3.1);
     along(new THREE.Mesh(connGeo.hit, connMat.hit), CONN_LEN / 2 - 0.2);
     g.traverse((o) => { o.userData.fiberEnd = this; });
     this.group = g;
@@ -80,6 +84,14 @@ export class FiberEnd {
     this.glow.visible = false;
     this.glow.raycast = () => {};
     g.add(this.glow);
+  }
+
+  /** Connector housing and boot in the type's colour: FC/UPC blue, FC/APC green. */
+  setConnector(type) {
+    this.connector = type ?? 'FC/UPC';
+    const c = connectorColor(this.connector);
+    this.bodyMat.color.setHex(c);
+    this.bootMat.color.setHex(c).multiplyScalar(1.25);
   }
 
   get other() { return this.fiber.ends[1 - this.index]; }
@@ -112,6 +124,7 @@ export class FiberVisual {
     this.type = 'Fiber';
     this.length = comp.params.length;
     this.ends = [new FiberEnd(this, 0), new FiberEnd(this, 1)];
+    this.setConnectors(comp);
     this.flowTex = makeFlowTexture();
     this.material = new THREE.MeshStandardMaterial({
       color: 0xe8c21a, roughness: 0.5, metalness: 0.0,
@@ -130,7 +143,12 @@ export class FiberVisual {
   get group() { return this.mesh; }
   get reach() { return Math.min(this.length * 100, 400) - 2 * CONN_LEN - 6; }
 
-  refresh(comp) { this.length = comp.params.length; this.key = ''; }
+  refresh(comp) { this.length = comp.params.length; this.key = ''; this.setConnectors(comp); }
+
+  setConnectors(comp) {
+    this.ends[0].setConnector(comp.params.connector_a);
+    this.ends[1].setConnector(comp.params.connector_b);
+  }
 
   rest(end, x, z, faceTarget) {
     end.group.position.set(x, REST_Y, z);
@@ -224,6 +242,6 @@ export class FiberVisual {
     this.mesh.geometry.dispose();
     this.material.dispose();
     this.flowTex.dispose();
-    for (const e of this.ends) { e.group.removeFromParent(); e.glow.material.dispose(); }
+    for (const e of this.ends) { e.group.removeFromParent(); e.glow.material.dispose(); e.bodyMat.dispose(); e.bootMat.dispose(); }
   }
 }

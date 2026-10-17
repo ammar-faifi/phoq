@@ -153,12 +153,19 @@ class Port:
     def path(self) -> str:
         return f"{self.component.name}.{self.name}"
 
+    @property
+    def connector(self) -> str | None:
+        """Connector type of an optical port (``"FC/UPC"``, ``"FC/APC"``, …); None if electrical,
+        and for a mating sleeve the type plugged into its other side (None while that is empty)."""
+        return self.component.connector_of(self.name) if self.kind == "optical" else None
+
     def to_dict(self) -> dict:
         return {
             "name": self.name,
             "kind": self.kind,
             "direction": self.direction,
             "label": self.label,
+            "connector": self.connector,
             "peer": self.peer.path if self.peer else None,
         }
 
@@ -187,6 +194,7 @@ class Component:
     inputs: ClassVar[tuple[str, ...]] = ()  # port order used by Setup.chain()
     outputs: ClassVar[tuple[str, ...]] = ()
     is_cord: ClassVar[bool] = False  # fiber patch cords join optical ports
+    is_adaptor: ClassVar[bool] = False  # a mating sleeve: the connectors in its two sides mate
     spectral_curves: ClassVar[dict[str, str]] = {}  # datasheet curves a preset may give: name → unit
     registry: ClassVar[dict[str, type[Component]]] = {}
 
@@ -313,7 +321,13 @@ class Component:
 
     def ui_fields(self) -> list[str]:
         """Parameters worth showing for the current settings (the visualizer hides the rest)."""
-        return list(self.param_specs())
+        return [k for k in self.param_specs() if not k.startswith("connector")]
+
+    def connector_of(self, port: str) -> str:
+        """Connector type on an optical port: the part's ``connector`` setting, else FC/UPC."""
+        from .units import DEFAULT_CONNECTOR
+
+        return self._values.get("connector", DEFAULT_CONNECTOR)
 
     def info(self) -> dict[str, str]:
         """Derived, human-readable quantities shown as read-outs."""
@@ -344,6 +358,18 @@ class Component:
             args.append(f"preset={self._preset.id!r}")
         args += [f"{k}={v!r}" for k, v in self._values.items() if v != base[k]]
         return f"{type(self).__name__}({', '.join(args)})"
+
+
+class FiberConnectors:
+    """Mixin for parts with fiber ports: one ``connector`` type for all of them."""
+
+    connector = Param(
+        "FC/UPC",
+        choices=("FC/UPC", "FC/APC", "FC/PC"),
+        label="Connectors",
+        doc="End-face polish of this part's fiber connectors: FC/UPC (blue) and FC/PC are flat, "
+        "FC/APC (green) is angled 8°. An APC mated to a flat connector leaves an air gap.",
+    )
 
 
 def _free_port(comp: Component, names: tuple[str, ...], kind: str) -> Port | None:
@@ -445,7 +471,14 @@ class Setup:
         if a.kind == "optical" and not a.component.is_cord and not b.component.is_cord:
             from .passive import Fiber
 
-            fiber = fiber if fiber is not None else Fiber(length=length)
+            if fiber is None:  # the patch cord a lab would take: its ends match the two ports
+                from .units import DEFAULT_CONNECTOR
+
+                fiber = Fiber(
+                    length=length,
+                    connector_a=a.connector or DEFAULT_CONNECTOR,  # an empty sleeve has none yet
+                    connector_b=b.connector or DEFAULT_CONNECTOR,
+                )
             self.add(fiber)
             self._mate(fiber.ports["a"], a)
             self._mate(fiber.ports["b"], b)

@@ -1,7 +1,7 @@
 // 3D models of the Python lab components. A Part only renders; the physics lives in Python.
 // Each builder places the ports named exactly like the Python ports (laser.out, pd.inp, pd.rf …).
 import * as THREE from 'three';
-import { clamp, snapToHole, TABLE, SHELF, fmtSI, wavelengthColor, CH_COLORS } from './util.js';
+import { clamp, snapToHole, TABLE, SHELF, fmtSI, wavelengthColor, CH_COLORS, CONNECTOR_COLORS, connectorColor } from './util.js';
 import { makeLabel, makeBadge, makeWindingTexture } from './textures.js';
 import { ScopeDisplay } from './scope.js';
 import { AboveTable } from './fiber.js';
@@ -22,9 +22,14 @@ export const MAT = {
   acrylic: new THREE.MeshStandardMaterial({ color: 0xa5d8ff, metalness: 0.1, roughness: 0.1, transparent: true, opacity: 0.28, depthWrite: false }),
 };
 
+// Bulkhead colour collar per connector type (shared materials: FC/UPC blue, FC/APC green).
+const COLLAR = Object.fromEntries(Object.keys(CONNECTOR_COLORS).map((k) => [k,
+  new THREE.MeshStandardMaterial({ color: connectorColor(k), metalness: 0.15, roughness: 0.45 })]));
+
 const GEO = {
   hex: new THREE.CylinderGeometry(0.8, 0.8, 0.34, 6),
   barrel: new THREE.CylinderGeometry(0.42, 0.42, 1.0, 20),
+  collar: new THREE.CylinderGeometry(0.66, 0.66, 0.2, 24),   // wider than the plugged nut (0.56)
   ring: new THREE.TorusGeometry(1.05, 0.13, 8, 32),
   screw: new THREE.CylinderGeometry(0.45, 0.45, 0.3, 12),
   jack: new THREE.CylinderGeometry(0.55, 0.55, 1.2, 18),
@@ -116,7 +121,8 @@ export class Part {
     return { canvas: c, ctx: c.getContext('2d'), tex, mesh: m };
   }
 
-  /** FC/PC bulkhead receptacle at (x,y,z) on a panel, pointing along (dx,0,dz). */
+  /** FC bulkhead receptacle at (x,y,z) on a panel, pointing along (dx,0,dz); its collar shows
+   *  the connector type (blue FC/UPC, green FC/APC). */
   addPort(name, x, y, z, dx, dz) {
     const dir = new THREE.Vector3(dx, 0, dz).normalize();
     const holder = new THREE.Group();
@@ -126,6 +132,10 @@ export class Part {
     hex.position.y = 0.17;
     const barrel = new THREE.Mesh(GEO.barrel, MAT.bright);
     barrel.position.y = 0.85;
+    const collar = new THREE.Mesh(GEO.collar, COLLAR['FC/UPC']);
+    collar.position.y = 0.44;
+    collar.userData.part = this;
+    holder.add(collar);
     const ring = new THREE.Mesh(GEO.ring, new THREE.MeshBasicMaterial({ color: 0x22d3ee, transparent: true, opacity: 0.5, depthWrite: false, toneMapped: false }));
     ring.rotation.x = Math.PI / 2;
     ring.position.y = 1.15;
@@ -134,7 +144,7 @@ export class Part {
     for (const m of [hex, barrel]) { m.castShadow = true; m.userData.part = this; }
     holder.add(hex, barrel, ring);
     this.group.add(holder);
-    this.ports.set(name, { name, kind: 'optical', dir, ring, tipLocal: new THREE.Vector3(x, y, z).addScaledVector(dir, PORT_TIP) });
+    this.ports.set(name, { name, kind: 'optical', dir, ring, collar, connector: 'FC/UPC', tipLocal: new THREE.Vector3(x, y, z).addScaledVector(dir, PORT_TIP) });
   }
 
   /** BNC/SMA jack for electrical ports. */
@@ -180,6 +190,12 @@ export class Part {
   // ---- state from the server -------------------------------------------------------------
   refresh(comp) {
     this.comp = comp;
+    for (const p of comp.ports) {   // connector type of each bulkhead → collar colour
+      const port = this.ports.get(p.name);
+      if (!port?.collar) continue;
+      port.connector = p.connector ?? null;   // a sleeve: what its other side holds, if anything
+      if (p.connector) port.collar.material = COLLAR[p.connector] ?? COLLAR['FC/UPC'];
+    }
     const L = (LABELS[this.type] ?? labelGeneric)(comp);
     this.label?.paint({ title: comp.name, ...L });
     this.onRefresh?.(comp);
@@ -317,6 +333,18 @@ const BUILDERS = {
     p.labelPlane(7.2, 3, 0, 3.1, 3.02);
     p._height = 7.2;
     p.onRefresh = (c) => { p.knob.rotation.y = -(c.params.attenuation_db / 80) * Math.PI * 1.5; };
+  },
+
+  /** FC–FC mating sleeve on a small bracket: a receptacle on each side, no polish of its own. */
+  MatingSleeve(p) {
+    p.basePlate(8, 5);
+    p.box(0.45, 4.6, 2.6, MAT.steel, 0, 2.9, 0);        // bracket
+    p.box(0.9, 1.9, 1.9, MAT.bright, 0, 3.4, 0);        // square adapter flange
+    p.addPort('p1', -0.45, 3.4, 0, -1, 0);
+    p.addPort('p2', 0.45, 3.4, 0, 1, 0);
+    for (const port of p.ports.values()) port.collar.visible = false;
+    p.labelPlane(3.6, 1.0, 0, 0.62, 1.9, true);         // between the front screws
+    p._height = 5.2;
   },
 
   PhaseShifter(p) {
@@ -562,6 +590,7 @@ const LABELS = {
   Attenuator: (c) => ({ lines: [`${c.params.attenuation_db.toFixed(1)} dB`], accent: '#fb923c' }),
   PhaseShifter: (c) => ({ lines: [`φ = ${c.params.phase.toFixed(2)} rad`], accent: '#c084fc' }),
   Isolator: () => ({ lines: ['→'], accent: '#94a3b8' }),
+  MatingSleeve: () => ({ lines: ['FC–FC'], accent: '#94a3b8' }),
   PhaseModulator: (c) => ({ lines: [`Vπ ${c.params.v_pi} V · ${driveText(c, 'rf')}`, driveText(c, 'bias')], accent: '#f472b6' }),
   IntensityModulator: (c) => ({ lines: [`Vπ ${c.params.v_pi} V · ${driveText(c, 'rf')}`, driveText(c, 'bias')], accent: '#fbbf24' }),
   OpticalSwitch: (c) => ({ lines: ['2×2 switch · a1 a2 ⇄ b1 b2', `ctrl ${driveText(c, 'ctrl').replace('ctrl ', '')}`], accent: '#38bdf8' }),

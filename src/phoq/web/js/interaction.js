@@ -1,7 +1,7 @@
 // Pointer & keyboard handling. Moving parts is a local layout choice; plugging/unplugging fiber
 // connectors, deleting parts and toggling lasers are sent to the Python server.
 import * as THREE from 'three';
-import { TABLE, clamp } from './util.js';
+import { TABLE, clamp, isAngled } from './util.js';
 import { REST_Y } from './fiber.js';
 
 const SNAP_DIST = 5;      // cm: connector-to-port capture radius
@@ -112,7 +112,7 @@ export class Interaction {
       if (d.kind === 'end') {
         this.lab.dragEnd = d.end;
         if (d.end.attached) this.lab.unplugEnd(d.end);
-        this.showPorts(true);
+        this.showPorts(true, d.end);
       }
     }
     if (d.kind !== 'none') this.dom.style.cursor = 'grabbing';
@@ -163,13 +163,21 @@ export class Interaction {
 
   ringState(target, state) {
     const r = target.ring;
+    const bad = this.mismatch(target);   // amber: an APC end on a flat port, or the reverse
     r.visible = state !== 'hidden';
-    r.material.color.setHex(state === 'snap' ? 0x34d399 : 0x22d3ee);
+    r.material.color.setHex(state === 'snap' ? (bad ? 0xf59e0b : 0x34d399) : (bad ? 0xfbbf24 : 0x22d3ee));
     r.material.opacity = state === 'snap' ? 1 : 0.55;
     r.userData.snap = state === 'snap';
   }
 
-  showPorts(on) {
+  /** Would the carried connector mate an angled face with a flat one at this port? */
+  mismatch(target) {
+    const port = target.part ? target.part.ports.get(target.port) : target;
+    return !!(this.carry && port?.connector && isAngled(this.carry) !== isAngled(port.connector));
+  }
+
+  showPorts(on, end = null) {
+    this.carry = on ? end?.connector ?? null : null;
     for (const part of this.lab.parts.values()) {
       for (const [name, port] of part.ports) {
         if (port.kind !== 'optical') continue;

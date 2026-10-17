@@ -180,7 +180,8 @@ class LabSession:
                         "preset_title": c.preset_info.title,
                         "provenance": c.provenance(),
                         "limits": c.limits,
-                        "fields": c.ui_fields(),
+                        "fields": c.ui_fields()
+                        + [k for k in c.param_specs() if k.startswith("connector")],
                         "info": c.info(),
                         "ports": [p.to_dict() for p in c.ports.values()],
                     }

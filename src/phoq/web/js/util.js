@@ -33,6 +33,12 @@ export function setTableDims(w, d) {
 export const fmtTable = (w, d) => `${w / 100} × ${d / 100} m`;
 export const CH_COLORS = ['#facc15', '#22d3ee', '#f472b6', '#4ade80'];
 
+// Fiber connector colour code: flat polish (UPC, and PC) blue, angled polish (APC) green.
+export const CONNECTOR_COLORS = { 'FC/UPC': 0x2563eb, 'FC/PC': 0x2563eb, 'FC/APC': 0x16a34a };
+export const connectorColor = (type) => CONNECTOR_COLORS[type] ?? CONNECTOR_COLORS['FC/UPC'];
+export const connectorCss = (type) => `#${connectorColor(type).toString(16).padStart(6, '0')}`;
+export const isAngled = (type) => typeof type === 'string' && type.endsWith('APC');
+
 const PREFIX = [[1e9, 'G'], [1e6, 'M'], [1e3, 'k'], [1, ''], [1e-3, 'm'], [1e-6, 'µ'], [1e-9, 'n'], [1e-12, 'p'], [1e-15, 'f']];
 
 /** Format a number with an SI prefix: fmtSI(2.3e-4, 'A') -> "230 µA". */

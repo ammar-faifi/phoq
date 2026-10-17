@@ -23,6 +23,7 @@ accessed = 2026-10-16
 conditions = "25 °C, 1550 nm"
 
 [params]
+connector = { value = "FC/APC", from = "datasheet-typ", spec = "Ordering option FA: FC/APC connector on the input and output fibers", note = "The default (00) is bare fiber; phoq parts need a connector, so the preset assumes FA on both fibers" }
 v_pi = { value = 5.0, from = "datasheet-typ", spec = "Vπ RF electrodes @ 50 kHz, 1550 nm", max = 6.0 }
 v_pi_bias = { value = 6.5, from = "datasheet-typ", spec = "Vπ DC electrodes", max = 7.0 }
 insertion_loss_db = { value = 3.5, from = "datasheet-typ", spec = "Insertion loss without optical connectors", max = 4.5, note = "Add up to 0.25 dB per FC/APC connector" }

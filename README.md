@@ -71,12 +71,72 @@ Units are SI throughout: metres, seconds, hertz and watts. Powers use `power_dbm
 | --- | --- |
 | Sources | `Laser` (CW / pulsed / sine / OOK, linewidth, detuning, per-pulse phase randomisation) |
 | Fiber | `Fiber` (patch cord), `FiberSpool` |
-| Passive | `Attenuator`, `BeamSplitter` (alias `Coupler`), `PhaseShifter`, `Isolator` |
+| Passive | `Attenuator`, `BeamSplitter` (alias `Coupler`), `PhaseShifter`, `Isolator`, `MatingSleeve` (FC–FC adapter joining two cords) |
 | Modulators | `PhaseModulator` (φ = π·V/Vπ), `IntensityModulator` (Mach–Zehnder, extinction) — voltage comes only through their `rf` and `bias` inputs; `OpticalSwitch` (2×2, bar below the threshold voltage on `ctrl`, cross above: a pattern routes pulse by pulse) |
 | Detectors | `Photodiode`, `SinglePhotonDetector`, `PowerMeter` |
 | Instruments | `Oscilloscope`, `PhotonCounter`, `FunctionGenerator` (2 outputs: dc / sine / square / triangle / ramp / loaded pattern), `DCPowerSupply` (2 outputs, ±30 V) |
 
 Run `phoq catalog` for every port and parameter.
+
+### Fiber connectors
+
+Every fiber port has a connector type, following the usual colour code: **FC/UPC blue**, **FC/APC
+green**, and FC/PC (the older flat polish, as many datasheets still list it) blue too. A part's
+`connector` sets all its fiber ports; a `Fiber` patch cord has `connector_a` and `connector_b`, so
+a cord with one of each is a hybrid cord. `setup.connect()` between two bulkheads picks the cord a
+lab would take, with ends that match the two ports. In the 3D lab connector housings and boots,
+and the collar of every bulkhead, show the colour. While you carry a connector, free ports where
+it would make an angled-to-flat mating light up amber instead of cyan.
+
+| Mated pair | Loss | Reflected back |
+| --- | --- | --- |
+| FC/UPC ↔ FC/UPC | 0.3 dB | −50 dB |
+| FC/APC ↔ FC/APC | 0.3 dB | −60 dB |
+| FC/PC ↔ FC/PC or FC/UPC | 0.3 dB | −40 dB (the worse face) |
+| FC/APC ↔ FC/PC or FC/UPC | ≈ 5 dB, assumed | 3.6 % (−14.4 dB) into the flat side, −60 dB into the angled side |
+| open FC/UPC or FC/PC end | — | 3.6 % back into the fiber |
+| open FC/APC end | — | −60 dB |
+
+The matching-pair values are typical specifications (`phoq.units.RETURN_LOSS_DB`,
+`CONNECTOR_LOSS_DB`). An angled face against a flat one fits mechanically in an FC adaptor but
+leaves an air gap. The flat face then reflects the full glass–air Fresnel 3.6 % straight back,
+and the loss (`MISMATCH_LOSS_DB`) depends on the ferrule geometry. The 5 dB is an assumed value
+to replace with your own measurement; the lab warns about any such mating whatever the number.
+
+Reflections are traced (one per path): the inspector of every laser shows the setup's return
+loss as the laser sees it and names the strongest reflection, e.g. `open FC/UPC end FIB-3.b
+(−15.0 dB)`. Light reflected into a detector through a coupler, as in a reflectometer, is counted
+like any other path, and interferes with it.
+
+**Mating sleeves.** A `MatingSleeve` is an FC–FC adapter: plug a cord into each side and the two
+cords' connectors mate inside it as one pair, with the loss and reflection of their two types. It
+has no polish of its own, so a FC/APC cord meeting a FC/UPC one in a sleeve gets the same warning
+as anywhere else. With one side empty, the other cord's end is an open connector. Cords plug
+straight into a sleeve; between a sleeve and a part's bulkhead, or between two sleeves,
+`connect()` inserts a cord, since two female sides cannot mate. Cascading cords shows what every
+connection costs:
+
+```bash
+python examples/connector_cascade.py
+```
+
+```
+                                       matings   at the PD   current back to LD  strongest reflection
+1 cord                                       2   -0.60 dBm    827 µA   -47.3 dB  LD-1.out (FC/UPC) ↔ FIB-1.a (FC/UPC) (-50.0 dB)
+4 cords, 3 sleeves                           5   -1.50 dBm    672 µA   -44.1 dB  LD-1.out (FC/UPC) ↔ FIB-1.a (FC/UPC) (-50.0 dB)
+8 cords, 7 sleeves                           9   -2.70 dBm    510 µA   -42.6 dB  LD-1.out (FC/UPC) ↔ FIB-1.a (FC/UPC) (-50.0 dB)
+4 FC/APC cords, APC laser and PD             5   -1.50 dBm    672 µA   -54.1 dB  LD-1.out (FC/APC) ↔ FIB-1.a (FC/APC) (-60.0 dB)
+4 cords, one FC/APC among FC/UPC             5  -10.90 dBm   77.2 µA   -15.6 dB  FIB-2.b (FC/UPC) ↔ FIB-3.a (FC/APC) in SLV-2 (-15.6 dB)
+APC laser → UPC PD, last cord hybrid         4   -1.20 dBm    721 µA   -50.3 dB  FIB-3.b (FC/UPC) ↔ PD-1.inp (FC/UPC) (-51.8 dB)
+4 cords, last end unplugged                  4           —      1 nA   -16.8 dB  open FC/UPC end FIB-4.b (-16.8 dB)
+```
+
+Each mating costs 0.3 dB on the way out and returns its reflection through all the matings
+before it, so the back-reflection grows more slowly than the loss. FC/APC buys 10 dB on every
+reflection. One wrong cord costs two air gaps (2 × 5 dB) and a −15 dB reflection, the same as
+an unplugged end. `phoq serve examples/connector_cascade.py` puts the bench on the table:
+change a cord's connectors in the inspector, or pull a cord out of a sleeve, and watch the
+photodiode current and the laser's back-reflection follow.
 
 ### Part presets
 
@@ -114,7 +174,13 @@ Shipped presets, each citing the datasheet document and revision it was read fro
 | `excelitas/spcm-aqrh-10-fc` … `-16-fc` | Excelitas SPCM-AQRH Si SPAD modules with FC adaptor, one per dark-count grade (< 1500 … < 25 c/s) | `SinglePhotonDetector` | PDE at 650 nm with the 400–1060 nm curve, dark counts, 22 ns dead time; maximum 10⁴ photons per pulse |
 | `thorlabs/det08cfc` | Thorlabs DET08CFC 5 GHz InGaAs detector | `Photodiode` | bandwidth, responsivity at 1550 nm with the spectral curve, load, saturation from the 2 V output limit |
 | `thorlabs/dx25cf` | Thorlabs DX25CF 25 GHz GaAs detector | `Photodiode` | GaAs response, 0.5 A/W at 850 nm, 25 GHz, 25 Ω load; 10 dBm input limit |
-| `thorlabs/dx25hf` | Thorlabs DX25HF 25 GHz high-linearity InGaAs detector | `Photodiode` | 0.45 A/W at 1550 nm with the 0.915–1.625 µm curve, 25 GHz, 25 Ω load, linear to 50 mA; 20 dBm input limit |
+| `thorlabs/dx25hf`, `dx25ha` | Thorlabs DX25HF (FC/PC) and DX25HA (FC/APC) 25 GHz high-linearity InGaAs detectors | `Photodiode` | 0.45 A/W at 1550 nm with the 0.915–1.625 µm curve, 25 GHz, 25 Ω load, linear to 50 mA; 20 dBm input limit |
+
+| `fs/smfcsx-upc-upc`, `-apc-apc`, `-apc-upc` | FS SMFCSX 1 m OS2 (G.657.A1) simplex patch cords, SKUs 40740, 173580 and the 173581 hybrid | `Fiber` | connector A and B, 1 m length; ≤ 0.3 dB and UPC ≥ 50 / APC ≥ 60 dB, the mating table's values |
+
+Every preset also sets the part's connector from its datasheet: FC/PC for the Thorlabs, MPD and
+Excelitas detectors, FC/APC for the Exail modulators (their FA ordering option; the default is
+bare fiber).
 
 **Writing one.** A preset is a TOML file whose id is `vendor/part` (the vendor slug and the file
 name, unless `id` is given):
@@ -394,9 +460,11 @@ from before error correction and privacy amplification were added).*
 ## Physics model
 
 - **Fields, not just powers.** Light is traced as complex amplitudes through every path:
-  connector loss (0.3 dB per mated pair), fiber loss vs λ, propagation phase, a 4.9 ns/m delay,
-  the beam-splitter unitary, attenuators and modulators. Paths from one laser interfere, and
-  different lasers add coherently only if their wavelengths match.
+  connector loss and reflection by connector type (see [Fiber connectors](#fiber-connectors)),
+  fiber loss vs λ, propagation phase, a 4.9 ns/m delay, the beam-splitter unitary, attenuators
+  and modulators. Paths from one laser interfere, and different lasers add coherently only if
+  their wavelengths match. One reflection is followed per path; a second (a Fabry–Pérot pass
+  between two connectors) is ≤ −80 dB for matching ones.
 - **Lasers:** the envelope is averaged over each sample bin, so a 100 ps pulse is exact at any
   timebase. Phase is a Wiener process from the linewidth, drawn once per acquisition and shared
   by all paths. That makes interferometer visibility and Alice/Bob phase drift physical.
@@ -662,7 +730,7 @@ class Mirror(Component):
 | GET | `/api/presets`, `/api/presets/{id}` | part presets (`?component=`, `?vendor=`, `?q=`); one in full with provenance, limits and unsupported specs |
 | POST | `/api/components/{name}/preset` | `{id}` applies a preset (`generic` for the class defaults) |
 | GET | `/api/state` | the setup: components, parameters, connections |
-| GET | `/api/report` | mean powers, currents, warnings |
+| GET | `/api/report` | mean powers, currents, warnings, and per laser the back-reflection and its strongest source |
 | POST | `/api/components` | `{type, name?, params?}` adds a part |
 | PATCH | `/api/components/{name}` | `{params}` sets attributes (422 on invalid values) |
 | DELETE | `/api/components/{name}` | removes it and its connections |

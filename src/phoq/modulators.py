@@ -13,13 +13,13 @@ import math
 
 import numpy as np
 
-from .core import Component, Param, Transfer
+from .core import Component, FiberConnectors, Param, Transfer
 from .units import db_to_t
 
 DRIVE_PORTS = ("rf", "bias")
 
 
-class _Modulator(Component):
+class _Modulator(FiberConnectors, Component):
     category = "modulator"
     inputs = (
         "p1",
@@ -271,7 +271,7 @@ class _SwitchRoute:
         return f"<{self.switch.name} {'cross' if self.crossed else 'bar'} route>"
 
 
-class OpticalSwitch(Component):
+class OpticalSwitch(FiberConnectors, Component):
     """2×2 electro-optic switch: *bar* (a1→b1, a2→b2) or *cross* (a1→b2, a2→b1).
 
     Like a modulator it has no setting of its own: the state follows the voltage on its ``ctrl``

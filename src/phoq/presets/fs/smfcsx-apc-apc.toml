@@ -1,0 +1,43 @@
+# FS SKU 173580 — 1 m OS2 simplex patch cord, FC APC Simplex to FC APC Simplex (P/N SMFCSX).
+schema = 1
+id = "fs/smfcsx-apc-apc"
+component = "Fiber"
+title = "FS SMFCSX FC/APC ↔ FC/APC, 1 m"
+vendor = "FS"
+part_number = "SMFCSX (SKU 173580)"
+description = "1 m OS2 9/125 µm (G.657.A1) simplex patch cord, FC/APC to FC/APC, 2.0 mm riser jacket, yellow"
+tier = "datasheet"
+tags = ["patch cord", "OS2", "G.657.A1", "single mode", "FC/APC"]
+notes = """
+FS sells the FC/APC↔FC/APC, FC/UPC↔FC/UPC and FC/APC→FC/UPC cords under one part number, SMFCSX; the SKU fixes the
+connector pair and the length. Other lengths, a custom length and other jacket colours (lime green, aqua, orange) are
+ordering options. The connectors' insertion and return loss are the values phoq uses for every mated pair of
+matching connectors, so the cord needs no per-connector setting.
+"""
+
+[source]
+title = "1m (3ft) Fiber Patch Cable, 1 Fiber, FC APC Simplex to FC APC Simplex, Single Mode (OS2), Riser (OFNR), 2.0mm, Tight-Buffered, Yellow"
+url = "https://www.fs.com/products/173580.html"
+document = "FS.com product page, SKU 173580"
+revision = "product page as read on 2026-10-17"
+accessed = 2026-10-17
+conditions = "Specifications table of the product page"
+
+[params]
+connector_a = { value = "FC/APC", from = "datasheet-typ", spec = "Connector A: FC APC Simplex" }
+connector_b = { value = "FC/APC", from = "datasheet-typ", spec = "Connector B: FC APC Simplex" }
+length = { value = 1.0, from = "datasheet-typ", spec = "Length 1 m (3 ft), measured tip to tip including the connectors", note = "This SKU is the 1 m length; other and custom lengths are ordering options" }
+
+[limits]
+operating_temperature_c = [-10.0, 70.0]
+storage_temperature_c = [-20.0, 70.0]
+
+[unsupported]
+insertion_loss_db = { max = 0.3, note = "per connector; phoq loses 0.3 dB on every mated pair of matching connectors, the same value" }
+return_loss_db = { min = 60.0, note = "≥ 60 dB; phoq's mating table uses 50 dB for UPC and 60 dB for APC pairs, the same values" }
+attenuation = "≤ 0.4 dB/km at 1310 nm, ≤ 0.3 dB/km at 1550 nm; the model uses its SMF-28 table (0.33 and 0.19 dB/km), negligible over a patch cord"
+fiber = "OS2 9/125 µm, G.657.A1 bend-insensitive (compatible with G.652.D), 1310/1550 nm"
+min_bend_radius_m = { min = 0.010, note = "optical fiber; cable 10 / 5 × OD dynamic / static. Bend loss is not modelled" }
+cable = "Riser (OFNR), 2.0 mm OD, tight-buffered, yellow jacket"
+connector_durability = "1000 matings"
+tensile_strength = "60 N long term, 100 N short term"

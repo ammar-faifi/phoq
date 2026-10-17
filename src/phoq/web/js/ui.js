@@ -1,6 +1,6 @@
 // Side panels: toolbox (from the Python catalog), inspector (from each component's Param specs),
 // warnings, toasts, help and the server-connection banner. Every edit goes to the API.
-import { fmtSI, fmtParam, esc, wavelengthColor, fmtTable, TABLE, TABLE_PRESETS, TABLE_LIMITS } from './util.js';
+import { fmtSI, fmtParam, esc, wavelengthColor, fmtTable, TABLE, TABLE_PRESETS, TABLE_LIMITS, connectorCss } from './util.js';
 import { suggestTableSize } from './layout.js';
 
 const svg = (body) => `<svg viewBox="0 0 32 32" width="28" height="28" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
@@ -14,6 +14,7 @@ export const ICONS = {
   Attenuator: svg('<rect x="6" y="12" width="20" height="12" rx="2" stroke="#7aa2d6"/><circle cx="16" cy="9" r="4.5" stroke="#fb923c"/><path d="M16 9l2.5-2.5" stroke="#fb923c"/><path d="M1 18h5M26 18h5" stroke="#e8c21a"/>'),
   FiberSpool: svg('<ellipse cx="16" cy="16" rx="12" ry="12" stroke="#7aa2d6"/><circle cx="16" cy="16" r="8.5" stroke="#e8c21a" stroke-dasharray="2 1.4"/><circle cx="16" cy="16" r="3" stroke="#cbd5e1"/>'),
   PhaseShifter: svg('<rect x="7" y="10" width="18" height="12" rx="2" stroke="#7aa2d6"/><path d="M16 12v8M12.5 16a3.5 3.5 0 1 0 7 0a3.5 3.5 0 1 0-7 0" stroke="#c084fc"/><path d="M1 16h6M25 16h6" stroke="#e8c21a"/>'),
+  MatingSleeve: svg('<rect x="13" y="9" width="6" height="14" rx="1" stroke="#cbd5e1"/><path d="M6 13h7v6H6zM19 13h7v6h-7z" stroke="#94a3b8"/><path d="M1 16h5M26 16h5" stroke="#e8c21a"/><rect x="2" y="14" width="3" height="4" rx="0.8" fill="#2563eb" stroke="none"/><rect x="27" y="14" width="3" height="4" rx="0.8" fill="#16a34a" stroke="none"/>'),
   Isolator: svg('<rect x="7" y="11" width="18" height="10" rx="5" stroke="#7aa2d6"/><path d="M11 16h9M17 13l3 3-3 3" stroke="#cbd5e1"/><path d="M1 16h6M25 16h6" stroke="#e8c21a"/>'),
   PhaseModulator: svg('<rect x="4" y="12" width="24" height="8" rx="1.5" stroke="#d6b25e"/><path d="M8 16c2-3 4 3 6 0s4 3 6 0 4 3 4 0" stroke="#f472b6"/><path d="M16 12V7" stroke="#d6b25e"/>'),
   IntensityModulator: svg('<rect x="4" y="12" width="24" height="8" rx="1.5" stroke="#d6b25e"/><path d="M8 18h3v-4h4v4h3v-4h4v4h2" stroke="#fbbf24"/><path d="M16 12V7" stroke="#d6b25e"/>'),
@@ -221,7 +222,8 @@ export class UI {
     const doc = spec.doc ? ` title="${esc(spec.doc)}"` : '';
     const prov = comp.provenance?.[key];
     const badge = prov ? `<i class="prov${prov.overridden ? ' edited' : ''}" title="${esc(provTitle(prov))}">${prov.overridden ? 'edited' : (PROV_SHORT[prov.kind] ?? prov.kind)}</i>` : '';
-    const name = `<span>${esc(spec.label)}${badge}</span>`;
+    const swatch = key.startsWith('connector') ? `<i class="conn-swatch" style="background:${connectorCss(v)}"></i>` : '';
+    const name = `<span>${swatch}${esc(spec.label)}${badge}</span>`;
     if (spec.type === 'bool') {
       return `<div class="field"${doc}><label class="switch" for="${id}">${name}<input type="checkbox" ${attrs} ${v ? 'checked' : ''}/></label></div>`;
     }
@@ -314,6 +316,8 @@ export class UI {
     const rows = Object.entries(comp.info ?? {});
     const det = lab.report?.detectors?.[comp.name];
     if (det) rows.push(...Object.entries(det.readouts));
+    const src = lab.report?.sources?.[comp.name];
+    if (src) rows.push(...Object.entries(src.readouts));
     if (comp.category === 'cord') {
       const f = lab.report?.fibers?.[comp.name];
       rows.push(['Optical power', f ? fmtSI(f.fwd + f.bwd, 'W') : '—']);
@@ -323,7 +327,10 @@ export class UI {
       rows.push(['Bins', `${cnt.slots.toLocaleString()} @ ${fmtSI(cnt.rate, 'Hz')}`]);
       for (const ch of Object.keys(cnt.counts)) rows.push([`${ch} (${cnt.sources[ch]})`, `${cnt.counts[ch].toLocaleString()} · ${fmtSI(cnt.rates[ch], 'cps')}`]);
     }
-    for (const p of comp.ports.filter((q) => q.kind === 'optical')) rows.push([`Port ${p.label}`, p.peer ?? 'open', p.peer ? 'ok' : '']);
+    for (const p of comp.ports.filter((q) => q.kind === 'optical')) {
+      const type = comp.type === 'MatingSleeve' ? '' : ` · ${p.connector}`;   // a sleeve has no polish
+      rows.push([`Port ${p.label}${type}`, p.peer ?? (comp.type === 'MatingSleeve' ? 'empty' : 'open'), p.peer ? 'ok' : '']);
+    }
     const status = det?.status_level;
     el.innerHTML = rows.map(([k, v, cls]) => `<div><span>${esc(k)}</span><b class="${cls ?? (k === 'Status' ? status : '')}">${esc(v)}</b></div>`).join('');
   }

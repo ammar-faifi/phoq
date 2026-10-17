@@ -178,6 +178,7 @@ button.run:not(.on) { color: var(--bad); border-color: rgba(248, 113, 113, .5); 
 .prov { display: inline-block; margin-left: 6px; padding: 0 5px; border-radius: 4px; font: 500 9.5px/15px var(--mono); letter-spacing: .3px; text-transform: uppercase; font-style: normal; vertical-align: 1px; cursor: help; color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); }
 .prov.edited { color: #fbbf24; background: rgba(251, 191, 36, .12); border-color: rgba(251, 191, 36, .4); }
 .presets-n { display: block; color: var(--accent); font-size: 10.5px; margin-top: 2px; }
+.conn-swatch { display: inline-block; width: 9px; height: 9px; margin-right: 6px; border-radius: 2px; vertical-align: -1px; box-shadow: 0 0 0 1px rgba(255, 255, 255, .25); }
 .insp-head code, .hint-py code { font: 11px var(--mono); color: var(--accent); }
 .hint-py { margin: 12px 2px 0; color: var(--dim); font-size: 11.5px; }
 .readouts b.path { font-size: 10.5px; word-break: break-all; }

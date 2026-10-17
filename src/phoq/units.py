@@ -14,7 +14,19 @@ K_B = 1.380649e-23  # Boltzmann constant [J/K]
 N_GROUP = 1.4682  # SMF-28 group index
 N_EFF = 1.4677  # SMF-28 effective (phase) index
 FIBER_DELAY = N_GROUP / C0  # [s/m], about 4.9 ns per metre
-CONNECTOR_LOSS_DB = 0.3  # one mated FC/PC pair
+
+# ---- fiber connectors ---------------------------------------------------------------------------
+# End-face polish: PC and UPC are flat (domed, 0°) and mate with each other; APC is angled 8° and
+# mates only with APC. Colour code: UPC (and PC) blue, APC green.
+CONNECTORS = ("FC/UPC", "FC/APC", "FC/PC")
+DEFAULT_CONNECTOR = "FC/UPC"
+CONNECTOR_COLORS = {"FC/UPC": "#2563eb", "FC/PC": "#2563eb", "FC/APC": "#16a34a"}
+CONNECTOR_LOSS_DB = 0.3  # one mated pair of matching connectors (typical; TIA-568 allows 0.75 dB)
+RETURN_LOSS_DB = {"FC/PC": 40.0, "FC/UPC": 50.0, "FC/APC": 60.0}  # typical, per mated pair
+# An angled face against a flat one leaves an air gap, and the beam leaves the APC fiber
+# refracted by ≈ 3.8°: several dB lost depending on ferrule geometry. An assumed typical value.
+MISMATCH_LOSS_DB = 5.0
+FRESNEL = ((N_EFF - 1) / (N_EFF + 1)) ** 2  # a flat glass–air face reflects 3.6 % (−14.4 dB)
 
 COMMON_WAVELENGTHS = (635e-9, 780e-9, 850e-9, 1310e-9, 1550e-9)
 
@@ -62,6 +74,33 @@ FIBER_ATTENUATION = (
     [600, 635, 700, 850, 1000, 1310, 1383, 1450, 1550, 1625, 1700],
     [9.0, 8.0, 5.0, 2.2, 0.8, 0.33, 0.35, 0.25, 0.19, 0.21, 0.30],
 )
+
+
+def angled(connector: str) -> bool:
+    """True for an angle-polished (APC) connector."""
+    return connector.endswith("APC")
+
+
+def mating(a: str, b: str) -> tuple[float, float, float]:
+    """A mated pair of connectors ``a`` and ``b``: power transmission, and the power reflected
+    back into side a and into side b.
+
+    Matching families lose CONNECTOR_LOSS_DB and reflect at the worse of the two return losses.
+    An APC against a PC/UPC loses MISMATCH_LOSS_DB; the flat face then sits against an air gap and
+    sends the Fresnel 3.6 % back into its own fiber, while the angled face's reflection leaves the
+    core as usual.
+    """
+    if angled(a) == angled(b):
+        r = db_to_t(min(RETURN_LOSS_DB[a], RETURN_LOSS_DB[b]))
+        return db_to_t(CONNECTOR_LOSS_DB), r, r
+    ra = db_to_t(RETURN_LOSS_DB[a]) if angled(a) else FRESNEL
+    rb = db_to_t(RETURN_LOSS_DB[b]) if angled(b) else FRESNEL
+    return db_to_t(MISMATCH_LOSS_DB), ra, rb
+
+
+def open_end_reflection(connector: str) -> float:
+    """Power reflected back into the fiber by an unmated connector in air."""
+    return db_to_t(RETURN_LOSS_DB[connector]) if angled(connector) else FRESNEL
 
 
 def responsivity(material: str, wavelength: float) -> float:

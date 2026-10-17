@@ -8,7 +8,7 @@ from dataclasses import dataclass
 import numpy as np
 from scipy.signal import lfilter
 
-from .core import Component, Param
+from .core import Component, FiberConnectors, Param
 from .units import (
     COMMON_WAVELENGTHS,
     DARK_CURRENT,
@@ -22,7 +22,7 @@ from .units import (
 )
 
 
-class _Detector(Component):
+class _Detector(FiberConnectors, Component):
     category = "detector"
     inputs = ("inp",)
     signal_unit = ""
@@ -87,7 +87,7 @@ class Photodiode(_Detector):
     temperature = Param(300.0, unit="K", min=1.0, max=400.0)
 
     def _build(self):
-        self.add_port("inp", "optical", "in", "FC/PC in")
+        self.add_port("inp", "optical", "in", "in")
         self.add_port("rf", "electrical", "out", "BNC out")
 
     def ui_fields(self):
@@ -197,7 +197,7 @@ class SinglePhotonDetector(_Detector):
     )
 
     def _build(self):
-        self.add_port("inp", "optical", "in", "FC/PC in")
+        self.add_port("inp", "optical", "in", "in")
         self.add_port("out", "electrical", "out", "SMA click out")
 
     def ui_fields(self):
@@ -280,7 +280,7 @@ class PowerMeter(_Detector):
     )
 
     def _build(self):
-        self.add_port("inp", "optical", "in", "FC/PC in")
+        self.add_port("inp", "optical", "in", "in")
 
     def reading(self, powers: dict[float, float]) -> float:
         """What the display shows: power weighted by the head's responsivity at each λ."""

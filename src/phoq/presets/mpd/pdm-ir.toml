@@ -26,6 +26,7 @@ accessed = 2026-10-16
 conditions = "SMF-28 pigtail (10 µm SPAD); each row's own excess bias V_EX and mode"
 
 [params]
+connector = { value = "FC/PC", from = "datasheet-typ", spec = "Fiber pigtail type: FC/PC, SMF-28 (10 µm SPAD)" }
 efficiency = { value = 0.25, from = "datasheet-typ", spec = "Photon detection efficiency, V_EX = 7 V (fixed-gate mode only), 1550 nm", note = "Free-running and free-gate modes are limited to V_EX = 5 V; the PDE-vs-bias plot gives about 22 % there" }
 dark_count_rate = { value = 250.0, from = "datasheet-typ", spec = "DCR, SMF-28 desktop version, V_EX = 2 V, SPAD temperature 'Low', free running, hold-off 100 µs", max = 600.0, note = "Rises with V_EX and as the hold-off is shortened (afterpulsing, not modelled)" }
 ref_wavelength = { value = 1550e-9, from = "datasheet-condition", spec = "PDE is specified at λ = 1550 nm" }

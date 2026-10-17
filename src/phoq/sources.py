@@ -7,14 +7,14 @@ import math
 import numpy as np
 from scipy.special import erf
 
-from .core import Component, Param
+from .core import Component, FiberConnectors, Param
 from .units import COMMON_WAVELENGTHS, dbm_to_w, fmt_si, photon_energy, seq125
 
 MODES = ("cw", "pulsed", "sine", "ook")
 _FWHM = 2.0 * np.sqrt(2.0 * np.log(2.0))  # Gaussian FWHM / sigma
 
 
-class Laser(Component):
+class Laser(FiberConnectors, Component):
     """Fiber-coupled DFB laser module with an internal isolator.
 
     The emitted field is ``sqrt(P(t)) · exp(i φ(t))`` where the envelope follows ``mode`` and the
@@ -25,7 +25,7 @@ class Laser(Component):
     category = "source"
     prefix = "LD"
     label = "Laser module"
-    description = "DFB laser, FC/PC output, CW or modulated"
+    description = "DFB laser, fiber output, CW or modulated"
     outputs = ("out",)
 
     enabled = Param(True, label="Emission")
@@ -81,7 +81,7 @@ class Laser(Component):
     )
 
     def _build(self):
-        self.add_port("out", "optical", "out", "FC/PC out")
+        self.add_port("out", "optical", "out", "out")
 
     def ui_fields(self) -> list[str]:
         f = ["enabled", "wavelength", "power_dbm", "mode"]

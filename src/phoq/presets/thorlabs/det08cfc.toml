@@ -21,6 +21,7 @@ accessed = 2026-10-16
 conditions = "25 °C, 12 V bias, 50 Ω load unless noted"
 
 [params]
+connector = { value = "FC/PC", from = "datasheet-typ", spec = "Input: FC/PC fiber connector" }
 material = { value = "InGaAs", from = "datasheet-typ", spec = "InGaAs PIN, 800–1700 nm, Ø80 µm active area" }
 bandwidth = { value = 5e9, from = "datasheet-max", spec = "Bandwidth (−3 dB), 50 Ω load, 12 V bias", note = "Thorlabs quotes the bandwidth as a maximum; a low battery or a larger output voltage reduces it" }
 ref_responsivity = { value = 0.90, from = "datasheet-typ", spec = "Peak response ℜ(λp)" }
