@@ -15,6 +15,7 @@ from .units import (
     K_B,
     Q_E,
     fmt_si,
+    peak_responsivity,
     photon_energy,
     responsivity,
     w_to_dbm,
@@ -27,6 +28,14 @@ class _Detector(Component):
     signal_unit = ""
 
 
+def _curve_info(curve, label: str) -> dict[str, str]:
+    """Inspector read-out naming a preset's spectral curve and where it comes from."""
+    if curve is None:
+        return {}
+    lo, hi = curve.span
+    return {label: f"{lo * 1e9:.0f}–{hi * 1e9:.0f} nm · {curve.provenance.kind.replace('-', ' ')}"}
+
+
 class Photodiode(_Detector):
     """Fiber-coupled PIN photodiode; its ``rf`` output carries the photocurrent [A].
 
@@ -36,12 +45,33 @@ class Photodiode(_Detector):
 
     prefix = "PD"
     label = "Photodiode"
-    description = "InGaAs / Si / Ge PIN, BNC output"
+    description = "InGaAs / Si / Ge / GaAs PIN, BNC output"
     outputs = ("rf",)
     signal_unit = "A"
 
+    spectral_curves = {"responsivity": "A/W"}
+
     material = Param(
-        "InGaAs", choices=("InGaAs", "Si", "Ge"), label="Detector material"
+        "InGaAs", choices=("InGaAs", "Si", "Ge", "GaAs"), label="Detector material"
+    )
+    ref_responsivity = Param(
+        0.0,
+        unit="A/W",
+        label="Responsivity at λ_ref",
+        min=0.0,
+        max=2.0,
+        doc="Datasheet responsivity at the reference wavelength; scales the spectral curve (the preset's, "
+        "else the material's typical one) to it. 0 = the curve as is",
+    )
+    ref_wavelength = Param(
+        1550e-9,
+        unit="m",
+        label="Reference wavelength λ_ref",
+        min=200e-9,
+        max=2500e-9,
+        presets=COMMON_WAVELENGTHS,
+        display=("nm", 1e9),
+        doc="Wavelength at which the responsivity is quoted",
     )
     bandwidth = Param(
         1e9,
@@ -61,7 +91,10 @@ class Photodiode(_Detector):
         self.add_port("rf", "electrical", "out", "BNC out")
 
     def ui_fields(self):
-        return ["material", "bandwidth", "load", "saturation"]
+        return ["material", "ref_responsivity", "ref_wavelength", "bandwidth", "load", "saturation"]
+
+    def info(self):
+        return _curve_info(self.curve("responsivity"), "Spectral response")
 
     @property
     def dark_current(self) -> float:
@@ -71,8 +104,20 @@ class Photodiode(_Detector):
     def settle_time(self) -> float:
         return 6.0 / (2 * math.pi * self.bandwidth)
 
+    def _shape(self, wavelength: float) -> float:
+        """Responsivity curve before scaling: the preset's datasheet curve, else the material's."""
+        c = self.curve("responsivity")
+        return c(wavelength) if c is not None else responsivity(self.material, wavelength)
+
     def responsivity(self, wavelength: float) -> float:
-        return responsivity(self.material, wavelength)
+        r = self._shape(wavelength)
+        if self.ref_responsivity > 0:
+            c = self.curve("responsivity")
+            ref = self._shape(self.ref_wavelength) or (
+                c.peak if c is not None else peak_responsivity(self.material)
+            )  # λ_ref outside the curve: anchor at its peak
+            r *= self.ref_responsivity / ref
+        return r
 
     def mean_current(self, powers: dict[float, float]) -> float:
         return self.dark_current + sum(
@@ -109,8 +154,10 @@ class Photodiode(_Detector):
 class SinglePhotonDetector(_Detector):
     """Threshold single-photon detector (SPAD / SNSPD). Its ``out`` port emits 1 V click pulses.
 
-    Click probability per time bin: 1 − (1 − p_dark)·exp(−η·n̄), where n̄ is the mean photon number
-    in the bin; after a click the detector is blind for ``dead_time``.
+    Click probability per time bin: 1 − (1 − p_dark)·exp(−Σ η(λ)·n̄_λ), where n̄_λ is the mean
+    photon number in the bin at each wavelength; after a click the detector is blind for
+    ``dead_time``. η(λ) = ``efficiency`` everywhere for a generic detector; a preset's datasheet
+    PDE curve makes it η(λ) = efficiency · PDE(λ)/PDE(λ_ref), zero outside the curve.
     """
 
     prefix = "SPD"
@@ -118,8 +165,20 @@ class SinglePhotonDetector(_Detector):
     description = "Threshold click detector (SPAD / SNSPD)"
     outputs = ("out",)
     signal_unit = "V"
+    spectral_curves = {"efficiency": ""}
 
     efficiency = Param(0.25, label="Detection efficiency", min=0.0, max=1.0)
+    ref_wavelength = Param(
+        1550e-9,
+        unit="m",
+        label="Reference wavelength λ_ref",
+        min=200e-9,
+        max=2500e-9,
+        presets=COMMON_WAVELENGTHS,
+        display=("nm", 1e9),
+        doc="Wavelength at which the efficiency is quoted; with a preset's spectral curve the "
+        "efficiency at other wavelengths follows the curve",
+    )
     dark_count_rate = Param(
         100.0,
         unit="Hz",
@@ -141,10 +200,37 @@ class SinglePhotonDetector(_Detector):
         self.add_port("inp", "optical", "in", "FC/PC in")
         self.add_port("out", "electrical", "out", "SMA click out")
 
-    def photons(self, fields: dict[float, np.ndarray], dt: float, n: int) -> np.ndarray:
+    def ui_fields(self):
+        fields = ["efficiency", "dark_count_rate", "dead_time"]
+        if self.curve("efficiency") is not None:
+            fields.insert(1, "ref_wavelength")
+        return fields
+
+    def info(self):
+        return _curve_info(self.curve("efficiency"), "Spectral PDE")
+
+    def spectral_factor(self, wavelength: float) -> float:
+        """η(λ)/efficiency: 1 for a generic detector, PDE(λ)/PDE(λ_ref) with a datasheet curve."""
+        c = self.curve("efficiency")
+        if c is None:
+            return 1.0
+        ref = c(self.ref_wavelength) or c.peak  # λ_ref outside the curve: anchor at its peak
+        return c(wavelength) / ref
+
+    def efficiency_at(self, wavelength: float) -> float:
+        """Detection efficiency at a wavelength."""
+        return min(1.0, self.efficiency * self.spectral_factor(wavelength))
+
+    def photons(
+        self, fields: dict[float, np.ndarray], dt: float, n: int, weighted: bool = False
+    ) -> np.ndarray:
+        """Mean photon number per bin; ``weighted`` scales each wavelength by its spectral factor,
+        so that efficiency × the result is the detected mean."""
         nbar = np.zeros(n)
         for wl, E in fields.items():
-            nbar += np.abs(E) ** 2 * dt / photon_energy(wl)
+            k = self.spectral_factor(wl) if weighted else 1.0
+            if k:
+                nbar += k * np.abs(E) ** 2 * dt / photon_energy(wl)
         return nbar
 
     def click_probability(self, nbar: np.ndarray, dt: float) -> np.ndarray:
@@ -153,7 +239,8 @@ class SinglePhotonDetector(_Detector):
 
     def detect(self, fields, dt, rng, n: int) -> np.ndarray:
         """Boolean click record, one entry per time bin."""
-        clicks = rng.random(n) < self.click_probability(self.photons(fields, dt, n), dt)
+        nbar = self.photons(fields, dt, n, weighted=True)
+        clicks = rng.random(n) < self.click_probability(nbar, dt)
         dead = int(math.ceil(self.dead_time / dt)) if self.dead_time > 0 else 0
         if dead > 1 and clicks.any():
             keep, last = [], -dead

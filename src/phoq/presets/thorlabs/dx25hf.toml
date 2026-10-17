@@ -1,0 +1,52 @@
+# Thorlabs DX25HF — 25 GHz high-linearity InGaAs photodetector, linear up to 100 mW.
+schema = 1
+component = "Photodiode"
+title = "Thorlabs DX25HF"
+vendor = "Thorlabs"
+part_number = "DX25HF"
+description = "25 GHz high-linearity InGaAs photodetector, 980–1625 nm, linear to 100 mW, SMF-28 FC/PC input, DC-coupled 2.92 mm output"
+tier = "datasheet"
+tags = ["InGaAs", "25 GHz", "1550", "high power", "linear"]
+notes = """
+DX25HA is the same module with an FC/APC connector. Bias it at 4–10 V (9.5 V typical) on the bias pin; the internal
+network replaces a bias tee, and a 50 Ω reverse termination matches the 2.92 mm output.
+"""
+
+[source]
+title = "DX25H Series Photodetector"
+url = "https://www.thorlabs.com/thorproduct.cfm?partnumber=DX25HF"
+document = "ttn200468-s01.pdf"
+revision = "11 November 2019"
+accessed = 2026-10-17
+conditions = "25 °C, 1550 nm and 9.5 V bias unless noted"
+
+[params]
+material = { value = "InGaAs", from = "datasheet-typ", spec = "InGaAs photodetector for 980–1625 nm" }
+bandwidth = { value = 25e9, from = "datasheet-typ", spec = "−3 dB bandwidth at 1560 nm" }
+ref_responsivity = { value = 0.45, from = "datasheet-typ", spec = "Responsivity (specifications at 1550 nm, 9.5 V bias)" }
+ref_wavelength = { value = 1550e-9, from = "datasheet-condition", spec = "specifications are given at 1550 nm" }
+load = { value = 25.0, from = "derived", spec = "50 Ω reverse termination in parallel with the external 50 Ω load; the NEP is quoted '25 Ω load limited'", note = "0.45 A/W × 25 Ω = 11.25 V/W, matching the 11.5 V/W conversion gain across an external 50 Ω load" }
+saturation = { value = 50e-3, from = "datasheet-typ", spec = "Max linear output current", note = "Max linear input power 100 mW typ (45 mA at 0.45 A/W); the model's knee is soft" }
+
+[curves.responsivity]
+from = "datasheet-graph"
+spec = "Spectral Response plot, measured trace (25 °C, 9.5 V bias)"
+note = "The trace reads ≈ 0.49 A/W at 1550 nm; ref_responsivity scales it to the table's 0.45 A/W there. Only the measured trace (0.915–1.625 µm) is used, not the dotted theoretical extension."
+wavelength_nm = [915, 920, 925, 930, 940, 950, 960, 970, 980, 990, 1000, 1025, 1050, 1100, 1150, 1200, 1250, 1300, 1350, 1400, 1450, 1500, 1525, 1550, 1560, 1575, 1600, 1625]
+value = [0.009, 0.042, 0.092, 0.136, 0.232, 0.319, 0.389, 0.437, 0.471, 0.494, 0.509, 0.532, 0.544, 0.555, 0.559, 0.559, 0.556, 0.551, 0.544, 0.532, 0.519, 0.504, 0.496, 0.486, 0.475, 0.457, 0.416, 0.377]
+
+[limits]
+optical_input_dbm = 20.0
+optical_input_peak_dbm = 21.0
+bias_voltage_v = [0.0, 10.0]
+
+[unsupported]
+impulse_response_fwhm_s = { typ = 18.5e-12, note = "at 1560 nm; the one-pole model's impulse response follows from the bandwidth" }
+impulse_undershoot = { typ = 0.28, note = "at 1560 nm; the model has no undershoot" }
+nep_w_per_rthz = { typ = 55e-12, note = "25 Ω load limited; the model's noise is shot noise plus thermal noise in the load" }
+dark_current_a = { max = 100e-9, note = "the model uses its InGaAs table value (1 nA)" }
+optical_return_loss_db = { max = -25.0 }
+reverse_termination_ohm = { min = 45, typ = 50, max = 55, note = "measured at DC" }
+electrical_return_loss_db = "typ −10 dB to 9 GHz, −6 dB to 14 GHz, −3 dB to 40 GHz"
+bias_voltage_v = { min = 4.0, typ = 9.5, max = 10.0, note = "operating range; not a setting of the model" }
+power_dependent_response = "The frequency response rises slightly near 18 GHz and the −3 dB point moves with input power from 1 to 100 mW"

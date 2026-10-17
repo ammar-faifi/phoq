@@ -28,6 +28,7 @@ from pydantic import BaseModel, Field
 
 from .analysis import TaskWorker, load_tasks
 from .parties import Experiment
+from . import presets
 from .core import Component, Setup, _ensure_registry
 from .engine import report, trace
 from .instruments import Oscilloscope, PhotonCounter
@@ -39,11 +40,16 @@ COUNTER_PERIOD = 1.0
 class AddBody(BaseModel):
     type: str
     name: str | None = None
+    preset: str | None = None
     params: dict[str, Any] = Field(default_factory=dict)
 
 
 class ParamsBody(BaseModel):
     params: dict[str, Any]
+
+
+class PresetBody(BaseModel):
+    id: str
 
 
 class ConnectBody(BaseModel):
@@ -88,6 +94,7 @@ def catalog() -> dict:
                 "description": cls.description,
                 "prefix": cls.prefix,
                 "params": [p.spec() for p in cls.param_specs().values()],
+                "presets": [p.summary() for p in presets.search(cls)],
                 "ports": [
                     {
                         "name": p.name,
@@ -169,6 +176,10 @@ class LabSession:
                         "category": c.category,
                         "label": c.label,
                         "params": c.params,
+                        "preset": c.preset,
+                        "preset_title": c.preset_info.title,
+                        "provenance": c.provenance(),
+                        "limits": c.limits,
                         "fields": c.ui_fields(),
                         "info": c.info(),
                         "ports": [p.to_dict() for p in c.ports.values()],
@@ -372,7 +383,9 @@ def create_app(
             cls = Component.registry.get(body.type)
             if cls is None:
                 raise KeyError(f"unknown component type {body.type!r}")
-            return session.setup.add(cls(body.name, **body.params)).name
+            return session.setup.add(
+                cls(body.name, preset=body.preset, **body.params)
+            ).name
 
         return {"name": guarded(add)}
 
@@ -380,6 +393,26 @@ def create_app(
     def set_params(name: str, body: ParamsBody):
         guarded(lambda: session.setup[name].set(**body.params))
         return {"ok": True, "params": _clean(session.setup[name].params)}
+
+    @app.post("/api/components/{name}/preset")
+    def set_preset(name: str, body: PresetBody):
+        guarded(lambda: session.setup[name].apply_preset(body.id))
+        comp = session.setup[name]
+        return {"ok": True, "preset": comp.preset, "params": _clean(comp.params)}
+
+    @app.get("/api/presets")
+    def list_presets(
+        component: str | None = None, vendor: str | None = None, q: str | None = None
+    ):
+        return {
+            "presets": [
+                p.summary() for p in presets.search(component, vendor=vendor, text=q)
+            ]
+        }
+
+    @app.get("/api/presets/{preset_id:path}")
+    def get_preset(preset_id: str):
+        return _clean(guarded(presets.get, preset_id).to_dict())
 
     @app.delete("/api/components/{name}")
     def remove_component(name: str):

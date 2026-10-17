@@ -11,3 +11,6 @@ wheels/
 
 # phoq autosaves (`phoq serve setup.py` writes setup.json next to the script)
 examples/*.json
+
+.DS_Store
+lab_setup.json

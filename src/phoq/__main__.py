@@ -145,7 +145,37 @@ def cmd_catalog(args) -> None:
         print(
             f"{'':<22} ports: {', '.join(p['name'] + ('*' if p['kind'] == 'electrical' else '') for p in t['ports'])}"
         )
-        print(f"{'':<22} params: {', '.join(p['name'] for p in t['params'])}\n")
+        print(f"{'':<22} params: {', '.join(p['name'] for p in t['params'])}")
+        parts = [p["id"] for p in t["presets"] if p["tier"] != "generic"]
+        print(f"{'':<22} presets: generic{', ' + ', '.join(parts) if parts else ''}\n")
+
+
+def cmd_presets(args) -> None:
+    from . import presets
+
+    if args.paths:
+        for origin, d in presets.search_path():
+            print(f"{origin:<16} {d}{'' if d.is_dir() else '   (absent)'}")
+        return
+    if args.id:
+        try:
+            print(presets.get(args.id).describe())
+        except KeyError as e:
+            sys.exit(str(e).strip("'\""))
+        return
+    rows = presets.search(
+        args.type, vendor=args.vendor, text=args.search, generic=not args.no_generic
+    )
+    problems = []
+    for p in rows:
+        bad = presets.check(p)
+        problems += bad
+        print(f"{p.id:<28} {p.component:<22} {p.title}{'   !' if bad else ''}")
+        if p.description:
+            print(f"{'':<28} {p.description}")
+    if problems:
+        print("\nproblems:\n  " + "\n  ".join(problems))
+        sys.exit(1)
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -154,8 +184,18 @@ def main(argv: list[str] | None = None) -> None:
         description="phoq — headless photonics & quantum-communication lab with an optional 3D visualizer.",
     )
     sub = ap.add_subparsers(dest="cmd", required=True)
+    common = argparse.ArgumentParser(add_help=False)
+    common.add_argument(
+        "--presets",
+        action="append",
+        default=[],
+        metavar="DIR",
+        help="directory of part presets (.toml, searched recursively); repeatable, also $PHOQ_PRESETS",
+    )
 
-    p = sub.add_parser("run", help="run a setup headlessly and print the measurements")
+    p = sub.add_parser(
+        "run", parents=[common], help="run a setup headlessly and print the measurements"
+    )
     p.add_argument(
         "file",
         nargs="?",
@@ -201,7 +241,7 @@ def main(argv: list[str] | None = None) -> None:
     )
     p.set_defaults(fn=cmd_run)
 
-    p = sub.add_parser("serve", help="serve a setup to the 3D virtual lab")
+    p = sub.add_parser("serve", parents=[common], help="serve a setup to the 3D virtual lab")
     p.add_argument(
         "file",
         nargs="?",
@@ -243,16 +283,36 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--open", action="store_true", help="open the browser")
     p.set_defaults(fn=cmd_serve)
 
-    p = sub.add_parser("export", help="convert a setup to JSON or Python")
+    p = sub.add_parser("export", parents=[common], help="convert a setup to JSON or Python")
     p.add_argument("file")
     p.add_argument("--format", choices=("json", "python"), default="python")
     p.add_argument("-o", "--output")
     p.set_defaults(fn=cmd_export)
 
-    p = sub.add_parser("catalog", help="list component types, ports and parameters")
+    p = sub.add_parser(
+        "catalog", parents=[common], help="list component types, ports, parameters and presets"
+    )
     p.set_defaults(fn=cmd_catalog)
 
+    p = sub.add_parser(
+        "presets",
+        parents=[common],
+        help="list part presets, or show one with its provenance (phoq presets exail/mx-ln-10)",
+    )
+    p.add_argument("id", nargs="?", help="a preset id to show in full")
+    p.add_argument("--type", metavar="CLASS", help="only presets for this component class")
+    p.add_argument("--vendor")
+    p.add_argument("--search", metavar="TEXT", help="match id, title, part number, tags")
+    p.add_argument("--no-generic", action="store_true", help="hide the generic (class default) presets")
+    p.add_argument("--paths", action="store_true", help="print the preset search path")
+    p.set_defaults(fn=cmd_presets)
+
     args = ap.parse_args(argv)
+    if getattr(args, "presets", None):
+        from . import presets
+
+        for d in args.presets:
+            presets.add_path(d)
     args.fn(args)
 
 

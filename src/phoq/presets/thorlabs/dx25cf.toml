@@ -1,0 +1,41 @@
+# Thorlabs DX25CF — 25 GHz GaAs fiber-coupled photodetector (SMF-28 input).
+schema = 1
+component = "Photodiode"
+title = "Thorlabs DX25CF"
+vendor = "Thorlabs"
+part_number = "DX25CF"
+description = "25 GHz GaAs photodetector, 700–870 nm, SMF-28 input, 2.92 mm output, 50 Ω reverse termination"
+tier = "datasheet"
+tags = ["GaAs", "25 GHz", "780", "850"]
+notes = """
+DX25DF is the multimode (OM4) version: 0.45 A/W, conversion gain 11 V/W. The 10 Ω series bias resistor and
+the 4 V bias are not modelled; the module needs an external bias supply.
+"""
+
+[source]
+title = "DX25C and DX25D Series: 25 GHz Photodetectors"
+url = "https://www.thorlabs.com/thorproduct.cfm?partnumber=DX25CF"
+document = "ttn142494-s01.pdf"
+revision = "TTN142494-S01 Rev. B, November 21, 2019"
+accessed = 2026-10-16
+conditions = "25 °C and 850 nm unless noted; 4 V bias"
+
+[params]
+material = { value = "GaAs", from = "datasheet-typ", spec = "GaAs-based photodetector for 700–870 nm" }
+bandwidth = { value = 25e9, from = "datasheet-typ", spec = "−3 dB bandwidth, measured at 780 nm" }
+ref_responsivity = { value = 0.5, from = "datasheet-typ", spec = "Responsivity, SM fiber", note = "The model scales its GaAs curve (read off this datasheet's spectral-response plot) to this value" }
+ref_wavelength = { value = 850e-9, from = "datasheet-condition", spec = "specifications are at 850 nm" }
+load = { value = 25.0, from = "derived", spec = "50 Ω internal reverse termination in parallel with the external 50 Ω load; the NEP is quoted '25 Ω load limited'", note = "Conversion gain 12.5 V/W across the external 50 Ω load" }
+
+[limits]
+optical_input_dbm = 10.0
+optical_input_peak_dbm = 13.0
+bias_voltage_v = [0.0, 5.0]
+
+[unsupported]
+impulse_response_fwhm_s = { typ = 19e-12, note = "at 780 nm; the one-pole model's impulse response follows from the bandwidth" }
+nep_w_per_rthz = { typ = 51e-12, note = "the model's noise is shot noise plus thermal noise in the load, not this figure" }
+dark_current_a = { max = 50e-9, note = "the model uses its GaAs table value" }
+optical_return_loss_db = { max = -25.0, note = "SM fiber; −18 dB for MM" }
+electrical_return_loss_db = { typ = -10.0, note = "to 25 GHz" }
+reverse_termination_ohm = { min = 45, typ = 50, max = 55 }

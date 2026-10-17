@@ -1,0 +1,47 @@
+# Micro Photon Devices PDM-IR — InGaAs/InP SPAD photon-counting module, fiber-pigtailed.
+# Values are the datasheet's, at the conditions quoted next to each one.
+schema = 1
+id = "mpd/pdm-ir"
+component = "SinglePhotonDetector"
+title = "MPD PDM-IR (SMF-28, desktop)"
+vendor = "Micro Photon Devices"
+part_number = "$PI-010-SM-DI"
+description = "Peltier-cooled InGaAs/InP SPAD, 900–1700 nm, free-running or gated, SMF-28 pigtail, desktop instrument"
+tier = "datasheet"
+tags = ["InGaAs", "SPAD", "free-running", "gated", "1550"]
+notes = """
+Variants on the same datasheet: $PI-010-SM (small form factor, DCR 0.5 kcps typ / 1.2 max, case-temperature
+dependent), $PI-025-MM and -MM-DI (50 µm graded-index multimode fiber, 25 µm SPAD, DCR 2.6 kcps typ / 5 max,
+jitter 130 ps typ). The datasheet specifies the PDE at 7 V excess bias and the DCR at 2 V, so a unit run at
+full PDE will count more dark counts than this preset; set dark_count_rate from the DCR-vs-hold-off curves for
+the bias you use. The datasheet gives no absolute maximum optical input; the warranty refers to the user manual.
+"""
+
+[source]
+title = "PDM-IR datasheet, fiber-pigtailed versions"
+vendor_url = "https://www.micro-photon-devices.com"
+document = "MPD_PDM-IR_Datasheet_Fiber.pdf"
+revision = "v2.1, February 2025"
+accessed = 2026-10-16
+conditions = "SMF-28 pigtail (10 µm SPAD); each row's own excess bias V_EX and mode"
+
+[params]
+efficiency = { value = 0.25, from = "datasheet-typ", spec = "Photon detection efficiency, V_EX = 7 V (fixed-gate mode only), 1550 nm", note = "Free-running and free-gate modes are limited to V_EX = 5 V; the PDE-vs-bias plot gives about 22 % there" }
+dark_count_rate = { value = 250.0, from = "datasheet-typ", spec = "DCR, SMF-28 desktop version, V_EX = 2 V, SPAD temperature 'Low', free running, hold-off 100 µs", max = 600.0, note = "Rises with V_EX and as the hold-off is shortened (afterpulsing, not modelled)" }
+ref_wavelength = { value = 1550e-9, from = "datasheet-condition", spec = "PDE is specified at λ = 1550 nm" }
+dead_time = { value = 100e-6, from = "datasheet-typ", spec = "Hold-off time at which the DCR is specified; software-selectable 1 µs … 3 ms in 10 ns steps", min = 1e-6, max = 3e-3 }
+
+[curves.efficiency]
+from = "datasheet-graph"
+spec = "PDE vs wavelength, SMF-28 version, V_EX = 6 V series (the closest to the 7 V of the PDE specification)"
+note = "The 3–6 V series have the same shape; the plot's 6 V series reads ≈ 25.8 % at 1550 nm and the model scales it to the table's 25 %. Sensitivity 900–1700 nm."
+wavelength_nm = [800, 825, 850, 875, 900, 925, 950, 975, 1000, 1025, 1050, 1075, 1100, 1125, 1150, 1175, 1200, 1225, 1250, 1275, 1300, 1325, 1350, 1375, 1400, 1425, 1450, 1475, 1500, 1525, 1550, 1575, 1600, 1625, 1650, 1675, 1700]
+value = [0.0008, 0.0019, 0.0043, 0.0082, 0.0183, 0.0579, 0.0788, 0.0983, 0.1146, 0.1305, 0.1487, 0.1666, 0.1907, 0.214, 0.2404, 0.2617, 0.2901, 0.3157, 0.3437, 0.3538, 0.3647, 0.3662, 0.367, 0.3685, 0.3546, 0.3616, 0.3623, 0.3631, 0.3483, 0.3134, 0.2575, 0.1899, 0.1289, 0.0866, 0.0447, 0.0198, 0.0035]
+
+[unsupported]
+timing_jitter_fwhm_s = { typ = 200e-12, note = "V_EX = 4 V, all modes; 100 ps typ at 7 V in fixed-gate mode. The click model has no timing jitter: a click lands in its laser time bin" }
+irf_decay_time_s = { typ = 60e-12, max = 100e-12, note = "V_EX = 4 V; longer below 975 nm" }
+gating = "Gate width 1 ns … 1.5 ms, gate repetition up to 100 MHz, internal or external trigger with programmable delays. Only free-running operation is modelled"
+afterpulsing = "Not specified beyond the DCR-vs-hold-off curves; not modelled"
+spad_temperature_k = { min = 225, max = 243, note = "four software-selectable values; not modelled" }
+output_pulse = "PHOTON OUT: NIM (−800 mV into 50 Ω) or TTL, 10 ns; the model emits 1 V, 5 ns pulses"

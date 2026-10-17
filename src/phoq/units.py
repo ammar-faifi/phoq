@@ -50,8 +50,12 @@ RESPONSIVITY = {
         [800, 900, 1000, 1100, 1300, 1400, 1550, 1600, 1700, 1800],
         [0.15, 0.25, 0.35, 0.45, 0.60, 0.65, 0.70, 0.55, 0.15, 0.00],
     ),
+    "GaAs": (  # read off the Thorlabs DX25C spectral-response plot (TTN142494-S01)
+        [500, 550, 600, 650, 700, 750, 800, 830, 850, 865, 875, 890, 900],
+        [0.12, 0.17, 0.24, 0.31, 0.38, 0.46, 0.53, 0.57, 0.57, 0.52, 0.35, 0.10, 0.00],
+    ),
 }
-DARK_CURRENT = {"InGaAs": 1e-9, "Si": 0.3e-9, "Ge": 50e-9}
+DARK_CURRENT = {"InGaAs": 1e-9, "Si": 0.3e-9, "Ge": 50e-9, "GaAs": 50e-9}  # GaAs: DX25C maximum
 
 # SMF-28 attenuation [dB/km] against wavelength [nm].
 FIBER_ATTENUATION = (
@@ -63,6 +67,11 @@ FIBER_ATTENUATION = (
 def responsivity(material: str, wavelength: float) -> float:
     xs, ys = RESPONSIVITY[material]
     return float(np.interp(wavelength * 1e9, xs, ys, left=0.0, right=0.0))
+
+
+def peak_responsivity(material: str) -> float:
+    """The maximum of the material's typical responsivity curve [A/W]."""
+    return max(RESPONSIVITY[material][1])
 
 
 def fiber_attenuation(wavelength: float) -> float:

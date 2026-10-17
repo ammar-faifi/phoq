@@ -187,6 +187,7 @@ class Component:
     inputs: ClassVar[tuple[str, ...]] = ()  # port order used by Setup.chain()
     outputs: ClassVar[tuple[str, ...]] = ()
     is_cord: ClassVar[bool] = False  # fiber patch cords join optical ports
+    spectral_curves: ClassVar[dict[str, str]] = {}  # datasheet curves a preset may give: name → unit
     registry: ClassVar[dict[str, type[Component]]] = {}
 
     def __init_subclass__(cls, **kwargs):
@@ -203,14 +204,17 @@ class Component:
                     specs[key] = value
         return specs
 
-    def __init__(self, name: str | None = None, **params):
+    def __init__(self, name: str | None = None, *, preset: str | None = None, **params):
         self.name = name
         self.setup: Setup | None = None
         self._values: dict[str, Any] = {
             k: p.default for k, p in self.param_specs().items()
         }
+        self._preset = None  # the applied part preset; None = generic (class defaults)
         self.ports: dict[str, Port] = {}
         self._build()
+        if preset:
+            self.apply_preset(preset)
         self.set(**params)
 
     def _build(self) -> None:
@@ -244,6 +248,69 @@ class Component:
     def params(self) -> dict[str, Any]:
         return dict(self._values)
 
+    # ---- part presets (see phoq.presets) ----------------------------------------------------
+    @property
+    def preset(self) -> str:
+        """Id of the applied part preset, or ``"generic"`` for the class defaults."""
+        from .presets import GENERIC
+
+        return self._preset.id if self._preset is not None else GENERIC
+
+    @property
+    def preset_info(self):
+        """The applied :class:`~phoq.presets.Preset` (a synthesized generic one when none is)."""
+        from .presets import generic_for
+
+        return self._preset if self._preset is not None else generic_for(type(self))
+
+    @property
+    def limits(self) -> dict[str, Any]:
+        """Absolute maximum ratings from the preset (empty for a generic part)."""
+        return dict(self._preset.limits) if self._preset is not None else {}
+
+    def curve(self, name: str):
+        """The preset's datasheet curve ``name`` (a :class:`~phoq.presets.Curve`), or None."""
+        return self._preset.curves.get(name) if self._preset is not None else None
+
+    def apply_preset(self, preset) -> Component:
+        """Set this part up as a product: ``im.apply_preset("exail/mx-ln-10")``.
+
+        Only the parameters the preset lists are set, so operating settings (a laser's power, a
+        scope's timebase) stay as they are; the ones the previous preset had set go back to their
+        defaults first. ``"generic"`` returns to the class defaults.
+        """
+        from . import presets as _presets
+
+        p = _presets.resolve(preset, type(self))
+        _presets.validate_for(p, type(self))
+        specs = self.param_specs()
+        if self._preset is not None:
+            for key in self._preset.params:
+                if key in specs:
+                    setattr(self, key, specs[key].default)
+        self._preset = None if p.generic else p
+        self.set(**p.params)
+        return self
+
+    def provenance(self) -> dict[str, dict]:
+        """Where each preset-set parameter comes from, and whether it was edited since."""
+        if self._preset is None:
+            return {}
+        return {
+            key: {
+                **prov.to_dict(),
+                "overridden": self._values.get(key) != self._preset.params[key],
+            }
+            for key, prov in self._preset.provenance.items()
+        }
+
+    def baseline(self) -> dict[str, Any]:
+        """Parameter values before any edit: the class defaults overlaid with the preset's."""
+        base = {k: p.default for k, p in self.param_specs().items()}
+        if self._preset is not None:
+            base.update(self._preset.params)
+        return base
+
     def ui_fields(self) -> list[str]:
         """Parameters worth showing for the current settings (the visualizer hides the rest)."""
         return list(self.param_specs())
@@ -261,16 +328,21 @@ class Component:
             self.setup._notify("param", self, name)
 
     def to_dict(self, full: bool = False) -> dict:
-        specs = self.param_specs()
-        params = {
-            k: v for k, v in self._values.items() if full or v != specs[k].default
-        }
-        return {"name": self.name, "type": type(self).__name__, "params": params}
+        """Name, type, preset id (if any) and the parameters that differ from the baseline."""
+        base = self.baseline()
+        params = {k: v for k, v in self._values.items() if full or v != base[k]}
+        out: dict[str, Any] = {"name": self.name, "type": type(self).__name__}
+        if self._preset is not None:
+            out["preset"] = self._preset.id
+        out["params"] = params
+        return out
 
     def __repr__(self) -> str:
-        specs = self.param_specs()
+        base = self.baseline()
         args = [repr(self.name)] if self.name else []
-        args += [f"{k}={v!r}" for k, v in self._values.items() if v != specs[k].default]
+        if self._preset is not None:
+            args.append(f"preset={self._preset.id!r}")
+        args += [f"{k}={v!r}" for k, v in self._values.items() if v != base[k]]
         return f"{type(self).__name__}({', '.join(args)})"
 
 
@@ -510,7 +582,7 @@ class Setup:
             ctype = Component.registry.get(cd["type"])
             if ctype is None:
                 raise ValueError(f"unknown component type {cd['type']!r}")
-            setup.add(ctype(cd["name"], **cd.get("params", {})))
+            setup.add(ctype(cd["name"], preset=cd.get("preset"), **cd.get("params", {})))
         for a, b in data.get("connections", []):
             setup._mate(setup.port(a), setup.port(b))
         return setup
@@ -567,9 +639,11 @@ class Setup:
             f"setup = Setup({self.name!r}{f', seed={self.seed!r}' if self.seed is not None else ''})",
         ]
         for c in self:
-            args = [repr(c.name)] + [
-                f"{k}={v!r}" for k, v in c.to_dict()["params"].items()
-            ]
+            d = c.to_dict()
+            args = [repr(c.name)]
+            if "preset" in d:
+                args.append(f"preset={d['preset']!r}")
+            args += [f"{k}={v!r}" for k, v in d["params"].items()]
             out.append(
                 f"{var[c.name]} = setup.add({type(c).__name__}({', '.join(args)}))"
             )

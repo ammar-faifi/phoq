@@ -13,6 +13,7 @@ and the 3D virtual lab (``phoq/web``) as an optional, live visualizer of the sam
 
 from importlib.metadata import PackageNotFoundError, version as _version
 
+from . import presets
 from .core import Component, Param, Port, Setup, Transfer
 from .detectors import Photodiode, PowerMeter, PowerReading, SinglePhotonDetector
 from .engine import Network, report, synthesize, trace
@@ -68,6 +69,7 @@ __all__ = [
     "Sweep",
     "Trace",
     "Transfer",
+    "presets",
     "report",
     "synthesize",
     "trace",

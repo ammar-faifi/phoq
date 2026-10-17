@@ -1,0 +1,48 @@
+# Exail MX-LN-40 — 30 GHz LiNbO₃ intensity modulator (MX-LN series datasheet).
+schema = 1
+component = "IntensityModulator"
+title = "Exail MX-LN-40"
+vendor = "Exail"
+part_number = "MX-LN-40"
+description = "40 GHz LiNbO₃ X-cut Mach–Zehnder intensity modulator, 1550 nm band, zero chirp"
+tier = "datasheet"
+tags = ["LiNbO3", "X-cut", "MZM", "1550", "30 GHz"]
+notes = """
+Ordering code MX-LN-<bandwidth>-<PD|00>-<P>-<P|S>-<00|FA>-<00|FA>[-LIL]: optional internal photodiode, PM input fiber,
+PM or standard SM output fiber, bare fiber or FC/APC connectors, low-insertion-loss option. Bias controllers (MBC-DG)
+and RF amplifiers are separate products. The RF and DC electrodes have different Vπ: v_pi is the RF one, v_pi_bias the
+DC one, so a supply on the bias input is referred to the RF electrode by Vπ_RF/Vπ_DC.
+"""
+
+[source]
+title = "MX-LN series — 1550 nm band intensity modulators"
+vendor_url = "https://www.exail.com"
+document = "exail-datasheet-mx-ln-series-linbo3-optic-modulators.pdf"
+revision = "ED15 (05/2026)"
+accessed = 2026-10-16
+conditions = "25 °C, 1550 nm"
+
+[params]
+v_pi = { value = 5.0, from = "datasheet-typ", spec = "Vπ RF electrodes @ 50 kHz, 1550 nm", max = 6.0 }
+v_pi_bias = { value = 6.5, from = "datasheet-typ", spec = "Vπ DC electrodes", max = 7.0 }
+insertion_loss_db = { value = 3.5, from = "datasheet-typ", spec = "Insertion loss without optical connectors", max = 4.5, note = "Add up to 0.25 dB per FC/APC connector" }
+extinction_db = { value = 22.0, from = "datasheet-typ", spec = "DC extinction ratio, source linewidth < 200 MHz", min = 20.0 }
+
+[limits]
+optical_input_dbm = 20.0
+rf_input_dbm = 28.0
+bias_voltage_v = [-20.0, 20.0]
+operating_temperature_c = [0.0, 70.0]
+
+[unsupported]
+eo_bandwidth_hz = { typ = 3e+10, min = 2.8e+10, note = "S21 −3 dB from 2 GHz. The modulator model has no RF roll-off: keep the drive below this" }
+usable_eo_bandwidth_hz = { typ = 4e+10, max = 5e+10 }
+electrical_return_loss_db = { typ = -12.0, max = -10.0, note = "S11 on the RF electrodes" }
+s21_ripple_db = { typ = 0.5, max = 1.0 }
+chirp = { typ = 0.0, min = -0.1, max = 0.1, note = "X-cut: the model's chirp-free response matches" }
+optical_return_loss_db = { typ = -45.0, max = -40.0 }
+wavelength_range_m = { min = 1530e-9, typ = 1550e-9, max = 1580e-9, note = "the model has no wavelength dependence for modulators" }
+rf_input_impedance = "50 Ω"
+dc_input_impedance_ohm = { min = 1e6 }
+rf_connector = "2.4 mm female (mates with V / 1.85 mm; K option)"
+fiber = "Polarization-maintaining input (Corning PM 15-U25D, 1.5 m); the model has no polarization"

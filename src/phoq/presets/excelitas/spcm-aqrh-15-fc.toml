@@ -1,0 +1,57 @@
+# Excelitas SPCM-AQRH-15-FC — Si SPAD photon-counting module, dark-count grade W5, FC fiber adaptor.
+schema = 1
+component = "SinglePhotonDetector"
+title = "Excelitas SPCM-AQRH-15-FC"
+vendor = "Excelitas"
+part_number = "SPCM-AQRH-15-FC"
+description = "Si SPAD photon counter, 400–1060 nm, < 50 c/s dark counts, 22 ns dead time, FC adaptor"
+tier = "datasheet"
+tags = ["Si", "SPAD", "free-running", "visible", "NIR", "780", "850"]
+notes = """
+Part number SPCM-AQRH-WX-YY: W = pulse model (1, 4: 10 ns pulses, 22 ns dead time; 2, 5: 18 ns, 28 ns; 3, 6: 28 ns,
+42 ns; 4–6 give 4.4 V instead of 2.2 V pulses), X = dark-count grade (0 … 6: < 1500, 1000, 500, 250, 100, 50, 25 c/s),
+YY = FC (fiber adaptor), BR1 / BR2 (tube or C-mount bracket) or nothing (free-space window, PDE 65 % at 650 nm: set
+efficiency = 0.65). Each module ships with test data (dark count, dead time, pulse width, PDE at 630 nm, or 550 nm when
+fiber-coupled, correction factor, linearity): a preset of your own with those values (from = "measured", tier =
+"validated") makes the twin your unit. The silicon detector does not see 1310 or 1550 nm light.
+"""
+
+[source]
+title = "SPCM-AQRH Single Photon Counting Module datasheet"
+vendor_url = "https://www.excelitas.com"
+document = "Excelitas_SPCM-AQRH_Family_datasheet.pdf"
+revision = "SPCM-AQRH Rev 2020-10"
+accessed = 2026-10-17
+conditions = "22 °C, all models unless indicated (Table 1)"
+
+[params]
+efficiency = { value = 0.62, from = "derived", spec = "PDE without FC adaptor at 650 nm", min = 0.50, typ = 0.65, note = "× ≈ 0.95 for the FC adaptor (connectorized modules have about 95 % of the standard PDE, quoted at 550 nm): 0.65 × 0.95 = 0.62" }
+ref_wavelength = { value = 650e-9, from = "datasheet-condition", spec = "Table 1 PDE row at 650 nm" }
+dark_count_rate = { value = 50.0, from = "datasheet-max", spec = "Dark count, grade W5 (SPCM-AQRH-W5)", note = "Only a maximum is specified per grade; the unit's test report gives its value. Variation ± 1σ over 6 h at 25 °C, ± 2σ over 5–70 °C case temperature" }
+dead_time = { value = 22e-9, from = "datasheet-typ", spec = "Dead time, -1X / -4X pulse models, count rate below 5 Mc/s", note = "Table 3A lists 24 ns for -1X; Table 1, note 7 and the ordering example give 22 ns" }
+
+[curves.efficiency]
+from = "datasheet-graph"
+spec = "Figure 3, typical PDE vs wavelength, standard SPCM (free-space window)"
+note = "Table 1 gives typ 5 % at 400 nm, 65 % at 650 nm, 45 % at 830 nm and 2 % at 1060 nm; the figure reads ≈ 57 % at 830 nm, so the model (the figure scaled to 62 % at 650 nm) gives ≈ 51 % there. Replace efficiency / ref_wavelength by your unit's test data (PDE at 550 nm for fiber-coupled modules)."
+wavelength_nm = [400, 420, 440, 460, 480, 500, 520, 540, 560, 580, 600, 620, 640, 660, 680, 700, 720, 740, 760, 780, 800, 820, 840, 860, 880, 900, 920, 940, 960, 980, 1000, 1020, 1040, 1060]
+value = [0.085, 0.119, 0.179, 0.264, 0.347, 0.422, 0.484, 0.536, 0.584, 0.627, 0.66, 0.684, 0.694, 0.695, 0.694, 0.69, 0.684, 0.676, 0.664, 0.647, 0.624, 0.592, 0.552, 0.507, 0.459, 0.408, 0.352, 0.289, 0.228, 0.168, 0.117, 0.08, 0.049, 0.019]
+
+[limits]
+photons_per_pulse = 1e4
+case_temperature_c = [5.0, 70.0]
+supply_voltage_v = 5.5
+
+[unsupported]
+timing_resolution_s = { typ = 350e-12, note = "at 825 nm, 10 µm spot, 22 °C; the click model has no timing jitter" }
+afterpulsing_probability = { typ = 0.005, max = 0.01, note = "first 500 ns after a count (excluding the first 75 ns) at 100 kc/s; not modelled" }
+count_rate_before_saturation_hz = { min = 12e6, typ = 37e6, note = "the module's count rate falls again at very high flux (Figure 7); the model's dead time is non-paralysable, ceiling 1/t_d = 45 Mc/s" }
+linearity_correction_factor = "typ 1.02 at 1 Mc/s, 1.16 at 5, 1.40 at 10, 2.35 at 20, 3.32 at 25 Mc/s; the model's dead time alone gives 1/(1 − t_d·CR) = 1.02, 1.12, 1.28, 1.79, 2.22"
+active_area_diameter_m = { min = 170e-6, typ = 180e-6 }
+output_pulse = "TTL into 50 Ω: 10 ns, 2.2 V (-1X; 4.4 V for -4X); the model emits 1 V, 5 ns pulses. Trigger counters at 1.0 V"
+gating = "TTL gate input (50 Ω): counting off in 40 ns typ, on in 60 ns typ; counts less than 2 µs before a gate change lose timing accuracy. Not modelled"
+fiber_adaptor = "FC/PC receptacle optimized for 550 nm and 100 µm core multimode fiber (SPCM-QC6); coupling of single-mode fiber is not specified"
+breakdown_flash = "An avalanche emits light with a broad spectrum; reflected back more than 20 ns later it is detected. Not modelled (matters for back-reflections and detector side channels)"
+overexposure = "After over-exposure the dark count may stay raised for up to an hour"
+dark_count_bistability = "A small fraction of modules switch between two (or more) dark-count levels"
+pde_stability = "Detection probability varies ≤ 1 % below 1 Mc/s and ≤ 3 % below 5 Mc/s up to 40 °C (Figure 6)"

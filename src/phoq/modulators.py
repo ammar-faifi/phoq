@@ -30,6 +30,14 @@ class _Modulator(Component):
     v_pi = Param(
         4.0, unit="V", label="Vπ", min=0.1, max=20.0, doc="Voltage for a π phase shift"
     )
+    v_pi_bias = Param(
+        0.0,
+        unit="V",
+        label="Vπ (bias electrode)",
+        min=0.0,
+        max=20.0,
+        doc="Vπ of the DC electrodes when they differ from the RF ones (datasheets quote both); 0 = same as Vπ",
+    )
     insertion_loss_db = Param(3.0, unit="dB", label="Insertion loss", min=0.0, max=20.0)
 
     def _build(self):
@@ -63,27 +71,37 @@ class _Modulator(Component):
         src = self._source(port)
         return 0.0 if src is None else src[0].static_voltage(src[1])
 
+    def bias_scale(self) -> float:
+        """Factor referring a bias-electrode voltage to the RF electrode: Vπ_RF / Vπ_DC."""
+        return self.v_pi / self.v_pi_bias if self.v_pi_bias > 0 else 1.0
+
     def bias_voltage(self) -> float:
-        """DC level on the bias input (the mean of its waveform if it is not a DC source)."""
+        """DC level on the bias input (the mean of its waveform if it is not a DC source),
+        referred to the RF electrode."""
         src = self._source("bias")
         if src is None:
             return 0.0
         gen, ch = src
-        return (
+        v = (
             gen.static_voltage(ch)
             if gen.is_static(ch)
             else float(np.mean(gen.waveform(ch)))
         )
+        return v * self.bias_scale()
 
     def static_voltage(self) -> float:
-        """Total voltage on the electrodes when nothing is time-varying."""
-        return self._port_static("rf") + self._port_static("bias")
+        """Total RF-referred electrode voltage when nothing is time-varying."""
+        return self._port_static("rf") + self._port_static("bias") * self.bias_scale()
 
     def drive_voltage(self, t_mod, t_emit=None) -> np.ndarray:
-        """Total electrode voltage rf + bias at the given times."""
+        """Total RF-referred electrode voltage rf + bias at the given times."""
         total = np.zeros(np.shape(t_mod))
-        for src, ch in self.drivers():
-            total = total + src.voltage(ch, t_mod, t_emit)
+        for port in DRIVE_PORTS:
+            src = self._source(port)
+            if src is None:
+                continue
+            v = src[0].voltage(src[1], t_mod, t_emit)
+            total = total + (v * self.bias_scale() if port == "bias" else v)
         return total
 
     # ---- optics ----------------------------------------------------------------------------------
@@ -120,6 +138,10 @@ class _Modulator(Component):
                 f"{src[0].name} {src[1].upper()} · {src[0].describe(src[1])}"
                 if src
                 else "none (0 V)"
+            )
+        if self.v_pi_bias > 0:
+            out["Bias electrode"] = (
+                f"Vπ {self.v_pi_bias:g} V: quadrature at {self.v_pi_bias / 2:g} V, null at {self.v_pi_bias:g} V"
             )
         return out
 

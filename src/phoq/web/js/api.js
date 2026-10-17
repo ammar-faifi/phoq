@@ -31,6 +31,7 @@ export class Api {
   catalog() { return this.req('GET', '/api/catalog'); }
   add(type, params = {}) { return this.req('POST', '/api/components', { type, params }); }
   patch(name, params) { return this.req('PATCH', `/api/components/${encodeURIComponent(name)}`, { params }); }
+  setPreset(name, id) { return this.req('POST', `/api/components/${encodeURIComponent(name)}/preset`, { id }); }
   remove(name) { return this.req('DELETE', `/api/components/${encodeURIComponent(name)}`); }
   connect(a, b) { return this.req('POST', '/api/connections', { a, b }); }
   disconnect(port) { return this.req('POST', '/api/disconnect', { port }); }

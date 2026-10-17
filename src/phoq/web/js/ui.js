@@ -24,6 +24,12 @@ export const ICONS = {
 };
 const GENERIC = svg('<rect x="6" y="8" width="20" height="16" rx="2" stroke="#7aa2d6"/><path d="M1 16h5M26 16h5" stroke="#e8c21a"/>');
 const GROUPS = [['source', 'Sources'], ['cord', 'Fiber'], ['passive', 'Passive optics'], ['modulator', 'Modulators'], ['detector', 'Detectors'], ['instrument', 'Instruments']];
+// Provenance badges for values that come from a part preset (phoq.presets).
+const PROV_SHORT = { 'datasheet-typ': 'typ', 'datasheet-min': 'min', 'datasheet-max': 'max', 'datasheet-graph': 'graph', 'datasheet-condition': 'cond', derived: 'derived', measured: 'measured', assumed: 'assumed', unstated: '?' };
+const provTitle = (p) => [
+  `${(p.kind ?? '').replace('-', ' ')}${p.overridden ? ' · edited since the preset was applied' : ''}`, p.spec,
+  ...['min', 'typ', 'max'].filter((k) => p[k] != null).map((k) => `${k} ${p[k]}`), p.note,
+].filter(Boolean).join(' · ');
 
 export class UI {
   constructor(lab) {
@@ -59,11 +65,14 @@ export class UI {
     for (const t of catalog.types) (byCat[t.category] ??= []).push(t);
     document.getElementById('tool-list').innerHTML = Object.entries(byCat).filter(([, ts]) => ts.length).map(([cat, ts]) => `
       <div class="tool-group">${GROUPS.find(([k]) => k === cat)?.[1] ?? cat}</div>
-      ${ts.map((t) => `
+      ${ts.map((t) => {
+        const n = (t.presets ?? []).filter((p) => p.tier !== 'generic').length;
+        return `
         <div class="tool" draggable="true" data-type="${esc(t.type)}" title="${esc(t.description)} — drag onto the table or click to add">
           <div class="ico">${ICONS[t.type] ?? GENERIC}</div>
-          <div><b>${esc(t.label)}</b><small>${esc(t.description)}</small></div>
-        </div>`).join('')}`).join('');
+          <div><b>${esc(t.label)}</b><small>${esc(t.description)}</small>${n ? `<small class="presets-n">${n} part preset${n > 1 ? 's' : ''}</small>` : ''}</div>
+        </div>`;
+      }).join('')}`).join('');
     for (const el of document.querySelectorAll('.tool')) {
       el.addEventListener('dragstart', (e) => {
         e.dataTransfer.setData('application/x-lab-item', el.dataset.type);
@@ -170,6 +179,7 @@ export class UI {
     if (!comp) { this.renderOverview(); return; }
     const focused = document.activeElement?.closest?.('#inspector-body') ? document.activeElement.dataset.key : null;
     let html = `<div class="insp-head"><div class="ico">${ICONS[comp.type] ?? GENERIC}</div><div><b>${esc(comp.name)}</b><small>${esc(comp.label)} · <code>${esc(comp.type)}</code></small></div></div>`;
+    html += this.presetHtml(comp);
     for (const key of comp.fields) html += this.fieldHtml(comp, key);
     const elec = comp.ports.filter((p) => p.kind === 'electrical');
     if (elec.length) {
@@ -187,6 +197,21 @@ export class UI {
     this.updateReadouts();
   }
 
+  /** Part picker: the generic class defaults, or a datasheet preset of this type (phoq.presets). */
+  presetHtml(comp) {
+    const list = this.lab.presets.get(comp.type) ?? [];
+    if (list.length < 2) return '';
+    const cur = list.find((p) => p.tier !== 'generic' && p.id === comp.preset);
+    const opt = (p) => {
+      const sel = p.tier === 'generic' ? comp.preset === 'generic' : p.id === comp.preset;
+      const text = p.tier === 'generic' ? 'Generic (class defaults)' : p.title + (p.part_number && !p.title.includes(p.part_number) ? ` · ${p.part_number}` : '');
+      return `<option value="${esc(p.id)}" ${sel ? 'selected' : ''}>${esc(text)}</option>`;
+    };
+    return `<div class="field part-preset"><label for="f-preset"><span>Part preset</span>${cur ? `<span class="unit">${esc(cur.tier)}</span>` : ''}</label>
+      <select id="f-preset" data-preset="1" aria-label="Part preset">${list.map(opt).join('')}</select>
+      ${cur ? `<small class="part-desc">${esc(cur.description)}${cur.curves?.length ? ' · spectral curve from the datasheet' : ''}${cur.has_limits ? ' · absolute maximum ratings are checked' : ''}</small>` : ''}</div>`;
+  }
+
   fieldHtml(comp, key) {
     const spec = this.lab.spec(comp.type, key);
     if (!spec) return '';
@@ -194,25 +219,28 @@ export class UI {
     const id = `f-${key}`;
     const attrs = `id="${id}" data-key="${key}" aria-label="${esc(spec.label)}"`;
     const doc = spec.doc ? ` title="${esc(spec.doc)}"` : '';
+    const prov = comp.provenance?.[key];
+    const badge = prov ? `<i class="prov${prov.overridden ? ' edited' : ''}" title="${esc(provTitle(prov))}">${prov.overridden ? 'edited' : (PROV_SHORT[prov.kind] ?? prov.kind)}</i>` : '';
+    const name = `<span>${esc(spec.label)}${badge}</span>`;
     if (spec.type === 'bool') {
-      return `<div class="field"${doc}><label class="switch" for="${id}"><span>${esc(spec.label)}</span><input type="checkbox" ${attrs} ${v ? 'checked' : ''}/></label></div>`;
+      return `<div class="field"${doc}><label class="switch" for="${id}">${name}<input type="checkbox" ${attrs} ${v ? 'checked' : ''}/></label></div>`;
     }
     if (spec.choices) {
-      return `<div class="field"${doc}><label for="${id}">${esc(spec.label)}</label><select ${attrs}>${spec.choices.map((c) => `<option ${c === v ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></div>`;
+      return `<div class="field"${doc}><label for="${id}">${name}</label><select ${attrs}>${spec.choices.map((c) => `<option ${c === v ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></div>`;
     }
     if (spec.type === 'str') {
-      return `<div class="field"${doc}><label for="${id}">${esc(spec.label)}</label><input type="text" ${attrs} value="${esc(v)}" placeholder="auto"/></div>`;
+      return `<div class="field"${doc}><label for="${id}">${name}</label><input type="text" ${attrs} value="${esc(v)}" placeholder="auto"/></div>`;
     }
     if (spec.presets) {
       const opts = [...new Set([...spec.presets, v])].sort((a, b) => a - b);
-      return `<div class="field"${doc}><label for="${id}">${esc(spec.label)}</label><select ${attrs} data-num="1">${opts.map((o) => `<option value="${o}" ${o === v ? 'selected' : ''}>${esc(fmtParam(o, spec))}</option>`).join('')}</select></div>`;
+      return `<div class="field"${doc}><label for="${id}">${name}</label><select ${attrs} data-num="1">${opts.map((o) => `<option value="${o}" ${o === v ? 'selected' : ''}>${esc(fmtParam(o, spec))}</option>`).join('')}</select></div>`;
     }
     if (!spec.display && spec.min !== null && spec.max !== null && spec.max - spec.min <= 1000 && spec.type === 'float') {
       const step = spec.max - spec.min <= 1 ? 0.01 : spec.max - spec.min <= 20 ? 0.05 : 0.5;
-      return `<div class="field"${doc}><label for="${id}">${esc(spec.label)}<output data-out="${key}">${esc(fmtParam(v, spec))}</output></label><input type="range" ${attrs} min="${spec.min}" max="${spec.max}" step="${step}" value="${v}"/></div>`;
+      return `<div class="field"${doc}><label for="${id}">${name}<output data-out="${key}">${esc(fmtParam(v, spec))}</output></label><input type="range" ${attrs} min="${spec.min}" max="${spec.max}" step="${step}" value="${v}"/></div>`;
     }
     const scale = spec.display ? spec.display[1] : 1;
-    return `<div class="field"${doc}><label for="${id}">${esc(spec.label)}<span class="unit">${esc(spec.display ? spec.display[0] : spec.unit)}</span></label><input type="number" ${attrs} data-scale="${scale}" value="${Number((v * scale).toPrecision(8))}" step="any"/></div>`;
+    return `<div class="field"${doc}><label for="${id}">${name}<span class="unit">${esc(spec.display ? spec.display[0] : spec.unit)}</span></label><input type="number" ${attrs} data-scale="${scale}" value="${Number((v * scale).toPrecision(8))}" step="any"/></div>`;
   }
 
   wireHtml(comp, port) {
@@ -245,6 +273,8 @@ export class UI {
         el.addEventListener('change', send);
       }
     }
+    const preset = this.body.querySelector('[data-preset]');
+    if (preset) preset.addEventListener('change', () => lab.setPreset(comp.name, preset.value));
     for (const el of this.body.querySelectorAll('[data-wire]')) {
       el.addEventListener('change', async () => {
         const port = `${comp.name}.${el.dataset.wire}`;

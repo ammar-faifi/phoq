@@ -1,0 +1,49 @@
+# Thorlabs DET08CFC — 5 GHz InGaAs biased detector with FC/PC fiber input.
+schema = 1
+component = "Photodiode"
+title = "Thorlabs DET08CFC"
+vendor = "Thorlabs"
+part_number = "DET08CFC"
+description = "5 GHz InGaAs biased detector, 800–1700 nm, FC/PC input, SMA output, 12 V battery bias"
+tier = "datasheet"
+tags = ["InGaAs", "5 GHz", "1550", "biased"]
+notes = """
+Reverse-biased from an internal A23 12 V battery (about 40 h at 1 mA, 1.5 mW); a low battery slows the
+response. Terminate the SMA output in 50 Ω for the quoted bandwidth. The /M version is the metric-thread housing.
+"""
+
+[source]
+title = "DET08CFC(/M) Fiber Input InGaAs Biased Detector — User Guide, chapter 6 Specifications"
+url = "https://www.thorlabs.com/thorproduct.cfm?partnumber=DET08CFC"
+document = "ttn020103-d02.pdf"
+revision = "TTN020103-D02 Rev. F, April 15, 2024"
+accessed = 2026-10-16
+conditions = "25 °C, 12 V bias, 50 Ω load unless noted"
+
+[params]
+material = { value = "InGaAs", from = "datasheet-typ", spec = "InGaAs PIN, 800–1700 nm, Ø80 µm active area" }
+bandwidth = { value = 5e9, from = "datasheet-max", spec = "Bandwidth (−3 dB), 50 Ω load, 12 V bias", note = "Thorlabs quotes the bandwidth as a maximum; a low battery or a larger output voltage reduces it" }
+ref_responsivity = { value = 0.90, from = "datasheet-typ", spec = "Peak response ℜ(λp)" }
+ref_wavelength = { value = 1550e-9, from = "datasheet-typ", spec = "Peak wavelength λp" }
+load = { value = 50.0, from = "datasheet-typ", spec = "50 Ω termination, recommended for the fastest response" }
+saturation = { value = 40e-3, from = "derived", spec = "2 V maximum output voltage into 50 Ω", note = "I = V/R = 2 V / 50 Ω; the model's knee is soft" }
+
+[curves.responsivity]
+from = "datasheet-graph"
+spec = "6.1 Response Curve, typical spectral response"
+note = "The curve peaks at ≈ 1.02 A/W at 1550 nm while the specification table gives 0.90 A/W typ; ref_responsivity scales the curve to the table value."
+wavelength_nm = [800, 825, 850, 875, 900, 910, 920, 930, 940, 950, 975, 1000, 1050, 1100, 1150, 1200, 1250, 1300, 1350, 1400, 1450, 1500, 1550, 1600, 1625, 1640, 1650, 1660, 1670, 1680, 1690, 1700]
+value = [0.153, 0.183, 0.229, 0.291, 0.381, 0.436, 0.494, 0.543, 0.578, 0.605, 0.648, 0.675, 0.716, 0.753, 0.791, 0.838, 0.887, 0.929, 0.959, 0.982, 1.001, 1.015, 1.021, 1.008, 0.98, 0.945, 0.898, 0.778, 0.597, 0.421, 0.278, 0.177]
+
+[limits]
+output_voltage_v = 2.0
+
+[unsupported]
+rise_time_s = { typ = 70e-12, note = "20–80 % at 952 nm" }
+fall_time_s = { typ = 110e-12, note = "80–20 % at 952 nm" }
+dark_current_a = { typ = 1.5e-9, note = "1 MΩ load; the model uses its InGaAs table value" }
+nep_w_per_rthz = { typ = 2e-15, note = "at 1550 nm" }
+junction_capacitance_f = { typ = 0.3e-12 }
+active_area_diameter_m = { typ = 80e-6 }
+after_pulse_ringing = "< 20 % of the maximum; the model has no ringing"
+bias_voltage_v = { typ = 12.0, note = "internal battery; not a setting of the model" }

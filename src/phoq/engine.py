@@ -20,8 +20,9 @@ import numpy as np
 from .core import Setup
 from .detectors import Photodiode, PowerMeter, SinglePhotonDetector, _Detector
 from .generators import FunctionGenerator
+from .modulators import _Modulator
 from .sources import Laser
-from .units import CONNECTOR_LOSS_DB, db_to_t, fmt_si, photon_energy, w_to_dbm
+from .units import CONNECTOR_LOSS_DB, db_to_t, dbm_to_w, fmt_si, photon_energy, w_to_dbm
 
 MAX_HOPS = 40
 MIN_GAIN = 1e-18
@@ -233,17 +234,37 @@ def report(setup: Setup, net: Network | None = None) -> dict:
             )
         elif isinstance(d, SinglePhotonDetector):
             rate = _pulse_rate(net, d)
-            nbar = sum(
-                p * (1 / rate if rate else 1e-9) / photon_energy(wl)
+            per = 1 / rate if rate else 1e-9
+            nbar = sum(p * per / photon_energy(wl) for wl, p in powers.items())
+            seen = sum(  # weighted by the spectral PDE: efficiency × seen is the detected mean
+                p * per / photon_energy(wl) * d.spectral_factor(wl)
                 for wl, p in powers.items()
             )
             entry["readouts"][
                 "Photons / pulse" if rate else "Photons / ns"
             ] = f"{nbar:.3g}"
+            if d.curve("efficiency") is not None:
+                for wl in sorted(powers):
+                    entry["readouts"][f"PDE at {wl * 1e9:.0f} nm"] = f"{d.efficiency_at(wl):.3g}"
+                if P > 0 and seen == 0:
+                    warnings.append(
+                        {
+                            "level": "warn",
+                            "text": f"{d.name} ({d.preset}) does not detect {_lams(powers)}: outside its spectral response.",
+                        }
+                    )
             if rate:
-                pc = float(d.click_probability(np.array([nbar]), 1 / rate)[0])
+                pc = float(d.click_probability(np.array([seen]), 1 / rate)[0])
                 entry["readouts"]["Click probability"] = f"{pc:.3g}"
                 entry["readouts"]["Expected click rate"] = fmt_si(pc * rate, "Hz")
+                cap = d.limits.get("photons_per_pulse")
+                if cap is not None and nbar > float(cap):
+                    warnings.append(
+                        {
+                            "level": "bad",
+                            "text": f"{d.name} receives {nbar:.3g} photons per pulse, above the absolute maximum of {float(cap):g} for {d.preset}.",
+                        }
+                    )
             if P > 1e-6:
                 warnings.append(
                     {
@@ -259,6 +280,48 @@ def report(setup: Setup, net: Network | None = None) -> dict:
                 else "—"
             )
         detectors[d.name] = entry
+    for c in setup:  # absolute maximum ratings of parts with a datasheet preset
+        lim = c.limits
+        if not lim:
+            continue
+        cap = lim.get("optical_input_w")
+        if cap is None and "optical_input_dbm" in lim:
+            cap = dbm_to_w(float(lim["optical_input_dbm"]))
+        if cap is not None and (P := _incident_power(net, c)) > cap:
+            warnings.append(
+                {
+                    "level": "bad",
+                    "text": f"{c.name} receives {fmt_si(P, 'W')}, above the absolute maximum optical input of {fmt_si(cap, 'W')} for {c.preset}.",
+                }
+            )
+        if not isinstance(c, _Modulator):
+            continue
+        rng = lim.get("bias_voltage_v")
+        if rng is not None:
+            lo, hi = (
+                (float(rng[0]), float(rng[1]))
+                if isinstance(rng, (list, tuple))
+                else (-abs(float(rng)), abs(float(rng)))
+            )
+            mean, _ = _port_level(c, "bias")
+            if not lo <= mean <= hi:
+                warnings.append(
+                    {
+                        "level": "bad",
+                        "text": f"{c.name} bias is {mean:g} V, outside the absolute maximum {lo:g} … {hi:g} V for {c.preset}.",
+                    }
+                )
+        rf_dbm = lim.get("rf_input_dbm")
+        if rf_dbm is not None:
+            _, peak = _port_level(c, "rf")
+            v_max = math.sqrt(2 * dbm_to_w(float(rf_dbm)) * 50.0)  # sine of that power into 50 Ω
+            if peak > v_max:
+                warnings.append(
+                    {
+                        "level": "bad",
+                        "text": f"{c.name} RF drive peaks at {peak:.3g} V, above the absolute maximum RF input of {rf_dbm:g} dBm ({v_max:.3g} V peak into 50 Ω) for {c.preset}.",
+                    }
+                )
     for g in setup.of_type(FunctionGenerator):
         for ch, pat in g.patterns.items():
             if getattr(g, f"{ch}_shape") == "pattern" and pat is None:
@@ -283,6 +346,28 @@ def report(setup: Setup, net: Network | None = None) -> dict:
         "open_ends": net.open_ends,
         "warnings": warnings,
     }
+
+
+def _incident_power(net: Network, comp) -> float:
+    """Mean optical power entering a component through all its optical ports."""
+    if isinstance(comp, _Detector):
+        return sum(net.mean_powers(comp).values())
+    return sum(
+        net.port_power.get(p.path, 0.0) for p in comp.ports.values() if p.kind == "optical"
+    )
+
+
+def _port_level(mod, port: str) -> tuple[float, float]:
+    """(mean, peak |V|) of what drives a modulator's rf or bias input, as volts at that port."""
+    src = mod._source(port)
+    if src is None:
+        return 0.0, 0.0
+    gen, ch = src
+    if gen.is_static(ch):
+        v = float(gen.static_voltage(ch))
+        return v, abs(v)
+    w = np.asarray(gen.waveform(ch), dtype=float)
+    return float(w.mean()), float(np.abs(w).max())
 
 
 def _pulse_rate(net: Network, d) -> float | None:

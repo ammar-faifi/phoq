@@ -173,6 +173,11 @@ button.run:not(.on) { color: var(--bad); border-color: rgba(248, 113, 113, .5); 
 .field > label output { color: var(--text); font: 11.5px var(--mono); }
 .field > label .unit { color: var(--dim); font: 11px var(--mono); }
 .sub { margin: 16px 0 8px; font-size: 10.5px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--dim); }
+.field.part-preset { display: block; padding: 8px 10px 9px; margin-bottom: 14px; border: 1px solid var(--line); border-radius: 9px; background: color-mix(in srgb, var(--accent) 5%, var(--panel-2)); }
+.part-desc { display: block; margin-top: 5px; color: var(--muted); font-size: 11px; line-height: 1.35; }
+.prov { display: inline-block; margin-left: 6px; padding: 0 5px; border-radius: 4px; font: 500 9.5px/15px var(--mono); letter-spacing: .3px; text-transform: uppercase; font-style: normal; vertical-align: 1px; cursor: help; color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); }
+.prov.edited { color: #fbbf24; background: rgba(251, 191, 36, .12); border-color: rgba(251, 191, 36, .4); }
+.presets-n { display: block; color: var(--accent); font-size: 10.5px; margin-top: 2px; }
 .insp-head code, .hint-py code { font: 11px var(--mono); color: var(--accent); }
 .hint-py { margin: 12px 2px 0; color: var(--dim); font-size: 11.5px; }
 .readouts b.path { font-size: 10.5px; word-break: break-all; }

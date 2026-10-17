@@ -26,6 +26,7 @@ class Lab {
     this.coax = new Map();           // "a|b" → Coax
     this.counters = new Map();       // name → latest photon-counter result
     this.specs = new Map();          // "Type.param" → Param spec
+    this.presets = new Map();        // Type → part presets (generic first)
     this.state = null;
     this.report = null;
     this.selected = null;
@@ -73,6 +74,7 @@ class Lab {
       const cat = await this.api.catalog();
       this.specs.clear();
       for (const t of cat.types) for (const p of t.params) this.specs.set(`${t.type}.${p.name}`, p);
+      this.presets = new Map(cat.types.map((t) => [t.type, t.presets ?? []]));
       this.ui.buildToolbox(cat);
       return true;
     } catch {
@@ -290,6 +292,7 @@ class Lab {
     this.ui.toast(`Added ${r.name}`);
   }
   setParams(name, params) { return this.call(this.api.patch(name, params)); }
+  setPreset(name, id) { return this.call(this.api.setPreset(name, id), `${name} is now ${id === 'generic' || id.startsWith('generic/') ? 'generic' : id}`); }
   remove(name) { return this.call(this.api.remove(name), `Removed ${name}`); }
   autoset(name) { return this.call(this.api.autoset(name)); }
   single(name) { return this.call(this.api.single(name)); }
