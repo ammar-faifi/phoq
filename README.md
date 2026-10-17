@@ -74,7 +74,7 @@ Units are SI throughout: metres, seconds, hertz and watts. Powers use `power_dbm
 | Passive | `Attenuator`, `BeamSplitter` (alias `Coupler`), `PhaseShifter`, `Isolator`, `MatingSleeve` (FC–FC adapter joining two cords) |
 | Modulators | `PhaseModulator` (φ = π·V/Vπ), `IntensityModulator` (Mach–Zehnder, extinction) — voltage comes only through their `rf` and `bias` inputs; `OpticalSwitch` (2×2, bar below the threshold voltage on `ctrl`, cross above: a pattern routes pulse by pulse) |
 | Detectors | `Photodiode`, `SinglePhotonDetector`, `PowerMeter` |
-| Instruments | `Oscilloscope`, `PhotonCounter`, `FunctionGenerator` (2 outputs: dc / sine / square / triangle / ramp / loaded pattern), `DCPowerSupply` (2 outputs, ±30 V) |
+| Instruments | `Oscilloscope`, `SpectrumAnalyzer` (RF spectrum in dBm: RBW, averaging, detectors, trace average and max hold, Lorentzian fit), `PhotonCounter`, `FunctionGenerator` (2 outputs: dc / sine / square / triangle / ramp / loaded pattern), `DCPowerSupply` (2 outputs, ±30 V) |
 
 Run `phoq catalog` for every port and parameter.
 
@@ -471,12 +471,13 @@ from before error correction and privacy amplification were added).*
 - **Photodiode:** I = Σ R(λ)·P + I_dark through a one-pole bandwidth, plus shot noise √(2qIB)
   and thermal noise √(4kTB/R). It saturates softly above `saturation`.
 - **Single-photon detector:** p(click) = 1 − (1 − p_dark)·exp(−η·n̄) per bin, plus dead time.
-- **Modulators and oscilloscope:** see [Theory](#theory-modulators-and-the-oscilloscope) below.
+- **Modulators, oscilloscope and spectrum analyzer:** see
+  [Theory](#theory-modulators-the-oscilloscope-and-the-spectrum-analyzer) below.
 - **Steady-state report:** `phoq.report(setup)` gives mean powers, currents, open-connector
   emission and warnings. It uses the mutual coherence γ(Δτ) = exp(−πΔν|Δτ|) × envelope overlap.
 - **Not modelled:** polarisation, dispersion, nonlinearity, afterpulsing.
 
-## Theory: modulators and the oscilloscope
+## Theory: modulators, the oscilloscope and the spectrum analyzer
 
 ### Electro-optic modulators
 
@@ -595,9 +596,181 @@ probe loading. On the modulators: the electrodes' capacitance and velocity misma
 real EOM a low-pass on its drive (the generator's voltage is applied instantaneously); bias drift
 and its controller; chirp of single-drive devices.
 
+### RF spectrum analyzer
+
+**What it shows.** At every frequency $f$ of the span, an electrical spectrum analyzer (ESA)
+displays the power of its input inside the resolution bandwidth (RBW) around $f$, in dBm into its
+50 Ω input:
+
+$$L(f) = 10\log_{10}\frac{\int S(f')\,|H_\mathrm{RBW}(f'-f)|^2\,df'}{1\ \mathrm{mW}}$$
+
+with $S$ the one-sided power spectral density of the input [W/Hz]. A photodiode drives the input
+with a current, so $S = R_\mathrm{in} S_i$; a generator drives it with a voltage, $S = S_v/R_\mathrm{in}$.
+Two consequences an experimentalist uses all the time:
+
+- a sine of amplitude $A$ shows a line of $A^2/2R_\mathrm{in}$, whatever the RBW;
+- noise shows $S \cdot B_N$, with $B_N$ the RBW filter's noise bandwidth, so the noise floor moves
+  10 dB per decade of RBW, and the density is $L - 10\log_{10}\mathrm{RBW}$ in dBm/Hz.
+
+**How phoq computes it.** A swept-tuned analyzer mixes the input down with a swept local
+oscillator, filters it with the RBW filter, detects the envelope and smooths it with the video
+bandwidth. An FFT analyzer samples, windows, transforms and averages. For stationary signals both
+estimate the same $L(f)$; phoq takes the FFT route, as modern analyzers do below a few MHz of
+span:
+
+1. **Input.** AC-coupled (the DC photocurrent is blocked), impedance $R_\mathrm{in}$ (`input_impedance`,
+   50 Ω). A photodiode's current becomes $v = i R_\mathrm{in}$.
+2. **Anti-alias and sampling.** The signal is computed at $4f_s$, low-passed by a polyphase FIR
+   and decimated to $f_s = 2.56\,f_\mathrm{stop}$. Unlike the oscilloscope's point sampling,
+   signals above the span do not fold into it.
+3. **RBW is the record length.** Each FFT uses $N$ samples under a Hann window, whose
+   equivalent noise bandwidth is $1.5 f_s/N$; phoq sets $N = 1.5 f_s/\mathrm{RBW}$, so one record
+   lasts $1.5/\mathrm{RBW}$. The FFT is zero-padded four times, keeping a tone's level within
+   0.1 dB wherever it falls between bins.
+4. **Scaling.** $P_k = 2|X_k|^2 / (R_\mathrm{in}(\sum w_n)^2)$ gives a tone its true power and noise
+   $S\cdot\mathrm{RBW}$: the RBW here is a noise bandwidth (an analog Gaussian RBW filter's noise
+   bandwidth is about 1.06× its −3 dB width).
+5. **Averaging.** `averages` records, 50 % overlapped (Welch), are power-averaged in every sweep;
+   the noise trace then fluctuates by about $4.3/\sqrt{K}$ dB. The trace can also be written fresh
+   each sweep, averaged over sweeps, or held at its maximum (`trace`).
+6. **Display.** `points` frequencies from `start_freq` to `stop_freq`. Each point takes the bins in
+   its bucket through the `detector`: *peak* (the largest: tones read right even when a bucket is
+   wider than the RBW), *average* (mean power: right for noise) or *sample*. The top line is
+   `ref_level`, with `db_per_div` over ten divisions.
+7. **Instrument noise.** The displayed average noise level (`noise_floor`, dBm/Hz) is added at the
+   input as white noise; the photodiode's shot noise $2qI$ and thermal noise $4k_BT/R$ come on top,
+   as on the bench.
+8. **Measurements.** The peak (frequency, level), the median of the trace (the noise floor when
+   signals cover little of the span), the −3 dB width around the peak, the frequency where the
+   trace has fallen by $N$ dB, the power integrated over the span, and, when the peak sits at the
+   start of the span as a self-homodyne beat does, a Lorentzian fit (`fit_lorentzian()`).
+
+The cost of a sweep is about $3.84\,f_\mathrm{stop}/\mathrm{RBW}\times(K+1)/2$ samples (×4 before
+decimation), so a narrow RBW over a wide span is slow, as on a real analyzer.
+
+### Laser linewidth by delayed self-homodyne
+
+phoq's laser phase is a Wiener process, $\langle(\phi(t+\tau)-\phi(t))^2\rangle = 2\pi\Delta\nu|\tau|$,
+which gives a Lorentzian optical spectrum of full width $\Delta\nu$ (`linewidth`) and a coherence
+time $\tau_c = 1/\pi\Delta\nu$. A delayed self-homodyne measures $\Delta\nu$ without a narrower
+reference laser: a coupler splits the light, one arm runs through a delay $\tau_d$ (a fiber spool),
+a second coupler recombines the arms on a photodiode, and the ESA looks at the photocurrent. The
+review by J.-Q. Chen et al., *Sensors* 24, 3656 (2024), [doi:10.3390/s24113656](https://doi.org/10.3390/s24113656),
+covers this method (§2.2, Fig. 1b) and its relatives; the section references below are to it.
+With $P_1$ and $P_2$ the powers each arm brings to the detector:
+
+$$i(t) = \mathcal{R}\left[P_1 + P_2 + 2\sqrt{P_1P_2}\cos\!\big(\theta + \phi(t) - \phi(t-\tau_d)\big)\right]$$
+
+For $|\tau| < \tau_d$ the two phase increments in $\phi(t+\tau)-\phi(t)$ and
+$\phi(t+\tau-\tau_d)-\phi(t-\tau_d)$ cover disjoint intervals, so they are independent. When
+$\tau_d \gg \tau_c$ the arms are mutually incoherent, the bias phase $\theta$ washes out, and the
+photocurrent's autocovariance and one-sided spectrum are
+
+$$C_i(\tau) = 2\mathcal{R}^2P_1P_2\,e^{-2\pi\Delta\nu|\tau|}, \qquad
+S_i(f) = \frac{4\mathcal{R}^2P_1P_2}{\pi}\,\frac{\Delta\nu}{\Delta\nu^2 + f^2}$$
+
+The RF spectrum is the optical lineshape convolved with itself, a Lorentzian of half width
+$\Delta\nu$ centred at 0 Hz. In homodyne (no frequency shift) it folds about DC, so **the −3 dB
+frequency equals the laser linewidth**. The heterodyne version, with an acousto-optic shift
+$f_\mathrm{AOM}$, shows the same Lorentzian around $f_\mathrm{AOM}$ with a full −3 dB width of $2\Delta\nu$.
+The level falls 20 dB at $f = \sqrt{99}\,\Delta\nu \approx 9.95\,\Delta\nu$. This is the review's rule
+that the beat is twice as wide as the laser (§2.2; §2.3.1 for the heterodyne case), and its
+"−20 dB width divided by $2\sqrt{99}$" (§2.3.4), which is $\sqrt{99}$ on a one-sided homodyne trace.
+For phoq's laser, which has white frequency noise only, a Lorentzian fit
+$S_0/(1+(f/\Delta\nu)^2) + S_\mathrm{floor}$ uses the whole trace and is the most robust estimate. On
+a real laser, 1/f frequency noise adds a Gaussian component that widens the −3 dB width most and
+the −20 dB width least; the review therefore measures at −20 dB, or fits a Voigt profile that
+separates the Lorentzian part (§2.3.4, Fig. 3, after M. Chen et al., *Opt. Express* 23, 6803 (2015)).
+The integral of $S_i$, $2\mathcal{R}^2P_1P_2$, checks the arm balance: it is largest for $P_1 = P_2$.
+
+**With a reference laser.** The heterodyne method beats the laser under test against a second,
+frequency-offset laser (§2.1, Eq. (4), Fig. 2). Lorentzians convolve, so the beat is a Lorentzian
+at the offset with full width $\nu_t + \nu_r$: twice the linewidth for two equal lasers, the tested
+linewidth for a much narrower reference. Two phoq `Laser`s at the same wavelength with different
+`detuning` reproduce it: fitted full widths of 197, 100 and 79 kHz for 100 + 100, 100 + 1 and
+60 + 20 kHz (`fit_lorentzian(center=None)`).
+
+**Choosing the delay.** For any delay, averaged over the bias phase $\theta$ (or around
+$f_\mathrm{AOM}$ in the heterodyne version), the spectrum is the Lorentzian above times a fringe term
+(§4.2.1, Eqs. (28)–(31), after L. Richter et al., *IEEE J. Quantum Electron.* 22, 2070 (1986)):
+
+$$S_i(f) = \frac{4\mathcal{R}^2P_1P_2}{\pi}\,\frac{\Delta\nu}{\Delta\nu^2+f^2}\Big\{1 - e^{-2\pi\Delta\nu\tau_d}\Big[\cos 2\pi f\tau_d + \frac{\Delta\nu}{f}\sin 2\pi f\tau_d\Big]\Big\}$$
+
+plus a coherent line at the centre of weight $e^{-2\pi\Delta\nu\tau_d}$ (at 0 Hz in homodyne, where the
+AC-coupled input blocks it). The fringes have period $1/\tau_d$ and depth $e^{-2\pi\Delta\nu\tau_d}$, the
+coherence left between the arms. Averaged over eight settings of a `PhaseShifter` in the short arm,
+phoq's spectrum matches this expression in absolute level to 0.07 dB rms from 20 kHz to 1.5 MHz,
+for 0.3 km (fringe depth 0.40) and for 1 km (0.046). Below about 1 %
+($\tau_d > 0.73/\Delta\nu \approx 2.3\,\tau_c$) the fringes are lost in the averaging noise and the
+lineshape is the Lorentzian; the review asks for a delay above six coherence times (§2.3.3), which
+keeps the depth below 0.25 % in any of the conventions for $\tau_c$. Conventions differ: here
+$\tau_c = 1/\pi\Delta\nu$, the decay time of the field correlation; the review writes $\Delta\nu = 1/\tau_c$
+in §2.2 and $e^{-\tau_0/\tau_c}$ in Eq. (10). The depth $e^{-2\pi\Delta\nu\tau_d}$ is convention-free.
+
+In the limit $\tau_d \ll \tau_c$ the interferometer is a frequency discriminator: it turns frequency
+noise into intensity noise, $\phi(t)-\phi(t-\tau_d) \approx 2\pi\tau_d\,\delta\nu(t)$, and with the
+review's Eq. (20), $S_{\Delta\varphi}(f) = 4[\sin(\pi f\tau_d)/f]^2 S_F(f)$ for white frequency noise
+$S_F = \Delta\nu/\pi$, the beat spectrum at quadrature becomes
+
+$$S_i(f) \propto \Delta\nu\,\frac{\sin^2(\pi f\tau_d)}{f^2}$$
+
+a sinc² with nulls at multiples of $1/\tau_d$ whose width is set by the delay, not by the laser:
+the −3 dB point sits at $0.443/\tau_d$, and the linewidth is overestimated. For 100 kHz the delay
+must exceed 7.3 µs, about 1.5 km of SMF-28 (19 µs, 3.9 km, by the six-coherence-time rule); 10 km
+gives $e^{-31}$.
+
+**Choosing the analyzer settings.** RBW ≤ Δν/10, so the RBW filter does not widen the line; a
+span of at least 20 Δν, so the wings and the floor are both on screen; the *average* detector and
+≥ 100 averages, because the beat is noise, not a tone. The review makes the same points about the
+analyzer's resolution and sweep time, and asks for repeated measurements reported with their mean
+and standard deviation (§4.1).
+
+**Try it.** `examples/linewidth_homodyne.py` builds the bench above — a 100 kHz laser, two 50:50
+couplers, a 10 km spool, an attenuator that gives the short arm the spool's loss, a photodiode and
+the analyzer at 0–2 MHz, RBW 5 kHz, average detector — and measures:
+
+```bash
+python examples/linewidth_homodyne.py --plot dsh.png
+```
+
+```
+laser linewidth 100 kHz (coherence time 3.18 µs); delay 49 µs = 15 τc, coherence left e^(−2πΔν·τd) = 4.3e-14
+
+  Lorentzian fit       Δν =  99.7 kHz  (-0.3 %)
+  −3 dB point          Δν =    96 kHz  (-4.0 %)
+  −20 dB point / √99   Δν =  97.4 kHz  (-2.6 %)
+
+The delay must beat the coherence time (1000 averages each):
+    spool        τd  τd/τc coherence        fit      −3 dB
+    0.3 km   1.47 µs    0.5       0.4    137 kHz    297 kHz
+    0.6 km   2.94 µs    0.9      0.16    141 kHz    202 kHz
+      1 km    4.9 µs    1.5     0.046    101 kHz    122 kHz
+      2 km   9.79 µs    3.1    0.0021    100 kHz     99 kHz
+     10 km     49 µs   15.4   4.3e-14    100 kHz   94.5 kHz
+     25 km    122 µs   38.5   3.9e-34    101 kHz   88.7 kHz
+```
+
+The measured spectrum matches $S_i(f)$ above in absolute level to within about 0.3 dB from 1 kHz
+to 1 MHz. Two lessons from the numbers: the −3 dB point of a noise-like trace scatters by several
+per cent even after thousands of averages (it is one crossing on a flat top), so fit the whole
+trace; and a delay shorter than about two coherence times reports the delay's sinc² instead of the
+laser (0.3 km: the −3 dB point sits at $0.443/\tau_d$ = 301 kHz). `phoq serve
+examples/linewidth_homodyne.py` shows the same bench live: the analyzer's trace keeps averaging,
+the window marks the −3 dB point and reports the Lorentzian half width.
+
+**What the model leaves out.** Only white frequency noise: real lasers also have 1/f (flicker)
+frequency noise, which adds a Gaussian part that grows with the delay and turns the lineshape into
+a Voigt profile (§2.3.4, §4.1). Perfect polarization overlap: a real setup needs a polarization
+controller in one arm (or Faraday mirrors, §2.3.2), and a mismatch scales the beat by the overlap.
+No low-frequency environmental noise: on a bench, temperature and vibration add noise near 0 Hz,
+right under the homodyne beat. That is why the self-heterodyne, which moves the beat to
+$f_\mathrm{AOM}$, is the more common method (Table 1, §3.2, §4.2); phoq has no acousto-optic frequency
+shifter yet, so only the homodyne version can be built. No dispersion, nonlinearity or Rayleigh
+backscattering in the spool (§5 notes double Rayleigh scattering distorts the lineshape).
+
 ### Checked against the literature
 
-The models above were compared with three references (October 2026):
+The models above were compared with four references (October 2026):
 
 - *S. J. van Enk, "Coherent states, beam splitters and photons".* §8 and §12–14: a laser mode is
   a coherent state with Poissonian photon number $P(n) = e^{-|\alpha|^2}|\alpha|^{2n}/n!$ and mean
@@ -626,6 +799,17 @@ The models above were compared with three references (October 2026):
   `rf` and `bias` inputs implement; Eq. (8) the drift term $\varphi_\mathrm{drift}$ behind the new
   `phi0`; and Eqs. (9)–(10) the push–pull drive. The paper's bias-control and predistortion
   sections (§4–5) are not modelled. AOMs are not part of the lab.
+- *J.-Q. Chen et al., "Linewidth measurement of a narrow-linewidth laser: principles, methods, and
+  systems", Sensors 24, 3656 (2024), [doi:10.3390/s24113656](https://doi.org/10.3390/s24113656).*
+  §2.2 and Fig. 1b: the delayed self-homodyne interferometer that `examples/linewidth_homodyne.py`
+  builds, and a beat twice as wide as the laser (here: the one-sided −3 dB point at $\Delta\nu$);
+  §2.3.1 and Eq. (10): a Lorentzian once $\tau_d \gg \tau_c$; §2.3.4: the −20 dB width over $2\sqrt{99}$
+  and Voigt fitting against 1/f noise. Eqs. (28)–(31), the spectrum for any delay: phoq averaged
+  over the bias phase matches it to 0.07 dB rms at 0.3 and 1 km. §2.1, Eq. (4) and Fig. 2: a
+  two-laser beat of width $\nu_t + \nu_r$, reproduced to within 2 %. Eq. (20): the frequency-
+  discriminator limit behind the sinc² at short delays. Both checks are tests in
+  `tests/test_spectrum.py`. Outside the model: 1/f noise, the self-heterodyne (no AOM), the
+  recirculating, Brillouin and phase-noise (β-separation line) methods of §2.3.3–2.5.
 
 ## Quantum protocols
 
@@ -728,6 +912,7 @@ class Mirror(Component):
 | --- | --- | --- |
 | GET | `/api/catalog` | component types, ports, parameter specs, part presets per type |
 | GET | `/api/presets`, `/api/presets/{id}` | part presets (`?component=`, `?vendor=`, `?q=`); one in full with provenance, limits and unsupported specs |
+| POST | `/api/instruments/{name}/clear` | restart a spectrum analyzer's trace averaging or max hold |
 | POST | `/api/components/{name}/preset` | `{id}` applies a preset (`generic` for the class defaults) |
 | GET | `/api/state` | the setup: components, parameters, connections |
 | GET | `/api/report` | mean powers, currents, warnings, and per laser the back-reflection and its strongest source |

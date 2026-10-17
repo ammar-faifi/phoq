@@ -7,7 +7,7 @@ import math
 from dataclasses import dataclass, field
 
 import numpy as np
-from scipy.signal import lfilter
+from scipy.signal import lfilter, resample_poly
 
 from .core import Component, Param
 from .detectors import Photodiode, SinglePhotonDetector
@@ -322,7 +322,9 @@ class Oscilloscope(Component):
         out = {}
         for i in range(1, 5):
             peer = self.ports[f"ch{i}"].peer
-            src = peer.component if peer is not None else None
+            if peer is None:
+                continue
+            src = peer.component
             out[f"ch{i}"] = (
                 (src, peer.name)
                 if isinstance(
@@ -680,3 +682,372 @@ class PhotonCounter(Component):
             {ch: d.name for ch, d in inputs.items()},
             start=first,
         )
+
+
+# ---------------------------------------------------------------------------------------------
+FREQS = seq125(1e3, 20e9)
+RBWS = seq125(1.0, 10e6)
+DECIMATE = 4  # the signal is computed at 4 f_s, anti-alias filtered and decimated to f_s
+ZERO_PAD = 4  # FFT zero padding: a tone's level is right wherever it falls between bins
+MAX_SAMPLES = 4_000_000  # per sweep, after decimation
+
+
+@dataclass
+class SpectrumResult:
+    """One sweep of an RF spectrum analyzer: the displayed trace and the full-resolution bins."""
+
+    instrument: str
+    source: str | None
+    freq: np.ndarray  # display frequencies [Hz]
+    level: np.ndarray  # displayed level [dBm in the RBW]
+    rbw: float  # resolution (noise) bandwidth actually used [Hz]
+    start: float
+    stop: float
+    ref_level: float
+    db_per_div: float
+    detector: str
+    averages: int  # records averaged in this sweep
+    sweeps: int  # sweeps in the displayed trace (trace average / max hold)
+    bin_freq: np.ndarray  # FFT bins inside the span [Hz]
+    bin_power: np.ndarray  # power in the RBW at each bin [W], this sweep
+    bin_spacing: float
+
+    def psd(self) -> tuple[np.ndarray, np.ndarray]:
+        """(frequency [Hz], one-sided power spectral density at the input [W/Hz])."""
+        return self.bin_freq, self.bin_power / self.rbw
+
+    @property
+    def peak(self) -> tuple[float, float]:
+        """(frequency [Hz], level [dBm]) of the highest display point."""
+        k = int(np.argmax(self.level))
+        return float(self.freq[k]), float(self.level[k])
+
+    @property
+    def median_level(self) -> float:
+        """Median of the displayed trace [dBm in the RBW]: the noise floor when signals cover
+        little of the span."""
+        return float(np.median(self.level))
+
+    def width(self, drop_db: float = 3.0) -> tuple[float, float]:
+        """(lower, upper) frequencies where the trace has fallen ``drop_db`` below its peak, walking
+        out from the peak. A peak at the start of the span (a self-homodyne beat at 0 Hz) gives the
+        start frequency as the lower edge, so the upper edge alone is the one-sided width."""
+        lv, f = self.level, self.freq
+        k = int(np.argmax(lv))
+        thr = lv[k] - drop_db
+
+        def cross(i, j):  # interpolate between display points i (above) and j (below)
+            a, b = lv[i], lv[j]
+            return float(f[i] + (f[j] - f[i]) * (a - thr) / (a - b)) if a != b else float(f[j])
+
+        hi = k
+        while hi < lv.size - 1 and lv[hi + 1] >= thr:
+            hi += 1
+        lo = k
+        while lo > 0 and lv[lo - 1] >= thr:
+            lo -= 1
+        f_hi = cross(hi, hi + 1) if hi < lv.size - 1 else float(f[-1])
+        f_lo = cross(lo, lo - 1) if lo > 0 else float(f[0])
+        return f_lo, f_hi
+
+    def power(self) -> float:
+        """Power integrated over the span [W]."""
+        return float(np.sum(self.bin_power) * self.bin_spacing / self.rbw)
+
+    def fit_lorentzian(self, center: float | None = 0.0) -> dict:
+        """Least-squares fit of S₀ / (1 + ((f − f₀)/γ)²) + S_floor to the PSD, in dB.
+
+        ``center=0`` fits a self-homodyne beat (Lorentzian folded at DC: γ is the laser
+        linewidth); ``center=None`` also fits f₀, for a heterodyne beat (γ is then half the full
+        −3 dB width, i.e. again the laser linewidth). Bins within 3 RBW of DC are skipped: the
+        input is AC-coupled. Returns {"hwhm", "center", "peak_psd", "floor_psd"} [Hz, W/Hz].
+        """
+        import warnings
+
+        from scipy.optimize import OptimizeWarning, curve_fit
+
+        f, psd = self.psd()
+        keep = (f > 3 * self.rbw) & (psd > 0)
+        f, lin = f[keep], psd[keep]
+        y = 10 * np.log10(lin)
+        k = int(np.argmax(lin))
+        floor0 = float(np.median(lin[-max(1, lin.size // 10) :]))
+        below = np.flatnonzero(lin[k:] < (lin[k] + floor0) / 2)  # first fall to half height
+        f0_guess = f[k] if center is None else center
+        gamma0 = max(float(f[k + below[0]] - f0_guess) if below.size else f[-1] / 2, self.rbw)
+
+        # Fitted in log10 of S₀, γ and S_floor: well conditioned (they span ~17 decades) and positive.
+        def model(fq, a, b, c, f0):
+            return 10 * np.log10(10**a / (1 + ((fq - f0) / 10**b) ** 2) + 10**c)
+
+        p0 = [math.log10(lin[k]), math.log10(gamma0), math.log10(max(floor0, lin[k] * 1e-12))]
+        with warnings.catch_warnings():  # a non-Lorentzian trace still gets its best fit
+            warnings.simplefilter("ignore", OptimizeWarning)
+            if center is None:
+                p, _ = curve_fit(model, f, y, p0=p0 + [f0_guess], maxfev=20000)
+            else:
+                p, _ = curve_fit(lambda fq, a, b, c: model(fq, a, b, c, center), f, y, p0=p0, maxfev=20000)
+                p = (*p, center)
+        return {"hwhm": 10 ** float(p[1]), "center": float(p[3]), "peak_psd": 10 ** float(p[0]), "floor_psd": 10 ** float(p[2])}
+
+    def summary(self) -> str:
+        f0, l0 = self.peak
+        lo, hi = self.width(3.0)
+        p = self.power()
+        return (
+            f"{self.instrument}: {fmt_si(self.start, 'Hz')} … {fmt_si(self.stop, 'Hz')}, RBW {fmt_si(self.rbw, 'Hz')}, "
+            f"{self.averages} avg, {self.detector} detector\n"
+            f"  {self.source or 'no input'}: peak {l0:.1f} dBm at {fmt_si(f0, 'Hz')}, −3 dB {fmt_si(lo, 'Hz')} … {fmt_si(hi, 'Hz')}, "
+            f"median {self.median_level:.1f} dBm, {10 * math.log10(max(p, 1e-30) / 1e-3):.1f} dBm in the span"
+        )
+
+    def plot(self, ax=None):
+        """Matplotlib plot of the trace (dBm against frequency), on the analyzer's own scale."""
+        import matplotlib.pyplot as plt
+
+        ax = ax or plt.subplots(figsize=(8, 3.6))[1]
+        scale, unit = next(((s, u) for s, u in ((1e9, "GHz"), (1e6, "MHz"), (1e3, "kHz")) if self.stop >= s), (1.0, "Hz"))
+        ax.plot(self.freq / scale, self.level, color=CH_COLORS[0], lw=1.2)
+        ax.set(
+            xlabel=f"frequency [{unit}]",
+            ylabel=f"level [dBm in {fmt_si(self.rbw, 'Hz')}]",
+            title=self.instrument,
+            xlim=(self.start / scale, self.stop / scale),
+            ylim=(self.ref_level - 10 * self.db_per_div, self.ref_level),
+        )
+        ax.grid(alpha=0.3)
+        return ax
+
+    def to_json(self) -> dict:
+        f0, l0 = self.peak
+        lo, hi = self.width(3.0)
+        meas = {
+            "peak_freq": f0,
+            "peak_dbm": l0,
+            "median_dbm": self.median_level,
+            "w3_lo": lo,
+            "w3_hi": hi,
+            "span_dbm": 10 * math.log10(max(self.power(), 1e-30) / 1e-3),
+        }
+        if lo <= self.start + 1e-3 * (self.stop - self.start) and hi < self.stop:
+            try:  # a line folded at DC (self-homodyne): its Lorentzian half width is the linewidth
+                meas["fit_hwhm"] = self.fit_lorentzian(0.0)["hwhm"]
+            except (RuntimeError, ValueError):
+                pass
+        return {
+            "kind": "spectrum",
+            "instrument": self.instrument,
+            "source": self.source,
+            "start": self.start,
+            "stop": self.stop,
+            "rbw": self.rbw,
+            "ref_level": self.ref_level,
+            "db_per_div": self.db_per_div,
+            "detector": self.detector,
+            "averages": self.averages,
+            "sweeps": self.sweeps,
+            "n": int(self.level.size),
+            "data": base64.b64encode(np.asarray(self.level, dtype="<f4").tobytes()).decode(),
+            "meas": meas,
+        }
+
+
+class SpectrumAnalyzer(Component):
+    """RF (electrical) spectrum analyzer: the power in the resolution bandwidth against frequency,
+    in dBm into an AC-coupled input of ``input_impedance``.
+
+    FFT method (README, "RF spectrum analyzer"): anti-alias filter and decimate to
+    f_s = 2.56 f_stop, Hann records of N = 1.5 f_s / RBW samples, ``averages`` of them
+    power-averaged with 50 % overlap, then ``points`` display points through the ``detector``.
+    """
+
+    category = "instrument"
+    prefix = "ESA"
+    label = "RF spectrum analyzer"
+    description = "Electrical spectrum: RBW, averaging, dBm into 50 Ω"
+    inputs = ("inp",)
+
+    running = Param(True, label="Run")
+    start_freq = Param(0.0, unit="Hz", label="Start frequency", min=0.0, max=50e9, display=("MHz", 1e-6))
+    stop_freq = Param(50e6, unit="Hz", label="Stop frequency", min=1e3, max=50e9, presets=FREQS, log=True)
+    rbw = Param(
+        100e3,
+        unit="Hz",
+        label="Resolution bandwidth",
+        min=1.0,
+        max=10e6,
+        presets=RBWS,
+        log=True,
+        doc="Noise bandwidth of the resolution filter: one record lasts 1.5 / RBW",
+    )
+    averages = Param(
+        10,
+        label="Averages per sweep",
+        min=1,
+        max=2000,
+        presets=(1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000),
+        doc="Records power-averaged in every sweep (Welch, 50 % overlap)",
+    )
+    detector = Param(
+        "peak",
+        choices=("peak", "average", "sample"),
+        doc="How the bins in each display point's bucket become one value: peak for tones, average for noise",
+    )
+    trace = Param(
+        "write",
+        choices=("write", "average", "max hold"),
+        doc="write: each sweep replaces the trace; average: running mean of the sweeps; max hold: the largest seen",
+    )
+    ref_level = Param(0.0, unit="dBm", label="Reference level", min=-200.0, max=40.0)
+    db_per_div = Param(10.0, unit="dB", label="Scale / div", min=0.1, max=20.0, presets=(1.0, 2.0, 5.0, 10.0))
+    points = Param(1001, label="Display points", min=101, max=10001, presets=(101, 201, 501, 1001, 2001, 5001))
+    input_impedance = Param(50.0, unit="Ω", label="Input impedance", min=1.0, max=1e6)
+    noise_floor = Param(
+        -150.0,
+        unit="dBm/Hz",
+        label="Noise floor (DANL)",
+        min=-200.0,
+        max=-60.0,
+        doc="Displayed average noise level, added at the input as white noise; a generic default (analyzers span about −140 … −165 dBm/Hz)",
+    )
+
+    def __init__(self, name: str | None = None, **params):
+        self._trace: np.ndarray | None = None  # displayed trace in W, for trace average / max hold
+        self._sweeps = 0
+        super().__init__(name, **params)
+
+    def _build(self):
+        self.add_port("inp", "electrical", "in", "RF input")
+
+    def _param_changed(self, name: str) -> None:
+        if name != "running":
+            self.clear_trace()
+        super()._param_changed(name)
+
+    def clear_trace(self) -> None:
+        """Restart trace averaging and max hold."""
+        self._trace, self._sweeps = None, 0
+
+    def ui_fields(self):
+        return [
+            "running", "start_freq", "stop_freq", "rbw", "averages", "detector", "trace",
+            "ref_level", "db_per_div", "points", "input_impedance", "noise_floor",
+        ]  # fmt: skip
+
+    def _input(self):
+        peer = self.ports["inp"].peer
+        src = peer.component if peer is not None else None
+        ok = (Photodiode, SinglePhotonDetector, FunctionGenerator, DCPowerSupply)
+        return (src, peer.name) if isinstance(src, ok) else None
+
+    def record(self) -> tuple[float, int, int, float]:
+        """(sample rate, samples per record, records per sweep, effective RBW) for the settings.
+
+        The sweep is capped at MAX_SAMPLES: fewer averages first, then a coarser RBW."""
+        fs = 2.56 * self.stop_freq
+        n = max(16, int(round(1.5 * fs / self.rbw)))
+        n = min(n, MAX_SAMPLES)
+        hop = n // 2
+        k = max(1, min(self.averages, (MAX_SAMPLES - n) // hop + 1))
+        return fs, n, k, 1.5 * fs / n
+
+    def info(self):
+        fs, n, k, rbw = self.record()
+        out = {
+            "Sweep": f"{fmt_si(fs, 'S/s')}, {k} × {fmt_si(n / fs, 's')} records",
+            "RBW used": fmt_si(rbw, "Hz"),
+        }
+        if self.trace != "write":
+            out["Trace"] = f"{self.trace} of {self._sweeps} sweeps"
+        return out
+
+    def _signal(self, net: Network, rng: np.random.Generator, fs: float, total: int) -> np.ndarray:
+        """``total`` samples at ``fs`` of the input voltage across the analyzer's input."""
+        src = self._input()
+        if src is None:
+            return np.zeros(total)
+        d, port = src
+        pad = 64  # FIR transient at both ends of the decimated record
+        dts = 1.0 / (fs * DECIMATE)
+        settle = d.settle_time if isinstance(d, Photodiode) else 0.0
+        warm = min(50_000, math.ceil(settle / dts))
+        t = rng.uniform(0, 1e-3) + np.arange(-warm, (total + 2 * pad) * DECIMATE) * dts
+        if isinstance(d, (Photodiode, SinglePhotonDetector)):
+            fields = synthesize(net, {d}, t, dts, rng)
+            if isinstance(d, Photodiode):
+                x = d.detect(fields[d], dts, rng, t.size) * self.input_impedance  # current → volts
+            else:
+                x = d.waveform(d.detect(fields[d], dts, rng, t.size), dts)
+        else:  # a generator or supply output straight into the analyzer
+            d.start(rng)
+            x = np.asarray(d.voltage(port, t), dtype=float)
+        x = resample_poly(x[warm:], 1, DECIMATE)  # anti-alias low-pass + decimation
+        return x[pad : pad + total]
+
+    def acquire(self, net: Network, rng: np.random.Generator) -> SpectrumResult:
+        """One sweep (README, "RF spectrum analyzer")."""
+        fs, n, k, rbw = self.record()
+        hop, R = n // 2, self.input_impedance
+        total = n + (k - 1) * hop
+        v = self._signal(net, rng, fs, total)
+        v = v - v.mean()  # AC-coupled input: the DC photocurrent is blocked
+        danl = 10 ** ((self.noise_floor - 30) / 10) * R  # one-sided voltage PSD of the instrument [V²/Hz]
+        v = v + math.sqrt(danl * fs / 2) * rng.standard_normal(total)
+
+        w = np.hanning(n + 1)[:-1]  # periodic Hann, equivalent noise bandwidth 1.5 f_s / N
+        segs = v[np.arange(k)[:, None] * hop + np.arange(n)[None, :]] * w
+        nfft = n * ZERO_PAD
+        power = (np.abs(np.fft.rfft(segs, nfft, axis=1)) ** 2).mean(axis=0) * 2 / (w.sum() ** 2 * R)
+        power[0] /= 2
+        f = np.arange(power.size) * fs / nfft
+
+        stop = self.stop_freq
+        start = min(self.start_freq, stop * (1 - 1e-6))
+        fd = np.linspace(start, stop, self.points)
+        shown = self._detect(f, power, fd)
+        if self.trace == "average" and self._trace is not None and self._trace.size == shown.size:
+            self._trace = (self._trace * self._sweeps + shown) / (self._sweeps + 1)
+            self._sweeps += 1
+        elif self.trace == "max hold" and self._trace is not None and self._trace.size == shown.size:
+            self._trace = np.maximum(self._trace, shown)
+            self._sweeps += 1
+        else:
+            self._trace, self._sweeps = shown, 1
+        inside = (f >= start) & (f <= stop)
+        peer = self.ports["inp"].peer
+        return SpectrumResult(
+            self.name,
+            peer.component.name if peer is not None else None,
+            fd,
+            10 * np.log10(np.maximum(self._trace, 1e-30) / 1e-3),
+            rbw,
+            start,
+            stop,
+            self.ref_level,
+            self.db_per_div,
+            self.detector,
+            k,
+            self._sweeps,
+            f[inside],
+            power[inside],
+            fs / nfft,
+        )
+
+    def _detect(self, f: np.ndarray, power: np.ndarray, fd: np.ndarray) -> np.ndarray:
+        """Power at each display frequency from the FFT bins in its bucket (detector mode)."""
+        out = np.interp(fd, f, power)  # sample detector, and buckets narrower than a bin
+        if self.detector == "sample" or fd.size < 2:
+            return out
+        half = (fd[1] - fd[0]) / 2
+        edges = np.concatenate(([fd[0] - half], (fd[:-1] + fd[1:]) / 2, [fd[-1] + half]))
+        idx = np.searchsorted(f, edges)
+        counts = np.diff(idx)
+        full = counts > 0
+        if full.any():
+            starts = idx[:-1][full]
+            part = power[: idx[-1]]
+            if self.detector == "peak":
+                out[full] = np.maximum.reduceat(part, starts)
+            else:
+                out[full] = np.add.reduceat(part, starts) / counts[full]
+        return out

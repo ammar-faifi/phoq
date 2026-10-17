@@ -31,7 +31,7 @@ from .parties import Experiment
 from . import presets
 from .core import Component, Setup, _ensure_registry
 from .engine import report, trace
-from .instruments import Oscilloscope, PhotonCounter
+from .instruments import Oscilloscope, PhotonCounter, SpectrumAnalyzer
 
 FRAME_HZ = 15
 COUNTER_PERIOD = 1.0
@@ -137,6 +137,7 @@ class LabSession:
         self.state_dirty = True
         self.save_at = 0.0
         self.last_counter = 0.0
+        self.esa_next: dict[str, float] = {}  # when each spectrum analyzer sweeps next
         self.sent_held: dict[str, int] = (
             {}
         )  # scope → id of the held sweep already streamed
@@ -219,6 +220,13 @@ class LabSession:
                     if not inst.running:
                         self.sent_held[inst.name] = id(frame)
                     msgs.append({"type": "frame", "frame": frame.to_json()})
+            for inst in self.setup.of_type(SpectrumAnalyzer):
+                now = time.monotonic()
+                if inst.running and now >= self.esa_next.get(inst.name, 0.0):
+                    res = inst.acquire(net, self.rng)
+                    took = time.monotonic() - now
+                    self.esa_next[inst.name] = now + max(0.2, 3 * took)  # long sweeps run less often
+                    msgs.append({"type": "frame", "frame": res.to_json()})
             if self.experiment:  # parties drive the blocks
                 if time.monotonic() - self.experiment.last_acquire >= 0.5:
                     for res in (self.experiment.poll() or {}).values():
@@ -337,6 +345,7 @@ def create_app(
         session.save()
 
     app = FastAPI(
+        debug=True,
         title="phoq",
         description="Headless optics lab with a live 3D visualizer",
         lifespan=lifespan,
@@ -453,6 +462,19 @@ def create_app(
             return inst.armed
 
         return {"armed": guarded(run)}
+
+    @app.post("/api/instruments/{name}/clear")
+    def clear_trace(name: str):
+        """Restart a spectrum analyzer's trace averaging or max hold."""
+
+        def run():
+            inst = session.setup[name]
+            if not hasattr(inst, "clear_trace"):
+                raise ValueError(f"{name} has no trace to clear")
+            inst.clear_trace()
+
+        guarded(run)
+        return {"ok": True}
 
     @app.post("/api/run")
     def run_all():

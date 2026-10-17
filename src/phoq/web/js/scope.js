@@ -159,6 +159,113 @@ export class ScopeDisplay {
   }
 }
 
+/** Spectrum-analyzer screen: level in dBm against frequency, ten divisions down from the
+ *  reference level, with a peak marker and the −3 dB markers (also the 3D screen texture). */
+export class SpectrumDisplay {
+  constructor(name) {
+    this.name = name;
+    this.canvas = document.createElement('canvas');
+    this.canvas.width = 1000;
+    this.canvas.height = 640;
+    this.g = this.canvas.getContext('2d');
+    this.W = 1000; this.H = 640; this.top = 46; this.bottom = 594;
+    this.frame = null;
+    this.data = null;
+    this.running = true;
+    this.dirty = true;
+  }
+
+  setFrame(frame) {
+    this.frame = frame;
+    this.data = decode(frame.data);
+    this.dirty = true;
+  }
+
+  draw() {
+    const { g, W, H, top, bottom } = this;
+    const gh = bottom - top, dx = W / 10, dy = gh / 10;
+    g.fillStyle = '#03090b';
+    g.fillRect(0, 0, W, H);
+    g.lineWidth = 1;
+    g.strokeStyle = 'rgba(90,160,160,0.16)';
+    g.beginPath();
+    for (let i = 1; i < 10; i++) { g.moveTo(i * dx + 0.5, top); g.lineTo(i * dx + 0.5, bottom); g.moveTo(0, top + i * dy + 0.5); g.lineTo(W, top + i * dy + 0.5); }
+    g.stroke();
+    g.strokeStyle = 'rgba(120,200,200,0.4)';
+    g.strokeRect(0.5, top + 0.5, W - 1, gh - 1);
+
+    const f = this.frame, d = this.data;
+    if (f && d) {
+      const span = f.stop - f.start || 1;
+      const X = (fq) => ((fq - f.start) / span) * W;
+      const Y = (dbm) => top + ((f.ref_level - dbm) / f.db_per_div) * dy;
+      g.save();
+      g.beginPath(); g.rect(0, top, W, gh); g.clip();
+      const m = f.meas ?? {};
+      if (m.w3_hi != null) {                       // −3 dB markers
+        g.strokeStyle = 'rgba(56,189,248,0.75)';
+        g.setLineDash([6, 6]);
+        g.beginPath();
+        for (const fq of [m.w3_lo, m.w3_hi]) if (fq > f.start && fq < f.stop) { g.moveTo(X(fq) + 0.5, top); g.lineTo(X(fq) + 0.5, bottom); }
+        g.stroke();
+        g.setLineDash([]);
+      }
+      g.strokeStyle = '#facc15';
+      g.shadowColor = '#facc15';
+      g.shadowBlur = 6;
+      g.lineWidth = 2;
+      g.beginPath();
+      for (let i = 0; i < d.length; i++) {
+        const x = (i / (d.length - 1)) * W, y = Y(d[i]);
+        if (i) g.lineTo(x, y); else g.moveTo(x, y);
+      }
+      g.stroke();
+      g.shadowBlur = 0;
+      if (m.peak_freq != null) {                   // peak marker
+        const x = X(m.peak_freq), y = clamp(Y(m.peak_dbm), top + 8, bottom - 8);
+        g.fillStyle = '#34d399';
+        g.beginPath(); g.moveTo(x, y - 14); g.lineTo(x - 8, y - 26); g.lineTo(x + 8, y - 26); g.fill();
+      }
+      g.restore();
+    }
+    this.drawText();
+    this.dirty = false;
+  }
+
+  drawText() {
+    const { g, W, H, bottom } = this;
+    const f = this.frame;
+    g.textBaseline = 'middle';
+    g.font = '600 19px ui-monospace, Menlo, monospace';
+    if (!f) {
+      g.fillStyle = '#64748b';
+      g.fillText('waiting for a sweep…', 14, 15);
+      return;
+    }
+    g.fillStyle = '#e2e8f0';
+    g.fillText(`Ref ${f.ref_level.toFixed(1)} dBm  ${f.db_per_div} dB/div`, 14, 15);
+    g.textAlign = 'right';
+    g.fillStyle = this.running ? '#facc15' : '#f87171';
+    g.fillText(this.running ? `RBW ${fmtSI(f.rbw, 'Hz')}` : 'STOP', W - 12, 15);
+    g.textAlign = 'left';
+    g.font = '500 14px ui-monospace, Menlo, monospace';
+    g.fillStyle = '#64748b';
+    const tr = f.sweeps > 1 ? ` · trace of ${f.sweeps} sweeps` : '';
+    g.fillText(`${f.source ?? 'no input'} · ${f.detector} detector · ${f.averages} avg${tr}`, 14, 36);
+    const m = f.meas ?? {};
+    g.font = '500 18px ui-monospace, Menlo, monospace';
+    const y = (bottom + H) / 2;
+    g.fillStyle = '#94a3b8';
+    g.fillText(`Start ${fmtSI(f.start, 'Hz')}`, 14, y);
+    g.textAlign = 'right';
+    g.fillText(`Stop ${fmtSI(f.stop, 'Hz')}`, W - 12, y);
+    g.textAlign = 'center';
+    g.fillStyle = '#34d399';
+    if (m.peak_freq != null) g.fillText(`MKR ${fmtSI(m.peak_freq, 'Hz')}  ${m.peak_dbm.toFixed(1)} dBm`, W / 2, y);
+    g.textAlign = 'left';
+  }
+}
+
 /** The floating HTML oscilloscope window, bound to one Oscilloscope component on the server. */
 export class ScopePanel {
   constructor(lab) {
@@ -233,6 +340,24 @@ export class ScopePanel {
       this.chEl.appendChild(row);
       return { row, on, src, scale };
     });
+    this.esa = Object.fromEntries(['src', 'start', 'stop', 'rbw', 'avg', 'det', 'trace', 'ref', 'div'].map((k) => [k, $(`esa-${k}`)]));
+    this.label = this.el.querySelector('.scope-head .muted');
+    const e = this.esa;
+    e.start.onchange = () => set({ start_freq: Number(e.start.value) * 1e6 });
+    e.stop.onchange = () => set({ stop_freq: Number(e.stop.value) });
+    e.rbw.onchange = () => set({ rbw: Number(e.rbw.value) });
+    e.avg.onchange = () => set({ averages: Number(e.avg.value) });
+    e.det.onchange = () => set({ detector: e.det.value });
+    e.trace.onchange = () => set({ trace: e.trace.value });
+    e.ref.onchange = () => set({ ref_level: Number(e.ref.value) });
+    e.div.onchange = () => set({ db_per_div: Number(e.div.value) });
+    e.src.onchange = async () => {
+      const port = `${this.current}.inp`;
+      const peer = this.comp()?.ports.find((p) => p.name === 'inp')?.peer;
+      if (peer) await lab.disconnect(port, true);
+      if (e.src.value) await lab.connect(e.src.value, port);
+    };
+    $('esa-clear').onclick = () => this.current && lab.clearTrace(this.current);
     this.makeDraggable($('scope-drag'));
   }
 
@@ -241,7 +366,7 @@ export class ScopePanel {
   /** Rebuild the controls from the latest server state. */
   sync() {
     const state = this.lab.state;
-    const scopes = state?.components.filter((c) => c.type === 'Oscilloscope') ?? [];
+    const scopes = state?.components.filter((c) => c.type === 'Oscilloscope' || c.type === 'SpectrumAnalyzer') ?? [];
     if (!scopes.some((s) => s.name === this.current)) this.current = scopes[0]?.name ?? null;
     this.select.innerHTML = scopes.map((s) => `<option value="${esc(s.name)}">${esc(s.name)}</option>`).join('') || '<option>—</option>';
     this.select.value = this.current ?? '';
@@ -250,6 +375,10 @@ export class ScopePanel {
     this.empty.hidden = !!c;
     this.body.hidden = !c;
     if (!c) return;
+    const isEsa = c.type === 'SpectrumAnalyzer';
+    this.el.classList.toggle('esa', isEsa);
+    this.label.textContent = isEsa ? 'RF spectrum' : 'Photocurrent monitor';
+    if (isEsa) { this.syncEsa(c); return; }
 
     const p = c.params;
     const spec = (n) => this.lab.spec('Oscilloscope', n);
@@ -305,6 +434,37 @@ export class ScopePanel {
     });
   }
 
+  syncEsa(c) {
+    const p = c.params, e = this.esa;
+    const spec = (n) => this.lab.spec('SpectrumAnalyzer', n);
+    const fill = (sel, key, fmt) => {
+      const vals = [...new Set([...(spec(key)?.presets ?? spec(key)?.choices ?? []), p[key]])];
+      if (typeof p[key] === 'number') vals.sort((a, b) => a - b);
+      sel.innerHTML = vals.map((v) => `<option value="${esc(v)}">${esc(fmt(v))}</option>`).join('');
+      sel.value = String(p[key]);
+    };
+    fill(e.stop, 'stop_freq', (v) => fmtSI(v, 'Hz'));
+    fill(e.rbw, 'rbw', (v) => fmtSI(v, 'Hz'));
+    fill(e.avg, 'averages', (v) => String(v));
+    fill(e.det, 'detector', (v) => v);
+    fill(e.trace, 'trace', (v) => v);
+    fill(e.div, 'db_per_div', (v) => `${v} dB/div`);
+    if (document.activeElement !== e.start) e.start.value = Number((p.start_freq / 1e6).toPrecision(6));
+    if (document.activeElement !== e.ref) e.ref.value = p.ref_level;
+    const peer = c.ports.find((pt) => pt.name === 'inp')?.peer;
+    const outs = this.lab.state.components.flatMap((d) => d.ports
+      .filter((pt) => pt.kind === 'electrical' && pt.direction === 'out' && (!pt.peer || pt.peer === `${c.name}.inp`))
+      .map((pt) => `<option value="${esc(d.name)}.${esc(pt.name)}">${esc(d.name)} · ${esc(pt.label)}</option>`));
+    e.src.innerHTML = '<option value="">— no input —</option>' + outs.join('');
+    e.src.value = peer ?? '';
+    this.runBtn.textContent = p.running ? 'RUN' : 'STOP';
+    this.runBtn.classList.toggle('on', p.running);
+    this.el.classList.toggle('stopped', !p.running);
+    this.el.classList.remove('armed', 'held');
+    const part = this.lab.parts.get(c.name);
+    if (part?.display) { part.display.running = p.running; part.display.dirty = true; }
+  }
+
   unitOf(c, k) {
     const peer = c.ports.find((pt) => pt.name === `ch${k + 1}`)?.peer;
     if (!peer) return '';
@@ -325,6 +485,22 @@ export class ScopePanel {
 
   updateMeasurements(frame) {
     if (!frame) { this.measEl.innerHTML = ''; return; }
+    if (frame.kind === 'spectrum') {
+      const m = frame.meas ?? {};
+      const atStart = m.w3_lo <= frame.start + (frame.stop - frame.start) * 1e-3;
+      const rows = [
+        ['Peak level', `${m.peak_dbm?.toFixed(1)} dBm`],
+        ['Peak at', fmtSI(m.peak_freq, 'Hz')],
+        [atStart ? '−3 dB point' : '−3 dB width', atStart ? fmtSI(m.w3_hi, 'Hz') : fmtSI(m.w3_hi - m.w3_lo, 'Hz')],
+        ['Median level', `${m.median_dbm?.toFixed(1)} dBm`],
+        ['In span', `${m.span_dbm?.toFixed(1)} dBm`],
+        ['Lorentzian HWHM', m.fit_hwhm ? fmtSI(m.fit_hwhm, 'Hz') : '—'],
+        ['RBW', fmtSI(frame.rbw, 'Hz')],
+        ['Sweeps', String(frame.sweeps)],
+      ];
+      this.measEl.innerHTML = `<div class="meas wide" style="--c:#facc15"><h4>${esc(frame.instrument)} · ${esc(frame.source ?? 'no input')}</h4><dl>${rows.map(([a, b]) => `<dt>${a}</dt><dd>${b}</dd>`).join('')}</dl></div>`;
+      return;
+    }
     this.measEl.innerHTML = frame.channels.map((ch, k) => {
       if (!ch.source) return '';
       const m = ch.meas ?? {};

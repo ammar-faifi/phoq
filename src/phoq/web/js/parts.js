@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { clamp, snapToHole, TABLE, SHELF, fmtSI, wavelengthColor, CH_COLORS, CONNECTOR_COLORS, connectorColor } from './util.js';
 import { makeLabel, makeBadge, makeWindingTexture } from './textures.js';
-import { ScopeDisplay } from './scope.js';
+import { ScopeDisplay, SpectrumDisplay } from './scope.js';
 import { AboveTable } from './fiber.js';
 
 export const MAT = {
@@ -411,6 +411,29 @@ const BUILDERS = {
     p._height = 26;
   },
 
+  /** Bench RF spectrum analyzer on the shelf: wide screen, one RF input. */
+  SpectrumAnalyzer(p, comp) {
+    p.onShelf = true;
+    p.footprint = { w: 40, d: 17 };
+    p.box(40, 22, 17, MAT.case, 0, 11, 0);
+    p.box(38, 20, 0.6, MAT.bezel, 0, 11, 8.6);
+    p.display = new SpectrumDisplay(comp.name);
+    p.screenTex = new THREE.CanvasTexture(p.display.canvas);
+    p.screenTex.colorSpace = THREE.SRGBColorSpace;
+    p.screenTex.anisotropy = 8;
+    const scr = new THREE.Mesh(new THREE.PlaneGeometry(25, 16), new THREE.MeshBasicMaterial({ map: p.screenTex, toneMapped: false }));
+    scr.position.set(-5.5, 12, 8.95);
+    scr.userData.part = p;
+    p.group.add(scr);
+    for (const [x, y] of [[11, 17.5], [15.5, 17.5], [11, 12.5], [15.5, 12.5]]) p.cyl(1.1, 1.2, MAT.steel, x, y, 9.3, 'z');
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(1.15, 0.22, 8, 24), new THREE.MeshBasicMaterial({ color: 0xfacc15 }));
+    ring.position.set(13.2, 4.6, 8.95);
+    p.group.add(ring);
+    p.addJack('inp', 13.2, 4.6, 8.9, 0, 1);
+    p.labelPlane(10, 2.6, 13.2, 20.4, 8.95);
+    p._height = 23;
+  },
+
   FunctionGenerator(p, comp) {
     p.onShelf = true;
     p.footprint = { w: 36, d: 16 };
@@ -598,6 +621,7 @@ const LABELS = {
   DCPowerSupply: () => ({ lines: ['2 outputs'], accent: '#f87171' }),
   FiberSpool: (c) => ({ lines: [`${(c.params.length / 1e3).toPrecision(3)} km SMF-28`, `delay ${fmtSI(c.params.length * 4.897e-9, 's')}`], accent: '#facc15' }),
   Oscilloscope: () => ({ lines: ['4 ch · photocurrent'], accent: '#facc15' }),
+  SpectrumAnalyzer: (c) => ({ lines: [`RBW ${fmtSI(c.params.rbw, 'Hz')}`], accent: '#facc15' }),
   PhotonCounter: () => ({ lines: ['time tagger'], accent: '#22d3ee' }),
 };
 const labelGeneric = (c) => ({ lines: [c.label ?? c.type], accent: '#94a3b8' });

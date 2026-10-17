@@ -114,6 +114,18 @@
             <label class="ctl" title="Analogue front-end bandwidth (−3 dB)">BW <select id="scope-bw"></select></label>
             <label class="ctl" title="Sample rate; the record memory caps it at slow timebases">Sample <select id="scope-fs"></select></label>
           </div>
+          <div class="scope-controls esa-controls">
+            <label class="ctl">Input <select id="esa-src" aria-label="Analyzer input"></select></label>
+            <label class="ctl">Start <input id="esa-start" type="number" step="any" min="0" aria-label="Start frequency" /> MHz</label>
+            <label class="ctl">Stop <select id="esa-stop" aria-label="Stop frequency"></select></label>
+            <label class="ctl" title="Resolution bandwidth (noise bandwidth of the window)">RBW <select id="esa-rbw"></select></label>
+            <label class="ctl" title="Records power-averaged in each sweep">Avg <select id="esa-avg"></select></label>
+            <label class="ctl" title="peak for tones, average for noise">Detector <select id="esa-det"></select></label>
+            <label class="ctl">Trace <select id="esa-trace"></select></label>
+            <label class="ctl">Ref <input id="esa-ref" type="number" step="any" aria-label="Reference level" /> dBm</label>
+            <label class="ctl">Scale <select id="esa-div" aria-label="dB per division"></select></label>
+            <button id="esa-clear" title="Restart trace averaging / max hold">Clear trace</button>
+          </div>
           <div id="scope-channels"></div>
           <div id="scope-meas"></div>
         </div>

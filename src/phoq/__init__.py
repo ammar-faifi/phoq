@@ -18,7 +18,15 @@ from .core import Component, Param, Port, Setup, Transfer
 from .detectors import Photodiode, PowerMeter, PowerReading, SinglePhotonDetector
 from .engine import Network, report, synthesize, trace
 from .generators import DCPowerSupply, FunctionGenerator
-from .instruments import CounterResult, Oscilloscope, PhotonCounter, ScopeResult, Trace
+from .instruments import (
+    CounterResult,
+    Oscilloscope,
+    PhotonCounter,
+    ScopeResult,
+    SpectrumAnalyzer,
+    SpectrumResult,
+    Trace,
+)
 from .modulators import IntensityModulator, OpticalSwitch, PhaseModulator
 from .passive import (
     Attenuator,
@@ -68,6 +76,8 @@ __all__ = [
     "ScopeResult",
     "Setup",
     "SinglePhotonDetector",
+    "SpectrumAnalyzer",
+    "SpectrumResult",
     "Sweep",
     "Trace",
     "Transfer",

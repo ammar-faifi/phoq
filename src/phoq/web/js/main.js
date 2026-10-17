@@ -296,6 +296,7 @@ class Lab {
   remove(name) { return this.call(this.api.remove(name), `Removed ${name}`); }
   autoset(name) { return this.call(this.api.autoset(name)); }
   single(name) { return this.call(this.api.single(name)); }
+  clearTrace(name) { return this.call(this.api.clearTrace(name)); }
   connect(a, b) { return this.call(this.api.connect(a, b), `${a} → ${b}`); }
   disconnect(port, quiet = false) { return this.call(this.api.disconnect(port), quiet ? null : `Unplugged ${port}`); }
 
