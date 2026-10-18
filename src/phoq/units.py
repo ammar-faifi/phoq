@@ -14,6 +14,7 @@ K_B = 1.380649e-23  # Boltzmann constant [J/K]
 N_GROUP = 1.4682  # SMF-28 group index
 N_EFF = 1.4677  # SMF-28 effective (phase) index
 FIBER_DELAY = N_GROUP / C0  # [s/m], about 4.9 ns per metre
+N_AIR = 1.00027  # refractive index of air near 1550 nm (phase and group differ by ~1e-6)
 
 # ---- fiber connectors ---------------------------------------------------------------------------
 # End-face polish: PC and UPC are flat (domed, 0°) and mate with each other; APC is angled 8° and

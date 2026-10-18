@@ -71,10 +71,10 @@ Units are SI throughout: metres, seconds, hertz and watts. Powers use `power_dbm
 | --- | --- |
 | Sources | `Laser` (CW / pulsed / sine / OOK, linewidth, detuning, per-pulse phase randomisation) |
 | Fiber | `Fiber` (patch cord), `FiberSpool` |
-| Passive | `Attenuator`, `BeamSplitter` (alias `Coupler`), `PhaseShifter`, `Isolator`, `MatingSleeve` (FC–FC adapter joining two cords) |
+| Passive | `Attenuator`, `BeamSplitter` (alias `Coupler`), `PhaseShifter`, `Isolator`, `MatingSleeve` (FC–FC adapter joining two cords), `OpticalDelayLine` (variable free-space delay: dial, carrier phase, Gaussian-beam coupling loss) |
 | Modulators | `PhaseModulator` (φ = π·V/Vπ), `IntensityModulator` (Mach–Zehnder, extinction) — voltage comes only through their `rf` and `bias` inputs; `OpticalSwitch` (2×2, bar below the threshold voltage on `ctrl`, cross above: a pattern routes pulse by pulse) |
 | Detectors | `Photodiode`, `SinglePhotonDetector`, `PowerMeter` |
-| Instruments | `Oscilloscope`, `SpectrumAnalyzer` (RF spectrum in dBm: RBW, averaging, detectors, trace average and max hold, Lorentzian and short-delay linewidth fits), `PhotonCounter`, `FunctionGenerator` (2 outputs: dc / sine / square / triangle / ramp / loaded pattern), `DCPowerSupply` (2 outputs, ±30 V) |
+| Instruments | `Oscilloscope`, `SpectrumAnalyzer` (RF spectrum in dBm: RBW, averaging, detectors, trace average and max hold, Lorentzian and short-delay linewidth fits), `PhotonCounter` (time tagger: per-channel input delays, sub-bins for pulses shorter than a bin), `FunctionGenerator` (2 outputs: dc / sine / square / triangle / ramp / loaded pattern), `DCPowerSupply` (2 outputs, ±30 V) |
 
 Run `phoq catalog` for every port and parameter.
 
@@ -480,7 +480,7 @@ detectors, each instrument's acquisition) and lists its current limitations.
   emission and warnings. It uses the mutual coherence γ(Δτ) = exp(−πΔν|Δτ|) × envelope overlap.
 - **Not modelled:** polarisation, dispersion, nonlinearity, afterpulsing.
 
-## Theory: modulators, the oscilloscope and the spectrum analyzer
+## Theory: modulators, delay lines, the oscilloscope and the spectrum analyzer
 
 ### Electro-optic modulators
 
@@ -544,6 +544,88 @@ $\langle T\rangle$ over one period of the drive (or over all symbols of a patter
 taken as DC; `IntensityModulator.info()` shows it. Paths through a time-varying modulator are
 treated as mutually incoherent in that report, which is only an approximation of the full
 time-domain synthesis used for the oscilloscope.
+
+### Optical delay line
+
+`OpticalDelayLine` is a fiber-coupled free-space delay: a collimator, an air gap set by a
+translation stage, and a second collimator. Patch cords come in 0.5 m steps (2.45 ns), so cords set
+the coarse delay and the delay line trims it to a fraction of a pulse. Its settings:
+
+- the dial `delay` τ, from 0 to `max_delay` (330 ps);
+- the fixed `insertion_delay` τ₀ (100 ps: internal fiber and the shortest gap);
+- the stage `resolution`;
+- `insertion_loss_db` at the best-coupled gap (1 dB);
+- the collimated `beam_waist` w₀ (250 µm).
+
+These generic values are assumed, not from a datasheet; a preset replaces them.
+
+**Delay and phase.** Air is nearly dispersionless (n ≈ 1.00027), so one τ sets both the group
+delay and the carrier phase:
+
+$$\tau_g = \tau_0 + \tau, \qquad \varphi = \varphi_0 + 2\pi\nu\tau .$$
+
+One fringe passes per optical period $1/\nu = \lambda/c$: 5.17 fs at 1550 nm, or 1.55 µm of air
+path. A move of a few femtoseconds therefore scrambles an interferometer's phase. The delay line
+sets timing; a `PhaseShifter` (a fiber stretcher or heater on a bench) sets and holds the phase,
+and is relocked after every move of the dial. A dial set beyond the travel stops at its end, and
+`report()` warns.
+
+**Coherence.** In a Mach–Zehnder whose arms differ by δ, a laser of Lorentzian linewidth Δν gives
+fringe visibility $V = V_0\,e^{-\pi\Delta\nu|\delta|}$. Here
+$V_0 = 2|a_1a_2|/(|a_1|^2+|a_2|^2)$ is the ceiling left by unequal arm losses. Scanning the delay
+line maps out the coherence time $1/(\pi\Delta\nu)$ of a broad source.
+
+**Pulse overlap.** In a delay-line interferometer the arms differ by $T+\delta$, so an output slot
+holds pulse $k$ and pulse $k-1$ offset by δ. The interference term counted over the slot is the
+overlap of their fields, $\int E_k(t)\,E_{k-1}(t-\delta)\,dt$. For Gaussian pulses of intensity FWHM
+$w$:
+
+$$V(\delta) = V_0\; e^{-\pi\Delta\nu\,(T+\delta)}\; e^{-\ln 2\,\delta^2/w^2} .$$
+
+V ≥ 0.99 needs $|\delta| \le 0.12\,w$: ±120 ps for 1 ns pulses, but ±12 ps (2.4 mm of fiber) for
+100 ps pulses. At 100 MHz a 3 m arm against a 1 m arm leaves δ = −205 ps. That costs 1 ns pulses
+3 % of their visibility and leaves 100 ps pulses with 5 %, which is why the DLI's long arm carries a
+delay line.
+
+**Coupling loss.** The collimated beam (Rayleigh range $z_R = \pi w_0^2/\lambda$) couples into
+the output fiber with the Gaussian mode overlap $1/[1+(d/2z_R)^2]$, where $d$ is how far the gap is
+from the best-coupled one at mid-travel. The loss therefore rises toward both ends of the travel:
+
+$$\mathrm{IL}(\tau) = \mathrm{IL} + 10\log_{10}\!\left[1+\left(\frac{c\,(\tau-\tau_\text{max}/2)}{2\,n_\text{air}\,z_R}\right)^{2}\right].$$
+
+With w₀ = 250 µm that is 0.16 dB at either end of the 330 ps travel at 1550 nm (0.12 dB at
+1310 nm). Power changes while you scan for the visibility peak, so watch the visibility, not the
+power.
+
+Not modelled: stage pitch and yaw (beam walk-off adds loss across the travel), back-reflection from
+the collimator faces, thermal drift, backlash and repeatability.
+
+**Counting pulses that miss each other.** The photon counter averages the light over each bin, and
+two pulses inside one bin then interfere as if they overlapped. `PhotonCounter(oversample=m)`
+synthesizes $m$ sub-bins per bin and adds their photons. A sub-bin of a quarter of the pulse width
+gets the overlap right to 2 %, an eighth to 0.5 %.
+
+**Validation.** `python examples/odl_validation.py` checks each equation above against phoq's
+steady-state `report()` and against fields synthesized by the engine; `tests/test_odl.py` asserts
+the same checks. The DLI is the one in `examples/dli_cow.py`, balanced at 105 ps on the dial:
+
+| Check | Theory | phoq |
+| --- | --- | --- |
+| Group delay at dial 0 / 105 / 330 ps, and 400 ps (beyond the travel) | 100 / 205 / 430 / 430 ps | 100 / 205 / 430 / 430 ps, with a warning at 400 |
+| 1 fs resolution, dial 123.4567 ps | 223.457 ps | 223.457 ps |
+| Fringe period at 1550 / 1310 nm | 5.17024 / 4.36969 fs | 5.17024 / 4.36969 fs |
+| MZI visibility, 1 GHz laser, δ = 100 / 200 / 300 / 430 ps | 0.725 / 0.530 / 0.387 / 0.257 | report 0.725 / 0.530 / 0.388 / 0.257; fields 0.725 / 0.532 / 0.390 / 0.255 |
+| DLI visibility, 100 ps pulses, δ = −105 / −50 / 0 / +50 / +100 / +225 ps | 0.459 / 0.832 / 0.991 / 0.835 / 0.497 / 0.030 | report: identical; fields 0.460 / 0.832 / 0.991 / 0.835 / 0.498 / 0.030 |
+| Standard cords alone (δ = −205 ps), 1 ns / 100 ps pulses | 0.961 / 0.053 | 0.961 / 0.053 |
+| Time tagger, 1 ns bins, δ = +100 ps: oversample 1 / 40 | 0.496 | 0.983 (whole bins) / 0.501 |
+| Loss at dial 0 / 82.5 / 165 / 330 ps re mid-travel, 1550 nm | 0.162 / 0.041 / 0 / 0.162 dB | 0.162 / 0.041 / 0.000 / 0.162 dB |
+| The same at 1310 nm | 0.117 / 0.029 / 0 / 0.117 dB | 0.117 / 0.029 / 0.000 / 0.117 dB |
+
+The steady-state report computes the pulse overlap in closed form; the synthesized fields reach the
+same value from bin-averaged envelopes and one shared phase walk, which is the check on the engine.
+`phoq serve examples/odl_validation.py` opens the 100 ps DLI with 20 GHz photodiodes on a 1 ns/div
+scope. Turn `DLI-ODL`'s dial away from 105 ps and each port shows the two arms' pulses side by side,
+no longer interfering.
 
 ### Oscilloscope
 
@@ -879,7 +961,8 @@ print(mpqkd.run(mpqkd.MPQKDParams(distance=100e3, mu=0.4), rounds=2_000_000, see
 ```
 
 AWG patterns are indexed by pulse number. `PhotonCounter(compensate_delay=True)` removes the
-time of flight, so `clicks[k]` belongs to pulse `k` of the patterns.
+time of flight, so `clicks[k]` belongs to pulse `k` of the patterns; `chN_delay` lines up a
+channel whose detector sits behind a different length of fiber.
 
 ### BB84 with decoy states, and an eavesdropper
 
@@ -931,6 +1014,63 @@ transmitter from the clicks within the block. With everything intercepted the QB
 25 %, e₁ reaches ½ and the key rate drops to zero; the decoy bounds also register her
 multi-photon re-sends. In the virtual lab her station appears in the fiber and her laptop next to
 Alice's and Bob's.
+
+### Delay-line interferometer: DPSK and the COW monitoring line
+
+A delay-line interferometer (DLI) is an unbalanced Mach–Zehnder whose long arm is exactly one pulse
+period $T$ longer. It is built from two `BeamSplitter`s and standard cords: 0.5 m + 0.5 m around a
+`PhaseShifter` (the interferometer phase $\theta$) in the short arm, 1 m + 2 m around an
+`OpticalDelayLine` in the long arm. The cords give 2 m (9.795 ns), and the delay line adds the last
+205 ps (100 ps insertion delay and 105 ps on the dial; see [Optical delay line](#optical-delay-line)). Each output slot then
+holds pulse $k$ on top of pulse $k-1$, so the constructive port receives
+$\tfrac12[1 + V\cos(\varphi_k - \varphi_{k-1} + \theta)]$ of the light and the destructive port the
+rest. Here $V = e^{-\pi\Delta\nu T}$ is the coherence between neighbouring pulses. This is the
+demodulator of differential phase-shift keying (DPSK) and the monitoring line of coherent one-way
+(COW) QKD, which checks that neighbouring non-empty pulses keep their phase relation: an attack
+that measures and re-prepares pulses breaks it, and the visibility drops.
+
+`examples/dli_cow.py` builds both. The DPSK bench is a 100 MHz, 1 ns pulse train and a phase
+modulator writing $\varphi_k = \varphi_{k-1} + \pi b_k$, with the DLI and photodiodes on both
+ports. The COW bench has bits as a pulse in one of two slots, 10 % decoys (two pulses), μ = 0.5,
+25 km, a 90:10 tap at Bob with the data detector on the 90 % side and the DLI on the 10 % side, three
+SNSPD-like detectors and a time tagger:
+
+```bash
+python examples/dli_cow.py --plot dli.png
+```
+
+```
+DLI: cords 3 m (long arm) − 1 m (short arm) = 9.79 ns; delay line 100 ps + 105 ps on the dial → one slot T = 10 ns
+
+1. DPSK demodulation (photodiodes, one 2 µs scope sweep)
+   linewidth  100 kHz: 180 slots decoded, 0 errors, mean contrast +0.991  (e^(−πΔνT) = 0.997)
+   linewidth   10 MHz: 180 slots decoded, 6 errors, mean contrast +0.731  (e^(−πΔνT) = 0.730)
+   linewidth  100 MHz: 180 slots decoded, 82 errors, mean contrast +0.025  (e^(−πΔνT) = 0.043)
+
+2. COW monitoring line (μ = 0.5, 25 km, 10 % tap to the DLI, SNSPD-like detectors)
+   source                                      V expected    DM1    DM2  data QBER
+   coherent pulse train, 100 kHz           0.989    0.997   5300     28  0.0011 (128952 bits)
+   coherent pulse train, 10 MHz            0.716    0.730   4613    762  0.0011 (128952 bits)
+   coherent pulse train, 30 MHz            0.379    0.390   3740   1683  0.0011 (128952 bits)
+   no phase relation between pulses        0.018    0.000   2809   2707  0.0013 (128604 bits)
+```
+
+Both the DPSK contrast and the COW visibility follow $e^{-\pi\Delta\nu T}$, because the engine shares
+one phase walk between the two arms (see [docs/engine.md](docs/engine.md)). The data line's
+error rate does not move at all: only the monitoring line sees coherence. The visibility is counted
+on slots where pulse $k$ and pulse $k-1$ were both sent, across bit boundaries and inside decoys.
+The delay line loses 0.92 dB more than the phase shifter, which caps the visibility at
+$2\sqrt{t}/(1+t) = 0.994$ for that transmission ratio $t$; a bench would balance the arms with an
+attenuator in the short one. The monitoring detectors sit behind 2 m more fiber than the data
+detector, so DB's light arrives 9.8 ns earlier; the tagger's `ch1_delay` adds 9.8 ns to its time
+stamps, as one sets a tagger's input delay, and bin $k$ holds pulse $k$ on all three channels.
+Without it the visibility, counted on the wrong pulse pairs, falls to 0.43.
+
+`phoq serve examples/dli_cow.py` opens the DPSK bench. The scope shows the constructive port
+(CH1), the destructive port (CH2) and the bits (CH3, the generator's second channel delayed into
+the decoding slot); every "1" leaves by the destructive port. In the inspector, turn `DLI-PS`'s
+phase to swap the ports, raise `LD-1`'s linewidth to 10 or 100 MHz to watch neighbouring pulses
+lose their phase relation, or tick *Random phase per pulse* to break it altogether.
 
 ## Adding a component
 

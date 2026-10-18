@@ -237,9 +237,12 @@ class SinglePhotonDetector(_Detector):
         p_dark = -math.expm1(-self.dark_count_rate * dt)
         return 1 - (1 - p_dark) * np.exp(-self.efficiency * nbar)
 
-    def detect(self, fields, dt, rng, n: int) -> np.ndarray:
-        """Boolean click record, one entry per time bin."""
-        nbar = self.photons(fields, dt, n, weighted=True)
+    def detect(self, fields, dt, rng, n: int, sub: int = 1) -> np.ndarray:
+        """Boolean click record, one entry per time bin; ``fields`` may hold ``sub`` sub-bins per
+        bin, whose photons add up."""
+        nbar = self.photons(fields, dt / sub, n * sub, weighted=True)
+        if sub > 1:
+            nbar = nbar.reshape(n, sub).sum(axis=1)
         clicks = rng.random(n) < self.click_probability(nbar, dt)
         dead = int(math.ceil(self.dead_time / dt)) if self.dead_time > 0 else 0
         if dead > 1 and clicks.any():

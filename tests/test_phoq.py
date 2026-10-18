@@ -26,7 +26,7 @@ from phoq import (
     Setup,
     SinglePhotonDetector,
 )
-from phoq.engine import trace
+from phoq.engine import synthesize, trace
 from phoq.parties import load_parties, load_protocol
 from phoq.units import CONNECTOR_LOSS_DB, FIBER_DELAY, db_to_t, photon_energy
 
@@ -489,6 +489,15 @@ def _click_setup(slots=20_000):
         seed=21,
     )
 
+
+def test_synthesize_offset_moves_one_detectors_bins():
+    """A channel delay's grid offset gives the fields of a shifted time grid, same phase walk."""
+    s = Setup.from_chain(Laser(rep_rate=100e6, pulse_width=1e-9, linewidth=10e6), Photodiode(), seed=1)
+    net, d = trace(s), s["PD-1"]
+    t, dt = np.arange(4000) * 10e-12, 10e-12
+    a = synthesize(net, [d], t, dt, np.random.default_rng(3), {d: 2.5e-9})[d]
+    b = synthesize(net, [d], t + 2.5e-9, dt, np.random.default_rng(3))[d]
+    assert a.keys() == b.keys() and all(np.allclose(a[wl], b[wl]) for wl in a)
 
 def test_counter_batches_are_continuous_in_time():
     s = _click_setup()

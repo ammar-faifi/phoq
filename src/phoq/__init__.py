@@ -36,6 +36,7 @@ from .passive import (
     FiberSpool,
     Isolator,
     MatingSleeve,
+    OpticalDelayLine,
     PhaseShifter,
 )
 from .runner import Results, Runner, Sweep
@@ -61,6 +62,7 @@ __all__ = [
     "Laser",
     "MatingSleeve",
     "Network",
+    "OpticalDelayLine",
     "OpticalSwitch",
     "Oscilloscope",
     "Param",

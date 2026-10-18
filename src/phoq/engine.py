@@ -21,6 +21,7 @@ from .core import Setup
 from .detectors import Photodiode, PowerMeter, SinglePhotonDetector, _Detector
 from .generators import FunctionGenerator
 from .modulators import _Modulator
+from .passive import OpticalDelayLine
 from .sources import Laser
 from .units import (
     FRESNEL,
@@ -192,9 +193,18 @@ def _enter(net, stack, src, port, amp, delay, mods, hops, refl, site) -> None:
 
 
 def synthesize(
-    net: Network, detectors, t: np.ndarray, dt: float, rng: np.random.Generator
+    net: Network,
+    detectors,
+    t: np.ndarray,
+    dt: float,
+    rng: np.random.Generator,
+    offsets: dict | None = None,
 ) -> dict:
-    """Complex fields [√W] per wavelength at each detector, bin-averaged over [t, t+dt)."""
+    """Complex fields [√W] per wavelength at each detector, bin-averaged over [t, t+dt).
+
+    ``offsets`` shifts a detector's bins to [t + offset, t + offset + dt) (a time tagger's channel
+    delay). All detectors still share one phase walk per laser, so their fields stay correlated.
+    """
     out = {d: {} for d in detectors}
     by_source = defaultdict(list)
     for d in detectors:
@@ -202,8 +212,9 @@ def synthesize(
             by_source[p.source].append((d, p))
     for gen in driving_generators(net, detectors):
         gen.start(rng)
+    offsets = offsets or {}
     for src, items in by_source.items():
-        delays = np.array([p.delay for _, p in items])
+        delays = np.array([p.delay - offsets.get(d, 0.0) for d, p in items])
         emit = t[None, :] - delays[:, None]  # emission time at the start of each bin
         mid = emit + dt / 2  # …and at its centre (pulse k sits at k/f)
         field_ = src.envelope(emit, dt) * np.exp(1j * src.phase(mid, rng))
@@ -369,6 +380,15 @@ def report(setup: Setup, net: Network | None = None) -> dict:
                         "text": f"{g.name} {ch.upper()} is set to 'pattern' but none is loaded (set_pattern).",
                     }
                 )
+    for odl in setup.of_type(OpticalDelayLine):
+        if odl.delay > odl.max_delay:
+            warnings.append(
+                {
+                    "level": "warn",
+                    "text": f"{odl.name} is set to {fmt_si(odl.delay, 's')} but travels only "
+                    f"{fmt_si(odl.max_delay, 's')}: the stage stops at the end of its travel.",
+                }
+            )
     for e in net.open_ends:
         if e["power"] > 1e-6:
             vis = "" if e["wavelength"] < 700e-9 else " (invisible infrared!)"

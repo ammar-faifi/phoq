@@ -6,7 +6,7 @@ import cmath
 import math
 
 from .core import Component, FiberConnectors, Param, Transfer
-from .units import CONNECTORS, FIBER_DELAY, N_EFF, db_to_t, fiber_attenuation, fmt_si
+from .units import C0, CONNECTORS, FIBER_DELAY, N_AIR, N_EFF, db_to_t, fiber_attenuation, fmt_si
 
 
 def _span(
@@ -237,6 +237,96 @@ class PhaseShifter(FiberConnectors, Component):
                 math.sqrt(db_to_t(self.insertion_loss_db)) * cmath.exp(1j * self.phase),
             )
         ]
+
+
+class OpticalDelayLine(FiberConnectors, Component):
+    """Variable optical delay line: collimator → air gap set by a translation stage → collimator.
+
+    The dial ``delay`` τ adds to the fixed ``insertion_delay`` τ₀ (internal fiber and the shortest
+    gap). Air is nearly dispersionless, so one τ sets both the group delay and the carrier phase
+    2πν·τ: a fringe per optical period, 5.17 fs at 1550 nm. The line sets *timing*; a phase shifter
+    sets the phase. The collimated Gaussian beam (1/e² radius ``beam_waist``, Rayleigh range
+    z_R = πw₀²/λ) couples into the output fiber best at mid-travel; a gap d away from that couples
+    1/[1 + (d/2z_R)²], so the loss grows toward both ends of the travel. A dial set beyond
+    ``max_delay`` stops at the end of the travel, and ``resolution`` (0: continuous) is the step.
+    """
+
+    category = "passive"
+    prefix = "ODL"
+    label = "Optical delay line"
+    description = "Variable free-space delay, 0–330 ps"
+    inputs = ("p1",)
+    outputs = ("p2",)
+
+    delay = Param(
+        0.0, unit="s", label="Delay", min=0.0, max=10e-9, display=("ps", 1e12),
+        doc="Dial setting: the delay added to the delay at zero",
+    )
+    max_delay = Param(
+        330e-12, unit="s", label="Delay range", min=1e-12, max=10e-9, display=("ps", 1e12),
+        doc="Full travel of the stage, as delay",
+    )
+    insertion_delay = Param(
+        100e-12, unit="s", label="Delay at zero", min=0.0, max=100e-9, display=("ps", 1e12),
+        doc="Connector-to-connector delay at the zero setting (internal fiber and shortest gap)",
+    )
+    resolution = Param(
+        0.0, unit="s", label="Resolution", min=0.0, max=10e-12, display=("fs", 1e15),
+        doc="Smallest delay step of the stage (0 = continuous)",
+    )
+    insertion_loss_db = Param(
+        1.0, unit="dB", label="Insertion loss", min=0.0, max=10.0,
+        doc="Loss at the best-coupled gap (mid-travel)",
+    )
+    beam_waist = Param(
+        0.25e-3, unit="m", label="Beam waist", min=10e-6, max=5e-3, display=("µm", 1e6),
+        doc="1/e² radius of the collimated beam between the collimators",
+    )
+
+    def _build(self):
+        self.add_port("p1")
+        self.add_port("p2")
+
+    @property
+    def setting(self) -> float:
+        """The delay the stage reaches: the dial on the step grid, stopped at the end of travel."""
+        tau = self.delay
+        if self.resolution > 0:
+            tau = round(tau / self.resolution) * self.resolution
+        return min(tau, self.max_delay)
+
+    @property
+    def total_delay(self) -> float:
+        return self.insertion_delay + self.setting
+
+    def coupling(self, wavelength: float, setting: float | None = None) -> float:
+        """Gaussian mode overlap with the output fiber (1 at mid-travel), now or at ``setting``."""
+        tau = self.setting if setting is None else setting
+        z_r = math.pi * self.beam_waist**2 / wavelength
+        d = C0 * (tau - self.max_delay / 2) / N_AIR  # air gap away from the best one
+        return 1.0 / (1.0 + (d / (2 * z_r)) ** 2)
+
+    def loss_db(self, wavelength: float, setting: float | None = None) -> float:
+        return self.insertion_loss_db - 10 * math.log10(self.coupling(wavelength, setting))
+
+    def scatter(self, port, wavelength):
+        # The fixed part counts as fiber of the same delay; the air path adds 2πν·τ.
+        cycles = (N_EFF * self.insertion_delay / FIBER_DELAY + C0 * self.setting) / wavelength
+        amp = math.sqrt(db_to_t(self.loss_db(wavelength))) * cmath.exp(-2j * math.pi * (cycles % 1.0))
+        other = self.ports["p2"] if port.name == "p1" else self.ports["p1"]
+        return [Transfer(other, amp, self.total_delay)]
+
+    def info(self):
+        wl = 1550e-9
+        out = {
+            "Total delay": fmt_si(self.total_delay, "s"),
+            "Air path added": fmt_si(C0 * self.setting / N_AIR, "m"),
+            "Loss @1550 nm": f"{self.loss_db(wl):.2f} dB (ends of travel {self.loss_db(wl, 0.0):.2f} dB)",
+            "Fringe period @1550 nm": fmt_si(wl / C0, "s"),
+        }
+        if self.delay > self.max_delay:
+            out["Stage"] = f"at the end stop ({fmt_si(self.max_delay, 's')})"
+        return out
 
 
 class Isolator(FiberConnectors, Component):

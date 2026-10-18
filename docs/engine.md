@@ -184,13 +184,16 @@ pulse sources.
 
 ## 5. `synthesize()`: paths on a time grid
 
-`synthesize(net, detectors, t, dt, rng)` returns, for each requested detector, a dict
-wavelength → complex field array on the grid `t` (bin starts), in √W:
+`synthesize(net, detectors, t, dt, rng, offsets=None)` returns, for each requested detector, a dict
+wavelength → complex field array on the grid `t` (bin starts), in √W. `offsets` moves one
+detector's grid to `t + offset` (the time tagger's channel delays) while it keeps sharing the
+lasers' phase walks with the others:
 
 1. **Start the generators** that drive any modulator on those paths (`start(rng)`); a free-running
    generator draws a random epoch here.
-2. **Group paths by laser.** For a laser with paths of delays $\tau_j$, the emission times are
-   `emit = t − τⱼ` (bin starts) and `mid = emit + dt/2` (bin centres).
+2. **Group paths by laser.** For a laser with paths of delays $\tau_j$ to detectors with grid
+   offsets $o_j$, the emission times are `emit = t + oⱼ − τⱼ` (bin starts) and `mid = emit + dt/2`
+   (bin centres).
 3. **One envelope and one phase call per laser**, over all its paths at once:
    `envelope(emit, dt) · exp(i·phase(mid, rng))`. Every path of that laser shares the realisation.
 4. **Per path**, multiply by `amp`, then by each modulator's factor at the moment the light passes
@@ -273,9 +276,20 @@ acquisitions are independent records, not consecutive pieces of one record.
 - **Bins.** One bin per pulse: the bin rate is `bin_rate` or the repetition rate of the laser
   feeding its detectors. Bin $k$ is centred on pulse $k$; with `compensate_delay` the bins shift by
   the shortest delay from that laser, so bin $k$ holds pulse $k$ after the fiber.
+- **Channel delays.** `chN_delay` is added to channel N's time stamps, like a tagger's input delay:
+  a detector whose light arrives Δ before the others' lines up with them at +Δ. Channel N's bin $k$
+  then holds the light that arrived at its bin time minus `chN_delay` (a grid offset in
+  `synthesize`), and `compensate_delay` uses the earliest time stamp, path delay plus channel
+  delay. All channels are still synthesized in one call, so they share the phase walk.
 - **Continuous clock.** The instrument keeps a running bin index, so `timestamps()` keep counting
   across acquisitions; a protocol sets `start` explicitly per block.
-- **Chunks.** Long records are synthesized in chunks of `chunk` bins (one million by default).
+- **Sub-bins.** With `oversample` = $m$ the light is synthesized on $m$ sub-bins per bin and their
+  photons are added before the click is drawn. A single bin averages each path's envelope over the
+  whole bin, so two pulses that miss each other inside it (a delay-line interferometer set δ off)
+  would still interfere fully; sub-bins of a quarter of the pulse width get their overlap right to
+  2 %, at $m$ times the cost.
+- **Chunks.** Long records are synthesized in chunks of `chunk` bins (one million by default;
+  `chunk`/$m$ with sub-bins).
 - **Result.** A boolean click record per channel; `timestamps`, `events`, `counts`, `rates` and
   `coincidences` are derived from it. Clicks have no position inside their bin.
 
@@ -396,7 +410,11 @@ with the time average of synthesized fields: 0.1085 mW against 0.1091 ± 0.0016 
 
 - Oscilloscope: no ADC quantisation, trigger jitter or holdoff, equivalent-time sampling or probe
   loading.
-- Photon counter: one bin per pulse, no timing resolution inside a bin and no tagger dead time.
+- Photon counter: one bin per pulse and no tagger dead time. Each bin averages the light, so two
+  pulses inside one bin interfere as if they overlapped, unless `oversample` splits the bin into
+  sub-bins shorter than the pulses (a quarter of the width: the overlap is right to 2 %). Channel
+  delays are set by hand (`examples/dli_cow.py` computes its 9.8 ns from the traced paths); there
+  is no arrival-time histogram to read them from.
 - Spectrum analyzer: FFT method only (no video bandwidth, swept-filter artefacts, spurs or local-
   oscillator phase noise), a white noise floor, no input attenuator or compression. The lab window
   shows a plain Lorentzian half width, which assumes a delay much longer than the coherence time;

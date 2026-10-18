@@ -356,6 +356,44 @@ const BUILDERS = {
     p._height = 4.2;
   },
 
+  /** Variable delay line: collimators in the two end blocks, a carriage on a rail under an
+   *  acrylic cover; the carriage slides with the delay setting, the beam stretches to it. */
+  OpticalDelayLine(p) {
+    p.basePlate(21, 7.5);
+    for (const sx of [-1, 1]) p.box(2.2, 4.4, 5.4, MAT.case, sx * 8.4, 2.8, 0);
+    p.box(14.6, 0.5, 5.4, MAT.gray, 0, 0.85, 0);                // channel floor
+    p.box(14.6, 4.4, 0.2, MAT.case, 0, 2.8, -2.6);               // back wall
+    p.box(14.6, 1.6, 0.2, MAT.case, 0, 1.4, 2.6);                // low front wall: the carriage shows
+    p.box(13.2, 0.45, 1.1, MAT.steel, 0, 1.33, 0);               // rail
+    p.box(14.6, 0.12, 5.4, MAT.acrylic, 0, 5.0, 0).castShadow = false;
+    p.cyl(0.7, 1.2, MAT.bright, -6.7, 2.8, 0, 'x');              // input collimator
+    p.carriage = new THREE.Group();
+    const sled = new THREE.Mesh(new THREE.BoxGeometry(2.4, 1.1, 3.4), MAT.black);
+    sled.position.y = 2.1;
+    const prism = new THREE.Mesh(new THREE.CylinderGeometry(0.95, 0.95, 0.8, 3), MAT.bright);   // retroreflector
+    prism.rotation.z = Math.PI / 2;
+    prism.position.set(-0.5, 2.9, 0);
+    for (const m of [sled, prism]) { m.castShadow = true; m.userData.part = p; }
+    p.carriage.add(sled, prism);
+    p.group.add(p.carriage);
+    p.beam = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 1, 8), new THREE.MeshBasicMaterial({ color: 0xff3fb4, transparent: true, opacity: 0.45, depthWrite: false, toneMapped: false }));
+    p.beam.rotation.z = Math.PI / 2;
+    p.beam.position.y = 2.9;
+    p.beam.raycast = () => {};
+    p.group.add(p.beam);
+    p.addPort('p1', -9.55, 2.8, 0, -1, 0);
+    p.addPort('p2', 9.55, 2.8, 0, 1, 0);
+    p.labelPlane(12, 1.3, 0, 1.4, 2.71);
+    p._height = 5.2;
+    p.onRefresh = (c) => {
+      const f = clamp(Math.min(c.params.delay, c.params.max_delay) / c.params.max_delay, 0, 1);
+      const x = -4.6 + 10.6 * f, from = -6.1, to = x - 1.0;
+      p.carriage.position.x = x;
+      p.beam.scale.y = to - from;
+      p.beam.position.x = (from + to) / 2;
+    };
+  },
+
   Isolator(p) {
     p.basePlate(11, 6);
     p.cyl(1.7, 7, MAT.black, 0, 2.6, 0, 'x');
@@ -613,6 +651,7 @@ const LABELS = {
   Attenuator: (c) => ({ lines: [`${c.params.attenuation_db.toFixed(1)} dB`], accent: '#fb923c' }),
   PhaseShifter: (c) => ({ lines: [`φ = ${c.params.phase.toFixed(2)} rad`], accent: '#c084fc' }),
   Isolator: () => ({ lines: ['→'], accent: '#94a3b8' }),
+  OpticalDelayLine: (c) => ({ lines: [`τ ${fmtSI(Math.min(c.params.delay, c.params.max_delay), 's')} of ${fmtSI(c.params.max_delay, 's')}`], accent: '#f59e0b' }),
   MatingSleeve: () => ({ lines: ['FC–FC'], accent: '#94a3b8' }),
   PhaseModulator: (c) => ({ lines: [`Vπ ${c.params.v_pi} V · ${driveText(c, 'rf')}`, driveText(c, 'bias')], accent: '#f472b6' }),
   IntensityModulator: (c) => ({ lines: [`Vπ ${c.params.v_pi} V · ${driveText(c, 'rf')}`, driveText(c, 'bias')], accent: '#fbbf24' }),

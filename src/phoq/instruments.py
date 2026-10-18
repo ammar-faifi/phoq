@@ -610,7 +610,11 @@ class CounterResult:
 
 
 class PhotonCounter(Component):
-    """Time tagger / counting module: one time bin per laser pulse, records every click."""
+    """Time tagger / counting module: one time bin per laser pulse, records every click.
+
+    ``chN_delay`` is the input delay of channel N, added to its time stamps as in a tagger's
+    software: a detector whose light arrives Δ before the others' lines up with them at +Δ.
+    """
 
     category = "instrument"
     prefix = "CNT"
@@ -634,14 +638,28 @@ class PhotonCounter(Component):
         label="Delay compensation",
         doc="Shift the bins by the time of flight so bin k holds pulse k of the sync laser",
     )
+    oversample = Param(
+        1,
+        label="Sub-bins per bin",
+        min=1,
+        max=256,
+        doc="Synthesize the light on this many sub-bins per time bin and sum their photons. With 1, "
+        "two pulses inside one bin interfere as if they overlapped; make a sub-bin a quarter of "
+        "the pulse width or less to resolve pulses that miss each other (an unbalanced DLI).",
+    )
     chunk = Param(1_000_000, label="Bins per chunk", min=1000, max=100_000_000)
+    ch1_delay = Param(0.0, unit="s", label="CH1 delay", min=-1e-3, max=1e-3, display=("ns", 1e9))
+    ch2_delay = Param(0.0, unit="s", label="CH2 delay", min=-1e-3, max=1e-3, display=("ns", 1e9))
+    ch3_delay = Param(0.0, unit="s", label="CH3 delay", min=-1e-3, max=1e-3, display=("ns", 1e9))
+    ch4_delay = Param(0.0, unit="s", label="CH4 delay", min=-1e-3, max=1e-3, display=("ns", 1e9))
 
     def _build(self):
         for i in range(1, 5):
             self.add_port(f"ch{i}", "electrical", "in", f"CH{i} input")
 
     def ui_fields(self):
-        return ["running", "slots", "bin_rate", "sync_source", "compensate_delay"]
+        wired = [f"{ch}_delay" for ch in ("ch1", "ch2", "ch3", "ch4") if self.ports[ch].peer is not None]
+        return ["running", "slots", "bin_rate", "sync_source", "compensate_delay", "oversample", *wired]
 
     def __init__(self, name: str | None = None, **params):
         self.position = 0  # next bin index: acquisitions run on from one another like a tagger's clock
@@ -661,19 +679,25 @@ class PhotonCounter(Component):
         laser = _sync_laser(net, list(inputs.values()), self.sync_source)
         rate = self.bin_rate or (laser.rep_rate if laser else 1e6)
         dt = 1.0 / rate
+        delay = {d: getattr(self, f"{ch}_delay") for ch, d in inputs.items()}
         shift = 0.0
-        if self.compensate_delay and laser is not None:
-            delays = [t for d in inputs.values() for t in net.delays(d, laser)]
-            shift = min(delays) if delays else 0.0
+        if self.compensate_delay and laser is not None:  # the earliest time stamp of pulse 0
+            stamps = [t + delay[d] for d in inputs.values() for t in net.delays(d, laser)]
+            shift = min(stamps) if stamps else 0.0
+        offsets = {d: -tau for d, tau in delay.items()}  # bin k of a channel: stamps, less its delay
         clicks = {ch: np.zeros(self.slots, dtype=bool) for ch in inputs}
-        for a in range(0, self.slots, self.chunk):
-            b = min(self.slots, a + self.chunk)
+        m = self.oversample
+        step = max(1, self.chunk // m)
+        for a in range(0, self.slots, step):
+            b = min(self.slots, a + step)
             t = (
                 shift + (first + np.arange(a, b)) * dt - dt / 2
             )  # bins centred on the pulses
-            fields = synthesize(net, set(inputs.values()), t, dt, rng)
+            if m > 1:
+                t = (t[:, None] + np.arange(m) * (dt / m)).ravel()
+            fields = synthesize(net, set(inputs.values()), t, dt / m, rng, offsets)
             for ch, d in inputs.items():
-                clicks[ch][a:b] = d.detect(fields[d], dt, rng, b - a)
+                clicks[ch][a:b] = d.detect(fields[d], dt, rng, b - a, sub=m)
         return CounterResult(
             self.name,
             rate,
