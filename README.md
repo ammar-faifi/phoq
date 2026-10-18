@@ -459,6 +459,9 @@ from before error correction and privacy amplification were added).*
 
 ## Physics model
 
+[docs/engine.md](docs/engine.md) walks through the engine step by step (tracing, field synthesis,
+detectors, each instrument's acquisition) and lists its current limitations.
+
 - **Fields, not just powers.** Light is traced as complex amplitudes through every path:
   connector loss and reflection by connector type (see [Fiber connectors](#fiber-connectors)),
   fiber loss vs λ, propagation phase, a 4.9 ns/m delay, the beam-splitter unitary, attenuators
