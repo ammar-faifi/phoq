@@ -1029,8 +1029,9 @@ demodulator of differential phase-shift keying (DPSK) and the monitoring line of
 (COW) QKD, which checks that neighbouring non-empty pulses keep their phase relation: an attack
 that measures and re-prepares pulses breaks it, and the visibility drops.
 
-`examples/dli_cow.py` builds both. The DPSK bench is a 100 MHz, 1 ns pulse train and a phase
-modulator writing $\varphi_k = \varphi_{k-1} + \pi b_k$, with the DLI and photodiodes on both
+`examples/dli_cow.py` builds both (the full protocol, with Alice's and Bob's parties, is
+[`examples/cow`](#coherent-one-way-qkd-cow-up-to-the-sifted-key)). The DPSK bench is a 100 MHz,
+1 ns pulse train and a phase modulator writing $\varphi_k = \varphi_{k-1} + \pi b_k$, with the DLI and photodiodes on both
 ports. The COW bench has bits as a pulse in one of two slots, 10 % decoys (two pulses), μ = 0.5,
 25 km, a 90:10 tap at Bob with the data detector on the 90 % side and the DLI on the 10 % side, three
 SNSPD-like detectors and a time tagger:
@@ -1071,6 +1072,83 @@ Without it the visibility, counted on the wrong pulse pairs, falls to 0.43.
 the decoding slot); every "1" leaves by the destructive port. In the inspector, turn `DLI-PS`'s
 phase to swap the ports, raise `LD-1`'s linewidth to 10 or 100 MHz to watch neighbouring pulses
 lose their phase relation, or tick *Random phase per pulse* to break it altogether.
+
+### Coherent one-way QKD (COW), up to the sifted key
+
+`examples/cow` runs the protocol of Stucki, Brunner, Gisin, Scarani & Zbinden, *Fast and simple
+one-way quantum key distribution*, Appl. Phys. Lett. **87**, 194108 (2005), quant-ph/0506097, on
+the same party framework. It stops at the sifted key, its QBER and the visibility. Error
+correction, privacy amplification and the secret-key rate (the paper's Eq. 4, which needs a model
+of Eve's information) are not implemented.
+
+**The source is a CW laser.** Alice's intensity modulator carves the CW light into equally spaced
+pulses of μ photons, or blocks a slot: bit 0 is (μ, 0), bit 1 is (0, μ) and a decoy (fraction f)
+is (μ, μ). Because the laser runs continuously, every pair of non-empty pulses keeps a fixed
+phase, inside a decoy and across a 1-0 bit boundary, and that coherence is what Bob's monitoring
+line checks. A gain-switched laser restarts from spontaneous emission at every pulse, so its
+pulses have random phases and the visibility is zero; the paper's footnote also allows a
+mode-locked laser with a pulse picker. `COWParams(source="gain-switched")` swaps in such a laser
+to show it.
+
+**The bench.** The defaults follow the paper:
+
+- Alice: CW 1550 nm DFB (1 MHz linewidth, assumed), intensity modulator (30 dB extinction) on an AWG
+  running at twice the 434 MHz pulse clock, so each pulse fills the middle half of its 2.30 ns slot;
+  a VOA calibrated to μ = 0.5 at the fiber input.
+- 25 km of fiber, about 5 dB with the splices and connectors.
+- Bob: a 50/50 tap (as in the paper's experiment). The data detector DB reads the bit from the time
+  of arrival. The other half crosses a delay-line interferometer one slot (0.47 m) unbalanced. Its
+  cords are standard: 1 m + 1 m in the long arm, 3 × 0.5 m in the short one, where an
+  `OpticalDelayLine` takes back the 145 ps those cords give too much. A VOA in the long arm evens
+  out the arms' losses, and the phase shifter locks DM1 to the constructive port.
+- Detectors with η = 10 % and 2.5·10⁻⁵ dark counts per ns, as in the paper; no dead time (theirs
+  was 10 µs against afterpulsing, which phoq does not model). The time tagger runs one bin per slot
+  with 4 sub-bins to resolve the carved pulses, and its DB channel is delayed 12.4 ns to line up
+  with the monitoring detectors.
+
+**The protocol, per block** (the paper's steps 2–4):
+
+1. Bob announces which bits gave a data-line click, but not in which slot, and the slots where DM1
+   and DM2 fired.
+2. Alice flags the detections that were decoys, which leave the key, and discloses her bits at a
+   random 10 % of the rest. She counts DM1 and DM2 clicks where pulses j−1 and j were both sent:
+   V_d inside decoys, V₁₋₀ across 1-0 boundaries. She measures each detector's dark-count
+   probability where neither pulse was sent (a 0-1 boundary leaves two empty slots), which gives
+   the paper's net visibility next to the raw one.
+3. Bob answers with his bits at the sample. Both laptops show the same tally: sifted bits, sampled
+   QBER, V raw, V net, V_d and V₁₋₀.
+
+```bash
+phoq run --protocol cow --blocks 20
+```
+
+```bash
+phoq serve --protocol cow
+```
+
+The single-process reference `run()` keeps both records in one place, so it counts the QBER on the
+whole sifted key and compares every figure with `theory()`. The theory computes per-pulse photon
+numbers from the traced losses, click probabilities 1 − (1 − p_d)·e^{−ηm}, and the dark counts'
+share of the raw visibility:
+
+```python
+cow = import_source("examples/cow")
+print(cow.run(blocks=24, seed=5).summary())
+```
+
+```
+COW over 25 km, cw source, μ = 0.5, f = 0.1, t_B = 0.5, 4,800,000 bits (9,600,000 slots at 434 MHz)
+detected 6.566e-03 per bit (expected 6.549e-03) · sifted 25,733 (5.361e-03 per bit, expected 5.372e-03)
+QBER 0.0119 on the whole sifted key (expected 0.0116)
+V raw 0.9484 (expected 0.9471) · net 0.9920 (decoy 0.9923, 1-0 0.9941; expected 0.9928)
+```
+
+The net visibility is the coherence of neighbouring pulses, $e^{-\pi\Delta\nu\tau}$ = 0.993 for
+1 MHz over one slot. Dark counts on DM2 bring the raw value down to 0.947. With the gain-switched
+source, the data line is unchanged (QBER 1.1 %) but V averages −0.003 ± 0.034 over 12 runs. The
+paper measured raw V ≥ 92 % and net V ≈ 98 %. Its QBER was 5.2 %, but 4 % of that came from
+detector noise and afterpulses and 1 % from slow modulator electronics, neither of which phoq
+models; here the QBER is the dark counts plus the modulator's 30 dB leak.
 
 ## Adding a component
 
@@ -1127,6 +1205,7 @@ examples/            setups, analysis scripts and the MP-QKD showcase
 examples/mpqkd/      Alice, Bob, Charlie (+ station/common), the original single-process
                      reference.py with its [CLASSICAL #N] notes, and a marimo notebook
 examples/bb84/       decoy-state BB84: Alice, Bob (+ common), Eve as a --party file
+examples/cow/        coherent one-way QKD up to the sifted key: Alice, Bob (+ common)
 tests/               pytest suite
 docs/images/         README screenshots of the virtual lab
 .github/workflows/   ci.yml (tests on push / PR), publish.yml (PyPI on a version tag)
