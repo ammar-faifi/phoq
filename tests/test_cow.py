@@ -72,3 +72,93 @@ def test_parties_sift_the_same_key():
     trim = lambda r: {k: v for k, v in r.items() if k not in ("sent [kB]", "received [kB]")}  # noqa: E731
     assert trim(alice.result) == pytest.approx(trim(bob.result), nan_ok=True)
     assert bob.net["sent"] == 6 and alice.net["sent"] == 3  # detect + errors per block; sift
+
+
+# ---- the eavesdropper ---------------------------------------------------------------------------
+EVE = Path(__file__).resolve().parents[1] / "examples" / "cow" / "eve.py"
+
+
+def test_eve_station_is_calibrated():
+    p, c = cow.COWParams(), cow.common
+    setup = cow.build(p, eve=True)
+    assert c.pulse_photons(setup, p) == pytest.approx(p.mu, rel=1e-9)  # μ at the fiber input, SPL-A
+    assert c.eve_pulse_photons(setup, p) == pytest.approx(p.mu, rel=1e-9)  # her loopback, through the bar state
+    net, awg = trace(setup), setup["EVE-AWG"]
+    alice, eve = setup["ALICE-LD"], setup["EVE-TX-LD"]
+    # symbol k of the switch pattern meets Alice's pulse k; Eve's pulse k reaches each of Bob's detectors with it
+    assert awg.ch2_delay == pytest.approx(c.passing(net, setup["DB"], alice, setup["EVE-SW"]), abs=1e-15)
+    for d in (setup[n] for n in ("DB", "DM1", "DM2")):
+        mine = awg.ch1_delay - c.passing(net, d, eve, setup["EVE-TX-IM"]) + min(net.delays(d, eve))
+        assert mine == pytest.approx(min(net.delays(d, alice)), abs=1e-15)
+    short, long_ = c.arms(setup)  # Bob's interferometer is calibrated as without her
+    assert long_.delay - short.delay == pytest.approx(p.slot, abs=1e-15)
+    assert abs(long_.amp) == pytest.approx(abs(short.amp), rel=1e-9)
+    sw, im = setup["EVE-SW"], setup["EVE-TX-IM"]  # idle: bar state, her transmitter dark
+    assert not sw.crossed(sw.static_voltage()) and im.transmission(im.static_voltage()) == pytest.approx(im.t_min)
+    assert all(c.length in (0.5, 1.0, 1.5, 2.0, 3.0, 5.0) for c in setup if type(c).__name__ == "Fiber")
+    assert "EVE-SW" not in cow.build(p, eve=False)
+
+
+def test_intercept_resend_breaks_coherence_not_the_qber():
+    """The paper's point: a time-of-arrival measurement leaves the data line alone, so with the
+    flux matched Bob's rate and QBER stay where they were, while V_d and V_1−0 fall with the
+    fraction of bits Eve intercepts — as ``eve_theory`` expects, within the counting statistics."""
+    p = cow.COWParams()
+    setup = cow.build(p, eve=True)
+    runs = {f: cow.run(p, blocks=6, seed=21, setup=setup, eve=f) for f in (0.0, 0.5, 1.0)}
+    for f, r in runs.items():
+        t, e = r.tally, r.expected
+        for which in ("decoy", "1-0"):
+            n = t.monitor[cow.MON.index(which), :2].sum()  # DM clicks where the two pulses meet
+            v = e[f"V {which}"]
+            assert t.v(which) == pytest.approx(v, abs=4 * math.sqrt(max(1 - v * v, 0.05) / n)), (f, which)
+        q = e["QBER"]
+        assert r.qber == pytest.approx(q, abs=4 * math.sqrt(q * (1 - q) / t.sifted)), f
+        assert t.detected / t.bits == pytest.approx(e["detected / bit"], rel=4 / math.sqrt(t.detected)), f
+        if f:
+            assert r.eve["q"] == pytest.approx(e["q (Eve)"], rel=0.02) and r.eve["mu_e"] == pytest.approx(e["mu_E"], rel=0.03)
+    v_d, v_10 = ([runs[f].tally.v(w) for f in runs] for w in ("decoy", "1-0"))
+    assert v_d[0] > 0.9 > v_d[1] > 0.3 > v_d[2] and v_10[0] > 0.9 > 0.5 > v_10[1] > v_10[2]
+    assert runs[1.0].qber < 0.03 and abs(runs[1.0].qber - runs[0.0].qber) < 0.01
+    assert runs[1.0].tally.detected == pytest.approx(runs[0.0].tally.detected, rel=0.1)
+    assert "Eve intercepted 100%" in runs[1.0].summary()
+
+
+def test_three_parties_with_an_eavesdropper(monkeypatch):
+    from phoq import parties
+
+    monkeypatch.setattr(parties, "PARTY_REGISTRY", list(parties.PARTY_REGISTRY))  # keep her out of other tests
+    monkeypatch.setenv("PHOQ_EVE_FRACTION", "0.5")  # read in her own process
+    (eve,) = parties.load_parties(EVE)
+    assert eve.name == "EVE" and eve.stage == 1
+    setup = cow.build(slots=400_000)  # an Eve party is loaded: build() splices her station in
+    assert "EVE-SW" in setup and "EVE-TAGGER" in setup
+    exp = Experiment(setup, [*cow.PARTIES, eve], seed=8)
+    assert [lt["name"] for lt in exp.laptops()] == ["ALICE", "BOB", "EVE"]
+    alice, bob, w_eve = exp.run(blocks=3, echo=False)
+    assert not any("Traceback" in line for w in (alice, bob, w_eve) for line in w.lines)
+    assert w_eve.batches == 3 and w_eve.result["intercepting"] == pytest.approx(0.5, abs=0.01)
+    assert w_eve.result["bits re-sent"] > 10_000 and w_eve.result["re-sent μ_E"] > cow.COWParams().mu
+    assert w_eve.result["bits intercepted"] == pytest.approx(300_000, rel=0.01)
+    for w in (alice, bob):
+        assert w.result["sifted bits"] > 1000 and w.result["QBER (sampled)"] < 0.08
+        assert w.result["V 1-0 (net)"] < 0.6 and w.result["V raw"] < 0.75
+    trim = lambda r: {k: v for k, v in r.items() if k not in ("sent [kB]", "received [kB]")}  # noqa: E731
+    assert trim(alice.result) == pytest.approx(trim(bob.result), nan_ok=True)
+
+
+def test_eve_stands_down_when_her_switch_drive_is_off(monkeypatch):
+    """With EVE-AWG's CH2 output off her switch rests in bar: she intercepts nothing, and the
+    running figures on Alice's laptop show a line as clean as with the station idle."""
+    from phoq import parties
+
+    monkeypatch.setattr(parties, "PARTY_REGISTRY", list(parties.PARTY_REGISTRY))
+    (eve,) = parties.load_parties(EVE)
+    setup = cow.build(slots=400_000)
+    setup["EVE-AWG"].ch2_enabled = False
+    alice, bob, w_eve = Experiment(setup, [*cow.PARTIES, eve], seed=3).run(blocks=2, echo=False)
+    assert not any("Traceback" in line for w in (alice, bob, w_eve) for line in w.lines)
+    assert any("switch drive off" in line for line in w_eve.lines)
+    assert w_eve.result["intercepting"] == 0.0 and w_eve.result["bits re-sent"] == 0
+    assert alice.result["V_d now"] > 0.8 and alice.result["V_1-0 now"] > 0.8 and alice.result["QBER now"] < 0.06
+    assert alice.result["V_d now"] == alice.result["V decoy (net)"]  # two blocks: the window is everything

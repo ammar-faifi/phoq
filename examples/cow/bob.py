@@ -7,10 +7,12 @@ and no modulator: the data line is a plain time-of-arrival measurement.
 
 from __future__ import annotations
 
+from collections import deque
+
 import numpy as np
 
 from phoq.parties import Message, Party
-from .common import DB, DM1, DM2, COWParams, Tally, Topic, account, decode, describe, readouts
+from .common import DB, DM1, DM2, WINDOW, COWParams, Tally, Topic, account, decode, describe, readouts, window
 
 
 class Bob(Party):
@@ -23,6 +25,7 @@ class Bob(Party):
         self.blocks: dict[int, dict] = {}
         self.tally = Tally()
         self.key: list[np.ndarray] = []
+        self.recent: deque[Tally] = deque(maxlen=WINDOW)  # the running ("now") figures
         print(f"receiver up · data line t_B={self.params.t_b}: first slot → 0, second → 1 · "
               f"monitoring DLI one slot ({self.params.slot * 1e9:.2f} ns) unbalanced")
 
@@ -52,6 +55,7 @@ class Bob(Party):
         key[sample] = False
         self.key.append(st["bits"][key])
         self.tally += t
+        self.recent.append(t)
         print(f"block {block}: {t.decoys:,} decoys removed, {t.sampled} bits compared, {t.errors} wrong → "
               f"key +{t.key_bits:,} = {self.tally.key_bits:,} bits · {describe(self.tally)}")
-        self.report(**readouts(self.tally, self.params, self.net.stats))
+        self.report(**readouts(self.tally, self.params, self.net.stats, window(self.recent)))

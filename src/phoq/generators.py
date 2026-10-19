@@ -213,15 +213,18 @@ class FunctionGenerator(Component):
         shape = getattr(self, f"{ch}_shape")
         if shape == "dc":
             return f"dc {getattr(self, f'{ch}_offset'):+.2f} V"
-        text = f"{shape} {fmt_si(getattr(self, f'{ch}_freq'), 'Hz')} · {getattr(self, f'{ch}_vpp'):.2f} Vpp"
-        if shape == "pattern":
-            pat = self.patterns[ch]
-            text += (
-                f" · {pat.size:,} symbols"
-                if pat is not None
-                else " · NO PATTERN LOADED"
-            )
-        return text
+        freq = fmt_si(getattr(self, f"{ch}_freq"), "Hz")
+        if shape != "pattern":
+            return f"{shape} {freq} · {getattr(self, f'{ch}_vpp'):.2f} Vpp"
+        if self.patterns[ch] is None:
+            return f"pattern {freq} · {getattr(self, f'{ch}_vpp'):.2f} Vpp · NO PATTERN LOADED"
+        # the levels the pattern really takes: a pattern with no swing sits at its offset, which
+        # "0.00 Vpp" alone would hide (a switch held in one state, a modulator held dark). The
+        # lab's front-panel screen reads them from this text (web/js/parts.js, patternLevels).
+        v = self.pattern_volts(ch)
+        lo, hi = float(v.min()), float(v.max())
+        levels = f"constant {lo:+.2f} V" if lo == hi else f"{lo:+.2f} … {hi:+.2f} V"
+        return f"pattern {freq} · {levels} · {v.size:,} symbol{'' if v.size == 1 else 's'}"
 
     def info(self):
         out = {}

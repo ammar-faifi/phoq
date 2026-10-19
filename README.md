@@ -1150,6 +1150,117 @@ paper measured raw V ≥ 92 % and net V ≈ 98 %. Its QBER was 5.2 %, but 4 % of
 detector noise and afterpulses and 1 % from slow modulator electronics, neither of which phoq
 models; here the QBER is the dark counts plus the modulator's 30 dB leak.
 
+### COW under attack: intercept-resend in the time basis
+
+The monitoring line exists for attacks that leave the data line alone. `examples/cow/eve.py` is the
+simplest one: Eve measures the time of arrival, which is the data line's own measurement, on a
+fraction of the bits and re-prepares what she saw. She is a `--party` file:
+
+```bash
+phoq run --protocol cow --party examples/cow/eve.py --blocks 20
+```
+
+```bash
+PHOQ_EVE_FRACTION=0.5 phoq serve --protocol cow --party examples/cow/eve.py
+```
+
+**Her station.** A party file cannot add hardware, so once an Eve party is loaded `build()` cuts
+the 25 km spool in the middle and splices her station in (`build(eve=True)` does it by hand,
+`build(eve=EveParams(...))` with other parts):
+
+- a 2×2 `OpticalSwitch`. In the bar state Alice's light goes on to Bob; in the cross state it goes
+  into Eve's detector, and her transmitter's light takes its place on the line;
+- a time-of-arrival detector (η = 90 %, 100 Hz dark counts) on her own tagger, one bin per slot
+  with 4 sub-bins like Bob's;
+- a copy of Alice's transmitter: her own CW laser at Alice's wavelength (1 MHz linewidth, phase
+  unrelated to Alice's), an intensity modulator with 40 dB extinction, and a VOA;
+- one AWG on the clock she recovers from Alice's light (time base `laser`). CH2 throws the switch,
+  CH1 carves her laser.
+
+The AWG's channel delays do the timing, not fiber. CH2 is delayed by the 61.24 µs that Alice's
+pulse 0 takes to reach the switch, so symbol k of the switch pattern takes Alice's pulse k. CH1 is
+delayed so that Eve's pulse k passes the switch with Alice's pulse k, and so reaches DB, DM1 and DM2
+in the same slot and sub-bins. Her VOA is calibrated by a loopback: in the bar state her
+transmitter feeds her own detector, and she sets a full pulse there to μ photons. The μ she reads
+off her click rate and the intensity she re-sends then refer to the same point, and the switch's
+loss cancels because both routes have it. Every cord is a standard 1 m one.
+
+**Her attack, per block.** She is a `stage = 1` party: the lab records her tagger first and waits
+for her to program her transmitter before it records Bob's. She picks the bits to intercept
+(`PHOQ_EVE_FRACTION`, default 1) and switches both of their slots to her detector, with her
+transmitter dark. From her clicks she re-prepares (`intercept()`) bit 0 or bit 1 for a click in one
+slot, a decoy for clicks in both (she then knows the sequence, as the paper assumes), and nothing
+where her detector stayed dark (`PHOQ_EVE_INCONCLUSIVE=decoy` sends a decoy there instead). About
+0.17 photons per pulse reach her detector, which clicks on q = 14 % of Alice's pulses, so she
+re-sends rare, bright pulses matched in photon flux to what she took out: μ_E = 0.17/q ≈ 1.2 at
+her detector (`resend_mu()`; `PHOQ_EVE_MU` sets it by hand). In the virtual lab her station sits in
+the fiber and her laptop next to Alice's and Bob's, showing the fraction she is intercepting, her
+click probability and μ_E, then the bits and decoys she has re-sent.
+
+To take her off the line and put her back, select EVE-AWG and untick, then tick, **CH2 output**.
+With its drive off the switch rests in the bar state, Alice's light passes untouched, and Eve
+stands down until it returns. Alice's and Bob's laptops lead with running figures over the last
+10 blocks (`QBER now`, `V_d now`, `V_1-0 now`; the totals follow), so the change shows within
+about 30 s: in one run V_d went 0.09 → 0.95 → 0.22 and V₁₋₀ 0.08 → 1.00 → 0.12, while the
+QBER stayed between 1.2 % and 2.4 %.
+
+**What Alice and Bob see.** Each row is 40 blocks (8·10⁶ bits) of `run(eve=p_IR)`, with the expected
+values from `theory()` and `eve_theory()` in brackets:
+
+| p_IR | detected / bit [10⁻³] | QBER [%] | V_d (net) | V₁₋₀ (net) | paper, 1 − p_IR·ξ |
+| --- | --- | --- | --- | --- | --- |
+| 0, station idle | 3.84 (3.82) | 1.72 ± 0.08 (1.84) | 0.995 ± 0.003 (0.993) | 0.990 ± 0.003 (0.993) | 1 |
+| 0.25 | 3.84 (3.82) | 1.81 ± 0.08 (1.88) | 0.767 ± 0.018 (0.783) | 0.602 ± 0.016 (0.572) | 0.769 |
+| 0.5 | 3.82 (3.81) | 1.99 ± 0.09 (1.92) | 0.543 ± 0.023 (0.574) | 0.322 ± 0.019 (0.292) | 0.537 |
+| 0.75 | 3.82 (3.80) | 2.03 ± 0.09 (1.97) | 0.312 ± 0.027 (0.365) | 0.150 ± 0.020 (0.153) | 0.306 |
+| 1 | 3.81 (3.79) | 2.06 ± 0.09 (2.01) | 0.113 ± 0.029 (0.155) | 0.169 ± 0.020 (0.155) | 0.075 |
+| 1, her modulator at 30 dB | 3.90 (3.87) | 3.32 ± 0.11 (3.19) | 0.152 ± 0.029 (0.192) | 0.214 ± 0.020 (0.192) | 0.075 |
+
+The ± is one standard deviation of the counts: about 1000 DM clicks per row land inside decoys
+and 2400 on 1-0 boundaries. Without the station (one 25 km spool) the same 40 blocks give
+6.58·10⁻³ detections per bit and a QBER of 1.19 %.
+
+The data line cannot tell. Bob's detection rate stays where it was with the station idle and his
+QBER moves by a few tenths of a percent (her leak, below), because a time-of-arrival measurement
+disturbs nothing the data line reads. The
+visibilities fall with the intercepted fraction p_IR (the paper's notation; f stays the decoy
+fraction). Coherence survives only where both neighbouring pulses come from one
+laser. Across a 1-0 boundary that means both bits were left alone, probability (1 − p_IR)², or
+both were re-sent by Eve (p_IR²·q). Inside a decoy it means the decoy was left alone, or Eve
+recognised it and re-sent a decoy (p_IR·q). Weighted by Bob's monitoring clicks,
+
+$$V_d = (1-p_{IR})\,V + p_{IR}\,c\,V_E, \qquad V_{1-0} = (1-p_{IR})^2\,V + p_{IR}^2\,c\,V_E, \qquad c = q + 2(1-q)\sqrt{\varepsilon_E},$$
+
+with V = V_E = 0.993 the coherence of either laser over one slot. The √ε_E term is Eve's own
+modulator leak: next to a pulse she re-sends alone, the empty slot still holds her laser's light
+at √ε_E of the pulse's amplitude, coherent with it. That adds 0.017 at 40 dB extinction and
+0.054 at 30 dB. (`eve_theory()` also keeps the switch's −40 dB crosstalk, which lets a diverted
+pulse of Alice's interfere with an untouched neighbour: +0.005 at most.) V₁₋₀ falls faster than
+V_d, because intercepting a fraction of the bits breaks every boundary between an intercepted bit
+and one left alone. This is why the paper requires V₁₋₀ = V_d.
+
+The paper estimates the damage as 1 − V = I·ξ. Here I = p_IR: with the flux matched, every detection
+Bob gets in an attacked pair is a bit Eve re-sent and knows. ξ = 2e^{−μt}/(1 + e^{−μt}) is the
+chance that Eve saw one pulse of a decoy and not the other; with e^{−μt} → 1 − q, ξ = 0.925. That
+estimate counts decoy events, while Bob's clicks weight them by photons, and a decoy Eve
+recognises carries two pulses. The visibility therefore drops by p_IR·(1 − c)·V = 0.84 p_IR rather
+than p_IR·ξ = 0.925 p_IR. The two agree for small q and a dark modulator; the table's last column
+gives the paper's V.
+
+**What she cannot hide on this bench.** Her station costs 2.4 dB on the bar route (the switch's
+1 dB, four more connector pairs, one more splice). Bob's rate is therefore 2.4 dB below the no-Eve
+value whether she attacks or not, and with fewer signal photons against the same dark counts the
+QBER rises from 1.2 % to 1.8 %. A link sees that as channel loss, which COW's security analysis
+gives to Eve anyway. The QBER her attack adds comes from her modulator's leak into the pairs she
+leaves empty: her pulses are 2.4 times brighter, and so is their leak. With a 30 dB modulator like
+Alice's (`EveParams(extinction_db=30)`) the QBER at p_IR = 1 is 3.3 %, the table's last row.
+
+Sending a decoy when inconclusive (`PHOQ_EVE_INCONCLUSIVE=decoy`, 12 blocks at p_IR = 1) trades
+errors for visibility. Her decoys are coherent, so the raw V_d stays at 0.77 and V₁₋₀ at 0.90, but
+Bob's bit from one of her decoys is a coin toss and the QBER is 46 %. The net visibility stops
+meaning anything as well: her decoys fill the slots where Alice sent nothing, the dark reference
+rises 7.5-fold, and net V₁₋₀ comes out near 2.
+
 ## Adding a component
 
 Subclass `Component`, declare `Param`s, create ports in `_build`, and describe the optics in
@@ -1205,7 +1316,7 @@ examples/            setups, analysis scripts and the MP-QKD showcase
 examples/mpqkd/      Alice, Bob, Charlie (+ station/common), the original single-process
                      reference.py with its [CLASSICAL #N] notes, and a marimo notebook
 examples/bb84/       decoy-state BB84: Alice, Bob (+ common), Eve as a --party file
-examples/cow/        coherent one-way QKD up to the sifted key: Alice, Bob (+ common)
+examples/cow/        coherent one-way QKD up to the sifted key: Alice, Bob (+ common), Eve as a --party file
 tests/               pytest suite
 docs/images/         README screenshots of the virtual lab
 .github/workflows/   ci.yml (tests on push / PR), publish.yml (PyPI on a version tag)

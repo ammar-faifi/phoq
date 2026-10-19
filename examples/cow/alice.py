@@ -16,6 +16,8 @@ Error correction and privacy amplification are not implemented: the result is th
 
 from __future__ import annotations
 
+from collections import deque
+
 import numpy as np
 
 from phoq.parties import Message, Party
@@ -23,6 +25,7 @@ from .common import (
     DECOY,
     COWParams,
     Tally,
+    WINDOW,
     Topic,
     account,
     carving,
@@ -31,6 +34,7 @@ from .common import (
     monitor_counts,
     occupied,
     readouts,
+    window,
 )
 
 
@@ -45,6 +49,7 @@ class Alice(Party):
         self.blocks: dict[int, dict] = {}
         self.tally = Tally()
         self.key: list[np.ndarray] = []
+        self.recent: deque[Tally] = deque(maxlen=WINDOW)  # the running ("now") figures
         print(f"transmitter up · {p.source} laser carved at {p.rate / 1e6:.0f} MHz · μ={p.mu} · "
               f"decoys f={p.decoy} · {p.distance / 1e3:.0f} km to BOB")
 
@@ -92,7 +97,8 @@ class Alice(Party):
         key[st["sample"]] = False
         self.key.append(st["bits"][key])
         self.tally += t
+        self.recent.append(t)
         print(f"block {block}: {t.detected:,} detections, {t.decoys:,} decoys removed → key +{t.key_bits:,} "
               f"= {self.tally.key_bits:,} bits · {describe(self.tally)}")
-        self.report(**readouts(self.tally, self.params, self.net.stats))
+        self.report(**readouts(self.tally, self.params, self.net.stats, window(self.recent)))
         del self.blocks[block]

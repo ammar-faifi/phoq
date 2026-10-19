@@ -586,6 +586,19 @@ function drawSupplyDisplay(display, comp) {
   tex.needsUpdate = true;
 }
 
+/** A pattern channel's levels, from the server's description (FunctionGenerator.describe reads
+ *  the loaded samples, so a pattern with no swing shows where it sits, whatever its Vpp). */
+function patternLevels(comp, ch) {
+  const text = comp.info?.[ch.toUpperCase()] ?? '';
+  const v = (s) => Number(s).toFixed(2);
+  if (text.includes('NO PATTERN LOADED')) return 'no pattern';
+  let m = text.match(/constant ([-+]?\d+\.\d+) V/);
+  if (m) return `constant ${v(m[1])} V`;
+  m = text.match(/([-+]?\d+\.\d+) … ([-+]?\d+\.\d+) V/);
+  if (m) return `${v(m[1])}…${v(m[2])} V`;
+  return `${comp.params[`${ch}_vpp`].toFixed(2)} Vpp`;
+}
+
 /** Front-panel display of a function generator: one row per channel. */
 function drawGeneratorDisplay(display, comp) {
   const { ctx: g, canvas: c, tex } = display;
@@ -598,8 +611,15 @@ function drawGeneratorDisplay(display, comp) {
     g.fillText(ch.toUpperCase(), 14, y);
     g.lineWidth = 3;
     (SHAPE_GLYPH[shape] ?? SHAPE_GLYPH.dc)(g, 72, y, 46, c.height * 0.11);
-    g.font = `500 ${c.height * 0.15}px ui-monospace, Menlo, monospace`;
-    const text = !on ? 'output off' : shape === 'dc' ? `${comp.params[`${ch}_offset`].toFixed(2)} V` : `${fmtSI(comp.params[`${ch}_freq`], 'Hz')}  ${comp.params[`${ch}_vpp`].toFixed(2)} Vpp`;
+    const freq = fmtSI(comp.params[`${ch}_freq`], 'Hz');
+    const text = !on ? 'output off'
+      : shape === 'dc' ? `${comp.params[`${ch}_offset`].toFixed(2)} V`
+      : shape === 'pattern' ? `${freq}  ${patternLevels(comp, ch)}`
+      : `${freq}  ${comp.params[`${ch}_vpp`].toFixed(2)} Vpp`;
+    const size = c.height * 0.15, font = (px) => `500 ${px}px ui-monospace, Menlo, monospace`;
+    g.font = font(size);
+    const room = c.width - 134 - 10, width = g.measureText(text).width;
+    if (width > room) g.font = font(size * room / width);  // shrink a long row to fit the screen
     g.fillText(text, 134, y);
   });
   g.fillStyle = '#64748b';

@@ -222,6 +222,28 @@ def test_generator_shapes_and_pattern():
         fg.voltage("ch3", t)
 
 
+def test_generator_describes_pattern_levels():
+    """A pattern reads as the levels it takes, so one with no swing shows where it sits rather than
+    '0.00 Vpp' (an eavesdropper's switch held in cross: 2 V on its control input)."""
+    s = Setup()
+    fg = s.add(FunctionGenerator(ch1_shape="sine", ch1_freq=1e6, ch1_vpp=3.0, ch2_shape="pattern"))
+    sw = s.add(OpticalSwitch())
+    s.connect(fg.ch2, sw.ctrl)
+    assert fg.describe("ch1") == "sine 1 MHz · 3.00 Vpp"
+    assert fg.describe("ch2") == "pattern 10 MHz · 2.00 Vpp · NO PATTERN LOADED"
+    fg.set_pattern("ch1", [0.0, 1.5, 4.0, 0.25], rate=10e6)
+    assert fg.describe("ch1") == "pattern 10 MHz · +0.00 … +4.00 V · 4 symbols"
+    fg.ch1_offset = -1.0  # the levels follow the amplitude and offset, as on the instrument
+    assert fg.describe("ch1") == "pattern 10 MHz · -3.00 … +1.00 V · 4 symbols"
+    fg.set_pattern("ch2", sw.voltage_for(np.ones(6, dtype=bool)), rate=434e6)
+    assert fg.ch2_vpp == 0.0 and fg.describe("ch2") == "pattern 434 MHz · constant +2.00 V · 6 symbols"
+    assert sw.info()["Control"].endswith("constant +2.00 V · 6 symbols") and sw.info()["Cross fraction"] == "1"
+    fg.ch2_vpp = 1.0  # a flat pattern stays flat at any amplitude
+    assert "constant +2.00 V" in fg.describe("ch2")
+    fg.ch2_enabled = False
+    assert fg.describe("ch2") == "off" and fg.describe("ch1").startswith("pattern")
+
+
 def test_intensity_modulator_transfer_curve():
     im = IntensityModulator(extinction_db=20)  # ER = 100 → arm imbalance k = 99/101
     assert im.transmission(0.0) == pytest.approx(
