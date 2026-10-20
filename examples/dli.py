@@ -17,7 +17,7 @@ import math
 
 import numpy as np
 
-from phoq import BeamSplitter, OpticalDelayLine, PhaseShifter, Setup
+from phoq import Coupler, OpticalDelayLine, PhaseShifter, Setup
 from phoq.engine import trace
 from phoq.units import fmt_si
 
@@ -27,7 +27,7 @@ RATE = 100e6  # pulse rate: T = 10 ns between neighbouring pulses, what the cord
 def dli(setup: Setup, tag: str):
     """BS → short arm (0.5 m, phase shifter, 0.5 m) and long arm (1 m, delay line, 2 m) → BS.
     Returns (in, out, phase shifter, delay line); `balance` then sets the delay line."""
-    bs_in, bs_out = setup.add(BeamSplitter(f"{tag}-BS1"), BeamSplitter(f"{tag}-BS2"))
+    bs_in, bs_out = setup.add(Coupler(f"{tag}-BS1"), Coupler(f"{tag}-BS2"))
     ps, odl = setup.add(PhaseShifter(f"{tag}-PS"), OpticalDelayLine(f"{tag}-ODL"))
     setup.connect(bs_in.b1, ps.p1, length=0.5)
     setup.connect(ps.p2, bs_out.a1, length=0.5)

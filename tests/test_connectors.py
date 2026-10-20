@@ -10,7 +10,7 @@ from pathlib import Path
 from runpy import run_path
 
 from phoq import (
-    BeamSplitter,
+    Coupler,
     Fiber,
     IntensityModulator,
     Laser,
@@ -96,7 +96,7 @@ def test_a_reflection_reaches_a_detector_through_a_coupler():
     """Reflectometry: the laser feeds a coupler, a cord hangs off one output, a meter sits on
     the coupler's other input. Only reflected light can reach the meter."""
     s = Setup("reflectometer")
-    ld, bs, opm, tail = s.add(Laser("LD", mode="cw", power_dbm=0.0), BeamSplitter("BS"), PowerMeter("OPM"), Fiber("TAIL"))
+    ld, bs, opm, tail = s.add(Laser("LD", mode="cw", power_dbm=0.0), Coupler("BS"), PowerMeter("OPM"), Fiber("TAIL"))
     s.connect(ld.out, bs.a1)
     s.connect(bs.a2, opm.inp)
     s.connect(bs.b1, tail.a)

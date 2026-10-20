@@ -9,6 +9,7 @@ import pytest
 
 from phoq import (
     Component,
+    Coupler,
     DCPowerSupply,
     FunctionGenerator,
     IntensityModulator,
@@ -301,3 +302,19 @@ def test_cli_lists_and_shows_presets(capsys):
     assert "presets: generic, thorlabs/det08cfc" in capsys.readouterr().out
     with pytest.raises(SystemExit):
         main(["presets", "nope/x"])
+
+
+def test_presets_written_for_the_old_beamsplitter_name_apply_to_couplers(tmp_path, monkeypatch):
+    mine = tmp_path / "old"
+    mine.mkdir()
+    (mine / "tap.toml").write_text('component = "BeamSplitter"\ntitle = "Our 90:10 tap"\n[params]\nratio = 0.9\n')
+    monkeypatch.setenv(presets.ENV_VAR, str(mine))
+    presets.reload()
+    try:
+        p = presets.get("generic/tap")
+        assert p.component == "Coupler" and not presets.check(p)
+        assert p in presets.search(Coupler) and p in presets.search("BeamSplitter")
+        assert Coupler(preset="generic/tap").ratio == 0.9
+    finally:
+        monkeypatch.delenv(presets.ENV_VAR)
+        presets.reload()

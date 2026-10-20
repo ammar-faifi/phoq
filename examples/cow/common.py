@@ -40,7 +40,7 @@ from phoq.engine import trace
 from phoq.generators import FunctionGenerator
 from phoq.instruments import PhotonCounter
 from phoq.modulators import IntensityModulator, OpticalSwitch
-from phoq.passive import Attenuator, BeamSplitter, FiberSpool, OpticalDelayLine, PhaseShifter
+from phoq.passive import Attenuator, Coupler, FiberSpool, OpticalDelayLine, PhaseShifter
 from phoq.sources import Laser
 from phoq.units import fmt_si, photon_energy
 
@@ -143,7 +143,7 @@ def transmitter(setup: Setup, p: COWParams) -> Attenuator:
     return voa
 
 
-def receiver(setup: Setup, p: COWParams, slots: int) -> BeamSplitter:
+def receiver(setup: Setup, p: COWParams, slots: int) -> Coupler:
     """Tap (t_B to DB) → DLI → DM1, DM2, and a time tagger with one bin per slot.
 
     The DLI's long arm must be one slot (0.47 m of fiber at 434 MHz) longer. Standard cords give
@@ -151,8 +151,8 @@ def receiver(setup: Setup, p: COWParams, slots: int) -> BeamSplitter:
     line sits in the short arm and takes back the 145 ps the cords give too much; the VOA evens
     out the arms' losses.
     """
-    tap = setup.add(BeamSplitter("BOB-TAP", ratio=p.t_b))
-    bs1, bs2 = setup.add(BeamSplitter("BOB-BS1"), BeamSplitter("BOB-BS2"))
+    tap = setup.add(Coupler("BOB-TAP", ratio=p.t_b))
+    bs1, bs2 = setup.add(Coupler("BOB-BS1"), Coupler("BOB-BS2"))
     ps, odl = setup.add(PhaseShifter("BOB-PS"), OpticalDelayLine("BOB-ODL"))
     voa = setup.add(Attenuator("BOB-VOA", attenuation_db=0.0))
     setup.connect(bs1.b1, ps.p1, length=0.5)

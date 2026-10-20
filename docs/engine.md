@@ -139,7 +139,7 @@ The resulting `Network` holds:
 Fiber is handled entirely inside `scatter`: a `Fiber` or `FiberSpool` of length $L$ multiplies the
 amplitude by $10^{-\alpha(\lambda)L/20}\,e^{-i2\pi n_\mathrm{eff}L/\lambda}$, with $\alpha(\lambda)$
 the SMF-28 attenuation table (0.19 dB/km at 1550 nm), $n_\mathrm{eff} = 1.4677$, and adds a group
-delay $n_g L/c$ ($n_g = 1.4682$, 4.9 ns/m). A `BeamSplitter` with bar ratio $r$ and excess loss is
+delay $n_g L/c$ ($n_g = 1.4682$, 4.9 ns/m). A `Coupler` with bar ratio $r$ and excess loss is
 the unitary $b_1 = \sqrt r\,a_1 + i\sqrt{1-r}\,a_2$, $b_2 = i\sqrt{1-r}\,a_1 + \sqrt r\,a_2$, in both
 directions. Because the phase of each path is exact, interference between paths with any delay
 difference is exact too; the price is that the path count grows with every interferometer in

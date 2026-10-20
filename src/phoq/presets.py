@@ -199,7 +199,7 @@ class Preset:
 
     def describe(self) -> str:
         """Plain-text sheet for ``phoq presets show``."""
-        cls = Component.registry.get(self.component)
+        cls = Component.lookup(self.component)
         specs = cls.param_specs() if cls else {}
         out = [f"{self.id} — {self.title}  [{self.component} · {self.tier} · {self.origin}]"]
         if self.description:
@@ -337,7 +337,7 @@ def parse(text: str, *, path: Path | None = None, origin: str = "user") -> Prese
     }
     return Preset(
         id=pid,
-        component=data["component"],
+        component=Component.canonical(data["component"]),
         title=data["title"],
         vendor=vendor,
         part_number=str(data.get("part_number", "")),
@@ -364,7 +364,7 @@ def load_file(path: str | Path, origin: str = "user") -> Preset:
 def check(preset: Preset) -> list[str]:
     """Problems that stop a preset from being applied: unknown class, unknown or invalid params."""
     _ensure_registry()
-    cls = Component.registry.get(preset.component)
+    cls = Component.lookup(preset.component)
     if cls is None:
         return [f"{preset.id}: component {preset.component!r} is not a registered class"]
     specs = cls.param_specs()
@@ -508,7 +508,7 @@ def _class_names(component) -> set[str] | None:
     if component is None:
         return None
     if isinstance(component, str):
-        cls = Component.registry.get(component)
+        cls = Component.lookup(component)
         return {k.__name__ for k in cls.__mro__} if cls else {component}
     return {k.__name__ for k in component.__mro__}
 
@@ -523,7 +523,7 @@ def search(
 ) -> list[Preset]:
     """Presets for a component class (a subclass sees its base classes' presets), vendor, tag or text."""
     names = _class_names(component)
-    own = component.__name__ if isinstance(component, type) else component
+    own = component.__name__ if isinstance(component, type) else component and Component.canonical(component)
     out = []
     for p in registry().values():
         if names is not None and p.component not in names:

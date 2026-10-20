@@ -29,7 +29,7 @@ from phoq.engine import trace
 from phoq.generators import FunctionGenerator
 from phoq.instruments import PhotonCounter
 from phoq.modulators import IntensityModulator, OpticalSwitch, PhaseModulator
-from phoq.passive import Attenuator, BeamSplitter, FiberSpool, PhaseShifter
+from phoq.passive import Attenuator, Coupler, FiberSpool, PhaseShifter
 from phoq.sources import Laser
 from phoq.units import FIBER_DELAY, photon_energy
 
@@ -123,7 +123,7 @@ def unbalanced_mzi(setup: Setup, tag: str, p: BB84Params, shifter: bool):
     """Fiber Mach–Zehnder interferometer whose long arm is one time slot longer and holds a phase
     modulator (and, for a receiver, the phase shifter that stabilises the interferometer).
     """
-    bs_in, bs_out = setup.add(BeamSplitter(f"{tag}-BS1"), BeamSplitter(f"{tag}-BS2"))
+    bs_in, bs_out = setup.add(Coupler(f"{tag}-BS1"), Coupler(f"{tag}-BS2"))
     pm = setup.add(PhaseModulator(f"{tag}-PM"))
     setup.connect(bs_in.b1, bs_out.a1, length=3.0)  # short arm
     extra = p.slot / FIBER_DELAY  # long arm: +ΔT
@@ -179,7 +179,7 @@ def receiver(
     pulses: int,
     detectors: tuple[str, str],
     tagger: str,
-) -> BeamSplitter:
+) -> Coupler:
     """Unbalanced MZI (phase shifter + phase modulator in the long arm) → two SPDs → time tagger
     with three bins per pulse, synchronised to Alice's laser. The AWG's CH1 drives the PM.
     """

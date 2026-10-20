@@ -25,7 +25,7 @@ import numpy as np
 
 from phoq import (
     Attenuator,
-    BeamSplitter,
+    Coupler,
     FiberSpool,
     FunctionGenerator,
     IntensityModulator,
@@ -62,7 +62,7 @@ def build(linewidth: float = 100e3, randomized: bool = False, mu: float = 0.5, k
     fg = setup.add(FunctionGenerator("FG-A"))
     voa = setup.add(Attenuator("VOA-A"))
     spool = setup.add(FiberSpool("SPL", length=km * 1e3))
-    tap = setup.add(BeamSplitter("TAP", ratio=0.9))
+    tap = setup.add(Coupler("TAP", ratio=0.9))
     spd = dict(efficiency=0.8, dark_count_rate=100.0, dead_time=30e-9)  # SNSPD-like
     db, dm1, dm2 = (setup.add(SinglePhotonDetector(n, **spd)) for n in ("DB", "DM1", "DM2"))
     cnt = setup.add(PhotonCounter("CNT", slots=200 * n_bits * 2))

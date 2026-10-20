@@ -71,7 +71,7 @@ Units are SI throughout: metres, seconds, hertz and watts. Powers use `power_dbm
 | --- | --- |
 | Sources | `Laser` (CW / pulsed / sine / OOK, linewidth, detuning, per-pulse phase randomisation) |
 | Fiber | `Fiber` (patch cord), `FiberSpool` |
-| Passive | `Attenuator`, `BeamSplitter` (alias `Coupler`), `PhaseShifter`, `Isolator`, `MatingSleeve` (FC–FC adapter joining two cords), `OpticalDelayLine` (variable free-space delay: dial, carrier phase, Gaussian-beam coupling loss) |
+| Passive | `Attenuator`, `Coupler` (2×2 fused fiber coupler; `BeamSplitter` is its deprecated old name), `PhaseShifter`, `Isolator`, `MatingSleeve` (FC–FC adapter joining two cords), `OpticalDelayLine` (variable free-space delay: dial, carrier phase, Gaussian-beam coupling loss) |
 | Modulators | `PhaseModulator` (φ = π·V/Vπ), `IntensityModulator` (Mach–Zehnder, extinction) — voltage comes only through their `rf` and `bias` inputs; `OpticalSwitch` (2×2, bar below the threshold voltage on `ctrl`, cross above: a pattern routes pulse by pulse) |
 | Detectors | `Photodiode`, `SinglePhotonDetector`, `PowerMeter` |
 | Instruments | `Oscilloscope`, `SpectrumAnalyzer` (RF spectrum in dBm: RBW, averaging, detectors, trace average and max hold, Lorentzian and short-delay linewidth fits), `PhotonCounter` (time tagger: per-channel input delays, sub-bins for pulses shorter than a bin), `FunctionGenerator` (2 outputs: dc / sine / square / triangle / ramp / loaded pattern), `DCPowerSupply` (2 outputs, ±30 V) |
@@ -910,7 +910,7 @@ The models above were compared with four references (October 2026):
   uniformly random start phase per acquisition, a Wiener-process phase whose correlation decays
   with the coherence time $1/\pi\Delta\nu$, and `phase_randomized` for weak-coherent-pulse
   sources. §16: a beam splitter maps $(\alpha_1, \alpha_2) \to ((\alpha_1 + i\alpha_2)/\sqrt2,
-  (i\alpha_1 + \alpha_2)/\sqrt2)$, the convention `BeamSplitter` uses, and §20 the Mach–Zehnder
+  (i\alpha_1 + \alpha_2)/\sqrt2)$, the convention `Coupler` uses, and §20 the Mach–Zehnder
   fringe $(1 - \cos\varphi)/2$ that the MZI tests reproduce.
 - *J. A. T. Santiago, "Photon statistics for Fock and coherent states interfering in a beamsplitter"
   (arXiv:2508.08223).* Eq. (1.1) is the same beam-splitter transformation with $|t|^2 = $ `ratio`;
@@ -1018,7 +1018,7 @@ Alice's and Bob's.
 ### Delay-line interferometer: DPSK and the COW monitoring line
 
 A delay-line interferometer (DLI) is an unbalanced Mach–Zehnder whose long arm is exactly one pulse
-period $T$ longer. It is built from two `BeamSplitter`s and standard cords: 0.5 m + 0.5 m around a
+period $T$ longer. It is built from two `Coupler`s and standard cords: 0.5 m + 0.5 m around a
 `PhaseShifter` (the interferometer phase $\theta$) in the short arm, 1 m + 2 m around an
 `OpticalDelayLine` in the long arm. The cords give 2 m (9.795 ns), and the delay line adds the last
 205 ps (100 ps insertion delay and 105 ps on the dial; see [Optical delay line](#optical-delay-line)). Each output slot then

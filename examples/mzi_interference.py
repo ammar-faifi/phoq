@@ -2,11 +2,11 @@
 
 import numpy as np
 
-from phoq import BeamSplitter, Laser, PhaseShifter, PowerMeter, Runner, Setup
+from phoq import Coupler, Laser, PhaseShifter, PowerMeter, Runner, Setup
 
 setup = Setup("Mach–Zehnder interferometer", seed=3)
 laser = setup.add(Laser("LD-1", mode="cw", power_dbm=0.0, linewidth=100e3))
-bs_in, bs_out = setup.add(BeamSplitter("BS-IN"), BeamSplitter("BS-OUT"))
+bs_in, bs_out = setup.add(Coupler("BS-IN"), Coupler("BS-OUT"))
 shifter = setup.add(PhaseShifter("PS-1"))
 meters = setup.add(PowerMeter("OPM-1"), PowerMeter("OPM-2"))
 

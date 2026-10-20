@@ -10,7 +10,7 @@ export const ICONS = {
   SinglePhotonDetector: svg('<rect x="11" y="9" width="15" height="14" rx="2" stroke="#7aa2d6"/><path d="M13 6h11M13 4h11" stroke="#64748b"/><path d="M2 16h7" stroke="#ff3fb4" stroke-width="2.4"/><circle cx="18.5" cy="16" r="2.4" fill="#22d3ee" stroke="none"/>'),
   PowerMeter: svg('<rect x="13" y="8" width="16" height="16" rx="2" stroke="#7aa2d6"/><rect x="16" y="11" width="10" height="6" rx="1" stroke="#2dd4bf"/><path d="M2 16h9" stroke="#ff3fb4" stroke-width="2.4"/>'),
   Fiber: svg('<path d="M4 22c6 0 6-12 12-12s6 12 12 12" stroke="#e8c21a" stroke-width="2.2"/><rect x="1" y="20" width="5" height="4" rx="1" fill="#2563eb" stroke="none"/><rect x="26" y="20" width="5" height="4" rx="1" fill="#2563eb" stroke="none"/>'),
-  BeamSplitter: svg('<path d="M2 10h7c4 0 5 6 7 6s3-6 7-6h7M2 22h7c4 0 5-6 7-6s3 6 7 6h7" stroke="#a3e635"/><rect x="11" y="13" width="10" height="6" rx="1.5" stroke="#7aa2d6"/>'),
+  Coupler: svg('<path d="M2 10h7c4 0 5 6 7 6s3-6 7-6h7M2 22h7c4 0 5-6 7-6s3 6 7 6h7" stroke="#a3e635"/><rect x="11" y="13" width="10" height="6" rx="1.5" stroke="#7aa2d6"/>'),
   Attenuator: svg('<rect x="6" y="12" width="20" height="12" rx="2" stroke="#7aa2d6"/><circle cx="16" cy="9" r="4.5" stroke="#fb923c"/><path d="M16 9l2.5-2.5" stroke="#fb923c"/><path d="M1 18h5M26 18h5" stroke="#e8c21a"/>'),
   FiberSpool: svg('<ellipse cx="16" cy="16" rx="12" ry="12" stroke="#7aa2d6"/><circle cx="16" cy="16" r="8.5" stroke="#e8c21a" stroke-dasharray="2 1.4"/><circle cx="16" cy="16" r="3" stroke="#cbd5e1"/>'),
   PhaseShifter: svg('<rect x="7" y="10" width="18" height="12" rx="2" stroke="#7aa2d6"/><path d="M16 12v8M12.5 16a3.5 3.5 0 1 0 7 0a3.5 3.5 0 1 0-7 0" stroke="#c084fc"/><path d="M1 16h6M25 16h6" stroke="#e8c21a"/>'),

@@ -197,11 +197,23 @@ class Component:
     is_adaptor: ClassVar[bool] = False  # a mating sleeve: the connectors in its two sides mate
     spectral_curves: ClassVar[dict[str, str]] = {}  # datasheet curves a preset may give: name → unit
     registry: ClassVar[dict[str, type[Component]]] = {}
+    aliases: ClassVar[dict[str, str]] = {}  # a renamed class's old name → its name now
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
         if not cls.__name__.startswith("_"):
             Component.registry[cls.__name__] = cls
+
+    @staticmethod
+    def canonical(name: str) -> str:
+        """A class name, with a renamed class's old name replaced by the current one."""
+        return Component.aliases.get(name, name)
+
+    @staticmethod
+    def lookup(name: str) -> type[Component] | None:
+        """The registered class called ``name`` (or formerly called so), None if there is none.
+        Saved setups, presets and the API name classes this way."""
+        return Component.registry.get(Component.canonical(name))
 
     @classmethod
     def param_specs(cls) -> dict[str, Param]:
@@ -612,7 +624,7 @@ class Setup:
         _ensure_registry()
         setup = cls(data.get("name", "experiment"), seed=data.get("seed"))
         for cd in data["components"]:
-            ctype = Component.registry.get(cd["type"])
+            ctype = Component.lookup(cd["type"])
             if ctype is None:
                 raise ValueError(f"unknown component type {cd['type']!r}")
             setup.add(ctype(cd["name"], preset=cd.get("preset"), **cd.get("params", {})))

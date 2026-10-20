@@ -124,14 +124,14 @@ def test_delayed_self_homodyne_measures_the_linewidth():
 def test_sub_coherence_delay_matches_the_review_eq_28_to_31():
     """0.3 km at 100 kHz (τd ≈ 0.46 τc): averaged over the bias phase, phoq's homodyne spectrum is
     the Lorentzian times 1 − e^{−2πΔντd}[cos 2πfτd + (Δν/f) sin 2πfτd], in absolute level."""
-    from phoq import Attenuator, BeamSplitter, FiberSpool, PhaseShifter
+    from phoq import Attenuator, Coupler, FiberSpool, PhaseShifter
 
     dnu, n = 100e3, 4
     psd = None
     for k in range(n):  # θ = kπ/4 cancels the cos 2θ and sin 2θ terms
         s = Setup("dsh", seed=7)
         ld = s.add(Laser("LD", mode="cw", power_dbm=0.0, linewidth=dnu))
-        bs1, bs2 = s.add(BeamSplitter("BS-1"), BeamSplitter("BS-2"))
+        bs1, bs2 = s.add(Coupler("BS-1"), Coupler("BS-2"))
         spl = s.add(FiberSpool("SPL", length=300.0))
         voa = s.add(Attenuator("VOA", attenuation_db=0.0))
         ps = s.add(PhaseShifter("PS", phase=k * math.pi / n))
@@ -164,12 +164,12 @@ def test_sub_coherence_delay_matches_the_review_eq_28_to_31():
 @pytest.mark.parametrize("nu_t, nu_r", [(100e3, 100e3), (100e3, 1e3)])
 def test_two_laser_heterodyne_width_is_the_sum_of_the_linewidths(nu_t, nu_r):
     """The review's Eq. (4) and Fig. 2: a beat of full width ν_t + ν_r at the frequency offset."""
-    from phoq import BeamSplitter
+    from phoq import Coupler
 
     s = Setup("het", seed=3)
     a = s.add(Laser("LD-T", mode="cw", power_dbm=-3.0, linewidth=nu_t))
     b = s.add(Laser("LD-R", mode="cw", power_dbm=-3.0, linewidth=nu_r, detuning=1.5e6))
-    bs, pd = s.add(BeamSplitter("BS"), Photodiode("PD"))
+    bs, pd = s.add(Coupler("BS"), Photodiode("PD"))
     esa = s.add(SpectrumAnalyzer("ESA", stop_freq=3e6, rbw=5e3, averages=500, detector="average"))
     s.connect(a.out, bs.a1)
     s.connect(b.out, bs.a2)

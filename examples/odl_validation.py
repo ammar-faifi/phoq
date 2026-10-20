@@ -25,7 +25,7 @@ from pathlib import Path
 import numpy as np
 
 from phoq import (
-    BeamSplitter,
+    Coupler,
     Laser,
     OpticalDelayLine,
     Oscilloscope,
@@ -52,7 +52,7 @@ def mzi(linewidth: float = 0.0, wavelength: float = 1550e-9) -> Setup:
     The cords match, so the arms differ by the delay line alone: δ = τ₀ + τ."""
     setup = Setup("Balanced MZI with a delay line", seed=1)
     laser = setup.add(Laser("LD-1", mode="cw", power_dbm=0.0, linewidth=linewidth, wavelength=wavelength))
-    bs1, bs2 = setup.add(BeamSplitter("BS-1"), BeamSplitter("BS-2"))
+    bs1, bs2 = setup.add(Coupler("BS-1"), Coupler("BS-2"))
     ps, odl = setup.add(PhaseShifter("PS-1"), OpticalDelayLine("ODL-1"))
     pd1, pd2 = setup.add(Photodiode("PD-1"), Photodiode("PD-2"))
     setup.connect(laser.out, bs1.a1)

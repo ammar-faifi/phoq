@@ -9,7 +9,7 @@ import pytest
 
 from phoq import (
     Attenuator,
-    BeamSplitter,
+    Coupler,
     DCPowerSupply,
     FiberSpool,
     FunctionGenerator,
@@ -101,7 +101,7 @@ def test_spool_delay_shows_on_scope():
 def _mzi(linewidth=0.0, long_arm=None):
     s = Setup(seed=0)
     laser = s.add(Laser(mode="cw", power_dbm=0, linewidth=linewidth))
-    b1, b2 = s.add(BeamSplitter("BS-1"), BeamSplitter("BS-2"))
+    b1, b2 = s.add(Coupler("BS-1"), Coupler("BS-2"))
     ps = s.add(PhaseShifter(insertion_loss_db=0))
     m1, m2 = s.add(PowerMeter("M1"), PowerMeter("M2"))
     s.connect(laser.out, b1.a1)
@@ -384,7 +384,7 @@ def test_optical_switch_routes_statically_and_pulse_by_pulse():
 def test_phase_modulator_driven_by_generator_shifts_fringe():
     s = Setup(seed=0)
     laser = s.add(Laser(mode="cw", power_dbm=0, linewidth=0.0))
-    b1, b2 = s.add(BeamSplitter("BS-1"), BeamSplitter("BS-2"))
+    b1, b2 = s.add(Coupler("BS-1"), Coupler("BS-2"))
     pm = s.add(PhaseModulator(insertion_loss_db=0))
     m1 = s.add(PowerMeter("M1"))
     fg = s.add(FunctionGenerator(ch1_shape="dc", ch1_offset=0.0))
@@ -851,7 +851,7 @@ def test_relay_stage_re_encodes_within_the_block(tmp_path):
     laser = s.add(
         Laser(power_dbm=-75, rep_rate=100e6, pulse_width=100e-12, phase_randomized=True)
     )
-    bs, voa = s.add(BeamSplitter(), Attenuator("VOA-1", attenuation_db=0.0))
+    bs, voa = s.add(Coupler(), Attenuator("VOA-1", attenuation_db=0.0))
     dr, de = s.add(
         SinglePhotonDetector("DR", efficiency=0.5, dark_count_rate=0, dead_time=0),
         SinglePhotonDetector("DE", efficiency=0.5, dark_count_rate=0, dead_time=0),
@@ -991,6 +991,22 @@ def test_save_load_and_python_export_roundtrip(tmp_path):
     assert namespace["setup"].to_dict() == s.to_dict()
 
 
+
+def test_beamsplitter_is_the_old_name_of_coupler():
+    """Scripts and setups saved before the rename still work: the old name hands over a Coupler."""
+    with pytest.warns(DeprecationWarning, match="now Coupler"):
+        from phoq import BeamSplitter
+    assert BeamSplitter is Coupler and Coupler().prefix == "CPL"
+    s = Setup("old")
+    s.add(Laser("LD-1"), Coupler("BS-1"))
+    s.connect("LD-1.out", "BS-1.a1")
+    data = json.loads(json.dumps(s.to_dict()).replace('"Coupler"', '"BeamSplitter"'))  # an old save
+    loaded = Setup.from_dict(data)
+    assert type(loaded["BS-1"]) is Coupler and loaded.to_dict() == s.to_dict()  # saved anew as Coupler
+    from phoq.core import Component
+
+    assert Component.lookup("BeamSplitter") is Coupler and "BeamSplitter" not in Component.registry
+
 # ---- API -----------------------------------------------------------------------------------------
 def test_api_edits_the_python_objects():
     from fastapi.testclient import TestClient
@@ -998,9 +1014,11 @@ def test_api_edits_the_python_objects():
 
     s = Setup.from_chain(Laser(), Photodiode(), Oscilloscope(), name="api test")
     with TestClient(create_app(s, web_dir=None)) as client:
-        assert any(
-            t["type"] == "Laser" for t in client.get("/api/catalog").json()["types"]
-        )
+        types = [t["type"] for t in client.get("/api/catalog").json()["types"]]
+        assert "Laser" in types and types.count("Coupler") == 1 and "BeamSplitter" not in types
+        assert client.post("/api/components", json={"type": "BeamSplitter", "name": "BS-9"}).status_code == 200
+        assert type(s["BS-9"]) is Coupler  # an old client's type name still adds a coupler
+        s.remove("BS-9")
         assert (
             client.patch(
                 "/api/components/LD-1", json={"params": {"power_dbm": -1}}

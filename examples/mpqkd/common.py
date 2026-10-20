@@ -21,7 +21,7 @@ from phoq.engine import trace
 from phoq.generators import FunctionGenerator
 from phoq.instruments import PhotonCounter
 from phoq.modulators import IntensityModulator, PhaseModulator
-from phoq.passive import Attenuator, BeamSplitter, FiberSpool
+from phoq.passive import Attenuator, Coupler, FiberSpool
 from phoq.sources import Laser
 from phoq.units import photon_energy
 
@@ -107,7 +107,7 @@ def build(p: MPQKDParams | None = None, rounds: int = 200_000) -> Setup:
         awg = setup.add(FunctionGenerator(f"{tag}-AWG"))
         setup.connect(awg.ch1, setup[f"{tag}-IM"].rf)
         setup.connect(awg.ch2, setup[f"{tag}-PM"].rf)
-    bs = setup.add(BeamSplitter("CHARLIE", excess_loss_db=0.0))
+    bs = setup.add(Coupler("CHARLIE", excess_loss_db=0.0))
     det = [
         setup.add(
             SinglePhotonDetector(

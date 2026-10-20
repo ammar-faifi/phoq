@@ -24,7 +24,7 @@ import math
 
 import numpy as np
 
-from phoq import BeamSplitter, FiberSpool, Laser, PhaseShifter, Photodiode, Runner, Setup, SpectrumAnalyzer
+from phoq import Coupler, FiberSpool, Laser, PhaseShifter, Photodiode, Runner, Setup, SpectrumAnalyzer
 from phoq.engine import trace
 from phoq.units import fmt_si
 
@@ -44,7 +44,7 @@ def build(
     least five fringes (period 1/τd) when the delay is shorter than the coherence time."""
     setup = Setup("Narrow-linewidth self-homodyne", seed=7)
     laser = setup.add(Laser("LD-1", mode="cw", power_dbm=10.0, linewidth=linewidth))
-    split, merge = setup.add(BeamSplitter("BS-1"), BeamSplitter("BS-2"))
+    split, merge = setup.add(Coupler("BS-1"), Coupler("BS-2"))
     spool = setup.add(FiberSpool("SPL-1", length=spool_km * 1e3))
     shifter = setup.add(PhaseShifter("PS-1"))
     pd = setup.add(Photodiode("PD-1"))

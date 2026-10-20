@@ -11,6 +11,7 @@ Every computation happens here in Python. ``phoq serve my_setup.py`` starts a Fa
 and the 3D virtual lab (``phoq/web``) as an optional, live visualizer of the same objects.
 """
 
+import warnings
 from importlib.metadata import PackageNotFoundError, version as _version
 
 from . import presets
@@ -30,7 +31,6 @@ from .instruments import (
 from .modulators import IntensityModulator, OpticalSwitch, PhaseModulator
 from .passive import (
     Attenuator,
-    BeamSplitter,
     Coupler,
     Fiber,
     FiberSpool,
@@ -49,7 +49,6 @@ except PackageNotFoundError:  # running from a checkout that is not installed
 
 __all__ = [
     "Attenuator",
-    "BeamSplitter",
     "Component",
     "CounterResult",
     "Coupler",
@@ -89,3 +88,12 @@ __all__ = [
     "trace",
     "__version__",
 ]
+
+
+def __getattr__(name: str):
+    if name == "BeamSplitter":  # the old name of Coupler
+        from .passive import RENAMED
+
+        warnings.warn(RENAMED, DeprecationWarning, stacklevel=2)
+        return Coupler
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

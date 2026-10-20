@@ -2,13 +2,13 @@
 
 import numpy as np
 
-from phoq import BeamSplitter, FiberSpool, Laser, Oscilloscope, Photodiode, Setup
+from phoq import Coupler, FiberSpool, Laser, Oscilloscope, Photodiode, Setup
 
 
 def build() -> Setup:
     setup = Setup("Splitter + delay line", seed=2)
     laser = setup.add(Laser("LD-1", power_dbm=-20.0, rep_rate=100e3, pulse_width=20e-9))
-    bs = setup.add(BeamSplitter("BS-1"))
+    bs = setup.add(Coupler("BS-1"))
     spool = setup.add(FiberSpool("SPL-1", length=1e3))
     pd1, pd2 = setup.add(Photodiode("PD-1"), Photodiode("PD-2"))
     scope = setup.add(

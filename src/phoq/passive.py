@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import cmath
 import math
+import warnings
 
 from .core import Component, FiberConnectors, Param, Transfer
 from .units import C0, CONNECTORS, FIBER_DELAY, N_AIR, N_EFF, db_to_t, fiber_attenuation, fmt_si
@@ -173,14 +174,18 @@ class Attenuator(FiberConnectors, Component):
         return {"Total loss": f"{self.attenuation_db + self.insertion_loss_db:.1f} dB"}
 
 
-class BeamSplitter(FiberConnectors, Component):
+class Coupler(FiberConnectors, Component):
     """2×2 fused fiber coupler. ``ratio`` is the bar-port power fraction (a1→b1).
+
+    The cross port picks up i, as in any directional coupler. It used to be called
+    ``BeamSplitter``: that name still works, with a deprecation warning, and saved setups and
+    presets that use it load as a Coupler.
 
     Field transfer: b1 = √r·a1 + i√(1−r)·a2,  b2 = i√(1−r)·a1 + √r·a2 (and the reverse).
     """
 
     category = "passive"
-    prefix = "BS"
+    prefix = "CPL"
     label = "2×2 fiber coupler"
     description = "Fiber beam splitter, adjustable ratio"
     inputs = ("a1", "a2")
@@ -209,7 +214,15 @@ class BeamSplitter(FiberConnectors, Component):
         return {"Split": f"{self.ratio * 100:.0f} : {(1 - self.ratio) * 100:.0f}"}
 
 
-Coupler = BeamSplitter
+Component.aliases["BeamSplitter"] = "Coupler"
+RENAMED = "BeamSplitter is now Coupler (a 2×2 fused fiber coupler); the old name will go"
+
+
+def __getattr__(name: str):
+    if name == "BeamSplitter":  # the old name of Coupler
+        warnings.warn(RENAMED, DeprecationWarning, stacklevel=2)
+        return Coupler
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 class PhaseShifter(FiberConnectors, Component):

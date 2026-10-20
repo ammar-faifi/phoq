@@ -17,7 +17,7 @@ import math
 
 import numpy as np
 
-from phoq import Attenuator, BeamSplitter, FiberSpool, Laser, Photodiode, Setup, SpectrumAnalyzer
+from phoq import Attenuator, Coupler, FiberSpool, Laser, Photodiode, Setup, SpectrumAnalyzer
 from phoq.engine import trace
 from phoq.units import fmt_si
 
@@ -27,7 +27,7 @@ LINEWIDTH = 100e3  # what the measurement should find
 def build(linewidth: float = LINEWIDTH, spool_m: float = 10e3, averages: int = 200) -> Setup:
     setup = Setup("Delayed self-homodyne", seed=7)
     laser = setup.add(Laser("LD-1", mode="cw", power_dbm=0.0, linewidth=linewidth))
-    split, merge = setup.add(BeamSplitter("BS-1"), BeamSplitter("BS-2"))
+    split, merge = setup.add(Coupler("BS-1"), Coupler("BS-2"))
     spool = setup.add(FiberSpool("SPL-1", length=spool_m))
     # the short arm gets the spool's loss, so both arms bring the same power: the largest beat
     voa_il = Attenuator.insertion_loss_db.default

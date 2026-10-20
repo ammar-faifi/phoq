@@ -303,7 +303,7 @@ const BUILDERS = {
     p.setReport(null);
   },
 
-  BeamSplitter(p) {
+  Coupler(p) {
     p.basePlate(15, 8);
     p.box(12, 3.2, 6.4, MAT.gray, 0, 2.2, 0);
     p.box(0.4, 3.0, 6.0, MAT.black, -6.1, 2.2, 0);
@@ -667,7 +667,7 @@ const LABELS = {
   Photodiode: (c) => ({ lines: [`${c.params.material} · ${fmtSI(c.params.bandwidth, 'Hz')}`], accent: '#34d399' }),
   SinglePhotonDetector: (c) => ({ lines: [`η ${Math.round(c.params.efficiency * 100)}% · DCR ${fmtSI(c.params.dark_count_rate, 'Hz')}`], accent: '#22d3ee' }),
   PowerMeter: () => ({ lines: [], accent: '#2dd4bf' }),
-  BeamSplitter: (c) => ({ lines: [`2×2 coupler ${Math.round(c.params.ratio * 100)}:${Math.round(100 - c.params.ratio * 100)}`, 'a1 a2 ⇄ b1 b2'], accent: '#a3e635' }),
+  Coupler: (c) => ({ lines: [`2×2 coupler ${Math.round(c.params.ratio * 100)}:${Math.round(100 - c.params.ratio * 100)}`, 'a1 a2 ⇄ b1 b2'], accent: '#a3e635' }),
   Attenuator: (c) => ({ lines: [`${c.params.attenuation_db.toFixed(1)} dB`], accent: '#fb923c' }),
   PhaseShifter: (c) => ({ lines: [`φ = ${c.params.phase.toFixed(2)} rad`], accent: '#c084fc' }),
   Isolator: () => ({ lines: ['→'], accent: '#94a3b8' }),

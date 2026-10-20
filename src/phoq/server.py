@@ -390,7 +390,7 @@ def create_app(
     def add_component(body: AddBody):
         def add():
             _ensure_registry()
-            cls = Component.registry.get(body.type)
+            cls = Component.lookup(body.type)
             if cls is None:
                 raise KeyError(f"unknown component type {body.type!r}")
             return session.setup.add(
