@@ -328,7 +328,7 @@ The lab needs every detector's mean power, the light flow in every cord and the 
 second, without a time grid. `Network.mean_powers(detector)` computes the time-averaged power per
 wavelength directly from the paths:
 
-$$\bar P = P_\mathrm{laser}\Big[\sum_j |a_j|^2 + 2\sum_{j<k}\mathrm{Re}(a_j a_k^*)\,\gamma(\tau_j - \tau_k)\Big]$$
+$$\bar P = P_\mathrm{laser}\Big[\sum_j |a_j|^2 + 2\sum_{j \lt k}\mathrm{Re}\big(a_j a_k^{*}\big)\,\gamma(\tau_j - \tau_k)\Big]$$
 
 summed over the paths of each laser (different lasers add in power), with the mutual coherence
 

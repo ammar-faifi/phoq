@@ -782,7 +782,7 @@ linewidth for a much narrower reference. Two phoq `Laser`s at the same wavelengt
 $f_\mathrm{AOM}$ in the heterodyne version), the spectrum is the Lorentzian above times a fringe term
 (§4.2.1, Eqs. (28)–(31), after L. Richter et al., *IEEE J. Quantum Electron.* 22, 2070 (1986)):
 
-$$S_i(f) = \frac{4\mathcal{R}^2P_1P_2}{\pi}\,\frac{\Delta\nu}{\Delta\nu^2+f^2}\Big\{1 - e^{-2\pi\Delta\nu\tau_d}\Big[\cos 2\pi f\tau_d + \frac{\Delta\nu}{f}\sin 2\pi f\tau_d\Big]\Big\}$$
+$$S_i(f) = \frac{4\mathcal{R}^2P_1P_2}{\pi}\,\frac{\Delta\nu}{\Delta\nu^2+f^2}\Big\lbrace 1 - e^{-2\pi\Delta\nu\tau_d}\Big[\cos 2\pi f\tau_d + \frac{\Delta\nu}{f}\sin 2\pi f\tau_d\Big]\Big\rbrace$$
 
 plus a coherent line at the centre of weight $e^{-2\pi\Delta\nu\tau_d}$ (at 0 Hz in homodyne, where the
 AC-coupled input blocks it). The fringes have period $1/\tau_d$ and depth $e^{-2\pi\Delta\nu\tau_d}$, the
@@ -1145,7 +1145,7 @@ phoq serve --protocol cow
 
 The single-process reference `run()` keeps both records in one place, so it counts the QBER on the
 whole sifted key and compares every figure with `theory()`. The theory computes per-pulse photon
-numbers from the traced losses, click probabilities 1 − (1 − p_d)·e^{−ηm}, and the dark counts'
+numbers from the traced losses, click probabilities $1 − (1 − p_d)\cdot e^{−ηm}$, and the dark counts'
 share of the raw visibility:
 
 ```python
