@@ -230,6 +230,7 @@ def build_cow(linewidth: float = 100e3, randomized: bool = False, mu: float = 0.
     # arrives 9.8 ns earlier, so its tagger channel is delayed by as much, as one sets a tagger's input
     # delay from a histogram of arrival times. Bin k then holds pulse k on every channel.
     cnt.ch1_delay = slot_delay(setup, "LD-A", "DM1") - slot_delay(setup, "LD-A", "DB")
+    print(slot_delay(setup, "LD-A", "DM1") , slot_delay(setup, "LD-A", "DB"))
     return setup
 
 

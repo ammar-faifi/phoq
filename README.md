@@ -1261,6 +1261,110 @@ Bob's bit from one of her decoys is a coin toss and the QBER is 46 %. The net vi
 meaning anything as well: her decoys fill the slots where Alice sent nothing, the dark reference
 rises 7.5-fold, and net V₁₋₀ comes out near 2.
 
+### Clock and frame synchronization from time stamps
+
+Before any QKD post-processing, Bob must know which of Alice's symbols each click belongs to. His
+time tagger runs on its own clock: its rate is off from Alice's by some ppm, and its time zero is
+unrelated to hers. Alice and Bob agreed beforehand on a random string and its length, and Alice
+sends it over and over. `examples/clock_sync.py` recovers Alice's clock and the delay from the
+clicks alone.
+
+**The bench.**
+
+- Alice: a CW laser and an intensity modulator. Her AWG runs at 100 MHz + 23.4 ppm (Bob does not
+  know the offset) with four samples per symbol, and plays each bit of an L = 1000-bit string as
+  (s_k, 0, 0, 0). A 1 lights a 2.5 ns pulse centred on her clock tick, a 0 stays dark, and a frame
+  is P = 10 µs. A VOA sets 0.2 photons per "1" pulse at the detector.
+- Bob: a single-photon detector (η = 25 %, 1 µs dead time) and a free-running time tagger with
+  100 ps bins: no delay compensation, no lock to Alice, and an unknown 3.21 µs clock epoch, set as
+  the tagger's `ch1_delay`.
+
+The analysis uses only the time stamps, the agreed string and the nominal rate:
+
+1. **Clock.** The click train has a spectral line at Alice's symbol rate. The FFT of the click
+   histogram finds it to one FFT bin (1/T = 500 Hz for a 2 ms record). The periodogram of the time
+   stamps themselves, $Z(f) = |\sum_i e^{2\pi i f t_i}|^2$, maximised around that bin, then fits the
+   clicks' phase against time. Its precision is $\sigma_f \approx \sqrt{12}\,f\sigma_t/(T\sqrt N)$
+   for N clicks spread by $\sigma_t$ around the clock ticks, here the 2.5 ns pulse's 0.72 ns rms:
+   tens of ppb.
+2. **A check of the agreed frame length, by epoch folding.** Fold the clicks' symbol indices at
+   each trial length ℓ. At ℓ = L they pile onto the string's 1s and leave its 0s empty, so the
+   folded histogram's χ² exceeds its ℓ − 1 degrees of freedom by about N. A length sharing a factor
+   g with L keeps about N·g/L of that excess, and 2L keeps all of it but over twice the degrees of
+   freedom. So the significance $(\chi^2-\ell+1)/\sqrt{2(\ell-1)}$ peaks at L if the light really
+   repeats every L symbols. The delay step uses the agreed L either way.
+3. **Delay.** The phase of $Z(f_A)$ places the clicks inside a symbol, $\theta = \mathrm{frac}(\Delta f_A)$.
+   Each click then gets a symbol index, the indices are folded modulo L, and they are circularly
+   cross-correlated with the string as ±1 by FFT. The peak's lag D is the whole-symbol offset, and
+   $\Delta = (D+\theta)/f_A$ modulo the frame. The string is random so that the peak is unique: its
+   ±1 autocorrelation is L at zero lag and only about ±√L elsewhere. A periodic 1010… pattern would
+   give Δ only modulo two symbols.
+
+```bash
+python examples/clock_sync.py --plot sync.png
+```
+
+| | patch cords only | 25 km of fiber |
+| --- | --- | --- |
+| Clicks in 2 ms | 1,441 | 1,435 |
+| Clock: FFT peak → periodogram | 100.002313 → 100.0023402 MHz | 100.002314 → 100.0023444 MHz |
+| Clock error against Alice's | +2 ppb | +44 ppb |
+| Frame check (epoch folding) | L = 1000 at 33 σ; best coprime length 3.3 σ | L = 1000 at 29 σ; 4.3 σ |
+| Cross-correlation peak | D = 322 symbols, 24 σ | D = 566 symbols, 25 σ |
+| Δ mod P against the traced flight time + epoch | 3.224694 µs against 3.224692 µs (+2 ps) | 5.667165 µs against 5.667099 µs (+66 ps) |
+| Clicks given their true symbol index | 100 % | 100 % |
+
+With 25 km the true delay is 125.664 µs, more than twelve frames. Time stamps alone give it only
+modulo P, so a real link resolves the rest with a longer frame or a coarse classical timestamp.
+The delay error has two sources: the per-click spread over √N (about 19 ps), and the clock error
+times the 1 ms between Alice's frame origin and the middle of the record (the 44 ppb of the
+25 km run is 44 ps).
+
+**1 ns time bins.** `build(rate=, resolution=, record=, dead_time=)` scales the bench, and
+`GHZ = dict(rate=1e9, resolution=20e-12)` is the 1 GHz case. There the AWG runs at 4 GS/s playing
+(1, 0, 0, 0), so each 1 is a 250 ps pulse, a frame is 1 µs and the tagger bins are 20 ps (phoq's
+finest):
+
+| Link | Record | Dead time | Clicks | Click spacing | Clock error | Frame check (σ; best coprime) | Delay error | Assigned |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 0 km | 200 µs | 1 µs | 199 | 1025 symbols | −10 ppb | 1053, wrong (6 σ; 5.1 σ) | −3.3 ps | 100 % |
+| 0 km | 2 ms | 1 µs | 1993 | 1024 | −1 ppb | 1000 (54 σ; 22.9 σ) | −1.6 ps | 100 % |
+| 0 km | 200 µs | 50 ns | 2251 | 76 | −22 ppb | 1000 (46 σ; 2.8 σ) | −2.1 ps | 100 % |
+| 25 km | 200 µs | 50 ns | 2228 | 77 | −20 ppb | 1000 (47 σ; 3.3 σ) | −4.8 ps | 100 % |
+
+At 1 GHz the detector, not the line, sets the statistics. The flux asks for 24 million clicks per
+second; a 1 µs dead time allows about one per microsecond, whatever the symbol rate. Saturated,
+the detector clicks once per dead time plus a short wait (the median spacing is 1025 symbols), a
+rhythm of its own right next to the 1000-symbol frame:
+
+- With 200 clicks, the blind frame check scores that rhythm (1053) above the true L. The true L
+  only reaches about N/√(2L) ≈ 4.5 σ there.
+- With 2000 clicks the true L wins at 54 σ, but the rhythm still shows at 23 σ.
+- A 50 ns detector, as with SNSPDs, gives ten times the clicks in the same 200 µs and takes the
+  artefact away (a 2.8 σ floor).
+
+The clock and the delay never needed the blind check, since they use the agreed L.
+`tests/test_sync.py` runs the 50 ns case and the saturated 1 µs case.
+
+**Why the AWG carves pulses.** With a CW laser the modulator alone shapes the light. A pulse
+filling a fraction d of the symbol spreads its clicks over a phase 2πd of the clock, so the line at
+f_A keeps a depth sinc(πd). NRZ (d = 1, the string played one sample per symbol) has its spectral
+null exactly at the symbol rate, and step 1 has nothing to lock to:
+
+| Pulse | Line depth (sinc(πd)) | Clock error | Delay error | Clicks assigned |
+| --- | --- | --- | --- | --- |
+| 2.5 ns (d = ¼) | 0.894 (0.900) | +2 ppb | +2 ps | 100 % |
+| 5 ns (d = ½) | 0.644 (0.637) | +54 ppb | −5 ps | 100 % |
+| NRZ (d = 1) | 0.006 (0) | +50.7 ppm: lost | lost | 9.8 % |
+
+The quarter-symbol depth sits just under sinc(πd) because the CW light leaks through the modulator
+(30 dB extinction) during the dark samples. With NRZ, the clock would have to come from the string
+itself, through a joint search of frequency and delay that the example does not implement.
+phoq's AWG and modulator are ideal, with instant edges and no rise time, and its detectors have no
+timing jitter; on a bench both add to σ_t and widen the errors in proportion.
+`tests/test_sync.py` also repeats the patch-cord run and the 25 km run (with a −57 ppm clock and a
+different epoch), checks the carving table's depths, and runs the analysis on hand-made clicks.
+
 ## Adding a component
 
 Subclass `Component`, declare `Param`s, create ports in `_build`, and describe the optics in
