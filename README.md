@@ -487,7 +487,9 @@ detectors, each instrument's acquisition) and lists its current limitations.
 A modulator is a passive device with two electrical inputs. The electrode voltage is the sum of
 what is connected to them, and an open input is 0 V:
 
-$$V(t) = V_\mathrm{rf}(t) + V_\mathrm{bias}(t)$$
+```math
+V(t) = V_\mathrm{rf}(t) + V_\mathrm{bias}(t)
+```
 
 Both modulators also have an insertion loss $L$ (dB), applied to the field as
 $\sqrt{10^{-L/10}}$.
@@ -495,12 +497,14 @@ $\sqrt{10^{-L/10}}$.
 **Phase modulator** (`PhaseModulator`). The electro-optic effect shifts the phase in proportion to
 the voltage; $V_\pi$ is the voltage for a shift of π:
 
-$$E_\mathrm{out}(t) = E_\mathrm{in}(t)\,\sqrt{10^{-L/10}}\;e^{\,i\pi V(t)/V_\pi}$$
+```math
+E_\mathrm{out}(t) = E_\mathrm{in}(t)\,\sqrt{10^{-L/10}}\;e^{\,i\pi V(t)/V_\pi}
+```
 
 With $V_\pi = 4$ V, 1 V gives π/4. `pm.voltage_for(phase)` returns $\phi V_\pi/\pi - V_\mathrm{bias}$,
 the rf voltage needed on top of the connected bias. This is the linear (Pockels) electro-optic
 effect: the index change $\Delta n = \tfrac12 n_0^3 r E$ over a length $l$ with electrode gap $d$
-gives $V_\pi = d\lambda_0/(l\,n_0^3 r)$ (Fraunhofer IIS 2024, Eqs. 1–3), so $V_\pi$ grows with the
+gives $`V_\pi = d\lambda_0/(l\,n_0^3 r)`$ (Fraunhofer IIS 2024, Eqs. 1–3), so $V_\pi$ grows with the
 wavelength; here it is a device parameter at its design wavelength. The paper writes the shift as
 $\varphi_0 - \pi V/V_\pi$; the sign is a crystal-orientation convention and the code uses $+$.
 
@@ -509,8 +513,10 @@ arms carrying $P_1 + P_2 = P_\mathrm{in}$, phase-shifts them in push–pull by $
 recombines them. With the arms' phase difference $\varphi = \pi V/V_\pi + \varphi_0$ the output power
 is $P = \tfrac12 P_\mathrm{in} + \sqrt{P_1P_2}\cos\varphi$ (Fraunhofer IIS 2024, Eq. 6), so
 
-$$T(V) = \tfrac12\left[1 + k\cos\!\left(\frac{\pi V}{V_\pi} + \varphi_0\right)\right],
-\qquad k = \frac{2\sqrt{P_1P_2}}{P_\mathrm{in}} = \frac{\mathrm{ER}-1}{\mathrm{ER}+1}$$
+```math
+T(V) = \tfrac12\left[1 + k\cos\!\left(\frac{\pi V}{V_\pi} + \varphi_0\right)\right],
+\qquad k = \frac{2\sqrt{P_1P_2}}{P_\mathrm{in}} = \frac{\mathrm{ER}-1}{\mathrm{ER}+1}
+```
 
 A perfectly balanced device ($k = 1$) is the textbook $\cos^2(\pi V/2V_\pi)$ and goes fully dark;
 real devices split slightly unequally, which rounds the null off at $T_\min = 1/(\mathrm{ER}+1)$ and
@@ -528,8 +534,8 @@ $\varphi_0 = 0$:
 
 At quadrature a small drive $v$ gives $T \approx \tfrac12 - \tfrac{\pi}{2V_\pi}v$, i.e. a modulation
 depth of $\pi v_\mathrm{pp}/2V_\pi$ for a peak-to-peak drive $v_\mathrm{pp}$ (a 1 Vpp sine on a
-4 V-$V_\pi$ device swings $T$ between about 0.30 and 0.70). `im.voltage_for(T)` inverts the curve,
-$V = (V_\pi/\pi)\left[\arccos\!\big((2T - 1)/k\big) - \varphi_0\right] - V_\mathrm{bias}$, so protocol
+device with $V_\pi$ = 4 V swings $T$ between about 0.30 and 0.70). `im.voltage_for(T)` inverts the curve,
+$`V = (V_\pi/\pi)\left[\arccos\!\big((2T - 1)/k\big) - \varphi_0\right] - V_\mathrm{bias}`$, so protocol
 code can ask for a transmission. Asking for 0 or 1 gives the null or the maximum.
 
 **Time base.** A function-generator pattern has one value per symbol, symbol $k$ centred on
@@ -562,7 +568,9 @@ These generic values are assumed, not from a datasheet; a preset replaces them.
 **Delay and phase.** Air is nearly dispersionless (n ≈ 1.00027), so one τ sets both the group
 delay and the carrier phase:
 
-$$\tau_g = \tau_0 + \tau, \qquad \varphi = \varphi_0 + 2\pi\nu\tau .$$
+```math
+\tau_g = \tau_0 + \tau, \qquad \varphi = \varphi_0 + 2\pi\nu\tau .
+```
 
 One fringe passes per optical period $1/\nu = \lambda/c$: 5.17 fs at 1550 nm, or 1.55 µm of air
 path. A move of a few femtoseconds therefore scrambles an interferometer's phase. The delay line
@@ -571,18 +579,20 @@ and is relocked after every move of the dial. A dial set beyond the travel stops
 `report()` warns.
 
 **Coherence.** In a Mach–Zehnder whose arms differ by δ, a laser of Lorentzian linewidth Δν gives
-fringe visibility $V = V_0\,e^{-\pi\Delta\nu|\delta|}$. Here
+fringe visibility $`V = V_0\,e^{-\pi\Delta\nu|\delta|}`$. Here
 $V_0 = 2|a_1a_2|/(|a_1|^2+|a_2|^2)$ is the ceiling left by unequal arm losses. Scanning the delay
 line maps out the coherence time $1/(\pi\Delta\nu)$ of a broad source.
 
 **Pulse overlap.** In a delay-line interferometer the arms differ by $T+\delta$, so an output slot
 holds pulse $k$ and pulse $k-1$ offset by δ. The interference term counted over the slot is the
-overlap of their fields, $\int E_k(t)\,E_{k-1}(t-\delta)\,dt$. For Gaussian pulses of intensity FWHM
+overlap of their fields, $`\int E_k(t)\,E_{k-1}(t-\delta)\,dt`$. For Gaussian pulses of intensity FWHM
 $w$:
 
-$$V(\delta) = V_0\; e^{-\pi\Delta\nu\,(T+\delta)}\; e^{-\ln 2\,\delta^2/w^2} .$$
+```math
+V(\delta) = V_0\; e^{-\pi\Delta\nu\,(T+\delta)}\; e^{-\ln 2\,\delta^2/w^2} .
+```
 
-V ≥ 0.99 needs $|\delta| \le 0.12\,w$: ±120 ps for 1 ns pulses, but ±12 ps (2.4 mm of fiber) for
+V ≥ 0.99 needs $`|\delta| \le 0.12\,w`$: ±120 ps for 1 ns pulses, but ±12 ps (2.4 mm of fiber) for
 100 ps pulses. At 100 MHz a 3 m arm against a 1 m arm leaves δ = −205 ps. That costs 1 ns pulses
 3 % of their visibility and leaves 100 ps pulses with 5 %, which is why the DLI's long arm carries a
 delay line.
@@ -591,7 +601,9 @@ delay line.
 the output fiber with the Gaussian mode overlap $1/[1+(d/2z_R)^2]$, where $d$ is how far the gap is
 from the best-coupled one at mid-travel. The loss therefore rises toward both ends of the travel:
 
-$$\mathrm{IL}(\tau) = \mathrm{IL} + 10\log_{10}\!\left[1+\left(\frac{c\,(\tau-\tau_\text{max}/2)}{2\,n_\text{air}\,z_R}\right)^{2}\right].$$
+```math
+\mathrm{IL}(\tau) = \mathrm{IL} + 10\log_{10}\!\left[1+\left(\frac{c\,(\tau-\tau_\text{max}/2)}{2\,n_\text{air}\,z_R}\right)^{2}\right].
+```
 
 With w₀ = 250 µm that is 0.16 dB at either end of the 330 ps travel at 1550 nm (0.12 dB at
 1310 nm). Power changes while you scan for the visibility peak, so watch the visibility, not the
@@ -632,9 +644,11 @@ no longer interfering.
 The signal chain is detector → analogue front end → sampler → record → display and measurements.
 
 **Front end.** The input bandwidth $f_\mathrm{BW}$ (`bandwidth`) is modelled as two identical
-first-order poles at $f_1 = 1.554\,f_\mathrm{BW}$, chosen so that $|H(f_\mathrm{BW})|^2 = \tfrac12$:
+first-order poles at $`f_1 = 1.554\,f_\mathrm{BW}`$, chosen so that $|H(f_\mathrm{BW})|^2 = \tfrac12$:
 
-$$|H(f)| = \frac{1}{1 + (f/f_1)^2}, \qquad t_\mathrm{rise,10\text{–}90} \approx \frac{0.34}{f_\mathrm{BW}}$$
+```math
+|H(f)| = \frac{1}{1 + (f/f_1)^2}, \qquad t_\mathrm{rise,10\text{–}90} \approx \frac{0.34}{f_\mathrm{BW}}
+```
 
 A 20 MHz front end passes a 10 MHz fundamental at 0.91, its third harmonic at 0.52 and its fifth at
 0.28, so a 10 MHz square wave keeps most of its swing but loses its corners, and an SPD click
@@ -644,7 +658,9 @@ scope's; the slower of the two dominates.
 **Sampling.** For a timebase of $s$ s/div the window is $W = 10s$. The effective sample rate is
 limited by the record memory $N_\max$ (`max_points`):
 
-$$f_s = \min\!\left(f_\mathrm{set},\; N_\max / W\right), \qquad N = f_s W, \qquad \Delta t = 1/f_s$$
+```math
+f_s = \min\!\left(f_\mathrm{set},\; N_\max / W\right), \qquad N = f_s W, \qquad \Delta t = 1/f_s
+```
 
 so a 5 GS/s scope with 20 000 points runs at 5 GS/s up to 400 ns/div and drops to 2 MS/s at
 1 ms/div, as a real instrument does. Internally the analogue signal is computed on a grid
@@ -652,10 +668,12 @@ $\Delta t/k$ with $k = \lceil 6 f_\mathrm{BW}\Delta t\rceil$ (capped) so the fro
 then *point-sampled* at the sample instants with no anti-alias filter. A component at frequency
 $f$ therefore appears at the folded frequency
 
-$$f_\mathrm{alias} = \left|f - f_s\,\mathrm{round}(f/f_s)\right|$$
+```math
+f_\mathrm{alias} = \left|f - f_s\,\mathrm{round}(f/f_s)\right|
+```
 
 A 9 MHz sine sampled at 10 MS/s reads 1 MHz; a 10 MHz sine sampled at 10 MS/s collapses to a flat
-line. Keep $f_s > 2 f_\mathrm{BW}$ for faithful traces.
+line. Keep $f_s \gt 2 f_\mathrm{BW}$ for faithful traces.
 
 **Noise.** The photodiode adds shot noise $\sqrt{2qIB}$ and thermal noise $\sqrt{4k_BTB/R}$ with
 $B$ its noise bandwidth; the scope's front end then narrows it, so the displayed noise RMS falls
@@ -687,7 +705,9 @@ and its controller; chirp of single-drive devices.
 displays the power of its input inside the resolution bandwidth (RBW) around $f$, in dBm into its
 50 Ω input:
 
-$$L(f) = 10\log_{10}\frac{\int S(f')\,|H_\mathrm{RBW}(f'-f)|^2\,df'}{1\ \mathrm{mW}}$$
+```math
+L(f) = 10\log_{10}\frac{\int S(f')\,|H_\mathrm{RBW}(f'-f)|^2\,df'}{1\ \mathrm{mW}}
+```
 
 with $S$ the one-sided power spectral density of the input [W/Hz]. A photodiode drives the input
 with a current, so $S = R_\mathrm{in} S_i$; a generator drives it with a voltage, $S = S_v/R_\mathrm{in}$.
@@ -706,7 +726,7 @@ span:
 1. **Input.** AC-coupled (the DC photocurrent is blocked), impedance $R_\mathrm{in}$ (`input_impedance`,
    50 Ω). A photodiode's current becomes $v = i R_\mathrm{in}$.
 2. **Anti-alias and sampling.** The signal is computed at $4f_s$, low-passed by a polyphase FIR
-   and decimated to $f_s = 2.56\,f_\mathrm{stop}$. Unlike the oscilloscope's point sampling,
+   and decimated to $`f_s = 2.56\,f_\mathrm{stop}`$. Unlike the oscilloscope's point sampling,
    signals above the span do not fold into it.
 3. **RBW is the record length.** Each FFT uses $N$ samples under a Hann window, whose
    equivalent noise bandwidth is $1.5 f_s/N$; phoq sets $N = 1.5 f_s/\mathrm{RBW}$, so one record
@@ -733,7 +753,7 @@ span:
    sweeps combine with `SpectrumResult.average(results)`, and `Runner.average_spectrum(esa,
    component, param, values)` steps a parameter (a phase shifter) and averages the sweeps.
 
-The cost of a sweep is about $3.84\,f_\mathrm{stop}/\mathrm{RBW}\times(K+1)/2$ samples (×4 before
+The cost of a sweep is about $`3.84\,f_\mathrm{stop}/\mathrm{RBW}\times(K+1)/2`$ samples (×4 before
 decimation), so a narrow RBW over a wide span is slow, as on a real analyzer.
 
 ### Laser linewidth by delayed self-homodyne
@@ -747,21 +767,25 @@ review by J.-Q. Chen et al., *Sensors* 24, 3656 (2024), [doi:10.3390/s24113656](
 covers this method (§2.2, Fig. 1b) and its relatives; the section references below are to it.
 With $P_1$ and $P_2$ the powers each arm brings to the detector:
 
-$$i(t) = \mathcal{R}\left[P_1 + P_2 + 2\sqrt{P_1P_2}\cos\!\big(\theta + \phi(t) - \phi(t-\tau_d)\big)\right]$$
+```math
+i(t) = \mathcal{R}\left[P_1 + P_2 + 2\sqrt{P_1P_2}\cos\!\big(\theta + \phi(t) - \phi(t-\tau_d)\big)\right]
+```
 
-For $|\tau| < \tau_d$ the two phase increments in $\phi(t+\tau)-\phi(t)$ and
+For $|\tau| \lt \tau_d$ the two phase increments in $\phi(t+\tau)-\phi(t)$ and
 $\phi(t+\tau-\tau_d)-\phi(t-\tau_d)$ cover disjoint intervals, so they are independent. When
 $\tau_d \gg \tau_c$ the arms are mutually incoherent, the bias phase $\theta$ washes out, and the
 photocurrent's autocovariance and one-sided spectrum are
 
-$$C_i(\tau) = 2\mathcal{R}^2P_1P_2\,e^{-2\pi\Delta\nu|\tau|}, \qquad
-S_i(f) = \frac{4\mathcal{R}^2P_1P_2}{\pi}\,\frac{\Delta\nu}{\Delta\nu^2 + f^2}$$
+```math
+C_i(\tau) = 2\mathcal{R}^2P_1P_2\,e^{-2\pi\Delta\nu|\tau|}, \qquad
+S_i(f) = \frac{4\mathcal{R}^2P_1P_2}{\pi}\,\frac{\Delta\nu}{\Delta\nu^2 + f^2}
+```
 
 The RF spectrum is the optical lineshape convolved with itself, a Lorentzian of half width
 $\Delta\nu$ centred at 0 Hz. In homodyne (no frequency shift) it folds about DC, so **the −3 dB
 frequency equals the laser linewidth**. The heterodyne version, with an acousto-optic shift
 $f_\mathrm{AOM}$, shows the same Lorentzian around $f_\mathrm{AOM}$ with a full −3 dB width of $2\Delta\nu$.
-The level falls 20 dB at $f = \sqrt{99}\,\Delta\nu \approx 9.95\,\Delta\nu$. This is the review's rule
+The level falls 20 dB at $`f = \sqrt{99}\,\Delta\nu \approx 9.95\,\Delta\nu`$. This is the review's rule
 that the beat is twice as wide as the laser (§2.2; §2.3.1 for the heterodyne case), and its
 "−20 dB width divided by $2\sqrt{99}$" (§2.3.4), which is $\sqrt{99}$ on a one-sided homodyne trace.
 For phoq's laser, which has white frequency noise only, a Lorentzian fit
@@ -782,25 +806,29 @@ linewidth for a much narrower reference. Two phoq `Laser`s at the same wavelengt
 $f_\mathrm{AOM}$ in the heterodyne version), the spectrum is the Lorentzian above times a fringe term
 (§4.2.1, Eqs. (28)–(31), after L. Richter et al., *IEEE J. Quantum Electron.* 22, 2070 (1986)):
 
-$$S_i(f) = \frac{4\mathcal{R}^2P_1P_2}{\pi}\,\frac{\Delta\nu}{\Delta\nu^2+f^2}\Big\lbrace 1 - e^{-2\pi\Delta\nu\tau_d}\Big[\cos 2\pi f\tau_d + \frac{\Delta\nu}{f}\sin 2\pi f\tau_d\Big]\Big\rbrace$$
+```math
+S_i(f) = \frac{4\mathcal{R}^2P_1P_2}{\pi}\,\frac{\Delta\nu}{\Delta\nu^2+f^2}\Big\lbrace 1 - e^{-2\pi\Delta\nu\tau_d}\Big[\cos 2\pi f\tau_d + \frac{\Delta\nu}{f}\sin 2\pi f\tau_d\Big]\Big\rbrace
+```
 
 plus a coherent line at the centre of weight $e^{-2\pi\Delta\nu\tau_d}$ (at 0 Hz in homodyne, where the
 AC-coupled input blocks it). The fringes have period $1/\tau_d$ and depth $e^{-2\pi\Delta\nu\tau_d}$, the
 coherence left between the arms. Averaged over eight settings of a `PhaseShifter` in the short arm,
 phoq's spectrum matches this expression in absolute level to 0.07 dB rms from 20 kHz to 1.5 MHz,
 for 0.3 km (fringe depth 0.40) and for 1 km (0.046). Below about 1 %
-($\tau_d > 0.73/\Delta\nu \approx 2.3\,\tau_c$) the fringes are lost in the averaging noise and the
+($`\tau_d \gt 0.73/\Delta\nu \approx 2.3\,\tau_c`$) the fringes are lost in the averaging noise and the
 lineshape is the Lorentzian; the review asks for a delay above six coherence times (§2.3.3), which
 keeps the depth below 0.25 % in any of the conventions for $\tau_c$. Conventions differ: here
 $\tau_c = 1/\pi\Delta\nu$, the decay time of the field correlation; the review writes $\Delta\nu = 1/\tau_c$
 in §2.2 and $e^{-\tau_0/\tau_c}$ in Eq. (10). The depth $e^{-2\pi\Delta\nu\tau_d}$ is convention-free.
 
 In the limit $\tau_d \ll \tau_c$ the interferometer is a frequency discriminator: it turns frequency
-noise into intensity noise, $\phi(t)-\phi(t-\tau_d) \approx 2\pi\tau_d\,\delta\nu(t)$, and with the
+noise into intensity noise, $`\phi(t)-\phi(t-\tau_d) \approx 2\pi\tau_d\,\delta\nu(t)`$, and with the
 review's Eq. (20), $S_{\Delta\varphi}(f) = 4[\sin(\pi f\tau_d)/f]^2 S_F(f)$ for white frequency noise
 $S_F = \Delta\nu/\pi$, the beat spectrum at quadrature becomes
 
-$$S_i(f) \propto \Delta\nu\,\frac{\sin^2(\pi f\tau_d)}{f^2}$$
+```math
+S_i(f) \propto \Delta\nu\,\frac{\sin^2(\pi f\tau_d)}{f^2}
+```
 
 a sinc² with nulls at multiples of $1/\tau_d$ whose width is set by the delay, not by the laser:
 the −3 dB point sits at $0.443/\tau_d$, and the linewidth is overestimated. For 100 kHz the delay
@@ -909,13 +937,15 @@ The models above were compared with four references (October 2026):
   Poissonian mixture of number states. The `Laser` follows this: `mean_photon_number` $= E/h\nu$, a
   uniformly random start phase per acquisition, a Wiener-process phase whose correlation decays
   with the coherence time $1/\pi\Delta\nu$, and `phase_randomized` for weak-coherent-pulse
-  sources. §16: a beam splitter maps $(\alpha_1, \alpha_2) \to ((\alpha_1 + i\alpha_2)/\sqrt2,
-  (i\alpha_1 + \alpha_2)/\sqrt2)$, the convention `Coupler` uses, and §20 the Mach–Zehnder
+  sources. §16: a beam splitter maps
+  $(\alpha_1, \alpha_2) \to ((\alpha_1 + i\alpha_2)/\sqrt2, (i\alpha_1 + \alpha_2)/\sqrt2)$,
+  the convention `Coupler` uses, and §20 the Mach–Zehnder
   fringe $(1 - \cos\varphi)/2$ that the MZI tests reproduce.
 - *J. A. T. Santiago, "Photon statistics for Fock and coherent states interfering in a beamsplitter"
-  (arXiv:2508.08223).* Eq. (1.1) is the same beam-splitter transformation with $|t|^2 = $ `ratio`;
-  §4, Eqs. (4.3)–(4.7): two coherent inputs give product coherent outputs $|t\alpha + ir\beta\rangle
-  |ir\alpha + t\beta\rangle$, still Poissonian ($Q = 0$, $g^{(2)}(0) = 1$). That is why the engine may
+  (arXiv:2508.08223).* Eq. (1.1) is the same beam-splitter transformation with $|t|^2$ equal to `ratio`;
+  §4, Eqs. (4.3)–(4.7): two coherent inputs give product coherent outputs
+  $|t\alpha + ir\beta\rangle|ir\alpha + t\beta\rangle$, still Poissonian ($Q = 0$,
+  $g^{(2)}(0) = 1$). That is why the engine may
   add fields and then treat each detector's photon number as Poissonian with mean
   $\eta|E|^2\Delta t/h\nu$: the SPD's $p(\mathrm{click}) = 1 - (1 - p_\mathrm{dark})e^{-\eta\bar n}$ is
   exact for this light, and Charlie's two detectors in MP-QKD click independently. Fock-state
@@ -1246,7 +1276,9 @@ laser. Across a 1-0 boundary that means both bits were left alone, probability (
 both were re-sent by Eve (p_IR²·q). Inside a decoy it means the decoy was left alone, or Eve
 recognised it and re-sent a decoy (p_IR·q). Weighted by Bob's monitoring clicks,
 
-$$V_d = (1-p_{IR})\,V + p_{IR}\,c\,V_E, \qquad V_{1-0} = (1-p_{IR})^2\,V + p_{IR}^2\,c\,V_E, \qquad c = q + 2(1-q)\sqrt{\varepsilon_E},$$
+```math
+V_d = (1-p_{IR})\,V + p_{IR}\,c\,V_E, \qquad V_{1-0} = (1-p_{IR})^2\,V + p_{IR}^2\,c\,V_E, \qquad c = q + 2(1-q)\sqrt{\varepsilon_E},
+```
 
 with V = V_E = 0.993 the coherence of either laser over one slot. The √ε_E term is Eve's own
 modulator leak: next to a pulse she re-sends alone, the empty slot still holds her laser's light
@@ -1301,7 +1333,7 @@ The analysis uses only the time stamps, the agreed string and the nominal rate:
 1. **Clock.** The click train has a spectral line at Alice's symbol rate. The FFT of the click
    histogram finds it to one FFT bin (1/T = 500 Hz for a 2 ms record). The periodogram of the time
    stamps themselves, $Z(f) = |\sum_i e^{2\pi i f t_i}|^2$, maximised around that bin, then fits the
-   clicks' phase against time. Its precision is $\sigma_f \approx \sqrt{12}\,f\sigma_t/(T\sqrt N)$
+   clicks' phase against time. Its precision is $`\sigma_f \approx \sqrt{12}\,f\sigma_t/(T\sqrt N)`$
    for N clicks spread by $\sigma_t$ around the clock ticks, here the 2.5 ns pulse's 0.72 ns rms:
    tens of ppb.
 2. **A check of the agreed frame length, by epoch folding.** Fold the clicks' symbol indices at

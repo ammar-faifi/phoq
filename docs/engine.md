@@ -137,10 +137,10 @@ The resulting `Network` holds:
 | `returned` | laser → light coming back into it, by reflection site or by the other laser's name |
 
 Fiber is handled entirely inside `scatter`: a `Fiber` or `FiberSpool` of length $L$ multiplies the
-amplitude by $10^{-\alpha(\lambda)L/20}\,e^{-i2\pi n_\mathrm{eff}L/\lambda}$, with $\alpha(\lambda)$
+amplitude by $`10^{-\alpha(\lambda)L/20}\,e^{-i2\pi n_\mathrm{eff}L/\lambda}`$, with $\alpha(\lambda)$
 the SMF-28 attenuation table (0.19 dB/km at 1550 nm), $n_\mathrm{eff} = 1.4677$, and adds a group
 delay $n_g L/c$ ($n_g = 1.4682$, 4.9 ns/m). A `Coupler` with bar ratio $r$ and excess loss is
-the unitary $b_1 = \sqrt r\,a_1 + i\sqrt{1-r}\,a_2$, $b_2 = i\sqrt{1-r}\,a_1 + \sqrt r\,a_2$, in both
+the unitary $`b_1 = \sqrt r\,a_1 + i\sqrt{1-r}\,a_2`$, $`b_2 = i\sqrt{1-r}\,a_1 + \sqrt r\,a_2`$, in both
 directions. Because the phase of each path is exact, interference between paths with any delay
 difference is exact too; the price is that the path count grows with every interferometer in
 series.
@@ -149,7 +149,9 @@ series.
 
 A laser emits the complex field, in √W,
 
-$$E(t) = \sqrt{P(t)}\;e^{i\varphi(t)}$$
+```math
+E(t) = \sqrt{P(t)}\;e^{i\varphi(t)}
+```
 
 **Envelope, bin-averaged.** Instruments sample time in bins $[t, t+\Delta t)$, and $\Delta t$ ranges
 from picoseconds (a fast scope) to hundreds of microseconds (a narrow-RBW spectrum analyzer). Point
@@ -161,7 +163,7 @@ computed in closed form:
 | Mode | Average power over $[t, t+\Delta t)$ |
 | --- | --- |
 | `cw` | $P$ |
-| `sine` | $P\left[1 + m\,\dfrac{\cos\omega t - \cos\omega(t+\Delta t)}{\omega\Delta t}\right]$ |
+| `sine` | $`P\left[1 + m\,\dfrac{\cos\omega t - \cos\omega(t+\Delta t)}{\omega\Delta t}\right]`$ |
 | `ook` | $\dfrac{P}{d}\cdot\dfrac{\mathrm{on}(t+\Delta t) - \mathrm{on}(t)}{\Delta t}$, with $\mathrm{on}(x)$ the cumulative on-time at duty $d$ |
 | `pulsed` | $\dfrac{P}{f}\cdot\dfrac{C(t+\Delta t) - C(t)}{\Delta t}$, with $C(x) = \sum_k \tfrac12\big[1 + \mathrm{erf}\big((x - k/f)/\sigma\sqrt2\big)\big]$ |
 
@@ -171,14 +173,14 @@ with bins of 1 ps, 10 ps, 1 ns or 100 ns, while point-sampling it at 1 ns gives 
 the same test. Within a bin the field has no structure, so a detector sees the bin's energy.
 
 **Phase noise.** $\varphi$ is a Wiener process: a uniform random start, plus independent Gaussian
-increments with $\mathrm{Var}[\varphi(t+\tau)-\varphi(t)] = 2\pi\Delta\nu\,\tau$, where $\Delta\nu$ is
+increments with $`\mathrm{Var}[\varphi(t+\tau)-\varphi(t)] = 2\pi\Delta\nu\,\tau`$, where $\Delta\nu$ is
 `linewidth`. That is white frequency noise and a Lorentzian line of full width $\Delta\nu$; the field
 correlation decays as $e^{-\pi\Delta\nu|\tau|}$, so the coherence time is $\tau_c = 1/\pi\Delta\nu$.
 (Measured on the code: 0.641 rad² at τ = 1 µs and 100 kHz, against 2πΔντ = 0.628.)
 `phase(t, rng)` evaluates **one** realisation at an arbitrary set of times, including repeated ones:
 it sorts them, draws the increments between neighbours and puts the result back in place. This is
 what makes interference physical: two paths with delays $\tau_1$ and $\tau_2$ read the same random
-walk at $t-\tau_1$ and $t-\tau_2$. `detuning` adds $2\pi\,\delta f\,t$, which is how two lasers beat at
+walk at $t-\tau_1$ and $t-\tau_2$. `detuning` adds $`2\pi\,\delta f\,t`$, which is how two lasers beat at
 a chosen offset. `phase_randomized` adds a fresh uniform phase per pulse slot, for weak-coherent-
 pulse sources.
 
@@ -215,21 +217,25 @@ the phase walk is evaluated on the union of all paths' emission times.
 
 **Photodiode** (`detect` returns current in A, one value per bin):
 
-$$i = I_\mathrm{dark} + \sum_\lambda \mathcal R(\lambda)\,|E_\lambda|^2$$
+```math
+i = I_\mathrm{dark} + \sum_\lambda \mathcal R(\lambda)\,|E_\lambda|^2
+```
 
 followed by the bandwidth as one exact discrete pole, $\alpha = 1 - e^{-2\pi B\Delta t}$, then
-Gaussian noise of variance $(2qi + 4k_BT/R_\mathrm{load})\,B_N$ per sample, with the one-pole noise
+Gaussian noise of variance $`(2qi + 4k_BT/R_\mathrm{load})\,B_N`$ per sample, with the one-pole noise
 bandwidth $B_N = \min(\tfrac{\pi}{2}B,\ 1/2\Delta t)$, and finally a soft saturation
 $x \to x/(1 + (x/I_\mathrm{sat})^4)^{1/4}$. $\mathcal R(\lambda)$ is the material's typical curve or
 a preset's datasheet curve, scaled to the responsivity at the reference wavelength. Instruments
 start the record early by `settle_time` = $6/2\pi B$ so the filter has settled.
 
 **Single-photon detector** (`detect` returns a boolean per bin). The mean photon number in a bin is
-$\bar n = \sum_\lambda k(\lambda)\,|E_\lambda|^2\,\Delta t / h\nu$, with $k(\lambda)$ the preset's
+$`\bar n = \sum_\lambda k(\lambda)\,|E_\lambda|^2\,\Delta t / h\nu`$, with $k(\lambda)$ the preset's
 spectral efficiency curve relative to its reference wavelength (1 without a curve). Each bin clicks
 with
 
-$$p = 1 - (1 - p_\mathrm{dark})\,e^{-\eta\bar n}, \qquad p_\mathrm{dark} = 1 - e^{-R_\mathrm{dark}\Delta t}$$
+```math
+p = 1 - (1 - p_\mathrm{dark})\,e^{-\eta\bar n}, \qquad p_\mathrm{dark} = 1 - e^{-R_\mathrm{dark}\Delta t}
+```
 
 independently, which is exact for coherent light: its photon number is Poissonian. Dead time then
 removes every click within $\lceil t_d/\Delta t\rceil$ bins of the last kept one (non-paralysable).
@@ -253,14 +259,14 @@ acquisitions are independent records, not consecutive pieces of one record.
 
 ### Oscilloscope
 
-- **Record.** A window of 10 divisions, $W = 10\,s_\mathrm{div}$. The sample rate is capped by the
+- **Record.** A window of 10 divisions, $`W = 10\,s_\mathrm{div}`$. The sample rate is capped by the
   record memory, $f_s = \min(f_\mathrm{set}, N_\max/W)$, so $N = f_sW$ points (at least 100). At
   1 µs/div with 5 GS/s and 20 000 points: 2 GS/s, 20 000 points, 0.5 ns apart.
-- **Analogue signal.** Simulated $k = \lceil 6\,f_\mathrm{BW}\Delta t\rceil$ times finer than the
+- **Analogue signal.** Simulated $`k = \lceil 6\,f_\mathrm{BW}\Delta t\rceil`$ times finer than the
   sample interval (capped so the grid stays under 200 000 samples), starting early enough for the
   photodiode and front end to settle. Inputs are photodiode currents, single-photon-detector pulse
   trains, or generator voltages.
-- **Front end.** Two identical poles at $1.554\,f_\mathrm{BW}$, so the −3 dB point is the set
+- **Front end.** Two identical poles at $`1.554\,f_\mathrm{BW}`$, so the −3 dB point is the set
   bandwidth.
 - **Sampling.** Every $k$-th sample: point sampling with no anti-alias filter, so a signal above
   half the sample rate aliases, as on a real scope.
@@ -289,7 +295,7 @@ acquisitions are independent records, not consecutive pieces of one record.
   would still interfere fully; sub-bins of a quarter of the pulse width get their overlap right to
   2 %, at $m$ times the cost.
 - **Chunks.** Long records are synthesized in chunks of `chunk` bins (one million by default;
-  `chunk`/$m$ with sub-bins).
+  `chunk` divided by $m$ with sub-bins).
 - **Result.** A boolean click record per channel; `timestamps`, `events`, `counts`, `rates` and
   `coincidences` are derived from it. Clicks have no position inside their bin.
 
@@ -298,7 +304,7 @@ acquisitions are independent records, not consecutive pieces of one record.
 An FFT analyzer: for stationary signals it estimates the same thing as a swept one, the power in the
 resolution bandwidth against frequency, in dBm into its input impedance.
 
-- **Sample rate and record.** $f_s = 2.56\,f_\mathrm{stop}$. A periodic Hann window has an
+- **Sample rate and record.** $`f_s = 2.56\,f_\mathrm{stop}`$. A periodic Hann window has an
   equivalent noise bandwidth of $1.5 f_s/N$, so the record is $N = 1.5 f_s/\mathrm{RBW}$ samples
   ($1.5/\mathrm{RBW}$ seconds), and the RBW is a noise bandwidth.
 - **Averaging.** $K$ = `averages` records, overlapped by half (Welch), are power-averaged per sweep.
@@ -328,11 +334,15 @@ The lab needs every detector's mean power, the light flow in every cord and the 
 second, without a time grid. `Network.mean_powers(detector)` computes the time-averaged power per
 wavelength directly from the paths:
 
-$$\bar P = P_\mathrm{laser}\Big[\sum_j |a_j|^2 + 2\sum_{j \lt k}\mathrm{Re}\big(a_j a_k^{*}\big)\,\gamma(\tau_j - \tau_k)\Big]$$
+```math
+\bar P = P_\mathrm{laser}\Big[\sum_j |a_j|^2 + 2\sum_{j \lt k}\mathrm{Re}\big(a_j a_k^{*}\big)\,\gamma(\tau_j - \tau_k)\Big]
+```
 
 summed over the paths of each laser (different lasers add in power), with the mutual coherence
 
-$$\gamma(\tau) = e^{-\pi\Delta\nu|\tau|}\times(\text{overlap of the envelope with itself delayed by }\tau)$$
+```math
+\gamma(\tau) = e^{-\pi\Delta\nu|\tau|}\times(\text{overlap of the envelope with itself delayed by }\tau)
+```
 
 The overlap is $e^{-r^2/8\sigma^2}$ for Gaussian pulses, with $r$ the delay modulo the period, and the
 overlap of the on-windows for OOK. For phase-randomised pulses it is zero between different pulses.
