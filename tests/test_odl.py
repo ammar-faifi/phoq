@@ -81,8 +81,9 @@ def test_coupling_loss_follows_the_gaussian_beam_overlap():
 
 
 def test_dli_arms_are_standard_cords():
-    dli = run_path(str(Path(__file__).resolve().parents[1] / "examples" / "dli_cow.py"))
-    for setup in (dli["build"](), dli["build_cow"](), EX["build"]()):
+    examples = Path(__file__).resolve().parents[1] / "examples"
+    benches = (run_path(str(examples / name))["build"] for name in ("dli_for_dpsk.py", "dli_for_cow.py"))
+    for setup in (*(b() for b in benches), EX["build"]()):
         lengths = {c.length for c in setup if type(c).__name__ == "Fiber"}
         assert lengths <= {0.5, 1.0, 2.0, 3.0}, lengths
         assert all("ODL" not in w["text"] for w in report(setup)["warnings"])  # within its travel

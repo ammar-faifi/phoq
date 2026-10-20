@@ -40,7 +40,7 @@ from phoq.engine import report, synthesize, trace
 from phoq.units import C0, N_AIR, fmt_si
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from dli_cow import RATE, arms, balance, dli, lock  # noqa: E402  (the DLI of the COW example)
+from dli import RATE, arms, balance, dli, lock  # noqa: E402  (the shared interferometer)
 
 WIDTH = 100e-12  # pulse FWHM for the DLI checks: its delay must match to a fraction of this
 T = 1 / RATE
@@ -66,7 +66,7 @@ def mzi(linewidth: float = 0.0, wavelength: float = 1550e-9) -> Setup:
 
 
 def build(width: float = WIDTH, linewidth: float = 100e3) -> Setup:
-    """Pulsed laser → DLI (examples/dli_cow.py) → 20 GHz photodiodes → scope at 1 ns/div. With the
+    """Pulsed laser → DLI (examples/dli.py) → 20 GHz photodiodes → scope at 1 ns/div. With the
     delay line balanced, one slot's pulse leaves PD-C alone; turn DLI-ODL's dial and the two arms'
     pulses walk apart, both ports showing two half pulses that no longer interfere."""
     setup = Setup("Delay-line interferometer, 100 ps pulses", seed=3)

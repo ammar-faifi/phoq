@@ -607,7 +607,7 @@ gets the overlap right to 2 %, an eighth to 0.5 %.
 
 **Validation.** `python examples/odl_validation.py` checks each equation above against phoq's
 steady-state `report()` and against fields synthesized by the engine; `tests/test_odl.py` asserts
-the same checks. The DLI is the one in `examples/dli_cow.py`, balanced at 105 ps on the dial:
+the same checks. The DLI is the one in `examples/dli.py`, balanced at 105 ps on the dial:
 
 | Check | Theory | phoq |
 | --- | --- | --- |
@@ -1029,26 +1029,43 @@ demodulator of differential phase-shift keying (DPSK) and the monitoring line of
 (COW) QKD, which checks that neighbouring non-empty pulses keep their phase relation: an attack
 that measures and re-prepares pulses breaks it, and the visibility drops.
 
-`examples/dli_cow.py` builds both (the full protocol, with Alice's and Bob's parties, is
-[`examples/cow`](#coherent-one-way-qkd-cow-up-to-the-sifted-key)). The DPSK bench is a 100 MHz,
-1 ns pulse train and a phase modulator writing $\varphi_k = \varphi_{k-1} + \pi b_k$, with the DLI and photodiodes on both
-ports. The COW bench has bits as a pulse in one of two slots, 10 % decoys (two pulses), μ = 0.5,
-25 km, a 90:10 tap at Bob with the data detector on the 90 % side and the DLI on the 10 % side, three
-SNSPD-like detectors and a time tagger:
+The interferometer lives in `examples/dli.py`, a helper module, and two benches use it, each
+with its own `build()` so `phoq serve` opens it on its own.
+
+**DPSK demodulator: `examples/dli_for_dpsk.py`.** A 100 MHz, 1 ns pulse train and a phase modulator
+writing $\varphi_k = \varphi_{k-1} + \pi b_k$, with the DLI and photodiodes on both ports. This is
+the receiver of DPS-QKD:
 
 ```bash
-python examples/dli_cow.py --plot dli.png
+python examples/dli_for_dpsk.py --plot dpsk.png
 ```
 
 ```
 DLI: cords 3 m (long arm) − 1 m (short arm) = 9.79 ns; delay line 100 ps + 105 ps on the dial → one slot T = 10 ns
 
-1. DPSK demodulation (photodiodes, one 2 µs scope sweep)
+DPSK demodulation (photodiodes, one 2 µs scope sweep)
    linewidth  100 kHz: 180 slots decoded, 0 errors, mean contrast +0.991  (e^(−πΔνT) = 0.997)
    linewidth   10 MHz: 180 slots decoded, 6 errors, mean contrast +0.731  (e^(−πΔνT) = 0.730)
    linewidth  100 MHz: 180 slots decoded, 82 errors, mean contrast +0.025  (e^(−πΔνT) = 0.043)
+```
 
-2. COW monitoring line (μ = 0.5, 25 km, 10 % tap to the DLI, SNSPD-like detectors)
+`phoq serve examples/dli_for_dpsk.py` opens this bench. The scope shows the constructive port
+(CH1), the destructive port (CH2) and the bits (CH3, the generator's second channel delayed into
+the decoding slot); every "1" leaves by the destructive port. In the inspector, turn `DLI-PS`'s
+phase to swap the ports, raise `LD-1`'s linewidth to 10 or 100 MHz to watch neighbouring pulses
+lose their phase relation, or tick *Random phase per pulse* to break it altogether.
+
+**COW monitoring line: `examples/dli_for_cow.py`.** Bits as a pulse in one of two slots, 10 %
+decoys (two pulses), μ = 0.5, 25 km, a 90:10 tap at Bob with the data detector on the 90 % side
+and the DLI on the 10 % side, three SNSPD-like detectors and a time tagger. The full protocol, with
+Alice's and Bob's parties, is [`examples/cow`](#coherent-one-way-qkd-cow-up-to-the-sifted-key).
+
+```bash
+python examples/dli_for_cow.py
+```
+
+```
+COW monitoring line (μ = 0.5, 25 km, 10 % tap to the DLI, SNSPD-like detectors)
    source                                      V expected    DM1    DM2  data QBER
    coherent pulse train, 100 kHz           0.989    0.997   5300     28  0.0011 (128952 bits)
    coherent pulse train, 10 MHz            0.716    0.730   4613    762  0.0011 (128952 bits)
@@ -1067,11 +1084,11 @@ detector, so DB's light arrives 9.8 ns earlier; the tagger's `ch1_delay` adds 9.
 stamps, as one sets a tagger's input delay, and bin $k$ holds pulse $k$ on all three channels.
 Without it the visibility, counted on the wrong pulse pairs, falls to 0.43.
 
-`phoq serve examples/dli_cow.py` opens the DPSK bench. The scope shows the constructive port
-(CH1), the destructive port (CH2) and the bits (CH3, the generator's second channel delayed into
-the decoding slot); every "1" leaves by the destructive port. In the inspector, turn `DLI-PS`'s
-phase to swap the ports, raise `LD-1`'s linewidth to 10 or 100 MHz to watch neighbouring pulses
-lose their phase relation, or tick *Random phase per pulse* to break it altogether.
+`phoq serve examples/dli_for_cow.py` opens this bench. The tagger counts DB on CH1, DM1 on CH2 and
+DM2 on CH3. With the 100 kHz laser, a 2 ms run gives about 30,100, 2,160 and 920 clicks. DM1 leads
+DM2 by about 2.4× rather than more, because output slots that hold only one pulse split 50/50
+between the ports. Tick *Random phase per pulse* on `LD-A` and DM1 and DM2 even out (about 1,510
+and 1,420) while DB stays where it was.
 
 ### Coherent one-way QKD (COW), up to the sifted key
 

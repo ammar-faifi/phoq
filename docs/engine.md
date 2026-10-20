@@ -413,7 +413,7 @@ with the time average of synthesized fields: 0.1085 mW against 0.1091 ± 0.0016 
 - Photon counter: one bin per pulse and no tagger dead time. Each bin averages the light, so two
   pulses inside one bin interfere as if they overlapped, unless `oversample` splits the bin into
   sub-bins shorter than the pulses (a quarter of the width: the overlap is right to 2 %). Channel
-  delays are set by hand (`examples/dli_cow.py` computes its 9.8 ns from the traced paths); there
+  delays are set by hand (`examples/dli_for_cow.py` computes its 9.8 ns from the traced paths); there
   is no arrival-time histogram to read them from.
 - Spectrum analyzer: FFT method only (no video bandwidth, swept-filter artefacts, spurs or local-
   oscillator phase noise), a white noise floor, no input attenuator or compression. The lab window
