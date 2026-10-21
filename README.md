@@ -470,8 +470,9 @@ detectors, each instrument's acquisition) and lists its current limitations.
 - **Lasers:** the envelope is averaged over each sample bin, so a 100 ps pulse is exact at any
   timebase. Phase is a Wiener process from the linewidth, drawn once per acquisition and shared
   by all paths. That makes interferometer visibility and Alice/Bob phase drift physical.
-- **Photodiode:** I = Σ R(λ)·P + I_dark through a one-pole bandwidth, plus shot noise √(2qIB)
-  and thermal noise √(4kTB/R). It saturates softly above `saturation`.
+- **Photodiode:** I = Σ R(λ)·P + I_dark plus white shot noise (density 2qI) and thermal noise
+  (4kT/R), all through a one-pole bandwidth: the noise RMS is √(2qIB) and √(4kTB/R) with
+  B = (π/2)·f₃dB. It saturates softly above `saturation`.
 - **Single-photon detector:** p(click) = 1 − (1 − p_dark)·exp(−η·n̄) per bin, plus dead time.
 - **Modulators, oscilloscope and spectrum analyzer:** see
   [Theory](#theory-modulators-the-oscilloscope-and-the-spectrum-analyzer) below.
@@ -608,8 +609,12 @@ With w₀ = 250 µm that is 0.16 dB at either end of the 330 ps travel at 1550 n
 1310 nm). Power changes while you scan for the visibility peak, so watch the visibility, not the
 power.
 
-Not modelled: stage pitch and yaw (beam walk-off adds loss across the travel), back-reflection from
-the collimator faces, thermal drift, backlash and repeatability.
+The coupling law is the one Wang et al. (2024) derive for a fiber delay line, and phoq reproduces
+their computed curves (see [Checked against the literature](#checked-against-the-literature)).
+
+Not modelled: stage pitch and yaw (beam walk-off adds loss across the travel: for 12 mm lenses 1 m
+apart, Wang et al. find that a 0.0085° tilt or a 0.86 mm offset of the coupling lens halves the
+coupling), back-reflection from the collimator faces, thermal drift, backlash and repeatability.
 
 **Counting pulses that miss each other.** The photon counter averages the light over each bin, and
 two pulses inside one bin then interfere as if they overlapped. `PhotonCounter(oversample=m)`
@@ -674,8 +679,9 @@ f_\mathrm{alias} = \left|f - f_s\,\mathrm{round}(f/f_s)\right|
 A 9 MHz sine sampled at 10 MS/s reads 1 MHz; a 10 MHz sine sampled at 10 MS/s collapses to a flat
 line. Keep $f_s \gt 2 f_\mathrm{BW}$ for faithful traces.
 
-**Noise.** The photodiode adds shot noise $\sqrt{2qIB}$ and thermal noise $\sqrt{4k_BTB/R}$ with
-$B$ its noise bandwidth; the scope's front end then narrows it, so the displayed noise RMS falls
+**Noise.** The photodiode's shot noise (density $2qI$) and thermal noise ($4k_BT/R$) pass through
+its bandwidth like the signal, so their RMS is $\sqrt{2qIB}$ and $\sqrt{4k_BTB/R}$ with $B$ its
+noise bandwidth; the scope's front end then narrows it, so the displayed noise RMS falls
 roughly as $\sqrt{f_\mathrm{BW}}$ when the bandwidth is reduced — the usual reason to switch a
 20 MHz limit in.
 
@@ -928,7 +934,7 @@ backscattering in the spool (§5 notes double Rayleigh scattering distorts the l
 
 ### Checked against the literature
 
-The models above were compared with four references (October 2026):
+The models above were compared with seven references (October 2026):
 
 - *S. J. van Enk, "Coherent states, beam splitters and photons".* §8 and §12–14: a laser mode is
   a coherent state with Poissonian photon number $P(n) = e^{-|\alpha|^2}|\alpha|^{2n}/n!$ and mean
@@ -970,6 +976,41 @@ The models above were compared with four references (October 2026):
   discriminator limit behind the sinc² at short delays. Both checks are tests in
   `tests/test_spectrum.py`. Outside the model: 1/f noise, the self-heterodyne (no AOM), the
   recirculating, Brillouin and phase-noise (β-separation line) methods of §2.3.3–2.5.
+- *D. J. Blumenthal, "Photodetection and Photodetectors", ECE228B Lecture 2 (UC Santa Barbara).*
+  Slides 6–7: shot noise σ² = 2q(I_p + I_d)Δf, Poissonian but treated as Gaussian, with a flat
+  density 2qI over the detector bandwidth. Checking this showed that phoq's photodiode had the
+  right variance but spread it flat up to the sampling Nyquist frequency: at 50× oversampling the
+  density inside the detector bandwidth was 15 dB too low. The noise now passes through the
+  detector's pole with the signal, and its density is 2qI·|H(f)|² to within 1.5 %. Slide 10: the
+  shot-noise-limited SNR ηP/(2hνB): phoq 1889, formula 1888 at 1 µW (η = 0.76, B = 1.57 GHz).
+  Slides 11–12: the heterodyne beat 2R√(P_lo·P_s), reproduced to 10⁻⁴, and with a strong local
+  oscillator SNR = ηP_s/(hνB), to 1 %; homodyne's further 3 dB (slide 14) follows from the same
+  beat. Slides 17–18: R = ηq/hν with η ≤ 1 (the material tables peak at η = 0.85–0.86 for Si,
+  GaAs and InGaAs, 0.58 for Ge) and the band-gap cut-offs (Si 1110, Ge 1850, GaAs 870 nm), which
+  the tables respect up to the absorption tail of the datasheet curves. Tests in
+  `tests/test_detector_noise.py`. Outside the model: photoconductive gain (slides 19–20).
+- *I. S. Kolev, T. V. Karadzhov and E. N. Petkova, "Noises in Photodetectors", ICEST 2005, Niš,
+  pp. 725–728.* Eqs. (20)–(21) and (28)–(29): thermal noise 4kTΔf/R and shot noise
+  2q(I_ph + I_D)Δf, the two terms of phoq's photodiode. In the dark, with 50 Ω at 300 K, phoq gives
+  (2qI_d + 4kT/R)·B to 0.2 %; there thermal noise is 10⁶ times the dark current's shot noise.
+  §II.H: photon noise is Poissonian, √N, which is the single-photon detector's click statistics.
+  Outside the model: 1/f (flicker) noise, which the paper finds insignificant above 10 kHz (its
+  cut-off is at most 20 Hz for a PIN photodiode, and none at zero bias), and avalanche excess noise
+  2qIΔf·M^X (Eq. 37).
+- *K. Wang et al., "Design of optical fiber delay line with large delay range and low insertion
+  loss", Front. Phys. 12:1362101 (2024),
+  [doi:10.3389/fphy.2024.1362101](https://doi.org/10.3389/fphy.2024.1362101).* §2.2–2.3: the
+  fiber's LP₀₁ mode as a Gaussian beam, collimated and refocused, with the insertion loss set by the
+  Gaussian mode overlap (Eq. 7), which is the coupling phoq's `OpticalDelayLine` uses. Fig. 5 gives
+  the coupling against a 0–1 m gap for 4, 8, 12 and 16 mm lenses at 633 nm. Traced from the figure
+  and fitted with one parameter, the 4 mm curve's Rayleigh range (0.64 m, a 4.5 µm mode diameter),
+  phoq matches it to 0.001 rms. Through z_R ∝ f² it predicts the 8 mm curve to 0.003 rms, and a
+  0.8 % and 0.2 % drop over 1 m for 12 and 16 mm, where the paper finds less than 1 %; a test in
+  `tests/test_odl.py` repeats this. Eq. (2): the rest of the insertion loss is the fiber end faces
+  (4 %) and twelve lens surfaces, about 0.5 dB in all for their design, against phoq's assumed
+  1 dB. Outside the model: the lens and fiber-end misalignments of Figs. 6–10, and the aberrations
+  behind their measured 95.3 → 92.7 % over 0–1 m (Fig. 12), more than either diffraction model
+  predicts.
 
 ## Quantum protocols
 

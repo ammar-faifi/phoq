@@ -39,8 +39,9 @@ def _curve_info(curve, label: str) -> dict[str, str]:
 class Photodiode(_Detector):
     """Fiber-coupled PIN photodiode; its ``rf`` output carries the photocurrent [A].
 
-    I(t) = Σ R(λ)·P_λ(t) + I_dark, low-pass filtered by ``bandwidth`` (one pole), plus shot noise
-    √(2qIB) and thermal noise √(4kTB/R_load), with a soft knee above ``saturation``.
+    I(t) = Σ R(λ)·P_λ(t) + I_dark plus white shot noise (density 2qI) and thermal noise (4kT/R_load),
+    all low-pass filtered by ``bandwidth`` (one pole): the noise then has the density 2qI·|H(f)|² and
+    the variance 2qI·B with B = (π/2)·f₃dB. A soft knee above ``saturation``.
     """
 
     prefix = "PD"
@@ -135,17 +136,16 @@ class Photodiode(_Detector):
         current = np.full(n, self.dark_current)
         for wl, E in fields.items():
             current += self.responsivity(wl) * np.abs(E) ** 2
-        if filtered:
+        # Shot noise of the instantaneous photocurrent and thermal noise of the load: white, with
+        # one-sided densities 2qI and 4kT/R, sampled up to the Nyquist frequency 1/(2Δt) …
+        density = 2 * Q_E * np.clip(current, 0, None) + 4 * K_B * self.temperature / self.load
+        out = current + np.sqrt(density / (2 * dt)) * rng.standard_normal(n)
+        if filtered:  # … then through the detector's pole with the signal: densities times |H(f)|²,
+            # a variance of (2qI + 4kT/R)·(π/2)·f₃dB, the noise bandwidth of one pole
             alpha = -math.expm1(-dt * 2 * math.pi * self.bandwidth)
-            current, _ = lfilter(
-                [alpha], [1.0, alpha - 1.0], current, zi=[(1 - alpha) * current[0]]
+            out, _ = lfilter(
+                [alpha], [1.0, alpha - 1.0], out, zi=[(1 - alpha) * current[0]]
             )
-        B = min(self.bandwidth * math.pi / 2, 0.5 / dt)
-        sigma = np.sqrt(
-            2 * Q_E * np.clip(current, 0, None) * B
-            + 4 * K_B * self.temperature * B / self.load
-        )
-        out = current + sigma * rng.standard_normal(n)
         pos = out > 0
         out[pos] = out[pos] / (1 + (out[pos] / self.saturation) ** 4) ** 0.25
         return out

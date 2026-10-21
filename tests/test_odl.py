@@ -5,6 +5,7 @@ import math
 from pathlib import Path
 from runpy import run_path
 
+import numpy as np
 import pytest
 
 from phoq import OpticalDelayLine
@@ -87,3 +88,32 @@ def test_dli_arms_are_standard_cords():
         lengths = {c.length for c in setup if type(c).__name__ == "Fiber"}
         assert lengths <= {0.5, 1.0, 2.0, 3.0}, lengths
         assert all("ODL" not in w["text"] for w in report(setup)["warnings"])  # within its travel
+
+
+# Wang et al., "Design of optical fiber delay line with large delay range and low insertion loss",
+# Front. Phys. 12:1362101 (2024), Fig. 5: coupling efficiency against the lens gap (0.1–1 m, 633 nm),
+# traced by colour from the published figure (±0.003).
+WANG_GAP = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+WANG_F4 = [0.944, 0.930, 0.904, 0.868, 0.826, 0.780, 0.732, 0.683, 0.636, 0.589]
+WANG_F8 = [0.948, 0.948, 0.946, 0.943, 0.942, 0.941, 0.936, 0.930, 0.927, 0.919]
+
+
+def test_coupling_reproduces_wang_2024_fig5():
+    """Their scalar-diffraction model and phoq's are the same Gaussian mode overlap. Fit z_R to the
+    f = 4 mm lens pair; z_R ∝ f² then predicts the 8, 12 and 16 mm curves."""
+    from scipy.optimize import least_squares
+
+    from phoq.units import C0, N_AIR
+
+    lam, eta0, d = 633e-9, 0.953, np.array(WANG_GAP)  # 0.953: every curve's value at 0 m
+
+    def curve(z_r):
+        odl = OpticalDelayLine(beam_waist=math.sqrt(z_r * lam / math.pi), max_delay=2 * N_AIR / C0)
+        return np.array([eta0 * odl.coupling(lam, odl.max_delay / 2 + x * N_AIR / C0) for x in d])
+
+    z4 = least_squares(lambda p: curve(p[0]) - WANG_F4, x0=[0.6]).x[0]
+    assert np.sqrt(np.mean((curve(z4) - WANG_F4) ** 2)) < 0.003
+    assert np.sqrt(np.mean((curve(4 * z4) - WANG_F8) ** 2)) < 0.006  # predicted, not fitted
+    for f in (12, 16):  # "the change in coupling efficiency is less than 1 % in the delay range of 0–1 m"
+        c = curve((f / 4) ** 2 * z4)
+        assert (eta0 - c[-1]) / eta0 < 0.01

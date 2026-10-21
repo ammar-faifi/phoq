@@ -221,9 +221,13 @@ the phase walk is evaluated on the union of all paths' emission times.
 i = I_\mathrm{dark} + \sum_\lambda \mathcal R(\lambda)\,|E_\lambda|^2
 ```
 
-followed by the bandwidth as one exact discrete pole, $\alpha = 1 - e^{-2\pi B\Delta t}$, then
-Gaussian noise of variance $`(2qi + 4k_BT/R_\mathrm{load})\,B_N`$ per sample, with the one-pole noise
-bandwidth $B_N = \min(\tfrac{\pi}{2}B,\ 1/2\Delta t)$, and finally a soft saturation
+plus white Gaussian noise of one-sided density $`2qi + 4k_BT/R_\mathrm{load}`$ (shot noise of the
+instantaneous current and thermal noise of the load: per sample, a variance of that density over
+$2\Delta t$).
+Signal and noise then pass together through the bandwidth as one exact discrete pole,
+$\alpha = 1 - e^{-2\pi B\Delta t}$, so the noise has the density $`(2qi + 4k_BT/R)\,|H(f)|^2`$ and
+the variance $`(2qi + 4k_BT/R)\,B_N`$ with the pole's noise bandwidth
+$B_N = \alpha/(2-\alpha)/2\Delta t \approx \tfrac{\pi}{2}B$. Finally a soft saturation
 $x \to x/(1 + (x/I_\mathrm{sat})^4)^{1/4}$. $\mathcal R(\lambda)$ is the material's typical curve or
 a preset's datasheet curve, scaled to the responsivity at the reference wavelength. Instruments
 start the record early by `settle_time` = $6/2\pi B$ so the filter has settled.
@@ -412,7 +416,8 @@ with the time average of synthesized fields: 0.1085 mW against 0.1091 ± 0.0016 
 **Detectors**
 
 - Photodiode: one pole, Gaussian approximation of shot noise (fine except at a few photons per
-  sample), no avalanche gain or excess noise, no ringing or impulse undershoot.
+  sample), no avalanche gain or excess noise, no 1/f (flicker) noise, no ringing or impulse
+  undershoot.
 - Single-photon detector: no timing jitter (a click sits in its bin), no afterpulsing, no gating or
   twilight events. Dead time is non-paralysable and does not carry across acquisitions or chunks.
 
