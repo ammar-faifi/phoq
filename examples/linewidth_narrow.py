@@ -127,6 +127,8 @@ if __name__ == "__main__":
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
 
+        plt.style.use("dark_background")
+
         setup = build(100.0, 500)
         m = measure(setup)
         r, tau = m["result"], m["tau_d"]
@@ -141,8 +143,8 @@ if __name__ == "__main__":
         fig, ax = plt.subplots(figsize=(7.5, 4))
         to_dbm = lambda w: 10 * np.log10(w * r.rbw / 1e-3)  # noqa: E731
         ax.plot(u, to_dbm(psd[keep]), lw=0.8, color="#d4a514", label="analyzer, θ and θ + π/2 averaged")
-        ax.plot(u, to_dbm(model), "k--", lw=1, label=f"Eqs. (28)–(31) fit: Δν = {fmt_si(dnu, 'Hz')}")
-        ax.plot(u, to_dbm(lor["peak_psd"] / (1 + (u / lor["hwhm"]) ** 2) + lor["floor_psd"]), ":", color="#2563eb", lw=1.2,
+        ax.plot(u, to_dbm(model), "w--", lw=1, label=f"Eqs. (28)–(31) fit: Δν = {fmt_si(dnu, 'Hz')}")
+        ax.plot(u, to_dbm(lor["peak_psd"] / (1 + (u / lor["hwhm"]) ** 2) + lor["floor_psd"]), ":", color="#60a5fa", lw=1.2,
                 label=f"Lorentzian fit (assumes τd ≫ τc): {fmt_si(lor['hwhm'], 'Hz')}")
         ax.set(xlabel="frequency [Hz]", ylabel=f"level [dBm in {fmt_si(r.rbw, 'Hz')}]",
                title=f"100 Hz laser, 500 km delay (τd = {tau / (1 / (math.pi * 100)):.2f} τc)")

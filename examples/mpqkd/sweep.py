@@ -165,6 +165,8 @@ def main(argv=None) -> list[dict]:
 
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
+
+        plt.style.use("dark_background")
         from phoq.units import CONNECTOR_LOSS_DB, db_to_t, fiber_attenuation
 
         p = MPQKDParams()
@@ -210,7 +212,8 @@ def main(argv=None) -> list[dict]:
             ylim=(1e-8, 1e-2),
             title=f"MP-QKD showcase, {args.blocks} × {args.rounds:,} pulses per point",
         )
-        ax.grid(True, which="both", alpha=0.3)
+        ax.grid(True, which="major", alpha=0.3)
+        ax.grid(True, which="minor", alpha=0.1)  # on black a full-strength minor grid buries the curves
         ax.legend(fontsize=8)
         fig.tight_layout()
         fig.savefig(args.plot, dpi=140)

@@ -285,20 +285,22 @@ if __name__ == "__main__":
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
 
+        plt.style.use("dark_background")
+
         r = runs[25.0]
         c, fr, d = r["sync"]["clock"], r["sync"]["frame"], r["sync"]["delay"]
         fig, ax = plt.subplots(2, 2, figsize=(10, 6.4))
         freq, spec = c["spectrum"]
         sel = np.abs(freq - F_NOM) < 2e6
-        ax[0, 0].semilogy((freq[sel] - F_NOM) / 1e3, spec[sel], lw=0.8, color="#2563eb")
+        ax[0, 0].semilogy((freq[sel] - F_NOM) / 1e3, spec[sel], lw=0.8, color="#60a5fa")
         ax[0, 0].set(title="1. FFT of the click histogram", xlabel="f − 100 MHz [kHz]", ylabel="power")
         fine, z = c["zoom"]
-        ax[0, 1].plot((fine - F_NOM), z, color="#2563eb")
+        ax[0, 1].plot((fine - F_NOM), z, color="#60a5fa")
         ax[0, 1].axvline(r["truth"]["f"] - F_NOM, color="#d6409f", ls="--", lw=1, label="Alice's clock")
         ax[0, 1].set(title="1. periodogram of the time stamps", xlabel="f − 100 MHz [Hz]", ylabel="Z(f)")
         ax[0, 1].legend(fontsize=8)
         lengths, sig = fr["scan"]
-        ax[1, 0].plot(lengths, sig, lw=0.7, color="#16a34a")
+        ax[1, 0].plot(lengths, sig, lw=0.7, color="#4ade80")
         ax[1, 0].set(title=f"2. epoch folding: the light repeats every {fr['L']} symbols",
                      xlabel="trial frame length [symbols]", ylabel="significance [σ]")
         ax[1, 1].plot(d["xcorr"], lw=0.7, color="#d4a514")

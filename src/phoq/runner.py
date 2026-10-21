@@ -37,11 +37,14 @@ class Sweep:
     measured: np.ndarray
 
     def plot(self, ax=None, **kw):
+        """Matplotlib plot of the measured value against the swept parameter, in the
+        dark_background style."""
         import matplotlib.pyplot as plt
 
-        ax = ax or plt.subplots(figsize=(6, 3.6))[1]
-        ax.plot(self.values, self.measured, "o-", **kw)
-        ax.set(xlabel=f"{self.component}.{self.param}", ylabel="measured")
+        with plt.style.context("dark_background"):
+            ax = ax or plt.subplots(figsize=(6, 3.6))[1]
+            ax.plot(self.values, self.measured, "o-", **kw)
+            ax.set(xlabel=f"{self.component}.{self.param}", ylabel="measured")
         return ax
 
 

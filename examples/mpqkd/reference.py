@@ -278,6 +278,7 @@ def run(
 def make_plot(rows, p, p_click, fname="mpqkd_sim.png"):
     import matplotlib.pyplot as plt
 
+    plt.style.use("dark_background")
     rows = np.array(rows, dtype=float)
     l, rp_sim, rp_th, _, ez, _, ex, _ = rows.T
     l_fine = np.logspace(0, np.log10(l.max()), 200)

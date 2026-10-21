@@ -67,6 +67,8 @@ def cmd_run(args) -> None:
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
 
+        plt.style.use("dark_background")
+
         scopes = [r for r in results.values() if hasattr(r, "plot")]
         if not scopes:
             print("no oscilloscope in this setup; nothing to plot", file=sys.stderr)

@@ -34,6 +34,7 @@ if __name__ == "__main__":
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
+    plt.style.use("dark_background")
     ax = p1.plot(label="OPM-1")
     p2.plot(ax, label="OPM-2")
     ax.set(xlabel="phase shift [rad]", ylabel="power [W]", title="MZI fringes")

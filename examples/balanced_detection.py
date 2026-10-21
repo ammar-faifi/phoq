@@ -184,9 +184,11 @@ if __name__ == "__main__":
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
 
+        plt.style.use("dark_background")
+
         fig, axes = plt.subplots(3, 1, figsize=(7.5, 6), sharex=True)
         for ax, v, title, color in zip(axes, (rf, mon_p, mon_m), ("RF", "MON+", "MON−"),
-                                       ("#d4a514", "#22a6c8", "#c8227a")):
+                                       ("#facc15", "#22d3ee", "#f472b6")):
             ax.plot(res.t * 1e6, v, lw=0.7, color=color)
             ax.set(ylabel=f"{title} [V]")
             ax.grid(alpha=0.3)

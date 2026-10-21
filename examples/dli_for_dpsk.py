@@ -119,6 +119,8 @@ if __name__ == "__main__":
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
 
+        plt.style.use("dark_background")
+
         res = decode(build())["result"]
         fig, axes = plt.subplots(3, 1, figsize=(8, 5.4), sharex=True)
         t = res.t * 1e9

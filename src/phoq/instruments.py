@@ -133,31 +133,32 @@ class ScopeResult:
         return "\n".join(lines)
 
     def plot(self, ax=None):
-        """Matplotlib plot of the enabled traces (one y-axis per unit)."""
+        """Matplotlib plot of the enabled traces (one y-axis per unit), in the dark_background style."""
         import matplotlib.pyplot as plt
 
-        ax = ax or plt.subplots(figsize=(8, 3.6))[1]
-        scale, unit = next(
-            (
-                (s, u)
-                for s, u in ((1e-3, "ms"), (1e-6, "µs"), (1e-9, "ns"))
-                if self.timebase >= s
-            ),
-            (1e-12, "ps"),
-        )
-        for i, tr in enumerate(self.channels.values()):
-            if tr.data is not None and tr.enabled:
-                ax.plot(
-                    self.t / scale,
-                    tr.data,
-                    color=CH_COLORS[i],
-                    lw=1.2,
-                    label=f"{tr.channel}: {tr.source} [{tr.unit}]",
-                )
-        ax.set(
-            xlabel=f"time from trigger [{unit}]", ylabel="signal", title=self.instrument
-        )
-        ax.legend(loc="upper right", fontsize=8)
+        with plt.style.context("dark_background"):
+            ax = ax or plt.subplots(figsize=(8, 3.6))[1]
+            scale, unit = next(
+                (
+                    (s, u)
+                    for s, u in ((1e-3, "ms"), (1e-6, "µs"), (1e-9, "ns"))
+                    if self.timebase >= s
+                ),
+                (1e-12, "ps"),
+            )
+            for i, tr in enumerate(self.channels.values()):
+                if tr.data is not None and tr.enabled:
+                    ax.plot(
+                        self.t / scale,
+                        tr.data,
+                        color=CH_COLORS[i],
+                        lw=1.2,
+                        label=f"{tr.channel}: {tr.source} [{tr.unit}]",
+                    )
+            ax.set(
+                xlabel=f"time from trigger [{unit}]", ylabel="signal", title=self.instrument
+            )
+            ax.legend(loc="upper right", fontsize=8)
         return ax
 
     def to_json(self) -> dict:
@@ -936,20 +937,22 @@ class SpectrumResult:
         )
 
     def plot(self, ax=None):
-        """Matplotlib plot of the trace (dBm against frequency), on the analyzer's own scale."""
+        """Matplotlib plot of the trace (dBm against frequency), on the analyzer's own scale, in the
+        dark_background style."""
         import matplotlib.pyplot as plt
 
-        ax = ax or plt.subplots(figsize=(8, 3.6))[1]
-        scale, unit = next(((s, u) for s, u in ((1e9, "GHz"), (1e6, "MHz"), (1e3, "kHz")) if self.stop >= s), (1.0, "Hz"))
-        ax.plot(self.freq / scale, self.level, color=CH_COLORS[0], lw=1.2)
-        ax.set(
-            xlabel=f"frequency [{unit}]",
-            ylabel=f"level [dBm in {fmt_si(self.rbw, 'Hz')}]",
-            title=self.instrument,
-            xlim=(self.start / scale, self.stop / scale),
-            ylim=(self.ref_level - 10 * self.db_per_div, self.ref_level),
-        )
-        ax.grid(alpha=0.3)
+        with plt.style.context("dark_background"):
+            ax = ax or plt.subplots(figsize=(8, 3.6))[1]
+            scale, unit = next(((s, u) for s, u in ((1e9, "GHz"), (1e6, "MHz"), (1e3, "kHz")) if self.stop >= s), (1.0, "Hz"))
+            ax.plot(self.freq / scale, self.level, color=CH_COLORS[0], lw=1.2)
+            ax.set(
+                xlabel=f"frequency [{unit}]",
+                ylabel=f"level [dBm in {fmt_si(self.rbw, 'Hz')}]",
+                title=self.instrument,
+                xlim=(self.start / scale, self.stop / scale),
+                ylim=(self.ref_level - 10 * self.db_per_div, self.ref_level),
+            )
+            ax.grid(alpha=0.3)
         return ax
 
     def to_json(self) -> dict:

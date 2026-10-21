@@ -96,14 +96,16 @@ if __name__ == "__main__":
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
 
+        plt.style.use("dark_background")
+
         f, psd = r.psd()
         keep = f > 3 * r.rbw
         fig, ax = plt.subplots(figsize=(7.5, 4))
         ax.plot(f[keep] / 1e3, 10 * np.log10(psd[keep] * r.rbw / 1e-3), lw=0.8, color="#d4a514", label="analyzer")
         p = r.fit_lorentzian(0.0)
         model = p["peak_psd"] / (1 + (f[keep] / p["hwhm"]) ** 2) + p["floor_psd"]
-        ax.plot(f[keep] / 1e3, 10 * np.log10(model * r.rbw / 1e-3), "k--", lw=1, label=f"Lorentzian fit, Δν = {fmt_si(p['hwhm'], 'Hz')}")
-        ax.axvline(laser.linewidth / 1e3, color="#2563eb", lw=0.8, label=f"laser setting {fmt_si(laser.linewidth, 'Hz')}")
+        ax.plot(f[keep] / 1e3, 10 * np.log10(model * r.rbw / 1e-3), "w--", lw=1, label=f"Lorentzian fit, Δν = {fmt_si(p['hwhm'], 'Hz')}")
+        ax.axvline(laser.linewidth / 1e3, color="#60a5fa", lw=0.8, label=f"laser setting {fmt_si(laser.linewidth, 'Hz')}")
         ax.set(xlabel="frequency [kHz]", ylabel=f"level [dBm in {fmt_si(r.rbw, 'Hz')}]", title="Delayed self-homodyne, 10 km")
         ax.grid(alpha=0.3, which="both")
         ax.legend()
