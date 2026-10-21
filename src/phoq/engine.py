@@ -82,9 +82,7 @@ class Network:
             factor, dynamic = 1.0 + 0j, []
             for mod, at in p.mods:
                 if mod.is_static():
-                    factor *= complex(
-                        np.asarray(mod.response([mod.static_voltage()]))[0]
-                    )
+                    factor *= mod.static_factor()
                 else:
                     factor *= math.sqrt(mod.mean_factor())
                     dynamic.append(id(mod))
@@ -351,29 +349,30 @@ def report(setup: Setup, net: Network | None = None) -> dict:
         if not isinstance(c, _Modulator):
             continue
         rng = lim.get("bias_voltage_v")
-        if rng is not None:
+        for port in c.bias_ports if rng is not None else ():
             lo, hi = (
                 (float(rng[0]), float(rng[1]))
                 if isinstance(rng, (list, tuple))
                 else (-abs(float(rng)), abs(float(rng)))
             )
-            mean, _ = _port_level(c, "bias")
+            mean, _ = _port_level(c, port)
             if not lo <= mean <= hi:
                 warnings.append(
                     {
                         "level": "bad",
-                        "text": f"{c.name} bias is {mean:g} V, outside the absolute maximum {lo:g} … {hi:g} V for {c.preset}.",
+                        "text": f"{c.name} {port} is {mean:g} V, outside the absolute maximum {lo:g} … {hi:g} V for {c.preset}.",
                     }
                 )
         rf_dbm = lim.get("rf_input_dbm")
-        if rf_dbm is not None:
-            _, peak = _port_level(c, "rf")
+        for port in c.rf_ports if rf_dbm is not None else ():
+            _, peak = _port_level(c, port)
             v_max = math.sqrt(2 * dbm_to_w(float(rf_dbm)) * 50.0)  # sine of that power into 50 Ω
             if peak > v_max:
+                drive = "RF drive" if port == "rf" else f"RF drive on {port}"
                 warnings.append(
                     {
                         "level": "bad",
-                        "text": f"{c.name} RF drive peaks at {peak:.3g} V, above the absolute maximum RF input of {rf_dbm:g} dBm ({v_max:.3g} V peak into 50 Ω) for {c.preset}.",
+                        "text": f"{c.name} {drive} peaks at {peak:.3g} V, above the absolute maximum RF input of {rf_dbm:g} dBm ({v_max:.3g} V peak into 50 Ω) for {c.preset}.",
                     }
                 )
     for g in setup.of_type(FunctionGenerator):

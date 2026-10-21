@@ -28,7 +28,7 @@ from .instruments import (
     SpectrumResult,
     Trace,
 )
-from .modulators import IntensityModulator, OpticalSwitch, PhaseModulator
+from .modulators import IntensityModulator, IQModulator, OpticalSwitch, PhaseModulator
 from .passive import (
     Attenuator,
     Coupler,
@@ -58,6 +58,7 @@ __all__ = [
     "FiberSpool",
     "FunctionGenerator",
     "IntensityModulator",
+    "IQModulator",
     "Isolator",
     "Laser",
     "MatingSleeve",

@@ -39,9 +39,9 @@ and implements whichever of these contracts apply:
 | --- | --- | --- |
 | `scatter(port, λ) → [Transfer]` | everything light passes through | `trace()` |
 | `envelope(t, dt)`, `phase(t, rng)` | `Laser` | `synthesize()` |
-| `factor(t_mod, t_emit)`, `is_static()`, `mean_factor()` | modulators, switch routes | `synthesize()`, `mean_powers()` |
+| `factor(t_mod, t_emit)`, `is_static()`, `static_factor()`, `mean_factor()`, `drivers()` | modulators, switch routes | `synthesize()`, `mean_powers()` |
 | `voltage(ch, t_mod, t_emit)`, `start(rng)` | generators, DC supply | modulators, instruments |
-| `detect(fields, dt, rng, n)` | photodiode, single-photon detector | instruments |
+| `detect(fields, dt, rng, n)` | photodiode, balanced photodetector, single-photon detector | instruments |
 | `acquire(net, rng) → Result` | instruments | `Runner`, the lab server, `Experiment` |
 
 A `Transfer(port, amp, delay, mod)` says: light that entered through one port leaves through
@@ -49,6 +49,16 @@ A `Transfer(port, amp, delay, mod)` says: light that entered through one port le
 multiplied at that moment by the modulator's time-dependent factor. A component is therefore a
 small scattering matrix with delays, plus at most one time-varying element per route. Subclasses
 register themselves by class name, which is how JSON setups and the lab's toolbox find them.
+
+A modulator's factor is a function of the voltages on its electrical inputs, listed in `rf_ports`
+and `bias_ports`: one of each for the phase and intensity modulators (`rf`, `bias`), and for the
+IQ modulator two RF inputs (`rf_i`, `rf_q`) and three DC inputs (`bias_i`, `bias_q`, `bias_p`).
+`drivers()` returns what feeds them, and `static_factor()` the complex factor when none of them
+varies. The report checks each of those ports against a preset's `bias_voltage_v` and
+`rf_input_dbm`. The IQ modulator's factor is
+$`\tfrac12[e(\varphi_I) + e^{j\varphi_P}e(\varphi_Q)]`$, with $e$ the signed field of an MZM of finite
+extinction. Its `mean_factor()` averages $|\cdot|^2$ symbol by symbol when I and Q are patterns of
+one length, and over every pairing otherwise (README, "IQ modulator").
 
 **Setup.** A `Setup` owns named components and the connections between their ports.
 `connect(a, b)` mates two ports. Two bulkhead optical ports never touch directly: phoq inserts a
@@ -436,7 +446,9 @@ with the time average of synthesized fields: 0.1085 mW against 0.1091 ± 0.0016 
 **Modulators and electronics**
 
 - Modulators respond instantly to the electrode voltage: no RF bandwidth or electrode capacitance,
-  no bias drift or bias controller, no chirp, Vπ independent of wavelength and frequency.
+  no bias drift or bias controller, no chirp, Vπ independent of wavelength and frequency. The IQ
+  modulator's outer splitter and combiner are exactly 50:50, with no crosstalk between its RF
+  inputs and no internal monitor photodiodes.
 - Generators are ideal: no rise time, jitter or output impedance.
 
 **Detectors**

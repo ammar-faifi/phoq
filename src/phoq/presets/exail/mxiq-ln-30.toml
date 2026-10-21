@@ -1,0 +1,52 @@
+# Exail MXIQ-LN-30 — 25 GHz LiNbO₃ IQ modulator (MXIQ-LN series datasheet).
+schema = 1
+component = "IQModulator"
+title = "Exail MXIQ-LN-30"
+vendor = "Exail"
+part_number = "MXIQ-LN-30"
+description = "25 GHz LiNbO₃ X-cut dual-parallel Mach–Zehnder IQ modulator, 1550 nm band, zero chirp"
+tier = "datasheet"
+tags = ["LiNbO3", "X-cut", "IQ", "QPSK", "QAM", "1550", "25 GHz"]
+notes = """
+Ordering code MXIQ-LN-<10|30>-<PD|00>-P-<P|S>-<00|FA>-<00|FA>: optional internal photodiodes, PM input fiber,
+PM or standard SM output fiber, bare fiber or FC/APC connectors. Pin-out: RF1 and RF2 are the K connectors (rf_i, rf_q);
+DC1, DC2 and DC3 are pins 5, 4 and 6 (bias_i, bias_q, bias_p). The datasheet names DC1/DC2 alongside RF1/RF2 but does
+not draw the electrodes; phoq takes DC1 to bias the MZM that RF1 drives. The MBC-IQ bias controller and the DR-AN-HO
+drivers are separate products. Operating point: DC1 = DC2 = −Vπ_DC (null), DC3 = +Vπ_DC3/2 (quadrature).
+The datasheet states no extinction ratio, so the two MZMs keep the generic 30 dB.
+"""
+
+[source]
+title = "MXIQ-LN series — 1550 nm wide bandwidth IQ modulator"
+vendor_url = "https://www.exail.com"
+document = "exail-datasheet-mxiq-ln-30-linbo3-optic-modulators.pdf"
+revision = "ED8 (04/2026)"
+accessed = 2026-10-21
+conditions = "25 °C, 1550 nm"
+
+[params]
+connector = { value = "FC/APC", from = "datasheet-typ", spec = "Ordering option FA: FC/APC connector on the input and output fibers", note = "The default (00) is bare fiber; phoq parts need a connector, so the preset assumes FA on both fibers" }
+v_pi = { value = 5.0, from = "datasheet-typ", spec = "Vπ RF @ 50 kHz, RF1 & RF2 electrodes", max = 6.0 }
+v_pi_bias = { value = 6.0, from = "datasheet-typ", spec = "Vπ DC1 & DC2 electrodes", max = 7.0 }
+v_pi_phase = { value = 9.5, from = "datasheet-typ", spec = "Vπ DC3 electrodes", max = 10.5 }
+insertion_loss_db = { value = 5.0, from = "datasheet-typ", spec = "Insertion loss without optical connectors", max = 7.0, note = "Add up to 0.25 dB per FC/APC connector" }
+
+[limits]
+optical_input_dbm = 20.0
+rf_input_dbm = 28.0
+bias_voltage_v = [-20.0, 20.0]
+operating_temperature_c = [0.0, 70.0]
+
+[unsupported]
+eo_bandwidth_hz = { typ = 2.5e+10, min = 2e+10, note = "S21 −3 dB from 2 GHz. The modulator model has no RF roll-off: keep the drive below this" }
+usable_eo_bandwidth_hz = { typ = 4e+10, min = 3e+10, note = "S21 usable bandwidth" }
+electrical_return_loss_db = { typ = -12.0, max = -10.0, note = "S11 on the RF electrodes, 0–20 GHz" }
+s21_ripple_db = { typ = 0.5, max = 1.0 }
+chirp = { typ = 0.0, min = -0.1, max = 0.1, note = "X-cut: the model's push–pull MZMs are chirp-free when balanced" }
+optical_return_loss_db = { typ = -45.0, max = -40.0 }
+wavelength_range_m = { min = 1530e-9, typ = 1550e-9, max = 1580e-9, note = "the model has no wavelength dependence for modulators" }
+rf_input_impedance = "50 Ω"
+dc_input_impedance_ohm = { min = 1e6 }
+rf_connector = "Female K (SMA compatible)"
+internal_photodiodes = "Option PD: two monitor photodiodes (pins 7–10) for a bias controller; not modelled"
+fiber = "Polarization-maintaining input (Corning PM 15-U25D, 1.5 m); the model has no polarization"

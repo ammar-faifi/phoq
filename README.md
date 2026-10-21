@@ -72,7 +72,7 @@ Units are SI throughout: metres, seconds, hertz and watts. Powers use `power_dbm
 | Sources | `Laser` (CW / pulsed / sine / OOK, linewidth, detuning, per-pulse phase randomisation) |
 | Fiber | `Fiber` (patch cord), `FiberSpool` |
 | Passive | `Attenuator`, `Coupler` (2×2 fused fiber coupler; `BeamSplitter` is its deprecated old name), `PhaseShifter`, `Isolator`, `MatingSleeve` (FC–FC adapter joining two cords), `OpticalDelayLine` (variable free-space delay: dial, carrier phase, Gaussian-beam coupling loss) |
-| Modulators | `PhaseModulator` (φ = π·V/Vπ), `IntensityModulator` (Mach–Zehnder, extinction) — voltage comes only through their `rf` and `bias` inputs; `OpticalSwitch` (2×2, bar below the threshold voltage on `ctrl`, cross above: a pattern routes pulse by pulse) |
+| Modulators | `PhaseModulator` (φ = π·V/Vπ), `IntensityModulator` (Mach–Zehnder, extinction) — voltage comes only through their `rf` and `bias` inputs; `IQModulator` (dual-parallel MZM: `rf_i`, `rf_q` and three DC biases, `bias_i`, `bias_q`, `bias_p`); `OpticalSwitch` (2×2, bar below the threshold voltage on `ctrl`, cross above: a pattern routes pulse by pulse) |
 | Detectors | `Photodiode`, `BalancedPhotodetector` (two FC inputs whose photocurrents subtract before a switchable-gain amplifier: RF OUTPUT, and a MONITOR output per diode), `SinglePhotonDetector`, `PowerMeter` |
 | Instruments | `Oscilloscope`, `SpectrumAnalyzer` (RF spectrum in dBm: RBW, averaging, detectors, trace average and max hold, Lorentzian and short-delay linewidth fits), `PhotonCounter` (time tagger: per-channel input delays, sub-bins for pulses shorter than a bin), `FunctionGenerator` (2 outputs: dc / sine / square / triangle / ramp / loaded pattern), `DCPowerSupply` (2 outputs, ±30 V) |
 
@@ -170,6 +170,7 @@ Shipped presets, each citing the datasheet document and revision it was read fro
 | Preset | Part | Class | Sets |
 | --- | --- | --- | --- |
 | `exail/mx-ln-0.1`, `-05`, `-10`, `-20`, `-40` | Exail MX-LN series LiNbO₃ intensity modulators, 400 MHz – 40 GHz | `IntensityModulator` | Vπ of the RF and of the DC electrodes, insertion loss, extinction ratio; maximum optical, RF and bias inputs |
+| `exail/mxiq-ln-10`, `mxiq-ln-30` | Exail MXIQ-LN-10 and -30 LiNbO₃ IQ modulators, 12 and 25 GHz | `IQModulator` | Vπ of the RF electrodes, of DC1/DC2 and of DC3, insertion loss; maximum optical, RF and bias inputs |
 | `mpd/pdm-ir` | MPD PDM-IR InGaAs/InP SPAD module | `SinglePhotonDetector` | PDE at 1550 nm with the PDE-vs-wavelength curve, dark-count rate, hold-off |
 | `excelitas/spcm-aqrh-10-fc` … `-16-fc` | Excelitas SPCM-AQRH Si SPAD modules with FC adaptor, one per dark-count grade (< 1500 … < 25 c/s) | `SinglePhotonDetector` | PDE at 650 nm with the 400–1060 nm curve, dark counts, 22 ns dead time; maximum 10⁴ photons per pulse |
 | `thorlabs/det08cfc` | Thorlabs DET08CFC 5 GHz InGaAs detector | `Photodiode` | bandwidth, responsivity at 1550 nm with the spectral curve, load, saturation from the 2 V output limit |
@@ -180,7 +181,7 @@ Shipped presets, each citing the datasheet document and revision it was read fro
 
 Every preset also sets the part's connector from its datasheet: FC/PC for the Thorlabs, MPD and
 Excelitas detectors (the balanced detectors' receptacles also take FC/APC, but phoq mates connectors
-as fiber to fiber), FC/APC for the Exail modulators (their FA ordering option; the default is
+as fiber to fiber), FC/APC for the Exail modulators, intensity and IQ (their FA ordering option; the default is
 bare fiber).
 
 **Writing one.** A preset is a TOML file whose id is `vendor/part` (the vendor slug and the file
@@ -302,7 +303,11 @@ LiNbO₃ devices have separate RF and DC electrodes with different Vπ: set `v_p
 datasheet's DC-electrode value and the supply on `bias` is referred to the RF electrode, so
 quadrature is at Vπ_bias/2 on the supply, as on the bench.
 `im.voltage_for(T)` and `pm.voltage_for(phase)` convert a wanted transmission or phase into the
-rf voltage needed on top of whatever bias is connected, so protocol code works in optical terms. `set_pattern` sets the channel's amplitude
+rf voltage needed on top of whatever bias is connected, so protocol code works in optical terms.
+An `IQModulator` has an input per electrode: `rf_i` and `rf_q` for the two generator channels, and
+`bias_i`, `bias_q` and `bias_p` for three supply outputs. `iqm.operating_bias()` gives the
+supply voltages, and `iqm.voltage_for(symbols)` gives both channels' patterns (see
+[IQ modulator](#iq-modulator)). `set_pattern` sets the channel's amplitude
 and offset from the pattern's extremes, and `chN_freq` is the symbol rate. The generator's time
 base (`trigger`) is *aligned* by default: symbol k reaches the modulator together with pulse k of
 the laser feeding it, as a calibrated AWG would. Use *laser* to set `chN_delay` yourself, or
@@ -555,6 +560,140 @@ $\langle T\rangle$ over one period of the drive (or over all symbols of a patter
 taken as DC; `IntensityModulator.info()` shows it. Paths through a time-varying modulator are
 treated as mutually incoherent in that report, which is only an approximation of the full
 time-domain synthesis used for the oscilloscope.
+
+### IQ modulator
+
+`IQModulator` is a dual-parallel Mach–Zehnder: the light splits into an in-phase (I) arm and a
+quadrature (Q) arm. Each arm is a push–pull MZM like the intensity modulator above. The arms
+recombine after a relative phase set on a third DC electrode (Seimetz 2009, §2.1.2, Fig. 2.3) [1].
+It has two RF inputs, `rf_i` and `rf_q`, which are RF1 and RF2 on the Exail MXIQ-LN [2]. It has
+three bias inputs, `bias_i`, `bias_q` and `bias_p`, which are DC1, DC2 and DC3. In this section
+$j$ is the imaginary unit, as in Seimetz, because $i$ is the in-phase coordinate.
+
+**Field.** Each MZM is the intensity modulator above, written for its field rather than its power.
+The field keeps its sign, and an MZM at its null flips that sign as the drive crosses it
+(Seimetz Fig. 2.2b):
+
+```math
+e(\varphi) = \sqrt{\tfrac{1+k}{2}}\,\cos\tfrac{\varphi}{2} + j\sqrt{\tfrac{1-k}{2}}\,\sin\tfrac{\varphi}{2},
+\qquad |e|^2 = \tfrac12\left[1 + k\cos\varphi\right] = T,
+```
+
+where $`\varphi_I = \pi V_{\mathrm{rf},I}/V_\pi + \pi V_\mathrm{DC1}/V_{\pi,\mathrm{DC}} + \varphi_{0,I}`$, and
+likewise for Q. The outer interferometer adds the two arms (Seimetz Eq. 2.11):
+
+```math
+\frac{E_\mathrm{out}}{E_\mathrm{in}} = \sqrt{10^{-L/10}}\;\tfrac12\left[e(\varphi_I) + e^{j\varphi_P}\,e(\varphi_Q)\right],
+\qquad \varphi_P = \frac{\pi V_\mathrm{DC3}}{V_{\pi,\mathrm{DC3}}} + \varphi_{0,P}.
+```
+
+**Operating point.** `operating_bias()` puts both MZMs at their null
+($`V_\mathrm{DC1} = V_\mathrm{DC2} = -V_{\pi,\mathrm{DC}}`$) and the arms in quadrature
+($`V_\mathrm{DC3} = V_{\pi,\mathrm{DC3}}/2`$). There the field is Seimetz Eq. (2.16):
+
+```math
+\frac{E_\mathrm{out}}{E_\mathrm{in}} = \tfrac12\cos\frac{\Delta\varphi_I}{2} + j\,\tfrac12\cos\frac{\Delta\varphi_Q}{2},
+\qquad \Delta\varphi_{I,Q} = \frac{\pi u_{I,Q}}{V_\pi},
+```
+
+with $u$ the RF drive on top of the $-V_\pi$ bias. Each arm sweeps the field along its own axis, so
+together they reach every point of the square. `voltage_for(i, q)` returns the drive of the
+conventional IQ transmitter (Eqs. 2.46–2.47):
+
+```math
+u_I = \frac{2V_\pi}{\pi}\arcsin i, \qquad u_Q = \frac{2V_\pi}{\pi}\arcsin q,
+```
+
+which puts the field exactly at $`\tfrac12(i + jq)`$ for $i, q \in [-1, 1]$. The arcsin undoes the
+MZMs' cosine, so the 16-QAM levels ±1/3 and ±1 come out equidistant. A linear drive with the same
+±Vπ swing puts the inner level at $\sin(\pi/6) = \tfrac12$ instead of ⅓, and the outer-to-inner
+ratio drops from 3 to 2.
+
+Seimetz sets his phase electrode to $-V_\pi/2$. phoq's phases have the opposite sign, so quadrature
+is at $+V_{\pi,\mathrm{DC3}}/2$. At the other null, $+V_\pi$, that axis comes out mirrored.
+
+**Extinction and drift.** The MZMs' finite extinction leaves a carrier at the operating point of
+$`|E|^2 = (1-k)/4 = 1/[2(\mathrm{ER}+1)]`$ of full transmission. For 30 dB MZMs that is 33 dB below
+full. It also adds a quadrature term $`-j\sqrt{(1-k)/2}\,\sqrt{1-i^2}`$ that moves only the inner
+levels; at 30 dB it adds about 2 % EVM to 16-QAM. The $\varphi_0$ are path imbalances that move
+every bias point. A bias controller such as Exail's MBC-IQ would track them; phoq holds them fixed.
+
+**Demo.** `examples/iq_modulator.py` sends 16-QAM through a 20 dB channel into a homodyne receiver:
+
+```
+                  FG-1 CH1, CH2: I and Q levels      PSU-1: DC1, DC2   PSU-2: DC3
+                             │                               │
+laser ─ TAP ─┬─ IQM (MXIQ-LN-30) ─ VOA (channel) ─ HYB-S ─┬──────────────── MIX-I ═ BPD-I → CH1
+             │                                             └──────────────── MIX-Q ═ BPD-Q → CH2
+             └─ 2 m ──────────────────────────────── HYB-L ─┬─ PS-I ───────── MIX-I
+                                                            └─ PS-Q ───────── MIX-Q
+```
+
+The receiver is a 90° hybrid built from four 50:50 couplers and a phase shifter in each LO branch.
+Both branches therefore lose the same; with unequal LO powers, the two quadratures would read the
+square as a rectangle seen at an angle, which looks like a bias error. Each balanced detector reads
+one quadrature of $`E_S E_\mathrm{LO}^*`$. The shifters are set as a homodyne receiver's phase lock
+would set them, so those quadratures are the I and Q axes. The LO is the same laser, and every path
+is 4 m of cord, so the laser's phase noise cancels.
+
+The DSP finds the frame from the known symbols and fits $`\mathrm{CH1} + j\,\mathrm{CH2} = a\,i + b\,q + c`$:
+
+- the angle between $a$ and $b$ is the I/Q angle;
+- $|b/a|$ is the Q/I gain;
+- $c$ is the carrier left on the light.
+
+In brackets, the model gives the same fit applied to `IQModulator.field()` of every symbol:
+
+```
+python examples/iq_modulator.py
+
+  case                                   EVM        I/Q angle       Q/I gain            carrier  outer/inner
+  operating point             5.5 % ( 5.5 %)    90.0° ( 90.0°)  1.002 (1.000)  -34.9 dB (-34.3 dB)  3.01 (3.00)
+  DC3 10° off quadrature     10.3 % (10.3 %)    99.9° (100.0°)  1.002 (1.000)  -35.7 dB (-35.1 dB)  3.04 (3.03)
+  DC1 0.5 V off the null      8.1 % ( 8.0 %)    89.8° ( 89.7°)  1.012 (1.010)  -23.1 dB (-23.0 dB)  2.37 (2.36)
+  linear drive, no arcsin    14.9 % (15.0 %)    90.2° ( 90.1°)  1.003 (1.002)  -35.2 dB (-34.9 dB)  2.01 (2.00)
+
+  receiver noise alone: 5.1 % EVM.
+```
+
+Each bias error moves its own number:
+
+- **DC3:** the I/Q angle.
+- **DC1:** the carrier, and the inner I levels shift sideways.
+- **A linear drive:** the outer-to-inner ratio.
+
+That tells you which knob to turn before the EVM alone could. `--plot` saves the four
+constellations. In `phoq serve examples/iq_modulator.py`, the scope shows the four I and Q levels at 200 ns/div,
+and IQM-1's inspector shows the bias point in degrees and the carrier it leaves.
+
+**Validation.** `tests/test_iq_modulator.py`:
+
+| Check | Theory | phoq |
+| --- | --- | --- |
+| Field at the operating point over a 21 × 21 grid of drives | Seimetz Eqs. 2.16–2.18 | to 2·10⁻⁴ (80 dB MZMs) |
+| 16-QAM and 64-QAM with the arcsin drive | ½(i + jq), Eqs. 2.46–2.47 | to 2·10⁻⁴ |
+| One MZM: the arms in phase and driven alike | the intensity modulator's T(V) | to 10⁻¹² |
+| Carrier at the operating point, MZMs of 20, 30 and 40 dB | (1 − k)/4 | exact |
+| DC3 alone, both MZMs open | cos²(φ_P/2) | to 10⁻⁹, in the steady-state report |
+| 16-QAM mean power: report against synthesized fields | 5/18 of the input | to 1 % |
+| Through the receiver against the model, four cases | the fit on `field()` | angle 0.5°, gain 0.02, carrier 1.5 dB, outer/inner 0.06, EVM 8 % |
+
+Not modelled:
+
+- The RF bandwidth (25 GHz for the MXIQ-LN-30): drives act instantly, so keep the symbol rate well
+  below it.
+- Bias drift and bias control.
+- The internal monitor photodiodes (option PD).
+- Crosstalk between RF1 and RF2.
+- Any imbalance of the outer splitter and combiner, which are taken as 50:50.
+- Vπ against wavelength.
+- Polarization: the device has PM fibers.
+
+[1] M. Seimetz, *High-Order Modulation for Optical Fiber Transmission*, Springer Series in Optical
+Sciences 143 (Springer, 2009), ch. 2 "Transmitter Design",
+[doi:10.1007/978-3-540-93771-5_2](https://doi.org/10.1007/978-3-540-93771-5_2).
+[2] Exail, *MXIQ-LN series: 1550 nm wide bandwidth IQ modulator*, datasheet ED8 (04/2026); presets
+`exail/mxiq-ln-10` and `exail/mxiq-ln-30`.
 
 ### Optical delay line
 
@@ -1086,7 +1225,7 @@ backscattering in the spool (§5 notes double Rayleigh scattering distorts the l
 
 ### Checked against the literature
 
-The models above were compared with eight references (October 2026):
+The models above were compared with nine references (October 2026):
 
 - *S. J. van Enk, "Coherent states, beam splitters and photons".* §8 and §12–14: a laser mode is
   a coherent state with Poissonian photon number $P(n) = e^{-|\alpha|^2}|\alpha|^{2n}/n!$ and mean
@@ -1170,6 +1309,13 @@ The models above were compared with eight references (October 2026):
   `BalancedPhotodetector` reproduces each of them, mostly to better than 0.1 dB or 1 %; the table is
   in [Balanced photodetector](#balanced-photodetector), and the checks are in
   `tests/test_balanced.py`.
+- *M. Seimetz, "High-Order Modulation for Optical Fiber Transmission" (Springer, 2009), ch. 2.*
+  Eqs. (2.11)–(2.14): the MZM's field and power transfer, which phoq's MZMs follow with a finite
+  extinction added. Eqs. (2.15)–(2.18): the IQ modulator at its operating point, reproduced to
+  2·10⁻⁴. Eqs. (2.46)–(2.47): the arcsin drive of the conventional IQ transmitter, which places
+  16-QAM and 64-QAM at ½(i + jq). Figs. 2.27–2.28: undershoots and chirp at the symbol
+  transitions, which need the RF bandwidth phoq does not model. See
+  [IQ modulator](#iq-modulator) and `tests/test_iq_modulator.py`.
 
 ## Quantum protocols
 

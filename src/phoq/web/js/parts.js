@@ -436,6 +436,23 @@ const BUILDERS = {
 
   PhaseModulator(p) { buildModulator(p); },
   IntensityModulator(p) { buildModulator(p); },
+  /** Dual-parallel MZM laid out like the Exail MXIQ-LN package: fibers at the ends, RF1 (I) and
+   *  RF2 (Q) SMA jacks on opposite long sides, the DC1/DC2/DC3 bias pins along the front. */
+  IQModulator(p) {
+    p.basePlate(20, 9);
+    p.box(17.4, 2.4, 5.2, MAT.brass, 0, 1.8, 0);
+    p.box(0.4, 2.2, 5.0, MAT.black, -8.9, 1.8, 0);
+    p.box(0.4, 2.2, 5.0, MAT.black, 8.9, 1.8, 0);
+    p.addPort('p1', -9.1, 1.8, 0, -1, 0);
+    p.addPort('p2', 9.1, 1.8, 0, 1, 0);
+    p.addJack('rf_i', -2.8, 1.8, 2.6, 0, 1, MAT.gold);
+    p.addJack('rf_q', -2.8, 1.8, -2.6, 0, -1, MAT.gold);
+    p.addJack('bias_i', 2.6, 1.8, 2.6, 0, 1, MAT.steel);
+    p.addJack('bias_q', 4.6, 1.8, 2.6, 0, 1, MAT.steel);
+    p.addJack('bias_p', 6.6, 1.8, 2.6, 0, 1, MAT.steel);
+    p.labelPlane(10.4, 3.8, 1.2, 3.01, 0, true);
+    p._height = 4.5;
+  },
 
   FiberSpool(p) {
     p.basePlate(22.5, 22.5);
@@ -705,6 +722,7 @@ const LABELS = {
   MatingSleeve: () => ({ lines: ['FC–FC'], accent: '#94a3b8' }),
   PhaseModulator: (c) => ({ lines: [`Vπ ${c.params.v_pi} V · ${driveText(c, 'rf')}`, driveText(c, 'bias')], accent: '#f472b6' }),
   IntensityModulator: (c) => ({ lines: [`Vπ ${c.params.v_pi} V · ${driveText(c, 'rf')}`, driveText(c, 'bias')], accent: '#fbbf24' }),
+  IQModulator: (c) => ({ lines: [`IQ · Vπ ${c.params.v_pi} V`, `${driveText(c, 'rf_i')} · ${driveText(c, 'rf_q')}`], accent: '#a78bfa' }),
   OpticalSwitch: (c) => ({ lines: ['2×2 switch · a1 a2 ⇄ b1 b2', `ctrl ${driveText(c, 'ctrl').replace('ctrl ', '')}`], accent: '#38bdf8' }),
   FunctionGenerator: () => ({ lines: ['2-ch AWG'], accent: '#a78bfa' }),
   DCPowerSupply: () => ({ lines: ['2 outputs'], accent: '#f87171' }),

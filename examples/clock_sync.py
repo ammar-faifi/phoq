@@ -260,7 +260,7 @@ if __name__ == "__main__":
           f"{fmt_si(GHZ['resolution'], 's')} tagger bins")
     print(f"   {'link':>8} {'record':>7} {'dead time':>9} {'clicks':>6} {'spacing':>8} {'clock error':>11} "
           f"{'frame check (σ; coprime best)':>30} {'delay error':>11} {'assigned':>8}")
-    for km, rec, dead in ((0.0, 2e-4, 1e-6), (0.0, 2e-3, 1e-6), (0.0, 2e-4, 50e-9), (25.0, 2e-4, 50e-9)):
+    for km, rec, dead in ((0.0, 2e-3, 10e-6), (0.0, 2e-3, 1e-6), (0.0, 2e-4, 50e-9), (25.0, 2e-4, 50e-9)):
         r = report(km, record=rec, dead_time=dead, **GHZ)
         s, fr = r["sync"], r["sync"]["frame"]
         check = f"{fr['L']} {'ok' if fr['L'] == L else 'wrong'} ({fr['significance']:.0f} σ; {fr['noise']:.1f} σ)"
