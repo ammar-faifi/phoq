@@ -10,7 +10,7 @@ import numpy as np
 from scipy.signal import lfilter, resample_poly
 
 from .core import Component, Param
-from .detectors import Photodiode, SinglePhotonDetector
+from .detectors import BalancedPhotodetector, Photodiode, SinglePhotonDetector
 from .engine import Network, driving_generators, synthesize
 from .generators import DCPowerSupply, FunctionGenerator
 from .sources import Laser
@@ -331,6 +331,7 @@ class Oscilloscope(Component):
                     src,
                     (
                         Photodiode,
+                        BalancedPhotodetector,
                         SinglePhotonDetector,
                         FunctionGenerator,
                         DCPowerSupply,
@@ -344,7 +345,7 @@ class Oscilloscope(Component):
         return [
             src
             for src, _ in inputs.values()
-            if isinstance(src, (Photodiode, SinglePhotonDetector))
+            if isinstance(src, (Photodiode, BalancedPhotodetector, SinglePhotonDetector))
         ]
 
     def record(self) -> tuple[float, int, float]:
@@ -391,16 +392,20 @@ class Oscilloscope(Component):
         else:
             t_trig = t0 = rng.uniform(0, 1e-3) + self.h_position
             triggered = False
-        settle = [d.settle_time for d in dets if isinstance(d, Photodiode)] + [
+        settle = [d.settle_time for d in dets if isinstance(d, (Photodiode, BalancedPhotodetector))] + [
             6 / (2 * math.pi * self.bandwidth)
         ]
         warm = min(4000, math.ceil(max(settle) / dts))
         t_sim = t0 + np.arange(-warm, total * k) * dts
         fields = synthesize(net, set(dets), t_sim, dts, rng)
         driving = driving_generators(net, dets)
-        signals = {}
+        signals, balanced = {}, {}
         for ch, (d, port) in inputs.items():
-            if isinstance(d, Photodiode):
+            if isinstance(d, BalancedPhotodetector):  # its outputs share one noise realisation
+                if d not in balanced:
+                    balanced[d] = d.detect(fields[d], dts, rng, t_sim.size)
+                raw = balanced[d][port]  # the scope's input is high-impedance
+            elif isinstance(d, Photodiode):
                 raw = d.detect(fields[d], dts, rng, t_sim.size)
             elif isinstance(d, SinglePhotonDetector):
                 raw = d.waveform(d.detect(fields[d], dts, rng, t_sim.size), dts)
@@ -430,7 +435,7 @@ class Oscilloscope(Component):
             data = signals[ch][start : start + n] if ch in signals else None
             channels[ch] = Trace(
                 ch,
-                d.name if d else None,
+                (f"{d.name}.{inputs[ch][1]}" if isinstance(d, BalancedPhotodetector) else d.name) if d else None,
                 d.signal_unit if d else "",
                 data,
                 getattr(self, f"ch{i}_scale"),
@@ -801,16 +806,25 @@ class SpectrumResult:
         gamma0 = max(float(f[k + below[0]] - f0_guess) if below.size else f[-1] / 2, self.rbw)
 
         # Fitted in log10 of S₀, γ and S_floor: well conditioned (they span ~17 decades) and positive.
+        # Bounded to the trace (levels within 3 decades of it, γ from a tenth of a bin to ten spans),
+        # so a trace that is no Lorentzian cannot drive them past 10³⁰⁸.
         def model(fq, a, b, c, f0):
             return 10 * np.log10(10**a / (1 + ((fq - f0) / 10**b) ** 2) + 10**c)
 
+        low, high = math.log10(lin.min()) - 3, math.log10(lin.max()) + 3
+        lower = [low, math.log10(np.diff(f).min() / 10), low]
+        upper = [high, math.log10(10 * f[-1]), high]
         p0 = [math.log10(lin[k]), math.log10(gamma0), math.log10(max(floor0, lin[k] * 1e-12))]
+        p0 = list(np.clip(p0, lower, upper))
         with warnings.catch_warnings():  # a non-Lorentzian trace still gets its best fit
             warnings.simplefilter("ignore", OptimizeWarning)
             if center is None:
-                p, _ = curve_fit(model, f, y, p0=p0 + [f0_guess], maxfev=20000)
+                span = f[-1] - f[0]
+                p, _ = curve_fit(model, f, y, p0=p0 + [f0_guess], max_nfev=20000,
+                                 bounds=(lower + [f[0] - span], upper + [f[-1] + span]))
             else:
-                p, _ = curve_fit(lambda fq, a, b, c: model(fq, a, b, c, center), f, y, p0=p0, maxfev=20000)
+                p, _ = curve_fit(lambda fq, a, b, c: model(fq, a, b, c, center), f, y, p0=p0,
+                                 max_nfev=20000, bounds=(lower, upper))
                 p = (*p, center)
         return {"hwhm": 10 ** float(p[1]), "center": float(p[3]), "peak_psd": 10 ** float(p[0]), "floor_psd": 10 ** float(p[2])}
 
@@ -951,7 +965,9 @@ class SpectrumResult:
         }
         if lo <= self.start + 1e-3 * (self.stop - self.start) and hi < self.stop:
             try:  # a line folded at DC (self-homodyne): its Lorentzian half width is the linewidth
-                meas["fit_hwhm"] = self.fit_lorentzian(0.0)["hwhm"]
+                hwhm = self.fit_lorentzian(0.0)["hwhm"]
+                if self.rbw <= hwhm <= self.stop:  # narrower is unresolved, wider is no line in this span
+                    meas["fit_hwhm"] = hwhm
             except (RuntimeError, ValueError):
                 pass
         return {
@@ -1057,7 +1073,7 @@ class SpectrumAnalyzer(Component):
     def _input(self):
         peer = self.ports["inp"].peer
         src = peer.component if peer is not None else None
-        ok = (Photodiode, SinglePhotonDetector, FunctionGenerator, DCPowerSupply)
+        ok = (Photodiode, BalancedPhotodetector, SinglePhotonDetector, FunctionGenerator, DCPowerSupply)
         return (src, peer.name) if isinstance(src, ok) else None
 
     def record(self) -> tuple[float, int, int, float]:
@@ -1089,12 +1105,15 @@ class SpectrumAnalyzer(Component):
         d, port = src
         pad = 64  # FIR transient at both ends of the decimated record
         dts = 1.0 / (fs * DECIMATE)
-        settle = d.settle_time if isinstance(d, Photodiode) else 0.0
+        settle = d.settle_time if isinstance(d, (Photodiode, BalancedPhotodetector)) else 0.0
         warm = min(50_000, math.ceil(settle / dts))
         t = rng.uniform(0, 1e-3) + np.arange(-warm, (total + 2 * pad) * DECIMATE) * dts
-        if isinstance(d, (Photodiode, SinglePhotonDetector)):
+        if isinstance(d, (Photodiode, BalancedPhotodetector, SinglePhotonDetector)):
             fields = synthesize(net, {d}, t, dts, rng)
-            if isinstance(d, Photodiode):
+            if isinstance(d, BalancedPhotodetector):  # a voltage source behind its output impedance
+                r = self.input_impedance
+                x = d.detect(fields[d], dts, rng, t.size)[port] * r / (r + d.output_impedance(port))
+            elif isinstance(d, Photodiode):
                 x = d.detect(fields[d], dts, rng, t.size) * self.input_impedance  # current → volts
             else:
                 x = d.waveform(d.detect(fields[d], dts, rng, t.size), dts)

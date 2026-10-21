@@ -36,19 +36,9 @@ def _curve_info(curve, label: str) -> dict[str, str]:
     return {label: f"{lo * 1e9:.0f}–{hi * 1e9:.0f} nm · {curve.provenance.kind.replace('-', ' ')}"}
 
 
-class Photodiode(_Detector):
-    """Fiber-coupled PIN photodiode; its ``rf`` output carries the photocurrent [A].
-
-    I(t) = Σ R(λ)·P_λ(t) + I_dark plus white shot noise (density 2qI) and thermal noise (4kT/R_load),
-    all low-pass filtered by ``bandwidth`` (one pole): the noise then has the density 2qI·|H(f)|² and
-    the variance 2qI·B with B = (π/2)·f₃dB. A soft knee above ``saturation``.
-    """
-
-    prefix = "PD"
-    label = "Photodiode"
-    description = "InGaAs / Si / Ge / GaAs PIN, BNC output"
-    outputs = ("rf",)
-    signal_unit = "A"
+class _Responsive:
+    """Mixin for detectors built on PIN photodiodes: the material's typical responsivity curve, or a
+    preset's datasheet curve, scaled to a datasheet responsivity at a reference wavelength."""
 
     spectral_curves = {"responsivity": "A/W"}
 
@@ -74,6 +64,44 @@ class Photodiode(_Detector):
         display=("nm", 1e9),
         doc="Wavelength at which the responsivity is quoted",
     )
+
+    def _shape(self, wavelength: float) -> float:
+        """Responsivity curve before scaling: the preset's datasheet curve, else the material's."""
+        c = self.curve("responsivity")
+        return c(wavelength) if c is not None else responsivity(self.material, wavelength)
+
+    def _scale(self) -> float:
+        if self.ref_responsivity <= 0:
+            return 1.0
+        c = self.curve("responsivity")
+        ref = self._shape(self.ref_wavelength) or (
+            c.peak if c is not None else peak_responsivity(self.material)
+        )  # λ_ref outside the curve: anchor at its peak
+        return self.ref_responsivity / ref
+
+    def responsivity(self, wavelength: float) -> float:
+        return self._shape(wavelength) * self._scale()
+
+    def peak_responsivity(self) -> float:
+        """The scaled curve's maximum [A/W]: where datasheets quote conversion gain and NEP."""
+        c = self.curve("responsivity")
+        return (c.peak if c is not None else peak_responsivity(self.material)) * self._scale()
+
+
+class Photodiode(_Responsive, _Detector):
+    """Fiber-coupled PIN photodiode; its ``rf`` output carries the photocurrent [A].
+
+    I(t) = Σ R(λ)·P_λ(t) + I_dark plus white shot noise (density 2qI) and thermal noise (4kT/R_load),
+    all low-pass filtered by ``bandwidth`` (one pole): the noise then has the density 2qI·|H(f)|² and
+    the variance 2qI·B with B = (π/2)·f₃dB. A soft knee above ``saturation``.
+    """
+
+    prefix = "PD"
+    label = "Photodiode"
+    description = "InGaAs / Si / Ge / GaAs PIN, BNC output"
+    outputs = ("rf",)
+    signal_unit = "A"
+
     bandwidth = Param(
         1e9,
         unit="Hz",
@@ -105,21 +133,6 @@ class Photodiode(_Detector):
     def settle_time(self) -> float:
         return 6.0 / (2 * math.pi * self.bandwidth)
 
-    def _shape(self, wavelength: float) -> float:
-        """Responsivity curve before scaling: the preset's datasheet curve, else the material's."""
-        c = self.curve("responsivity")
-        return c(wavelength) if c is not None else responsivity(self.material, wavelength)
-
-    def responsivity(self, wavelength: float) -> float:
-        r = self._shape(wavelength)
-        if self.ref_responsivity > 0:
-            c = self.curve("responsivity")
-            ref = self._shape(self.ref_wavelength) or (
-                c.peak if c is not None else peak_responsivity(self.material)
-            )  # λ_ref outside the curve: anchor at its peak
-            r *= self.ref_responsivity / ref
-        return r
-
     def mean_current(self, powers: dict[float, float]) -> float:
         return self.dark_current + sum(
             self.responsivity(wl) * p for wl, p in powers.items()
@@ -148,6 +161,179 @@ class Photodiode(_Detector):
             )
         pos = out > 0
         out[pos] = out[pos] / (1 + (out[pos] / self.saturation) ** 4) ** 0.25
+        return out
+
+
+def _one_pole(x: np.ndarray, bandwidth: float, dt: float, start: float) -> np.ndarray:
+    """First-order low-pass, exact for samples of width ``dt``, settled at ``start``."""
+    alpha = -math.expm1(-dt * 2 * math.pi * bandwidth)
+    y, _ = lfilter([alpha], [1.0, alpha - 1.0], x, zi=[(1 - alpha) * start])
+    return y
+
+
+def _soft_clip(v: np.ndarray, swing: float) -> np.ndarray:
+    """An amplifier output running into its rails at ±``swing``: linear to 0.03 % of its gain up to
+    60 % of the swing, 3 % compressed at 80 %, flat beyond (a 16th-power knee; the photodiode's own
+    4th-power one would already take 7 % off the gain at half the swing)."""
+    return v / (1 + np.minimum(np.abs(v) / swing, 1e6) ** 16) ** (1 / 16)
+
+
+# Generic switch positions (assumed): gain [V/A] : −3 dB bandwidth [Hz] : NEP [W/√Hz] : RF swing [V]
+GENERIC_GAINS = "1e3:100e6:50e-12:4, 1e4:30e6:10e-12:4, 1e5:3e6:2e-12:4, 1e6:300e3:1e-12:4, 1e7:30e3:1e-12:4"
+
+
+class BalancedPhotodetector(_Responsive, _Detector):
+    """Balanced amplified photodetector: two matched PIN photodiodes and a transimpedance amplifier.
+
+    The diodes behind ``inp_plus`` (INPUT+) and ``inp_minus`` (INPUT−) are wired so that their
+    photocurrents subtract, and the TIA turns the difference into the ``rf`` voltage,
+    U = G·(i₊ − i₋) = G·ℜ(λ)·(P₊ − P₋) into a high-impedance load (half that into 50 Ω, the output
+    impedance): light common to both inputs, and with it the laser's intensity noise, cancels. The
+    two diodes' responsivities differ by 10^(−CMRR/20), which sets how much survives. ``mon_plus`` and
+    ``mon_minus`` give each diode's current alone, slower (MONITOR±).
+
+    ``gain`` picks a switch position from ``gain_settings``, each with its own bandwidth, noise
+    (NEP at peak responsivity) and output swing; a fixed-gain detector has a single position.
+    Noise: each diode's shot noise (density 2qi) and the amplifier's input noise (NEP·ℜ_peak)²,
+    white, then through the TIA's pole with the signal.
+    """
+
+    prefix = "BPD"
+    label = "Balanced photodetector"
+    description = "Two matched photodiodes, TIA RF output = G·(i₊ − i₋), two monitor outputs"
+    inputs = ("inp_plus", "inp_minus")
+    outputs = ("rf",)
+    signal_unit = "V"
+
+    gain = Param(
+        1e4,
+        unit="V/A",
+        label="Transimpedance gain",
+        min=1.0,
+        max=1e9,
+        presets=(1e3, 1e4, 1e5, 1e6, 1e7),
+        log=True,
+        doc="RF OUTPUT volts per ampere of i₊ − i₋ into a high-impedance load (half into 50 Ω): one of "
+        "the gain settings",
+    )
+    gain_settings = Param(
+        GENERIC_GAINS,
+        label="Gain settings",
+        doc="The gain switch's positions, comma separated, each gain [V/A] : −3 dB bandwidth [Hz] : "
+        "NEP [W/√Hz, at peak responsivity] : RF swing [V, high-impedance load]",
+    )
+    cmrr_db = Param(
+        30.0, unit="dB", label="CMRR", min=0.0, max=120.0,
+        doc="Common-mode rejection: the INPUT− diode's responsivity is 1 − 10^(−CMRR/20) of INPUT+'s",
+    )
+    rf_impedance = Param(50.0, unit="Ω", label="RF output impedance", min=0.0, max=1e4)
+    monitor_gain = Param(
+        10e3, unit="V/A", label="Monitor gain", min=0.0, max=1e9,
+        doc="Each MONITOR output's volts per ampere of its own diode's current (high-impedance load)",
+    )
+    monitor_bandwidth = Param(1e6, unit="Hz", label="Monitor bandwidth (−3 dB)", min=1.0, max=10e9, log=True)
+    monitor_swing = Param(10.0, unit="V", label="Monitor swing", min=0.0, max=100.0)
+    monitor_impedance = Param(220.0, unit="Ω", label="Monitor output impedance", min=0.0, max=1e4)
+    monitor_noise = Param(180e-6, unit="V", label="Monitor noise (RMS)", min=0.0, max=1.0)
+
+    def _build(self):
+        self.add_port("inp_plus", "optical", "in", "INPUT+")
+        self.add_port("inp_minus", "optical", "in", "INPUT−")
+        self.add_port("rf", "electrical", "out", "RF OUTPUT")
+        self.add_port("mon_plus", "electrical", "out", "MONITOR+")
+        self.add_port("mon_minus", "electrical", "out", "MONITOR−")
+
+    def ui_fields(self):
+        return ["material", "ref_responsivity", "ref_wavelength", "gain", "cmrr_db"]
+
+    # ---- the gain switch ----------------------------------------------------------------------------
+    def settings(self) -> dict[float, tuple[float, float, float]]:
+        """Every switch position: gain → (bandwidth, NEP, RF swing)."""
+        out = {}
+        for item in self.gain_settings.split(","):
+            if item.strip():
+                try:
+                    g, bw, nep, swing = (float(x) for x in item.split(":"))
+                except ValueError:
+                    raise ValueError(f"{self.name}: gain setting {item.strip()!r} is not gain:bandwidth:NEP:swing") from None
+                out[g] = (bw, nep, swing)
+        return out
+
+    def setting(self) -> tuple[float, float, float]:
+        """(bandwidth, NEP, RF swing) at the selected gain."""
+        table = self.settings()
+        for g, v in table.items():
+            if math.isclose(g, self.gain, rel_tol=1e-6):
+                return v
+        offered = ", ".join(fmt_si(g, "V/A") for g in table)
+        raise ValueError(f"{self.name} has no {fmt_si(self.gain, 'V/A')} gain setting (it offers {offered})")
+
+    @property
+    def bandwidth(self) -> float:
+        return self.setting()[0]
+
+    @property
+    def settle_time(self) -> float:
+        return 6.0 / (2 * math.pi * min(self.bandwidth, self.monitor_bandwidth))
+
+    def output_impedance(self, port: str) -> float:
+        return self.rf_impedance if port == "rf" else self.monitor_impedance
+
+    # ---- physics ------------------------------------------------------------------------------------
+    def responsivities(self, wavelength: float) -> tuple[float, float]:
+        """(INPUT+, INPUT−) diode responsivities: the − diode short by 10^(−CMRR/20)."""
+        r = self.responsivity(wavelength)
+        return r, r * (1 - 10 ** (-self.cmrr_db / 20))
+
+    def mean_currents(self, plus: dict[float, float], minus: dict[float, float]) -> tuple[float, float]:
+        """Mean photocurrents from the optical powers per wavelength at each input."""
+        return (sum(self.responsivities(wl)[0] * p for wl, p in plus.items()),
+                sum(self.responsivities(wl)[1] * p for wl, p in minus.items()))
+
+    def cw_saturation_power(self, wavelength: float | None = None) -> float:
+        """Optical power on one input (or difference of the two) that drives RF OUTPUT to its swing."""
+        _, _, swing = self.setting()
+        r = self.peak_responsivity() if wavelength is None else self.responsivity(wavelength)
+        return swing / (self.gain * r) if r > 0 else math.inf
+
+    def detect(self, fields: dict, dt: float, rng: np.random.Generator, n: int) -> dict[str, np.ndarray]:
+        """Open-circuit voltages of RF OUTPUT and the two MONITOR outputs; ``fields`` is keyed by
+        (input port, wavelength). The three share one noise realisation, as on the real unit."""
+        i = {"inp_plus": np.zeros(n), "inp_minus": np.zeros(n)}
+        for (port, wl), E in fields.items():
+            rp, rm = self.responsivities(wl)
+            i[port] = i[port] + (rp if port == "inp_plus" else rm) * np.abs(E) ** 2
+        noisy = {
+            port: cur + np.sqrt(2 * Q_E * np.clip(cur, 0, None) / (2 * dt)) * rng.standard_normal(n)
+            for port, cur in i.items()
+        }  # each diode's shot noise, white (density 2qi) up to 1/(2Δt)
+        bw, nep, swing = self.setting()
+        amp = nep * self.peak_responsivity() / math.sqrt(2 * dt) * rng.standard_normal(n)  # TIA input noise
+        diff = i["inp_plus"][0] - i["inp_minus"][0]
+        rf = self.gain * _one_pole(noisy["inp_plus"] - noisy["inp_minus"] + amp, bw, dt, diff)
+        out = {"rf": _soft_clip(rf, swing)}
+        b_mon = self.monitor_bandwidth * math.pi / 2  # noise bandwidth of the monitor's pole
+        for port, mon in (("inp_plus", "mon_plus"), ("inp_minus", "mon_minus")):
+            extra = (self.monitor_noise / self.monitor_gain if self.monitor_gain else 0.0) / math.sqrt(b_mon)
+            x = noisy[port] + extra / math.sqrt(2 * dt) * rng.standard_normal(n)
+            v = self.monitor_gain * _one_pole(x, self.monitor_bandwidth, dt, i[port][0])
+            out[mon] = _soft_clip(v, self.monitor_swing) if self.monitor_swing > 0 else v
+        return out
+
+    def info(self):
+        out = _curve_info(self.curve("responsivity"), "Spectral response")
+        try:
+            bw, nep, swing = self.setting()
+        except ValueError as e:
+            return out | {"Gain": str(e)}
+        r = self.peak_responsivity()
+        out |= {
+            "RF bandwidth": fmt_si(bw, "Hz"),
+            "Conversion gain": f"{fmt_si(self.gain * r, 'V/W')} at peak ℜ (½ into 50 Ω)",
+            "CW saturation": f"{fmt_si(self.cw_saturation_power(), 'W')} at peak ℜ",
+            "NEP": fmt_si(nep, "W/√Hz"),
+            "Common-mode residue": f"{10 ** (-self.cmrr_db / 20):.2%} ({self.cmrr_db:g} dB)",
+        }
         return out
 
 

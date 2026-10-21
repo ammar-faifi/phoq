@@ -73,7 +73,7 @@ Units are SI throughout: metres, seconds, hertz and watts. Powers use `power_dbm
 | Fiber | `Fiber` (patch cord), `FiberSpool` |
 | Passive | `Attenuator`, `Coupler` (2×2 fused fiber coupler; `BeamSplitter` is its deprecated old name), `PhaseShifter`, `Isolator`, `MatingSleeve` (FC–FC adapter joining two cords), `OpticalDelayLine` (variable free-space delay: dial, carrier phase, Gaussian-beam coupling loss) |
 | Modulators | `PhaseModulator` (φ = π·V/Vπ), `IntensityModulator` (Mach–Zehnder, extinction) — voltage comes only through their `rf` and `bias` inputs; `OpticalSwitch` (2×2, bar below the threshold voltage on `ctrl`, cross above: a pattern routes pulse by pulse) |
-| Detectors | `Photodiode`, `SinglePhotonDetector`, `PowerMeter` |
+| Detectors | `Photodiode`, `BalancedPhotodetector` (two FC inputs whose photocurrents subtract before a switchable-gain amplifier: RF OUTPUT, and a MONITOR output per diode), `SinglePhotonDetector`, `PowerMeter` |
 | Instruments | `Oscilloscope`, `SpectrumAnalyzer` (RF spectrum in dBm: RBW, averaging, detectors, trace average and max hold, Lorentzian and short-delay linewidth fits), `PhotonCounter` (time tagger: per-channel input delays, sub-bins for pulses shorter than a bin), `FunctionGenerator` (2 outputs: dc / sine / square / triangle / ramp / loaded pattern), `DCPowerSupply` (2 outputs, ±30 V) |
 
 Run `phoq catalog` for every port and parameter.
@@ -175,10 +175,12 @@ Shipped presets, each citing the datasheet document and revision it was read fro
 | `thorlabs/det08cfc` | Thorlabs DET08CFC 5 GHz InGaAs detector | `Photodiode` | bandwidth, responsivity at 1550 nm with the spectral curve, load, saturation from the 2 V output limit |
 | `thorlabs/dx25cf` | Thorlabs DX25CF 25 GHz GaAs detector | `Photodiode` | GaAs response, 0.5 A/W at 850 nm, 25 GHz, 25 Ω load; 10 dBm input limit |
 | `thorlabs/dx25hf`, `dx25ha` | Thorlabs DX25HF (FC/PC) and DX25HA (FC/APC) 25 GHz high-linearity InGaAs detectors | `Photodiode` | 0.45 A/W at 1550 nm with the 0.915–1.625 µm curve, 25 GHz, 25 Ω load, linear to 50 mA; 20 dBm input limit |
+| `thorlabs/pdb450c`, `pdb450a`, `pdb440c`, `pdb440a` | Thorlabs PDB450C/A (switchable gain 10³–10⁷ V/A, DC–150 MHz … 0.1 MHz) and PDB440C/A (51 × 10³ V/A, 15 MHz) balanced amplified photodetectors, InGaAs (C) and Si (A) | `BalancedPhotodetector` | each gain's bandwidth, NEP and swing; CMRR; responsivity with the spectral curve; monitor gain, bandwidth, swing, impedance and noise; 20 mW per photodiode |
 | `fs/smfcsx-upc-upc`, `-apc-apc`, `-apc-upc` | FS SMFCSX 1 m OS2 (G.657.A1) simplex patch cords, SKUs 40740, 173580 and the 173581 hybrid | `Fiber` | connector A and B, 1 m length; ≤ 0.3 dB and UPC ≥ 50 / APC ≥ 60 dB, the mating table's values |
 
 Every preset also sets the part's connector from its datasheet: FC/PC for the Thorlabs, MPD and
-Excelitas detectors, FC/APC for the Exail modulators (their FA ordering option; the default is
+Excelitas detectors (the balanced detectors' receptacles also take FC/APC, but phoq mates connectors
+as fiber to fiber), FC/APC for the Exail modulators (their FA ordering option; the default is
 bare fiber).
 
 **Writing one.** A preset is a TOML file whose id is `vendor/part` (the vendor slug and the file
@@ -473,14 +475,17 @@ detectors, each instrument's acquisition) and lists its current limitations.
 - **Photodiode:** I = Σ R(λ)·P + I_dark plus white shot noise (density 2qI) and thermal noise
   (4kT/R), all through a one-pole bandwidth: the noise RMS is √(2qIB) and √(4kTB/R) with
   B = (π/2)·f₃dB. It saturates softly above `saturation`.
+- **Balanced photodetector:** U_RF = G·(ℜ₊P₊ − ℜ₋P₋), with the CMRR as a responsivity mismatch,
+  through the selected gain's pole and swing; both diodes' shot noise plus the amplifier's NEP;
+  a monitor per diode. See [Balanced photodetector](#balanced-photodetector).
 - **Single-photon detector:** p(click) = 1 − (1 − p_dark)·exp(−η·n̄) per bin, plus dead time.
 - **Modulators, oscilloscope and spectrum analyzer:** see
-  [Theory](#theory-modulators-the-oscilloscope-and-the-spectrum-analyzer) below.
+  [Theory](#theory-modulators-delay-lines-balanced-detection-and-the-instruments) below.
 - **Steady-state report:** `phoq.report(setup)` gives mean powers, currents, open-connector
   emission and warnings. It uses the mutual coherence γ(Δτ) = exp(−πΔν|Δτ|) × envelope overlap.
 - **Not modelled:** polarisation, dispersion, nonlinearity, afterpulsing.
 
-## Theory: modulators, delay lines, the oscilloscope and the spectrum analyzer
+## Theory: modulators, delay lines, balanced detection and the instruments
 
 ### Electro-optic modulators
 
@@ -642,6 +647,153 @@ same value from bin-averaged envelopes and one shared phase walk, which is the c
 `phoq serve examples/odl_validation.py` opens the 100 ps DLI with 20 GHz photodiodes on a 1 ns/div
 scope. Turn `DLI-ODL`'s dial away from 105 ps and each port shows the two arms' pulses side by side,
 no longer interfering.
+
+### Balanced photodetector
+
+`BalancedPhotodetector` is two matched photodiodes behind two FC receptacles, `INPUT+` (`inp_plus`)
+and `INPUT−` (`inp_minus`). Their photocurrents subtract before a single transimpedance amplifier.
+It has three SMA outputs: `RF OUTPUT` (`rf`) from that amplifier, and `MONITOR+` and `MONITOR−`
+(`mon_plus`, `mon_minus`), each following one photodiode alone. The presets are Thorlabs' PDB450C
+and PDB450A (switchable gain, 10³–10⁷ V/A) and PDB440C and PDB440A (fixed, 51 × 10³ V/A), taken from
+their operation manual [1].
+
+**RF OUTPUT.** Manual §3.3 gives the output into a high-impedance load:
+
+```math
+U_\mathrm{RF} = G\,\bigl(\mathcal R_+(\lambda)\,P_+ - \mathcal R_-(\lambda)\,P_-\bigr).
+```
+
+The output impedance is 50 Ω, so a 50 Ω load (a spectrum analyzer) gets half. The gain switch
+(`gain`) selects one row of `gain_settings`, and each row carries its own −3 dB bandwidth, NEP and
+output swing. A gain the unit does not offer is reported as an error. The output follows one pole at
+that bandwidth and runs into its rails at ±swing, staying linear to 0.03 % up to 60 % of the swing.
+
+Light that reaches only one input drives the output alone, so the CW saturation power is
+$`U_\mathrm{swing}/(G\,\mathcal R)`$: 4.6 mW at 10³ V/A and 46 µW at 10⁵ V/A for the PDB450C. The
+manual asks that the *difference* between the inputs stay below it.
+
+**Common-mode rejection.** Light that reaches both inputs equally cancels, except for the CMRR
+residue. phoq models the CMRR as the INPUT− diode's responsivity being short by
+$`10^{-\mathrm{CMRR}/20}`$ (3.2 % at 30 dB). Equal powers therefore leave
+$`U_\mathrm{RF} = G\,\mathcal R P\,10^{-\mathrm{CMRR}/20}`$, and every common-mode fluctuation is
+reduced by the same factor: the laser's intensity noise, or a modulation both inputs share.
+
+If the paths from the splitter to the two inputs differ by Δτ, a common-mode component at
+frequency $f$ arrives at the two diodes with different phases. The cancellation then becomes
+$`|1 - e^{-i2\pi f\Delta\tau}| = 2|\sin(\pi f\Delta\tau)|`$:
+
+```math
+\mathrm{CMRR}_\mathrm{path}(f) = -20\log_{10}\bigl(2\sin(\pi f\,\Delta\tau)\bigr).
+```
+
+This gives the curves of the manual's §3.7 figure, which is drawn for a path difference in air; in
+fiber the allowed difference is 1.5 times smaller. 30 dB at 1 MHz allows 1 m of fiber between the
+two cords; at 100 MHz it allows 1 cm. phoq's paths carry their own delays, so this needs no
+parameter: a 1 m and a 2 m cord give 30.2 dB at 1 MHz and 10.3 dB at 10 MHz.
+
+**Noise.** Each diode adds its own shot noise, of density $`2q\,i_\pm`$. The two are independent, so
+they add in power on RF OUTPUT even though the mean currents subtract. The amplifier adds its NEP,
+referred to the peak responsivity, and all of it passes through the same pole:
+
+```math
+\sigma_\mathrm{RF}^2 = G^2\bigl[2q\,(i_+ + i_-) + (\mathrm{NEP}\,\mathcal R_\mathrm{peak})^2\bigr]\,B,
+\qquad B = \tfrac{\pi}{2}\,f_\mathrm{3dB}.
+```
+
+This is why balanced detection reaches the shot-noise limit with a strong local oscillator: the
+oscillator's classical noise cancels, and its shot noise does not.
+
+**Monitors.** Each monitor reads its own diode's current at 10 V/mW at peak responsivity
+(`monitor_gain`), from DC to 1 MHz, up to 10 V into a high-impedance load. They therefore saturate
+above 1 mW, as the manual warns. Each adds 180 µV rms of its own noise and has a 220 Ω output
+impedance. The manual uses them to balance the two input powers before a measurement.
+
+**Report.** `report()` lists for the detector:
+
+- the power at INPUT+ and at INPUT−;
+- RF OUTPUT, both into a high impedance and into 50 Ω;
+- both monitors;
+- the balance $`(P_+ - P_-)/(P_+ + P_-)`$;
+- a status: Balanced, Single input, Saturated or No such gain.
+
+It warns when RF OUTPUT or a monitor would pass its swing, and when one diode receives more than the
+preset's 20 mW damage threshold.
+
+**Demo.** `examples/balanced_detection.py` is a heterodyne receiver whose local oscillator is noisy:
+
+```
+LO laser, 8 dBm → IM (5 % rms intensity noise) ─┐            ┌─ 1 m → INPUT+    RF OUTPUT → CH1
+                                                ├─ 50:50 ────┤                   MONITOR+  → CH2
+signal laser, −30 dBm, +400 kHz ────────────────┘            └─ 1 m → INPUT−    MONITOR−  → CH3
+```
+
+The coupler's outputs carry $`P_\pm = \tfrac12(P_\mathrm{LO} + P_S) \pm \sqrt{P_\mathrm{LO}P_S}\cos(2\pi\Delta f\,t + \varphi)`$.
+The LO and its noise are the same on both inputs, while the beat has opposite signs:
+
+```
+python examples/balanced_detection.py
+
+  INPUT+                       505 µW · -3.0 dBm
+  INPUT−                       505 µW · -3.0 dBm
+  RF OUTPUT                    +0.1597 V (high-Z), +0.07983 V into 50 Ω
+  MONITOR+ / MONITOR−          5.049 V / 4.889 V
+  Status                       Balanced
+
+Scope, 100 µs sweeps:
+  RF beat             0.535 V amplitude, expected 0.535 V (-0.1 %)
+  MONITOR± beat       0.248 V on (MON+ − MON−)/2, expected 0.248 V (-0.2 %): opposite on the two monitors
+  signal blocked      LO noise 260 mV rms on MONITOR+ (5.2 % of 5.05 V), the same on MONITOR− (correlation +1.00), 8.4 mV rms on RF
+  LO noise rejection  30.0 dB (CMRR 30 dB)
+  INPUT− dark         RF would sit at 5.05 V, beyond the ±4.6 V swing
+```
+
+RF OUTPUT shows the two diodes' beats added and the LO noise reduced by the CMRR. Without INPUT− the
+half milliwatt of LO would saturate the amplifier at this gain. The script ends with the gain
+switch: one step up, at 10⁵ V/A, the 5.3 V beat on a 1.6 V residue clips at the +4.6 V rail.
+`phoq serve examples/balanced_detection.py` shows the three traces on the scope: the monitors move
+together with the LO noise, while the beat on them is in antiphase.
+
+**Validation.** `tests/test_balanced.py` checks the model against the manual and the equations
+above:
+
+| Check | Manual or theory | phoq |
+| --- | --- | --- |
+| RF OUTPUT for a 70:30 split: PDB450C at 1550 nm, PDB450A at 820 nm, PDB440C at 1310 nm | §3.3 | to 10⁻¹² in the report; the scope trace's mean to 1 % |
+| Sign in single detector mode (§3.2) | + from INPUT+, − from INPUT− | + / − |
+| CW saturation: PDB440C, PDB440A, PDB450C and PDB450A at 10³ V/A | 70 µW, 130 µW, 4.5 mW, 9 mW | 70.6 µW, 134 µW, 4.60 mW, 8.73 mW |
+| Monitor conversion gain; monitor saturation | 10 V/mW; above 1 mW | 10 V/mW; 1.00 mW |
+| CMRR measured as in §3.6 (one input against both, a sine at 1 and 30 MHz), CMRR 30 dB | 30 dB | 29.99, 30.06 dB |
+| 1 m of fiber between the cords (Δτ = 4.90 ns) at 1, 3 and 10 MHz (§3.7) | 30.24, 20.70, 10.27 dB | 30.22, 20.69, 10.27 dB |
+| RF noise at 10⁴ V/A: dark, then 50 µW and 400 µW on each input | 1.251, 1.337, 1.829 mV | 1.253, 1.337, 1.827 mV |
+| Monitor noise, dark | 180 µV rms | 180 µV rms (±2 %) |
+| A 1 MHz tone into the spectrum analyzer's 50 Ω | −0.760 dBm | −0.754 dBm |
+| Demo: RF beat, monitor beat, LO noise rejection | 0.535 V, 0.248 V, 30 dB | 0.535 V, 0.248 V, 30.0 dB |
+
+The model leaves out:
+
+- AC-coupled versions (the -AC suffix).
+- How a real unit's CMRR falls toward its bandwidth. phoq's mismatch is flat, so attenuating INPUT+
+  by 3 % would cancel it at every frequency.
+- The amplifier offset and its warm-up drift (§3.3).
+- Spot size and power density on the diodes.
+- Etalons, polarization and residual frequency modulation, which §3.7 lists as limits on the
+  rejection.
+- The monitors' swing into 50 Ω: phoq divides 10 V across 220 Ω and 50 Ω, giving 1.85 V, where the
+  manual quotes 1.5 V.
+
+The PDB440 has INPUT+ and INPUT− on opposite connectors to the PDB450 (§3.2). In phoq only the port
+names matter.
+
+[1] Thorlabs, *PDB440x and PDB450x Balanced Amplified Photodetectors, Operation Manual*, version 2.4
+(8 April 2019), document 21709-D02, item M0009-510-1043. The product page,
+[Balanced Amplified Photodetectors with Fast Monitor Output](https://www.thorlabs.com/balanced-amplified-photodetectors-with-fast-monitor-output),
+lists the same gains, bandwidths and NEPs, and notes that the gain halves into 50 Ω loads. Its
+headline CMRR for the PDB450 is ">25 dB"; the presets use the manual's typical 30 dB. The page lists
+heterodyne detection, spectroscopy, OCT, optical delay measurements and THz detection as typical
+applications. YB Photonics,
+[Introduction and application of balance detector](https://www.ybphotonics.com/specials/introduction-and-application-balance-detector),
+describes the same principle, two photodiodes followed by a differential amplifier, in coherent
+wind lidar, distributed fiber vibration sensing and OCT.
 
 ### Oscilloscope
 
@@ -934,7 +1086,7 @@ backscattering in the spool (§5 notes double Rayleigh scattering distorts the l
 
 ### Checked against the literature
 
-The models above were compared with seven references (October 2026):
+The models above were compared with eight references (October 2026):
 
 - *S. J. van Enk, "Coherent states, beam splitters and photons".* §8 and §12–14: a laser mode is
   a coherent state with Poissonian photon number $P(n) = e^{-|\alpha|^2}|\alpha|^{2n}/n!$ and mean
@@ -1011,6 +1163,13 @@ The models above were compared with seven references (October 2026):
   1 dB. Outside the model: the lens and fiber-end misalignments of Figs. 6–10, and the aberrations
   behind their measured 95.3 → 92.7 % over 0–1 m (Fig. 12), more than either diffraction model
   predicts.
+- *Thorlabs, "PDB440x and PDB450x Balanced Amplified Photodetectors", operation manual, version 2.4
+  (2019).* §3.3: RF OUTPUT $`= (\mathcal R P_1 - \mathcal R P_2)\,G`$, half of it into 50 Ω. The
+  Technical Data give the CW saturation powers, the monitors' 10 V/mW and their saturation above
+  1 mW. §3.6 measures the CMRR as one input against both, and §3.7 plots the path-length limit. phoq's
+  `BalancedPhotodetector` reproduces each of them, mostly to better than 0.1 dB or 1 %; the table is
+  in [Balanced photodetector](#balanced-photodetector), and the checks are in
+  `tests/test_balanced.py`.
 
 ## Quantum protocols
 

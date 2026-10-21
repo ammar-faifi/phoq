@@ -1,0 +1,54 @@
+# Thorlabs PDB450A — Switchable-gain balanced amplified photodetector, Si, 320–1000 nm, DC–150 MHz.
+schema = 1
+component = "BalancedPhotodetector"
+title = "Thorlabs PDB450A"
+vendor = "Thorlabs"
+part_number = "PDB450A"
+description = "Switchable-gain balanced amplified photodetector, Si, 320–1000 nm, DC–150 MHz"
+tier = "datasheet"
+tags = ["Si", "balanced", "switchable gain", "visible", "850"]
+notes = """
+Gain switch 10³–10⁷ V/A: the bandwidth falls from 150 MHz to 0.1 MHz as the gain rises. Keep the inputs'
+power difference below the CW saturation power (9 mW at 820 nm and 10³ V/A). Damage threshold 20 mW per photodiode.
+"""
+
+[source]
+title = "PDB440x and PDB450x Balanced Amplified Photodetectors — Operation Manual"
+url = "https://www.thorlabs.com/balanced-amplified-photodetectors-with-fast-monitor-output"
+document = "21709-d02.pdf"
+revision = "Version 2.4, 08-Apr-2019, Item No. M0009-510-1043"
+accessed = 2026-10-21
+conditions = "Gains, conversion gains and swings for a high-impedance load (half into 50 Ω)"
+
+[params]
+gain = { value = 1e4, from = "assumed", spec = "Gain switch position", note = "Any of gain_settings; set it like the front-panel switch" }
+gain_settings = { value = "1e3:150e6:123e-12:4.6, 1e4:45e6:28.9e-12:4.6, 1e5:4e6:3.3e-12:4.6, 1e6:0.3e6:1.1e-12:4.6, 1e7:0.1e6:1.4e-12:10", from = "datasheet-typ", spec = "5.1.2: Transimpedance Gain 10³–10⁷ V/A; RF OUTPUT Bandwidth (−3 dB) DC–150/45/4/0.3/0.1 MHz; Minimum NEP per gain; 5.1 RF Voltage Swing ±4.6 V (10³–10⁶), ±10 V (10⁷)", note = "NEP is the datasheet minimum over DC to each bandwidth" }
+cmrr_db = { value = 30.0, from = "datasheet-typ", spec = "5.1.2 CMRR > 25 dB (typ. > 30 dB)" }
+material = { value = "Si", from = "datasheet-typ", spec = "5.1.1/5.1.2 Detector Material / Type: Si / PIN" }
+ref_responsivity = { value = 0.53, from = "datasheet-typ", spec = "Max. Responsivity, typ." }
+ref_wavelength = { value = 800e-9, from = "datasheet-graph", spec = "Peak of the typical responsivity curve, 5.1" }
+connector = { value = "FC/PC", from = "datasheet-typ", spec = "3.2: FC receptacles for FC/PC or FC/APC; the C models are aligned for SMF-28 with PC connectors", note = "The receptacle faces a photodiode window, not a fiber: an FC/APC cord also works there, but phoq mates connectors as fiber to fiber and would flag it" }
+rf_impedance = { value = 50.0, from = "datasheet-typ", spec = "5.1 RF OUTPUT Impedance 50 Ω" }
+monitor_gain = { value = 1.887e+04, from = "derived", spec = "5 Appendix: monitor conversion gain 10 V/mW at peak responsivity, high-impedance load", note = "10 V/mW ÷ 0.53 A/W" }
+monitor_bandwidth = { value = 1e6, from = "datasheet-typ", spec = "5.1 MONITOR Outputs Bandwidth DC to 1 MHz" }
+monitor_swing = { value = 10.0, from = "datasheet-max", spec = "5.1 MONITOR Voltage Swing, max. 10 V (high-impedance load)" }
+monitor_impedance = { value = 220.0, from = "datasheet-typ", spec = "5.1 MONITOR Outputs Impedance 220 Ω" }
+monitor_noise = { value = 180e-6, from = "datasheet-max", spec = "5.1 MONITOR Voltage Noise < 180 µV RMS" }
+
+[curves.responsivity]
+from = "datasheet-graph"
+spec = "5.1 Typical Si Detector responsivity (PDB440A, PDB450A)"
+note = "Traced by colour from the published plot (±0.005 A/W)."
+wavelength_nm = [320, 340, 360, 380, 400, 420, 440, 460, 480, 500, 520, 540, 560, 580, 600, 620, 640, 660, 680, 700, 720, 740, 760, 780, 800, 820, 840, 860, 880, 900, 920, 940, 960, 980, 1000]
+value = [0.171, 0.161, 0.135, 0.128, 0.144, 0.162, 0.182, 0.201, 0.22, 0.245, 0.267, 0.291, 0.314, 0.34, 0.363, 0.389, 0.413, 0.435, 0.454, 0.473, 0.491, 0.507, 0.52, 0.532, 0.536, 0.533, 0.524, 0.505, 0.475, 0.435, 0.383, 0.331, 0.271, 0.21, 0.156]
+
+[limits]
+optical_input_w = 20e-3
+
+[unsupported]
+rf_dc_offset_v = { max = 15e-3, note = "RF OUTPUT DC offset < ±15 mV; not modelled" }
+monitor_dc_offset_v = { max = 2e-3, note = "< ±2 mV; not modelled" }
+cw_saturation_w = "9 mW @ 820 nm (10³ V/A) — the model derives it as swing/(G·ℜ) at the selected gain"
+ac_coupled_version = "-AC versions: lower cut-off ≤ 100 Hz (typ. < 5 Hz); the model is DC-coupled"
+active_area_diameter_m = { typ = 0.8e-3 }
+frequency_response = "Measured responses roll off faster than the model's single pole, and the 10³ V/A setting peaks near 100 MHz"

@@ -259,6 +259,35 @@ const BUILDERS = {
     };
   },
 
+  /** Balanced detector: INPUT+ and INPUT− FC receptacles on the left, RF OUTPUT and the two
+   *  MONITOR SMA jacks on the right, the gain switch on top. */
+  BalancedPhotodetector(p) {
+    p.basePlate(11.5, 10);
+    p.box(8.5, 3.2, 8, MAT.black, 0, 2.2, 0);
+    p.addPort('inp_plus', -4.25, 2.2, 1.7, -1, 0);
+    p.addPort('inp_minus', -4.25, 2.2, -1.7, -1, 0);
+    p.addJack('mon_minus', 4.25, 2.2, -2.6, 1, 0);
+    p.addJack('rf', 4.25, 2.2, 0, 1, 0);
+    p.addJack('mon_plus', 4.25, 2.2, 2.6, 1, 0);
+    p.knob = new THREE.Group();
+    p.knob.position.set(2.6, 3.8, -2.6);
+    const k = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 1.0, 0.9, 24), MAT.knob);
+    k.position.y = 0.45;
+    const mark = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.08, 0.8), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+    mark.position.set(0, 0.92, -0.42);
+    for (const m of [k, mark]) { m.castShadow = true; m.userData.part = p; }
+    p.knob.add(k, mark);
+    p.group.add(p.knob);
+    p.led = p.add(new THREE.SphereGeometry(0.28, 14, 10), new THREE.MeshStandardMaterial({ color: 0x062012, emissive: 0x34d399, emissiveIntensity: 0 }), 2.6, 3.95, 2.4);
+    p.labelPlane(6.2, 3.6, -1.0, 3.81, 0.6, true);
+    p._height = 4.8;
+    p.onRefresh = (c) => { p.knob.rotation.y = -(Math.log10(Math.max(c.params.gain, 1)) - 3) / 4 * Math.PI * 1.4; };
+    p.setReport = (e) => {
+      const level = clamp((e?.power ?? 0) / 1e-3, 0, 1);
+      p.led.material.emissiveIntensity = level > 1e-6 ? 0.4 + 2.2 * Math.sqrt(level) : 0;
+    };
+  },
+
   SinglePhotonDetector(p) {
     p.basePlate(12.5, 10);
     p.box(9, 6.5, 7.5, MAT.case, 0, 3.85, 0);
@@ -665,6 +694,7 @@ const LABELS = {
     return { lines: [`${nm(p.wavelength)} · ${p.power_dbm.toFixed(1)} dBm`, mode], accent: wavelengthColor(p.wavelength).css, warn: true };
   },
   Photodiode: (c) => ({ lines: [`${c.params.material} · ${fmtSI(c.params.bandwidth, 'Hz')}`], accent: '#34d399' }),
+  BalancedPhotodetector: (c) => ({ lines: [`balanced · ${fmtSI(c.params.gain, 'V/A')}`, `${c.params.material} · CMRR ${c.params.cmrr_db} dB`], accent: '#34d399' }),
   SinglePhotonDetector: (c) => ({ lines: [`η ${Math.round(c.params.efficiency * 100)}% · DCR ${fmtSI(c.params.dark_count_rate, 'Hz')}`], accent: '#22d3ee' }),
   PowerMeter: () => ({ lines: [], accent: '#2dd4bf' }),
   Coupler: (c) => ({ lines: [`2×2 coupler ${Math.round(c.params.ratio * 100)}:${Math.round(100 - c.params.ratio * 100)}`, 'a1 a2 ⇄ b1 b2'], accent: '#a3e635' }),

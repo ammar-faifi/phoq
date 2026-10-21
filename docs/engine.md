@@ -113,8 +113,9 @@ reflection count and the place of the last reflection. Popping an entry:
    about 5 dB and a 3.6 % reflection into the flat side when an angled connector meets a flat one.
    The transmitted part enters the partner; the reflected part re-enters the component it came from.
 4. **Entering a component** (`_enter`): the power is added to `port_power` and, for a patch cord,
-   to its forward or backward flow (the lab draws the light flow from this). A detector's `inp` ends
-   the path and stores it in `Network.paths`. A laser ends it too and records the light in
+   to its forward or backward flow (the lab draws the light flow from this). A detector's input
+   (`inp`, or a balanced detector's `inp_plus` and `inp_minus`) ends the path and stores it in
+   `Network.paths`, with the input it arrived at as `Path.port`. A laser ends it too and records the light in
    `Network.returned`: its own light by reflection site, others' by name. Anything else is asked for
    `scatter(port, λ)`, and every `Transfer` becomes a new stack entry with `amp × transfer.amp`,
    `delay + transfer.delay` and, for a modulator, the pair (modulator, delay at which the light
@@ -187,7 +188,9 @@ pulse sources.
 ## 5. `synthesize()`: paths on a time grid
 
 `synthesize(net, detectors, t, dt, rng, offsets=None)` returns, for each requested detector, a dict
-wavelength → complex field array on the grid `t` (bin starts), in √W. `offsets` moves one
+wavelength → complex field array on the grid `t` (bin starts), in √W; for a detector with several
+optical inputs (the balanced detector) the keys are (input port, wavelength), so each photodiode
+gets its own fields. `offsets` moves one
 detector's grid to `t + offset` (the time tagger's channel delays) while it keeps sharing the
 lasers' phase walks with the others:
 
@@ -231,6 +234,25 @@ $B_N = \alpha/(2-\alpha)/2\Delta t \approx \tfrac{\pi}{2}B$. Finally a soft satu
 $x \to x/(1 + (x/I_\mathrm{sat})^4)^{1/4}$. $\mathcal R(\lambda)$ is the material's typical curve or
 a preset's datasheet curve, scaled to the responsivity at the reference wavelength. Instruments
 start the record early by `settle_time` = $6/2\pi B$ so the filter has settled.
+
+**Balanced photodetector** (`detect` returns the open-circuit voltages of `rf`, `mon_plus` and
+`mon_minus`, from one noise realisation). Each photodiode's current is computed as above from the
+fields of its own input, with the INPUT− diode's responsivity short by $`10^{-\mathrm{CMRR}/20}`$
+(the model of the common-mode rejection), and gets its own shot noise $2qi_\pm$. The amplifier
+adds its input noise, the NEP of the selected gain referred to peak responsivity. Then
+
+```math
+U_\mathrm{RF} = G\,H(f)\,\bigl(i_+ - i_- + i_\mathrm{amp}\bigr), \qquad
+U_{\mathrm{MON}\pm} = G_\mathrm{mon}\,H_\mathrm{mon}(f)\,\bigl(i_\pm + i_{\mathrm{mon}}\bigr),
+```
+
+each through one pole (the gain's bandwidth; 1 MHz for the monitors), the monitors with their own
+noise $i_\mathrm{mon}$ (`monitor_noise` rms over the monitor's noise bandwidth). The outputs run into
+their rails at ±swing with a 16th-power knee, $x \to x/(1 + (x/U_\mathrm{swing})^{16})^{1/16}$:
+linear to 0.03 % up to 60 % of the swing. An instrument with a 50 Ω input sees
+$`U\,R_\mathrm{in}/(R_\mathrm{in} + R_\mathrm{out})`$, half for RF OUTPUT. The shot noises of the
+two diodes add in power while their mean currents subtract; a path difference between the inputs
+needs no extra model, since each path keeps its own delay.
 
 **Single-photon detector** (`detect` returns a boolean per bin). The mean photon number in a bin is
 $`\bar n = \sum_\lambda k(\lambda)\,|E_\lambda|^2\,\Delta t / h\nu`$, with $k(\lambda)$ the preset's
@@ -357,15 +379,19 @@ steady state agrees
 with the time average of synthesized fields: 0.1085 mW against 0.1091 ± 0.0016 mW with a 300 m arm
 ($\gamma = 0.63$ at 100 kHz), and 0.268 against 0.274 ± 0.003 mW with 3 km ($\gamma = 0.01$).
 
+`mean_powers(detector, port)` restricts the sum to the paths that arrive at one input.
 `report(setup, net)` builds on it:
 
 - **Per detector:** incident power; photodiode current and status (linear, saturated, blind at this
-  λ); a single-photon detector's photons per pulse, PDE at each wavelength, click probability and
+  λ); a balanced detector's power at each input, RF OUTPUT (high impedance and into 50 Ω), both
+  monitors, the balance $(P_+ - P_-)/(P_+ + P_-)$ and its status; a single-photon detector's photons per pulse, PDE at each wavelength, click probability and
   expected rate.
 - **Per laser:** the back-reflection it sees and its strongest source.
 - **Per cord and open end:** the light flow, and what each open end emits.
-- **Warnings:** too much light on a single-photon detector; absolute maximum ratings from presets
-  (optical input, bias voltage, RF drive, photons per pulse); a loaded pattern missing;
+- **Warnings:** too much light on a single-photon detector; a balanced detector's RF OUTPUT or
+  monitor driven past its swing, or set to a gain it does not offer; absolute maximum ratings from
+  presets (optical input, per photodiode for a balanced detector, bias voltage, RF drive, photons
+  per pulse); a loaded pattern missing;
   open connectors emitting more than 1 µW; angled connectors mated to flat ones.
 
 ## 9. Conventions
@@ -418,6 +444,11 @@ with the time average of synthesized fields: 0.1085 mW against 0.1091 ± 0.0016 
 - Photodiode: one pole, Gaussian approximation of shot noise (fine except at a few photons per
   sample), no avalanche gain or excess noise, no 1/f (flicker) noise, no ringing or impulse
   undershoot.
+- Balanced photodetector: the CMRR is a flat responsivity mismatch, so it does not fall toward the
+  bandwidth as a real unit's does, and attenuating INPUT+ by the mismatch would trim it out at every
+  frequency; one pole per output; no AC-coupled versions, amplifier offset or warm-up drift; no
+  spot size or power density on the diodes. Its steady-state report checks the swing on the mean
+  output only: a beat or modulation that clips shows in the time domain.
 - Single-photon detector: no timing jitter (a click sits in its bin), no afterpulsing, no gating or
   twilight events. Dead time is non-paralysable and does not carry across acquisitions or chunks.
 

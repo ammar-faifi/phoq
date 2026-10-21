@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from .core import Setup
-from .detectors import Photodiode, PowerMeter, SinglePhotonDetector, _Detector
+from .detectors import BalancedPhotodetector, Photodiode, PowerMeter, SinglePhotonDetector, _Detector
 from .generators import FunctionGenerator
 from .modulators import _Modulator
 from .passive import OpticalDelayLine
@@ -46,6 +46,7 @@ class Path:
     amp: complex
     delay: float
     mods: tuple = ()  # ((modulator, delay at which the light passes it), ...)
+    port: str = "inp"  # the detector input it enters (a balanced detector has two)
 
 
 @dataclass
@@ -67,7 +68,7 @@ class Network:
             if source is None or p.source is source
         ]
 
-    def mean_powers(self, detector) -> dict[float, float]:
+    def mean_powers(self, detector, port: str | None = None) -> dict[float, float]:
         """Time-averaged optical power per wavelength at a detector.
 
         Paths from the same laser interfere with the mutual coherence γ(Δτ) (see :func:`coherence`);
@@ -76,6 +77,8 @@ class Network:
         """
         by_source = defaultdict(list)
         for p in self.paths.get(detector, []):
+            if port is not None and p.port != port:
+                continue
             factor, dynamic = 1.0 + 0j, []
             for mod, at in p.mods:
                 if mod.is_static():
@@ -180,8 +183,8 @@ def _enter(net, stack, src, port, amp, delay, mods, hops, refl, site) -> None:
         if w >= max(flow["fwd"], flow["bwd"]):
             flow["wavelength"] = wl
     if isinstance(comp, _Detector):
-        if port.name == "inp":
-            net.paths[comp].append(Path(src, amp, delay, mods))
+        if port.name in comp.inputs:
+            net.paths[comp].append(Path(src, amp, delay, mods, port.name))
         return
     if isinstance(comp, Laser):
         own = comp is src
@@ -200,7 +203,8 @@ def synthesize(
     rng: np.random.Generator,
     offsets: dict | None = None,
 ) -> dict:
-    """Complex fields [√W] per wavelength at each detector, bin-averaged over [t, t+dt).
+    """Complex fields [√W] per wavelength at each detector, bin-averaged over [t, t+dt); for a
+    detector with several optical inputs (a balanced detector) keyed by (input port, wavelength).
 
     ``offsets`` shifts a detector's bins to [t + offset, t + offset + dt) (a time tagger's channel
     delay). All detectors still share one phase walk per laser, so their fields stay correlated.
@@ -223,9 +227,8 @@ def synthesize(
             for mod, at in p.mods:
                 f = f * mod.factor(mid[k] + at, mid[k])
             acc = out[d]
-            acc[src.wavelength] = (
-                acc[src.wavelength] + f if src.wavelength in acc else f
-            )
+            key = src.wavelength if len(d.inputs) == 1 else (p.port, src.wavelength)
+            acc[key] = acc[key] + f if key in acc else f
     return out
 
 
@@ -255,7 +258,9 @@ def report(setup: Setup, net: Network | None = None) -> dict:
                 )
             },
         }
-        if isinstance(d, Photodiode):
+        if isinstance(d, BalancedPhotodetector):
+            entry.update(_balanced(d, net, warnings))
+        elif isinstance(d, Photodiode):
             I = d.mean_current(powers)
             if P <= 0:
                 status = ("No light", "")
@@ -454,10 +459,54 @@ def _sources(setup: Setup, net: Network) -> dict:
     return out
 
 
+def _balanced(d: BalancedPhotodetector, net: Network, warnings: list) -> dict:
+    """Steady-state read-outs of a balanced detector: each input, RF OUTPUT and the monitors."""
+    plus, minus = net.mean_powers(d, "inp_plus"), net.mean_powers(d, "inp_minus")
+    p_plus, p_minus = sum(plus.values()), sum(minus.values())
+    i_plus, i_minus = d.mean_currents(plus, minus)
+    show = lambda p: f"{fmt_si(p, 'W')} · {w_to_dbm(p):.1f} dBm" if p > 0 else "—"  # noqa: E731
+    readouts = {"INPUT+": show(p_plus), "INPUT−": show(p_minus)}
+    out = {"power": p_plus + p_minus, "current": i_plus - i_minus, "readouts": readouts}
+    try:
+        _, _, swing = d.setting()
+    except ValueError as e:
+        warnings.append({"level": "bad", "text": str(e)})
+        return out | {"status": "No such gain", "status_level": "bad"}
+    rf = d.gain * (i_plus - i_minus)
+    mon = (d.monitor_gain * i_plus, d.monitor_gain * i_minus)
+    readouts["RF OUTPUT"] = f"{rf:+.4g} V (high-Z), {rf / 2:+.4g} V into 50 Ω"
+    readouts["MONITOR+ / MONITOR−"] = f"{mon[0]:.4g} V / {mon[1]:.4g} V"
+    if p_plus + p_minus > 0:
+        readouts["Balance (P₊ − P₋)/(P₊ + P₋)"] = f"{(p_plus - p_minus) / (p_plus + p_minus):+.2%}"
+    if abs(rf) > swing:
+        status = ("Saturated", "bad")
+        warnings.append({
+            "level": "warn",
+            "text": f"{d.name} RF OUTPUT would reach {rf:+.3g} V, beyond its ±{swing:g} V swing at "
+            f"{fmt_si(d.gain, 'V/A')}: balance the inputs (their difference must stay below "
+            f"{fmt_si(d.cw_saturation_power(), 'W')} at peak responsivity) or lower the gain.",
+        })
+    elif p_plus + p_minus <= 0:
+        status = ("No light", "")
+    elif min(p_plus, p_minus) <= 0:
+        status = ("Single input", "ok")
+    else:
+        status = ("Balanced", "ok")
+    if d.monitor_swing > 0 and max(mon) > d.monitor_swing:
+        warnings.append({
+            "level": "warn",
+            "text": f"{d.name} MONITOR output would reach {max(mon):.3g} V, beyond its {d.monitor_swing:g} V swing: "
+            f"more than {fmt_si(d.monitor_swing / d.monitor_gain / max(d.peak_responsivity(), 1e-12), 'W')} on one input.",
+        })
+    readouts["Status"] = status[0]
+    return out | {"rf": rf, "monitors": mon, "status": status[0], "status_level": status[1]}
+
+
 def _incident_power(net: Network, comp) -> float:
-    """Mean optical power entering a component through all its optical ports."""
+    """Mean optical power entering a component through all its optical ports; for a detector with
+    several inputs (each its own photodiode) the most any one of them receives."""
     if isinstance(comp, _Detector):
-        return sum(net.mean_powers(comp).values())
+        return max(sum(net.mean_powers(comp, port).values()) for port in comp.inputs)
     return sum(
         net.port_power.get(p.path, 0.0) for p in comp.ports.values() if p.kind == "optical"
     )

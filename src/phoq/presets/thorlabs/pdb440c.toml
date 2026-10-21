@@ -1,0 +1,54 @@
+# Thorlabs PDB440C — Fixed-gain balanced amplified photodetector, InGaAs, 800–1700 nm, DC–15 MHz.
+schema = 1
+component = "BalancedPhotodetector"
+title = "Thorlabs PDB440C"
+vendor = "Thorlabs"
+part_number = "PDB440C"
+description = "Fixed-gain balanced amplified photodetector, InGaAs, 800–1700 nm, DC–15 MHz"
+tier = "datasheet"
+tags = ["InGaAs", "balanced", "fixed gain", "OCT", "1550"]
+notes = """
+Fixed 51 kV/A gain, DC–15 MHz. The RF OUTPUT saturates at only 70 µW of power difference at 1550 nm:
+balance the inputs. Damage threshold 20 mW per photodiode.
+"""
+
+[source]
+title = "PDB440x and PDB450x Balanced Amplified Photodetectors — Operation Manual"
+url = "https://www.thorlabs.com/balanced-amplified-photodetectors-with-fast-monitor-output"
+document = "21709-d02.pdf"
+revision = "Version 2.4, 08-Apr-2019, Item No. M0009-510-1043"
+accessed = 2026-10-21
+conditions = "Gains, conversion gains and swings for a high-impedance load (half into 50 Ω)"
+
+[params]
+gain = { value = 51e3, from = "datasheet-typ", spec = "5.1.1 RF OUTPUT Transimpedance Gain 51 × 10³ V/A" }
+gain_settings = { value = "51e3:15e6:3.9e-12:3.6", from = "datasheet-typ", spec = "5.1.1: fixed gain 51 × 10³ V/A, Bandwidth DC–15 MHz, Minimum NEP 3.9 pW/√Hz (DC–15 MHz); 5.1 RF Voltage Swing ±3.6 V", note = "Fixed gain: a single position" }
+cmrr_db = { value = 35.0, from = "datasheet-min", spec = "5.1.1 CMRR > 35 dB" }
+material = { value = "InGaAs", from = "datasheet-typ", spec = "5.1.1/5.1.2 Detector Material / Type: InGaAs / PIN" }
+ref_responsivity = { value = 1.0, from = "datasheet-typ", spec = "Max. Responsivity, typ." }
+ref_wavelength = { value = 1550e-9, from = "datasheet-graph", spec = "Peak of the typical responsivity curve, 5.1" }
+connector = { value = "FC/PC", from = "datasheet-typ", spec = "3.2: FC receptacles for FC/PC or FC/APC; the C models are aligned for SMF-28 with PC connectors", note = "The receptacle faces a photodiode window, not a fiber: an FC/APC cord also works there, but phoq mates connectors as fiber to fiber and would flag it" }
+rf_impedance = { value = 50.0, from = "datasheet-typ", spec = "5.1 RF OUTPUT Impedance 50 Ω" }
+monitor_gain = { value = 1e+04, from = "derived", spec = "5 Appendix: monitor conversion gain 10 V/mW at peak responsivity, high-impedance load", note = "10 V/mW ÷ 1.0 A/W" }
+monitor_bandwidth = { value = 1e6, from = "datasheet-typ", spec = "5.1 MONITOR Outputs Bandwidth DC to 1 MHz" }
+monitor_swing = { value = 10.0, from = "datasheet-max", spec = "5.1 MONITOR Voltage Swing, max. 10 V (high-impedance load)" }
+monitor_impedance = { value = 220.0, from = "datasheet-typ", spec = "5.1 MONITOR Outputs Impedance 220 Ω" }
+monitor_noise = { value = 180e-6, from = "datasheet-max", spec = "5.1 MONITOR Voltage Noise < 180 µV RMS" }
+
+[curves.responsivity]
+from = "datasheet-graph"
+spec = "5.1 Typical InGaAs Detector responsivity (PDA440C, PDB450C)"
+note = "Traced by colour from the published plot (±0.005 A/W)."
+wavelength_nm = [800, 825, 850, 875, 900, 925, 950, 975, 1000, 1025, 1050, 1075, 1100, 1125, 1150, 1175, 1200, 1225, 1250, 1275, 1300, 1325, 1350, 1375, 1400, 1425, 1450, 1475, 1500, 1525, 1550, 1575, 1600, 1625, 1650, 1675, 1700, 1725, 1750, 1775, 1800]
+value = [0.149, 0.174, 0.22, 0.284, 0.368, 0.523, 0.617, 0.659, 0.682, 0.699, 0.714, 0.731, 0.747, 0.766, 0.785, 0.804, 0.827, 0.861, 0.901, 0.928, 0.948, 0.961, 0.973, 0.984, 0.993, 1.002, 1.01, 1.018, 1.027, 1.033, 1.038, 1.036, 1.022, 0.993, 0.932, 0.493, 0.156, 0.048, 0.013, 0.007, 0.006]
+
+[limits]
+optical_input_w = 20e-3
+
+[unsupported]
+rf_dc_offset_v = { max = 3e-3, note = "RF OUTPUT DC offset < ±3 mV; not modelled" }
+monitor_dc_offset_v = { max = 2e-3, note = "< ±2 mV; not modelled" }
+cw_saturation_w = "70 µW @ 1550 nm — the model derives it as swing/(G·ℜ): 3.6 V / (51 kV/A · ℜ)"
+ac_coupled_version = "-AC versions: lower cut-off ≤ 100 Hz (typ. < 5 Hz); the model is DC-coupled"
+active_area_diameter_m = { typ = 0.3e-3 }
+anti_aliasing_filter = "OCT-proved fixed gain with an active aliasing filter; the model's response is a single pole"
