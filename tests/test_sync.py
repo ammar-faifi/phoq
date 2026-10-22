@@ -72,3 +72,49 @@ def test_saturated_detector_ticks_next_to_the_frame():
     lengths, sig = s["frame"]["scan"]
     assert sig[lengths == 1000][0] < 10  # ≈ N / √(2L): too weak to stand out
     assert abs(r["f error ppm"]) < 0.3 and abs(r["delay error"]) < 50e-12 and r["assigned"] > 0.99
+
+
+def test_dead_time_outlasts_the_tagger_chunks_and_records():
+    """A 40 µs dead time against 10 µs chunks: the detector stays dead across each cut, and across
+    the start of the next acquisition, so a bright input clicks exactly once per dead time."""
+    from phoq import Laser, PhotonCounter, Runner, Setup, SinglePhotonDetector
+
+    s = Setup("dead time")
+    laser = s.add(Laser("LD", mode="cw", power_dbm=-30.0))  # ~80 photons per 10 ns bin
+    spd = s.add(SinglePhotonDetector("SPD", efficiency=1.0, dark_count_rate=0.0, dead_time=40e-6))
+    cnt = s.add(PhotonCounter("CNT", bin_rate=1e8, slots=400_000, chunk=1000))
+    s.connect(laser.out, spd.inp)
+    s.connect(spd.out, cnt.ch1)
+    runner = Runner(s, seed=1)
+    t = np.concatenate([runner.acquire("CNT").timestamps("ch1") for _ in range(2)])
+    assert t.size == 200  # 8 ms / 40 µs
+    assert np.diff(t).min() == pytest.approx(40e-6, abs=1e-12)
+
+
+def test_long_dead_time_below_saturation_recovers_clock_and_delay():
+    """40 µs, attenuated until a live detector waits about τd/10: N ≈ T/(τd + W) clicks, the copies of
+    the clock line every 1/τd washed out, and 45 clicks enough for the clock and the delay."""
+    r = EX["report"](record=2e-3, dead_time=40e-6, mu=0.002, **EX["LONG"])
+    s = r["sync"]
+    w = EX["waiting_time"](r["setup"])
+    assert w / 40e-6 == pytest.approx(0.1, abs=0.01)
+    assert s["clicks"] == pytest.approx(2e-3 / (40e-6 + w), rel=0.15)
+    assert np.diff(r["t"]).min() >= 40e-6 - 1e-12
+    assert s["clock"]["runner-up"] < 0.6
+    assert abs(r["f error ppm"]) < 0.2 and abs(r["delay error"]) < 100e-12 and r["assigned"] > 0.99
+
+
+def test_saturated_long_dead_time_strobes_the_clock():
+    """Saturated (μ = 0.2), the clicks come every τd plus ~40 ns: copies of the clock line every
+    1/τd stand as tall as the line itself, which the runner-up ratio flags without the truth."""
+    r = EX["report"](record=2e-3, dead_time=40e-6, **EX["LONG"])
+    assert r["sync"]["clicks"] == pytest.approx(50, abs=1)
+    assert r["sync"]["clock"]["runner-up"] > 0.9
+
+
+def test_long_dead_time_frame_check_needs_hundreds_of_clicks():
+    """20 ms at 40 µs below saturation: ~450 clicks, enough for N/√(2L) to clear the noise."""
+    r = EX["report"](record=20e-3, dead_time=40e-6, mu=0.002, **EX["LONG"])
+    fr = r["sync"]["frame"]
+    assert fr["L"] == EX["L"] and fr["significance"] > 2 * fr["noise"]
+    assert r["sync"]["clock"]["runner-up"] < 0.3

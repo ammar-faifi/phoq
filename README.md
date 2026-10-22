@@ -467,6 +467,8 @@ from before error correction and privacy amplification were added).*
 
 [docs/engine.md](docs/engine.md) walks through the engine step by step (tracing, field synthesis,
 detectors, each instrument's acquisition) and lists its current limitations.
+[docs/photon-counter.md](docs/photon-counter.md) goes deeper into the time tagger: its acquisition,
+detector dead time across records, and what long dead times do to the clicks.
 
 - **Fields, not just powers.** Light is traced as complex amplitudes through every path:
   connector loss and reflection by connector type (see [Fiber connectors](#fiber-connectors)),
@@ -1700,45 +1702,94 @@ python examples/clock_sync.py --plot sync.png
 
 | | patch cords only | 25 km of fiber |
 | --- | --- | --- |
-| Clicks in 2 ms | 1,441 | 1,435 |
-| Clock: FFT peak → periodogram | 100.002313 → 100.0023402 MHz | 100.002314 → 100.0023444 MHz |
-| Clock error against Alice's | +2 ppb | +44 ppb |
-| Frame check (epoch folding) | L = 1000 at 33 σ; best coprime length 3.3 σ | L = 1000 at 29 σ; 4.3 σ |
+| Clicks in 2 ms | 1,434 | 1,432 |
+| Clock: FFT peak → periodogram | 100.002313 → 100.0023396 MHz | 100.002314 → 100.0023430 MHz |
+| Clock error against Alice's | −4 ppb | +30 ppb |
+| Frame check (epoch folding) | L = 1000 at 33 σ; best coprime length 3.2 σ | L = 1000 at 30 σ; 4.5 σ |
 | Cross-correlation peak | D = 322 symbols, 24 σ | D = 566 symbols, 25 σ |
-| Δ mod P against the traced flight time + epoch | 3.224694 µs against 3.224692 µs (+2 ps) | 5.667165 µs against 5.667099 µs (+66 ps) |
+| Δ mod P against the traced flight time + epoch | 3.224683 µs against 3.224692 µs (−9 ps) | 5.667150 µs against 5.667099 µs (+52 ps) |
 | Clicks given their true symbol index | 100 % | 100 % |
 
 With 25 km the true delay is 125.664 µs, more than twelve frames. Time stamps alone give it only
 modulo P, so a real link resolves the rest with a longer frame or a coarse classical timestamp.
 The delay error has two sources: the per-click spread over √N (about 19 ps), and the clock error
-times the 1 ms between Alice's frame origin and the middle of the record (the 44 ppb of the
-25 km run is 44 ps).
+times the 1 ms between Alice's frame origin and the middle of the record (the 30 ppb of the
+25 km run is 30 ps).
 
-**1 ns time bins.** `build(rate=, resolution=, record=, dead_time=)` scales the bench, and
+**1 ns time bins.** `build(rate=, resolution=, record=, dead_time=, mu=)` scales the bench, and
 `GHZ = dict(rate=1e9, resolution=20e-12)` is the 1 GHz case. There the AWG runs at 4 GS/s playing
 (1, 0, 0, 0), so each 1 is a 250 ps pulse, a frame is 1 µs and the tagger bins are 20 ps (phoq's
 finest):
 
 | Link | Record | Dead time | Clicks | Click spacing | Clock error | Frame check (σ; best coprime) | Delay error | Assigned |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 0 km | 200 µs | 1 µs | 199 | 1025 symbols | −10 ppb | 1053, wrong (6 σ; 5.1 σ) | −3.3 ps | 100 % |
-| 0 km | 2 ms | 1 µs | 1993 | 1024 | −1 ppb | 1000 (54 σ; 22.9 σ) | −1.6 ps | 100 % |
-| 0 km | 200 µs | 50 ns | 2251 | 76 | −22 ppb | 1000 (46 σ; 2.8 σ) | −2.1 ps | 100 % |
-| 25 km | 200 µs | 50 ns | 2228 | 77 | −20 ppb | 1000 (47 σ; 3.3 σ) | −4.8 ps | 100 % |
+| 0 km | 200 µs | 1 µs | 193 | 1022 symbols | +10 ppb | 1034, wrong (9 σ; 6.8 σ) | +6.3 ps | 100 % |
+| 0 km | 2 ms | 1 µs | 1928 | 1026 | −0 ppb | 1000 (38 σ; 10.1 σ) | −0.3 ps | 100 % |
+| 0 km | 200 µs | 50 ns | 2250 | 76 | −22 ppb | 1000 (46 σ; 2.8 σ) | −2.1 ps | 100 % |
+| 25 km | 200 µs | 50 ns | 2227 | 77 | −19 ppb | 1000 (47 σ; 3.3 σ) | −4.8 ps | 100 % |
 
 At 1 GHz the detector, not the line, sets the statistics. The flux asks for 24 million clicks per
 second; a 1 µs dead time allows about one per microsecond, whatever the symbol rate. Saturated,
-the detector clicks once per dead time plus a short wait (the median spacing is 1025 symbols), a
-rhythm of its own right next to the 1000-symbol frame:
+the detector clicks once per dead time plus a short wait (the median spacing is about 1025
+symbols), a rhythm of its own right next to the 1000-symbol frame:
 
-- With 200 clicks, the blind frame check scores that rhythm (1053) above the true L. The true L
+- With 200 clicks, the blind frame check scores that rhythm (1034) above the true L. The true L
   only reaches about N/√(2L) ≈ 4.5 σ there.
-- With 2000 clicks the true L wins at 54 σ, but the rhythm still shows at 23 σ.
+- With 1900 clicks the true L wins at 38 σ, but the rhythm still shows at 10 σ.
 - A 50 ns detector, as with SNSPDs, gives ten times the clicks in the same 200 µs and takes the
   artefact away (a 2.8 σ floor).
 
 The clock and the delay never needed the blind check, since they use the agreed L.
 `tests/test_sync.py` runs the 50 ns case and the saturated 1 µs case.
+
+**Long dead times.** A free-running InGaAs SPAD is often held off 40–100 µs to keep afterpulsing
+down. phoq has no afterpulsing, so here the dead time only costs clicks: a record T holds about
+$`N = T/(\tau_d + W)`$ of them, where W is a live detector's mean wait for its next click. At 1 GHz
+with 250 ps tagger bins (`LONG`):
+
+| Dead time | μ | Record | Clicks | T/(τd + W) | W/τd | Runner-up | Clock error | Frame check (σ; best coprime) | Delay error | Assigned |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 40 µs | 0.2 | 20 ms | 500 | 500 | 0.001 | 1.00 | +0 ppb | 4004, wrong (19 σ; 16.2 σ) | −0.1 ps | 100 % |
+| 40 µs | 0.002 | 2 ms | 45 | 46 | 0.097 | 0.38 | +43 ppb | 3271, wrong (7 σ; 6.1 σ) | +48 ps | 100 % |
+| 40 µs | 0.002 | 20 ms | 456 | 456 | 0.097 | 0.13 | −1 ppb | 1000 (11 σ; 4.3 σ) | −14 ps | 100 % |
+| 100 µs | 0.2 | 50 ms | 500 | 500 | 0.000 | 1.00 | −19 991 ppb: lost | 2565, wrong (23 σ; 19.0 σ) | lost | 0 % |
+| 100 µs | 0.0008 | 50 ms | 455 | 456 | 0.097 | 0.13 | +0 ppb | 1000 (8 σ; 3.9 σ) | +1.0 ps | 100 % |
+
+Saturated (μ = 0.2, W ≈ 40 ns), the detector clicks almost exactly once per dead time, and this
+regular rhythm causes two problems:
+
+- **The clock is ambiguous.** The clicks strobe Alice's clock at a rate of about $1/\tau_d$, so the
+  line at $f_A$ has copies every $1/\tau_d$: 25 ppm of the clock at 40 µs and 10 ppm at 100 µs.
+  Bob's ±100 ppm search holds several of them, almost equally tall. "Runner-up" is the tallest
+  other peak in the search window over the chosen one; Bob can compute it without the truth, and
+  at 1.00 it says the clock cannot be trusted. Which copy wins is chance: the 40 µs run happened
+  to pick the right one, while the 100 µs run landed two copies off (−20 ppm) and lost the delay.
+- **The frame check is fooled.** The rhythm (40,040 symbols at 40 µs) piles the clicks up at
+  divisors of itself, such as 4004.
+
+More clicks do not cure this: N grows with T, but the clicks stay just as regular. Attenuating
+until the detector waits about a tenth of its dead time does, here μ = 0.002 and 0.0008. Each wait
+then adds about $W$ of jitter to the rhythm, so the copies wash out within a few clicks (runner-up
+0.13), while the count barely drops.
+
+From there:
+
+- Clock and delay come right from the 45 clicks of 2 ms.
+- The blind frame check needs $N/\sqrt{2L}$ well above its ≈ 4 σ noise: about 450 clicks, which is
+  20 ms at 40 µs and 50 ms at 100 µs.
+- An oscillator known to better than half the copy spacing (±12 ppm at 40 µs, ±5 ppm at 100 µs)
+  would also pick the right copy.
+
+[docs/photon-counter.md](docs/photon-counter.md) derives these results and walks through the
+tagger's acquisition. Two engine details matter here:
+
+- **Dead time across chunks.** The tagger synthesizes a record in chunks of a million bins (20 µs
+  at 20 ps), and the detector's dead time carries from one chunk to the next, and into the next
+  acquisition when it continues the record. `build()` splits records over the tagger's 10⁸ bins
+  into back-to-back acquisitions.
+- **Tagger bins must be shorter than half a symbol.** With 500 ps bins at 1 GHz the tagger's
+  Nyquist frequency is the clock itself. The time stamps' periodogram then mirrors the line about
+  it: Alice's +23.4 ppm and a −23.4 ppm image stand equally tall.
 
 **Why the AWG carves pulses.** With a CW laser the modulator alone shapes the light. A pulse
 filling a fraction d of the symbol spreads its clicks over a phase 2πd of the clock, so the line at
@@ -1747,9 +1798,9 @@ null exactly at the symbol rate, and step 1 has nothing to lock to:
 
 | Pulse | Line depth (sinc(πd)) | Clock error | Delay error | Clicks assigned |
 | --- | --- | --- | --- | --- |
-| 2.5 ns (d = ¼) | 0.894 (0.900) | +2 ppb | +2 ps | 100 % |
-| 5 ns (d = ½) | 0.644 (0.637) | +54 ppb | −5 ps | 100 % |
-| NRZ (d = 1) | 0.006 (0) | +50.7 ppm: lost | lost | 9.8 % |
+| 2.5 ns (d = ¼) | 0.895 (0.900) | −4 ppb | −9 ps | 100 % |
+| 5 ns (d = ½) | 0.645 (0.637) | +42 ppb | −19 ps | 100 % |
+| NRZ (d = 1) | 0.008 (0) | +50.5 ppm: lost | lost | 10.2 % |
 
 The quarter-symbol depth sits just under sinc(πd) because the CW light leaks through the modulator
 (30 dB extinction) during the dark samples. With NRZ, the clock would have to come from the string
@@ -1816,6 +1867,8 @@ examples/mpqkd/      Alice, Bob, Charlie (+ station/common), the original single
 examples/bb84/       decoy-state BB84: Alice, Bob (+ common), Eve as a --party file
 examples/cow/        coherent one-way QKD up to the sifted key: Alice, Bob (+ common), Eve as a --party file
 tests/               pytest suite
+docs/engine.md       how the engine computes: tracing, field synthesis, detectors, instruments
+docs/photon-counter.md  the time tagger's acquisition, dead time across records, long dead times
 docs/images/         README screenshots of the virtual lab
 .github/workflows/   ci.yml (tests on push / PR), publish.yml (PyPI on a version tag)
 ```

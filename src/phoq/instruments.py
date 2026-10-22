@@ -669,6 +669,7 @@ class PhotonCounter(Component):
 
     def __init__(self, name: str | None = None, **params):
         self.position = 0  # next bin index: acquisitions run on from one another like a tagger's clock
+        self._blind = (0, {})  # (bin where the last record ended, dead bins each channel carries on)
         super().__init__(name, **params)
 
     def acquire(
@@ -692,6 +693,10 @@ class PhotonCounter(Component):
             shift = min(stamps) if stamps else 0.0
         offsets = {d: -tau for d, tau in delay.items()}  # bin k of a channel: stamps, less its delay
         clicks = {ch: np.zeros(self.slots, dtype=bool) for ch in inputs}
+        # a click near the end of a chunk (or of the previous record, when this one continues it)
+        # keeps its detector dead into the next: the dead time does not restart at the cut
+        end, carried = self._blind
+        blind = {ch: carried.get(ch, 0) if first == end else 0 for ch in inputs}
         m = self.oversample
         step = max(1, self.chunk // m)
         for a in range(0, self.slots, step):
@@ -703,7 +708,9 @@ class PhotonCounter(Component):
                 t = (t[:, None] + np.arange(m) * (dt / m)).ravel()
             fields = synthesize(net, set(inputs.values()), t, dt / m, rng, offsets)
             for ch, d in inputs.items():
-                clicks[ch][a:b] = d.detect(fields[d], dt, rng, b - a, sub=m)
+                c = clicks[ch][a:b] = d.detect(fields[d], dt, rng, b - a, sub=m, blind=blind[ch])
+                blind[ch] = d.blind_after(c, dt, blind[ch])
+        self._blind = (self.position, blind)
         return CounterResult(
             self.name,
             rate,

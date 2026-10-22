@@ -423,16 +423,17 @@ class SinglePhotonDetector(_Detector):
         p_dark = -math.expm1(-self.dark_count_rate * dt)
         return 1 - (1 - p_dark) * np.exp(-self.efficiency * nbar)
 
-    def detect(self, fields, dt, rng, n: int, sub: int = 1) -> np.ndarray:
+    def detect(self, fields, dt, rng, n: int, sub: int = 1, blind: int = 0) -> np.ndarray:
         """Boolean click record, one entry per time bin; ``fields`` may hold ``sub`` sub-bins per
-        bin, whose photons add up."""
+        bin, whose photons add up. ``blind`` bins at the start are still inside the dead time of a
+        click before this record (:meth:`blind_after` gives it for the next one)."""
         nbar = self.photons(fields, dt / sub, n * sub, weighted=True)
         if sub > 1:
             nbar = nbar.reshape(n, sub).sum(axis=1)
         clicks = rng.random(n) < self.click_probability(nbar, dt)
-        dead = int(math.ceil(self.dead_time / dt)) if self.dead_time > 0 else 0
+        dead = self.dead_bins(dt)
         if dead > 1 and clicks.any():
-            keep, last = [], -dead
+            keep, last = [], blind - dead
             for i in np.flatnonzero(clicks):
                 if i - last >= dead:
                     keep.append(i)
@@ -440,6 +441,19 @@ class SinglePhotonDetector(_Detector):
             clicks = np.zeros(n, dtype=bool)
             clicks[keep] = True
         return clicks
+
+    def dead_bins(self, dt: float) -> int:
+        """The dead time in bins of ``dt`` (a click blinds this bin and the next dead_bins − 1)."""
+        return int(math.ceil(self.dead_time / dt - 1e-9)) if self.dead_time > 0 else 0  # 40 µs / 10 ns is 4000
+
+    def blind_after(self, clicks: np.ndarray, dt: float, blind: int = 0) -> int:
+        """Bins of the next record still inside the dead time, after ``clicks`` (which started
+        ``blind`` bins blind): what a record cut in pieces hands on, so that a dead time longer
+        than one piece is still a dead time."""
+        hits = np.flatnonzero(clicks)
+        if hits.size:
+            return max(0, int(hits[-1]) + self.dead_bins(dt) - clicks.size)
+        return max(0, blind - clicks.size)
 
     def waveform(
         self, clicks: np.ndarray, dt: float, width: float = 5e-9

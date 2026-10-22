@@ -27,12 +27,21 @@ string and the nominal rate, Bob recovers:
    index n = rint(tᵢ f_A − θ). Folded modulo L and circularly cross-correlated (by FFT) with the
    string as ±1, these indices peak at the whole-symbol offset D, and Δ = (D + θ) / f_A.
 
-``build(rate=, resolution=, record=, dead_time=)`` scales the bench; the defaults are 10 ns symbols,
+``build(rate=, resolution=, record=, dead_time=, mu=)`` scales the bench; the defaults are 10 ns symbols,
 and ``GHZ`` is 1 ns time bins (an AWG at 4 GS/s playing (1, 0, 0, 0): 250 ps pulses, 20 ps tagger
 bins). There the detector, not the line, sets the statistics: a 1 µs dead time caps it at about one
 click per microsecond whatever the symbol rate. Saturated, it clicks about once per dead time plus
 a short wait, a rhythm of its own that sits next to a 1000-symbol frame and can outscore the frame
 in step 2's blind check when there are only a couple of hundred clicks. Steps 1 and 3 do not care.
+
+Long dead times, the 40–100 µs a free-running InGaAs SPAD is held off against afterpulsing (which
+phoq does not model), leave N ≈ T/(τd + W) clicks in a record T, W being a live detector's mean wait.
+Saturated (W ≪ τd) the clicks come almost every τd and strobe Alice's clock: the line has copies
+every 1/τd (25 ppm of a 1 GHz clock at 40 µs, 10 ppm at 100 µs), several inside the search, and
+which one step 1 picks is chance. ``recover_clock``'s "runner-up", the tallest other peak over the
+chosen one, flags it near 1. Attenuating until W ≈ τd/10 (``mu=``) jitters the rhythm enough to wash
+the copies out. ``LONG`` uses 250 ps tagger bins: bins must stay under half a symbol, or the tagger's
+Nyquist frequency lands on the clock and mirrors the line about it.
 
 The carving matters for step 1. A pulse filling a fraction d of the symbol spreads its clicks over
 a phase 2πd of the clock, so the line keeps a depth sinc(πd) = sin(πd)/(πd): 0.90 for d = ¼, 0.64
@@ -71,17 +80,22 @@ RECORD = 2e-3  # one acquisition [s] (``record=``)
 DEAD_TIME = 1e-6  # free-running InGaAs hold-off (``dead_time=``)
 MU = 0.2  # photons per "1" pulse at the detector
 SEARCH_PPM = 100.0  # how far from nominal Bob looks for Alice's clock
+# (dead time, μ, record) at 1 ns symbols: saturated, then attenuated until the detector waits ≈ τd/10
+DEAD_CASES = ((40e-6, MU, 20e-3), (40e-6, 0.002, 2e-3), (40e-6, 0.002, 20e-3), (100e-6, MU, 50e-3), (100e-6, 0.0008, 50e-3))
 GHZ = dict(rate=1e9, resolution=20e-12)  # 1 ns time bins: an AWG at 4 GS/s carves 250 ps pulses
+LONG = dict(rate=1e9, resolution=250e-12)  # the same with 250 ps bins: still under half a symbol (see build)
+MAX_SLOTS = 100_000_000  # the tagger's bins per acquisition; a longer record is several, back to back
 
 
 # ---- the bench ----------------------------------------------------------------------------------
 def build(km: float = 0.0, ppm: float = PPM, epoch: float = EPOCH, record: float = RECORD, seed: int = 7,
           carve: int = CARVE, rate: float = F_NOM, resolution: float = RESOLUTION,
-          dead_time: float = DEAD_TIME) -> Setup:
+          dead_time: float = DEAD_TIME, mu: float = MU) -> Setup:
     """CW laser → IM (the string, carved, repeated) → VOA → [fiber] → SPD → free-running tagger.
 
     ``rate`` is the agreed symbol rate (the AWG then runs at ``carve`` × ``rate``), ``resolution``
-    the tagger's bin, ``record`` one acquisition and ``dead_time`` the detector's hold-off."""
+    the tagger's bin, ``record`` one acquisition, ``dead_time`` the detector's hold-off and ``mu``
+    the photons per "1" pulse at the detector (the VOA is set for it)."""
     setup = Setup("Clock and frame synchronization", seed=seed)
     f_a = rate * (1 + ppm * 1e-6)  # Alice's clock is her AWG's
     laser = setup.add(Laser("LD-1", mode="cw", power_dbm=-10.0))
@@ -89,7 +103,9 @@ def build(km: float = 0.0, ppm: float = PPM, epoch: float = EPOCH, record: float
     awg = setup.add(FunctionGenerator("AWG-1"))
     voa = setup.add(Attenuator("VOA-1"))
     spd = setup.add(SinglePhotonDetector("SPD-1", dead_time=dead_time))
-    tagger = setup.add(PhotonCounter("TAGGER", bin_rate=1 / resolution, slots=round(record / resolution),
+    bins = round(record / resolution)
+    setup.acquisitions = -(-bins // MAX_SLOTS)  # the tagger runs on, and the detector's dead time with it
+    tagger = setup.add(PhotonCounter("TAGGER", bin_rate=1 / resolution, slots=-(-bins // setup.acquisitions),
                                      compensate_delay=False, ch1_delay=epoch))
     setup.connect(laser.out, im.p1)
     setup.connect(im.p2, voa.p1)
@@ -109,10 +125,11 @@ def build(km: float = 0.0, ppm: float = PPM, epoch: float = EPOCH, record: float
     setup.string = string  # public: agreed beforehand …
     setup.nominal = rate  # … with the nominal symbol rate
     setup.symbol_rate = f_a  # Alice's true clock (for scoring only)
+    setup.mu = mu
     # μ photons in a "1" pulse at the detector: CW power through the open modulator for one sample
     voa.attenuation_db = 0.0
     on = trace(setup).port_power["SPD-1.inp"] * im.t_max  # the trace leaves the modulator's drive out
-    voa.attenuation_db = 10 * math.log10(on / (carve * f_a) / photon_energy(laser.wavelength) / MU)
+    voa.attenuation_db = 10 * math.log10(on / (carve * f_a) / photon_energy(laser.wavelength) / mu)
     return setup
 
 
@@ -124,8 +141,9 @@ def truth(setup: Setup) -> dict:
 
 
 def record(setup: Setup, seed: int = 1) -> np.ndarray:
-    """One acquisition: Bob's time stamps [s] on his own clock."""
-    return Runner(setup, seed=seed).acquire("TAGGER").timestamps("ch1")
+    """One record: Bob's time stamps [s] on his own clock (one acquisition, or several back to back)."""
+    runner = Runner(setup, seed=seed)
+    return np.concatenate([runner.acquire("TAGGER").timestamps("ch1") for _ in range(setup.acquisitions)])
 
 
 # ---- Bob's analysis: time stamps → clock, frame, delay ----------------------------------------------
@@ -139,15 +157,25 @@ def periodogram(t: np.ndarray, freqs: np.ndarray) -> np.ndarray:
 
 
 def recover_clock(t: np.ndarray, f_nom: float = F_NOM, search_ppm: float = SEARCH_PPM) -> dict:
-    """Step 1: the FFT of the click histogram, then the periodogram of the time stamps around its peak."""
+    """Step 1: the FFT of the click histogram, then the periodogram of the time stamps around its peak.
+    A long record with few clicks (a long dead time) skips the histogram, which would not fit in
+    memory, and scans the periodogram over the whole search window at a quarter FFT bin."""
     span = t[-1] - t[0]
     dt = 1 / (8 * f_nom)  # 8 histogram bins per symbol: the clock line is well below Nyquist
-    hist = np.bincount(((t - t[0]) / dt).astype(np.int64)).astype(float)
-    spec = np.abs(np.fft.rfft(hist - hist.mean())) ** 2
-    freq = np.fft.rfftfreq(hist.size, dt)
-    window = np.abs(freq - f_nom) <= f_nom * search_ppm * 1e-6
+    step = 1 / span  # one FFT bin
+    if span / dt <= 2**25:
+        hist = np.bincount(((t - t[0]) / dt).astype(np.int64)).astype(float)
+        spec = np.abs(np.fft.rfft(hist - hist.mean())) ** 2
+        freq = np.fft.rfftfreq(hist.size, dt)
+        window = np.abs(freq - f_nom) <= f_nom * search_ppm * 1e-6
+    else:
+        half = f_nom * search_ppm * 1e-6
+        freq = f_nom + np.arange(-half, half, step / 4)
+        spec = periodogram(t, freq)
+        window = np.ones(freq.size, dtype=bool)
     coarse = float(freq[window][np.argmax(spec[window])])
-    step = freq[1]  # one FFT bin = 1/span
+    elsewhere = window & (np.abs(freq - coarse) > 2 * step)  # the rest of the search window
+    runner_up = float(spec[elsewhere].max() / spec[window].max()) if elsewhere.any() else 0.0
     fine = coarse + np.linspace(-2, 2, 801) * step
     z = periodogram(t, fine)
     k = int(np.argmax(z))
@@ -157,7 +185,7 @@ def recover_clock(t: np.ndarray, f_nom: float = F_NOM, search_ppm: float = SEARC
     else:
         f = float(fine[k])
     return {"f": f, "coarse": coarse, "fft bin": step, "span": span, "spectrum": (freq, spec), "zoom": (fine, z),
-            "depth": math.sqrt(float(z[k]) / t.size)}
+            "depth": math.sqrt(float(z[k]) / t.size), "runner-up": runner_up}
 
 
 def symbol_phase(t: np.ndarray, f: float) -> float:
@@ -205,6 +233,13 @@ def synchronize(t: np.ndarray, string: np.ndarray, f_nom: float = F_NOM) -> dict
     frame = check_frame(t, clock["f"])
     delay = recover_delay(t, clock["f"], string)
     return {"clock": clock, "frame": frame, "delay": delay, "clicks": t.size}
+
+
+def waiting_time(setup: Setup) -> float:
+    """Mean wait W of a live detector for its next click: 1/(f·⟨s⟩·(1 − e^{−ημ}) + dark rate)."""
+    spd = setup["SPD-1"]
+    rate = setup.symbol_rate * setup.string.mean() * -math.expm1(-spd.efficiency * setup.mu) + spd.dark_count_rate
+    return 1 / rate
 
 
 def assigned(t: np.ndarray, sync: dict, true: dict) -> float:
@@ -260,7 +295,7 @@ if __name__ == "__main__":
           f"{fmt_si(GHZ['resolution'], 's')} tagger bins")
     print(f"   {'link':>8} {'record':>7} {'dead time':>9} {'clicks':>6} {'spacing':>8} {'clock error':>11} "
           f"{'frame check (σ; coprime best)':>30} {'delay error':>11} {'assigned':>8}")
-    for km, rec, dead in ((0.0, 2e-3, 10e-6), (0.0, 2e-3, 1e-6), (0.0, 2e-4, 50e-9), (25.0, 2e-4, 50e-9)):
+    for km, rec, dead in ((0.0, 2e-4, 1e-6), (0.0, 2e-3, 1e-6), (0.0, 2e-4, 50e-9), (25.0, 2e-4, 50e-9)):
         r = report(km, record=rec, dead_time=dead, **GHZ)
         s, fr = r["sync"], r["sync"]["frame"]
         check = f"{fr['L']} {'ok' if fr['L'] == L else 'wrong'} ({fr['significance']:.0f} σ; {fr['noise']:.1f} σ)"
@@ -269,6 +304,23 @@ if __name__ == "__main__":
               f"{r['delay error'] * 1e12:+8.1f} ps {r['assigned'] * 100:7.1f} %")
     print("   (spacing: median symbols between clicks. With 1 µs of dead time the detector is saturated and\n"
           "    clicks about once per 1000 + 25 symbols, a rhythm of its own next to the 1000-symbol frame.)\n")
+
+    print("Long dead times: a free-running InGaAs SPAD held off 40 or 100 µs against afterpulsing (phoq has no\n"
+          f"afterpulsing: here the dead time only costs clicks). 1 ns symbols, {fmt_si(LONG['resolution'], 's')} tagger bins")
+    print(f"   {'dead time':>9} {'μ':>6} {'record':>6} {'clicks':>6} {'T/(τd+W)':>8} {'W/τd':>6} {'runner-up':>9} "
+          f"{'clock error':>11} {'frame check (σ; coprime best)':>30} {'delay error':>11} {'assigned':>8}")
+    for dead, mu, rec in DEAD_CASES:
+        r = report(record=rec, dead_time=dead, mu=mu, **LONG)
+        s, fr = r["sync"], r["sync"]["frame"]
+        w = waiting_time(r["setup"])
+        check = f"{fr['L']} {'ok' if fr['L'] == L else 'wrong'} ({fr['significance']:.0f} σ; {fr['noise']:.1f} σ)"
+        print(f"   {fmt_si(dead, 's'):>9} {mu:6g} {fmt_si(rec, 's'):>6} {s['clicks']:6d} {rec / (dead + w):8.0f} "
+              f"{w / dead:6.3f} {s['clock']['runner-up']:9.2f} {r['f error ppm'] * 1e3:+8.0f} ppb {check:>30} "
+              f"{r['delay error'] * 1e12:+8.1f} ps {r['assigned'] * 100:7.1f} %")
+    print("   (W: a live detector's mean wait for its next click. Saturated, W ≪ τd: the clicks come almost every τd\n"
+          "    and strobe Alice's clock, so the line has copies every 1/τd, 25 ppm at 40 µs and 10 ppm at 100 µs,\n"
+          "    and ±100 ppm of search holds several (runner-up ≈ 1): which one wins is chance, and the rhythm also\n"
+          "    fools the frame check. With W ≈ τd/10 the waits scatter the copies.)\n")
 
     print("Carving: the clock line's depth at Alice's clock, and what steps 1 and 3 make of it")
     print(f"   {'pulse':>16} {'depth':>6} {'sinc(πd)':>8} {'clock error':>12} {'delay error':>12} {'assigned':>9}")

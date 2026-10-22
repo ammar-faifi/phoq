@@ -331,7 +331,13 @@ acquisitions are independent records, not consecutive pieces of one record.
   would still interfere fully; sub-bins of a quarter of the pulse width get their overlap right to
   2 %, at $m$ times the cost.
 - **Chunks.** Long records are synthesized in chunks of `chunk` bins (one million by default;
-  `chunk` divided by $m$ with sub-bins).
+  `chunk` divided by $m$ with sub-bins). A detector that clicked near the end of a chunk stays dead
+  into the next (`SinglePhotonDetector.detect(..., blind=)` and `blind_after()`), and into the next
+  acquisition when that starts where this one ended.
+
+[photon-counter.md](photon-counter.md) walks through `acquire()` step by step and covers what a long
+dead time does to the clicks: how many there are, how a saturated detector strobes a clock, and how
+fine the tagger's bin must be.
 - **Result.** A boolean click record per channel; `timestamps`, `events`, `counts`, `rates` and
   `coincidences` are derived from it. Clicks have no position inside their bin.
 
@@ -462,7 +468,8 @@ with the time average of synthesized fields: 0.1085 mW against 0.1091 ± 0.0016 
   spot size or power density on the diodes. Its steady-state report checks the swing on the mean
   output only: a beat or modulation that clips shows in the time domain.
 - Single-photon detector: no timing jitter (a click sits in its bin), no afterpulsing, no gating or
-  twilight events. Dead time is non-paralysable and does not carry across acquisitions or chunks.
+  twilight events. Dead time is non-paralysable. It carries across the photon counter's chunks, and
+  into the next acquisition when that continues the record, so it may be longer than a chunk.
 
 **Instruments**
 
