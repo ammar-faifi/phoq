@@ -4,7 +4,7 @@
     uv run python examples/balanced_detection.py --plot bpd.png   # also save the three scope traces
     uv run phoq serve examples/balanced_detection.py              # the bench in 3D
 
-    LO laser, 8 dBm → IM (5 % rms intensity noise) ─┐            ┌─ 1 m → INPUT+    RF OUTPUT → CH1
+    LO laser, 8 dBm → IM (5 % rms, < 30 kHz) ───────┐            ┌─ 1 m → INPUT+    RF OUTPUT → CH1
                                                     ├─ 50:50 ────┤                   MONITOR+  → CH2
     signal laser, −30 dBm, +400 kHz ────────────────┘            └─ 1 m → INPUT−    MONITOR−  → CH3
 
@@ -39,8 +39,8 @@ from phoq.engine import report, trace
 from phoq.units import fmt_si
 
 BEAT = 400e3  # signal − LO optical frequency: inside the 45 MHz RF bandwidth and the 1 MHz monitors
-RIN = 0.05  # the LO's relative intensity noise, rms
-CORNER = 30e3  # …in a band up to this corner, as the slow wander of a free-running laser
+RIN = 0.05  # the LO's relative intensity noise: 5 % rms, over the band below CORNER
+CORNER = 30e3  # its one-pole corner: slow technical wander, not the laser's white rin_db_hz
 
 
 def lo_noise(n: int, rate: float, rms: float = RIN, corner: float = CORNER, seed: int = 5) -> np.ndarray:
@@ -194,7 +194,7 @@ if __name__ == "__main__":
             ax.grid(alpha=0.3)
         axes[-1].set(xlabel="time from trigger [µs]")
         axes[0].set_title(f"{bpd.preset} at {fmt_si(bpd.gain, 'V/A')}: {fmt_si(BEAT, 'Hz')} beat on a LO with "
-                          f"{100 * RIN:g} % intensity noise", fontsize=10)
+                          f"{100 * RIN:g} % rms intensity noise below {fmt_si(CORNER, 'Hz')}", fontsize=10)
         fig.tight_layout()
         fig.savefig(args.plot, dpi=140)
         print(f"\nsaved {args.plot}")

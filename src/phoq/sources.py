@@ -11,15 +11,18 @@ from .core import Component, FiberConnectors, Param
 from .units import COMMON_WAVELENGTHS, dbm_to_w, fmt_si, photon_energy, seq125
 
 MODES = ("cw", "pulsed", "sine", "ook")
+RIN_OFF = -200.0  # dB/Hz: a laser without classical intensity noise (no random draws at all)
 _FWHM = 2.0 * np.sqrt(2.0 * np.log(2.0))  # Gaussian FWHM / sigma
 
 
 class Laser(FiberConnectors, Component):
     """Fiber-coupled DFB laser module with an internal isolator.
 
-    The emitted field is ``sqrt(P(t)) · exp(i φ(t))`` where the envelope follows ``mode`` and the
-    phase performs a random walk set by ``linewidth`` (plus ``detuning`` and, for weak coherent
-    pulse sources, an optional uniformly random phase per pulse).
+    The emitted field is ``sqrt(P(t)·(1 + δ(t))) · exp(i φ(t))`` where the envelope follows ``mode``,
+    the phase performs a random walk set by ``linewidth`` (plus ``detuning`` and, for weak coherent
+    pulse sources, an optional uniformly random phase per pulse), and δ is the laser's classical
+    relative intensity noise, white at ``rin_db_hz``. Shot noise is not part of δ: phoq draws it at
+    detection, so a detector measures RIN = rin + 2hν/(ηP).
     """
 
     category = "source"
@@ -74,6 +77,16 @@ class Laser(FiberConnectors, Component):
         doc="Lorentzian linewidth (phase diffusion)",
     )
     detuning = Param(0.0, unit="Hz", label="Frequency offset", min=-100e9, max=100e9)
+    rin_db_hz = Param(
+        RIN_OFF,
+        unit="dB/Hz",
+        label="Intensity noise (RIN)",
+        min=RIN_OFF,
+        max=-80.0,
+        presets=(RIN_OFF, -160.0, -150.0, -140.0, -130.0, -120.0),
+        doc="One-sided PSD of the classical relative intensity noise δP/P̄, white; the shot noise "
+        "comes on top at detection. −200 dB/Hz = none",
+    )
     phase_randomized = Param(
         False,
         label="Random phase per pulse",
@@ -92,7 +105,7 @@ class Laser(FiberConnectors, Component):
             "sine": ["mod_depth"],
             "ook": ["duty"],
         }.get(self.mode, [])
-        return f + ["linewidth", "detuning"]
+        return f + ["linewidth", "detuning", "rin_db_hz"]
 
     # ---- derived quantities -------------------------------------------------------------------
     @property
@@ -134,6 +147,9 @@ class Laser(FiberConnectors, Component):
             out["Photons / pulse"] = f"{self.mean_photon_number:.3g}"
         if self.linewidth > 0:
             out["Coherence time"] = fmt_si(1 / (np.pi * self.linewidth), "s")
+        if self.rin_db_hz > RIN_OFF and self.power > 0:
+            shot = 10 * math.log10(2 * photon_energy(self.wavelength) / self.power)
+            out["RIN"] = f"{self.rin_db_hz:g} dB/Hz; shot noise at this power: {shot:.1f} dB/Hz"
         return out
 
     # ---- field synthesis -----------------------------------------------------------------------
@@ -176,6 +192,21 @@ class Laser(FiberConnectors, Component):
         for j in range(-m + 1, m + 1):
             acc = acc + 0.5 * (1 + erf((x - (k0 + j) / f) / (s * math.sqrt(2))))
         return acc
+
+    def intensity_factor(self, t: np.ndarray, dt: float, rng: np.random.Generator) -> np.ndarray | None:
+        """√(1 + δ) at emission times ``t`` (bin starts, any shape), or None without intensity noise.
+
+        δ is white with one-sided PSD S = 10^(rin_db_hz/10): its average over a bin of ``dt`` has
+        variance S/(2·dt). The bins sit on one absolute grid of ``dt``, so every path of this laser
+        that leaves in the same bin carries the same δ, as the phase walk is shared."""
+        if self.rin_db_hz <= RIN_OFF:
+            return None
+        k = np.floor(np.asarray(t, dtype=float) / dt).astype(np.int64)
+        if k.size == 0:
+            return np.ones(k.shape)
+        k0 = int(k.min())
+        delta = rng.standard_normal(int(k.max()) - k0 + 1) * math.sqrt(10 ** (self.rin_db_hz / 10) / (2 * dt))
+        return np.sqrt(np.clip(1.0 + delta[k - k0], 0.0, None))
 
     def phase(self, t: np.ndarray, rng: np.random.Generator) -> np.ndarray:
         """One joint phase realisation evaluated at arbitrary (possibly repeated) times."""

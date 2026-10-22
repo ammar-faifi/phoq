@@ -69,7 +69,7 @@ Units are SI throughout: metres, seconds, hertz and watts. Powers use `power_dbm
 
 | Category | Classes |
 | --- | --- |
-| Sources | `Laser` (CW / pulsed / sine / OOK, linewidth, detuning, per-pulse phase randomisation) |
+| Sources | `Laser` (CW / pulsed / sine / OOK, linewidth, detuning, relative intensity noise, per-pulse phase randomisation) |
 | Fiber | `Fiber` (patch cord), `FiberSpool` |
 | Passive | `Attenuator`, `Coupler` (2×2 fused fiber coupler; `BeamSplitter` is its deprecated old name), `PhaseShifter`, `Isolator`, `MatingSleeve` (FC–FC adapter joining two cords), `OpticalDelayLine` (variable free-space delay: dial, carrier phase, Gaussian-beam coupling loss) |
 | Modulators | `PhaseModulator` (φ = π·V/Vπ), `IntensityModulator` (Mach–Zehnder, extinction) — voltage comes only through their `rf` and `bias` inputs; `IQModulator` (dual-parallel MZM: `rf_i`, `rf_q` and three DC biases, `bias_i`, `bias_q`, `bias_p`); `OpticalSwitch` (2×2, bar below the threshold voltage on `ctrl`, cross above: a pattern routes pulse by pulse) |
@@ -478,7 +478,10 @@ detector dead time across records, and what long dead times do to the clicks.
   between two connectors) is ≤ −80 dB for matching ones.
 - **Lasers:** the envelope is averaged over each sample bin, so a 100 ps pulse is exact at any
   timebase. Phase is a Wiener process from the linewidth, drawn once per acquisition and shared
-  by all paths. That makes interferometer visibility and Alice/Bob phase drift physical.
+  by all paths. That makes interferometer visibility and Alice/Bob phase drift physical. A white
+  relative intensity noise (`rin_db_hz`) can be added, also one realisation shared by all paths;
+  shot noise comes on top at detection. See
+  [examples/laser_noise.md](examples/laser_noise.md).
 - **Photodiode:** I = Σ R(λ)·P + I_dark plus white shot noise (density 2qI) and thermal noise
   (4kT/R), all through a one-pole bandwidth: the noise RMS is √(2qIB) and √(4kTB/R) with
   B = (π/2)·f₃dB. It saturates softly above `saturation`.
@@ -832,8 +835,10 @@ fiber the allowed difference is 1.5 times smaller. 30 dB at 1 MHz allows 1 m of 
 two cords; at 100 MHz it allows 1 cm. phoq's paths carry their own delays, so this needs no
 parameter: a 1 m and a 2 m cord give 30.2 dB at 1 MHz and 10.3 dB at 10 MHz.
 
-**Noise.** Each diode adds its own shot noise, of density $`2q\,i_\pm`$. The two are independent, so
-they add in power on RF OUTPUT even though the mean currents subtract. The amplifier adds its NEP,
+**Noise.** Each diode's photocurrent carries shot noise of density $`2q\,i_\pm`$. Behind a 50:50
+coupler the two are uncorrelated, because each photon's path is random (RP Photonics, "Balanced
+photodetection"). They therefore add in power on RF OUTPUT, even though the mean currents subtract.
+The amplifier adds its NEP,
 referred to the peak responsivity, and all of it passes through the same pole:
 
 ```math
@@ -863,7 +868,7 @@ preset's 20 mW damage threshold.
 **Demo.** `examples/balanced_detection.py` is a heterodyne receiver whose local oscillator is noisy:
 
 ```
-LO laser, 8 dBm → IM (5 % rms intensity noise) ─┐            ┌─ 1 m → INPUT+    RF OUTPUT → CH1
+LO laser, 8 dBm → IM (5 % rms, < 30 kHz) ───────┐            ┌─ 1 m → INPUT+    RF OUTPUT → CH1
                                                 ├─ 50:50 ────┤                   MONITOR+  → CH2
 signal laser, −30 dBm, +400 kHz ────────────────┘            └─ 1 m → INPUT−    MONITOR−  → CH3
 ```
@@ -1225,9 +1230,37 @@ $f_\mathrm{AOM}$, is the more common method (Table 1, §3.2, §4.2); phoq has no
 shifter yet, so only the homodyne version can be built. No dispersion, nonlinearity or Rayleigh
 backscattering in the spool (§5 notes double Rayleigh scattering distorts the lineshape).
 
+### Laser intensity noise and shot noise
+
+`Laser(rin_db_hz=…)` gives a laser classical relative intensity noise: a white one-sided PSD of
+δP/P̄ in dB/Hz, one realisation per laser shared by all its paths. Shot noise is drawn at detection,
+so a photodiode reads $`S_I = \mathcal R^2\bar P^2\,\mathrm{RIN} + 2q\bar I + 4k_BT/R`$.
+`examples/laser_noise.py` measures both with a PDB450C at 10⁵ V/A and the spectrum analyzer:
+
+```
+laser (RIN −135 dB/Hz) → VOA → 50:50 ─┬─ 1 m → INPUT+    BPD-1 (PDB450C, 10⁵ V/A)
+                                      └─ 1 m → INPUT−    RF OUTPUT → spectrum analyzer
+```
+
+| Measurement | Expected | phoq |
+| --- | --- | --- |
+| Dark | (NEP·ℜ)² = −236.2 dB re 1 A²/Hz | −236.2 dB |
+| One input: fit of a·I + b·I², 1.8–28 µA | b = RIN = −135 dB/Hz, a = 2q | −134.95 dB/Hz; q to −3.6 % |
+| Both inputs, 4 µA to 1.1 mA | the difference at 2q(I₊ + I₋) | within ±0.4 dB; q to +0.2 % |
+| The same 1.1 mA on one diode | 20 dB above the shot noise | 20.1 dB |
+| Dark-noise clearance at 1.1 mA | shot over amplifier noise | 21.8 dB |
+
+One input bends from the shot noise to the laser's intensity noise at 2q/RIN = 10 µA. The
+difference current stays at the shot noise, because the RIN reaches both diodes alike and cancels
+to the CMRR residue. The two diodes' shot noises are uncorrelated and do not cancel.
+[examples/laser_noise.md](examples/laser_noise.md) explains where each noise enters phoq's code,
+checks the terms against the RP Photonics articles, and has the full tables and plot.
+`tests/test_laser_noise.py` checks the photodiode against $`2qI + 4k_BT/R + \mathrm{RIN}\,I^2`$
+to 0.1 dB, the variance of δ per bin, and that the noise is shared by every path.
+
 ### Checked against the literature
 
-The models above were compared with nine references (October 2026):
+The models above were compared with ten references (October 2026):
 
 - *S. J. van Enk, "Coherent states, beam splitters and photons".* §8 and §12–14: a laser mode is
   a coherent state with Poissonian photon number $P(n) = e^{-|\alpha|^2}|\alpha|^{2n}/n!$ and mean
@@ -1317,7 +1350,26 @@ The models above were compared with nine references (October 2026):
   2·10⁻⁴. Eqs. (2.46)–(2.47): the arcsin drive of the conventional IQ transmitter, which places
   16-QAM and 64-QAM at ½(i + jq). Figs. 2.27–2.28: undershoots and chirp at the symbol
   transitions, which need the RF bandwidth phoq does not model. See
-  [IQ modulator](#iq-modulator) and `tests/test_iq_modulator.py`.
+  [IQ modulator](#iq-modulator) and `tests/test_iq_modulator.py`. Eqs. (2.3)–(2.8): laser phase
+  noise as a random walk with a Lorentzian line, which is `Laser.phase`, and RIN modelled as white
+  Gaussian noise, which is `Laser.rin_db_hz`.
+- *R. Paschotta, RP Photonics Encyclopedia:
+  [phase noise](https://www.rp-photonics.com/phase_noise.html),
+  [intensity noise](https://www.rp-photonics.com/intensity_noise.html),
+  [shot noise](https://www.rp-photonics.com/shot_noise.html),
+  [balanced photodetection](https://www.rp-photonics.com/balanced_photodetection.html).*
+  - Phase noise: white frequency noise means $`S_\varphi \propto 1/f^2`$, specified by a linewidth or
+    a coherence time; phoq's laser has exactly that. The beat and delayed-beat measurements are
+    `linewidth_homodyne.py` and the two-laser test.
+  - Intensity noise: RIN is a PSD in dB/Hz, or an rms value over a stated band. That led to the new
+    `Laser.rin_db_hz`, and to giving the balanced demo's 5 % rms its 30 kHz band.
+  - Shot noise: $2q\bar I$, white and Gaussian, unchanged by η < 1. It is a property of the light,
+    which phoq draws at detection; that is exact for coherent light, but excludes squeezed light.
+    The docs now say "carries" where they said a diode "adds" shot noise.
+  - Balanced photodetection: common noise cancels to the CMRR, while the two halves' shot noises are
+    uncorrelated and add. `examples/laser_noise.py` reproduces 2q(I₊ + I₋) to ±0.4 dB and q to
+    0.2 %.
+  - [examples/laser_noise.md](examples/laser_noise.md) maps each article onto the code.
 
 ## Quantum protocols
 

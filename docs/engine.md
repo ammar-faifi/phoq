@@ -195,6 +195,15 @@ walk at $t-\tau_1$ and $t-\tau_2$. `detuning` adds $`2\pi\,\delta f\,t`$, which 
 a chosen offset. `phase_randomized` adds a fresh uniform phase per pulse slot, for weak-coherent-
 pulse sources.
 
+**Intensity noise.** `rin_db_hz` is the laser's classical relative intensity noise, the one-sided
+PSD $S$ of $\delta P/\bar P$, white. `intensity_factor(t, dt, rng)` multiplies the field by
+$\sqrt{1+\delta}$, where $\delta$ is drawn per bin of an absolute grid of `dt`, with variance
+$S/2\Delta t$ (the PSD over the bin's bandwidth $1/2\Delta t$). Every path that leaves in the same
+bin reads the same $\delta$, as with the phase walk, so the noise is common to all of them and a
+balanced detector can cancel it. Shot noise is not part of it: it is drawn at detection (section 6),
+so a detector reads $`\mathrm{RIN} + 2h\nu/\eta P`$. At the default, −200 dB/Hz, nothing is drawn.
+See [examples/laser_noise.md](../examples/laser_noise.md).
+
 ## 5. `synthesize()`: paths on a time grid
 
 `synthesize(net, detectors, t, dt, rng, offsets=None)` returns, for each requested detector, a dict
@@ -236,7 +245,10 @@ i = I_\mathrm{dark} + \sum_\lambda \mathcal R(\lambda)\,|E_\lambda|^2
 
 plus white Gaussian noise of one-sided density $`2qi + 4k_BT/R_\mathrm{load}`$ (shot noise of the
 instantaneous current and thermal noise of the load: per sample, a variance of that density over
-$2\Delta t$).
+$2\Delta t$). Shot noise belongs to the light, not to the detector (RP Photonics, "Shot noise").
+phoq draws it at detection, which gives the same photocurrent statistics for coherent and classical
+light: loss, including a quantum efficiency below 1, keeps them Poissonian, so $2qi$ holds for any
+η. Light with sub-shot-noise (squeezed) statistics is outside the model.
 Signal and noise then pass together through the bandwidth as one exact discrete pole,
 $\alpha = 1 - e^{-2\pi B\Delta t}$, so the noise has the density $`(2qi + 4k_BT/R)\,|H(f)|^2`$ and
 the variance $`(2qi + 4k_BT/R)\,B_N`$ with the pole's noise bandwidth
@@ -248,7 +260,8 @@ start the record early by `settle_time` = $6/2\pi B$ so the filter has settled.
 **Balanced photodetector** (`detect` returns the open-circuit voltages of `rf`, `mon_plus` and
 `mon_minus`, from one noise realisation). Each photodiode's current is computed as above from the
 fields of its own input, with the INPUT− diode's responsivity short by $`10^{-\mathrm{CMRR}/20}`$
-(the model of the common-mode rejection), and gets its own shot noise $2qi_\pm$. The amplifier
+(the model of the common-mode rejection), and carries its own shot noise $2qi_\pm$, uncorrelated
+with the other diode's: behind a 50:50 coupler each photon's path is random. The amplifier
 adds its input noise, the NEP of the selected gain referred to peak responsivity. Then
 
 ```math
@@ -445,8 +458,10 @@ with the time average of synthesized fields: 0.1085 mW against 0.1091 ± 0.0016 
 
 - Coherent states only: no single-photon or entangled-pair sources, no Fock-state statistics, no
   Hong–Ou–Mandel interference.
-- Laser phase noise is white frequency noise only: no 1/f (flicker) frequency noise, no
-  relative-intensity noise, no chirp, no relaxation oscillations, no wavelength drift.
+- Laser phase noise is white frequency noise only: no 1/f (flicker) frequency noise, no chirp, no
+  wavelength drift. Its intensity noise is white too: no relaxation-oscillation peak, no excess
+  low-frequency (pump) noise, and no coupling between intensity and phase noise (linewidth
+  enhancement).
 - Pulses are Gaussian; no pulse shape from a datasheet.
 
 **Modulators and electronics**

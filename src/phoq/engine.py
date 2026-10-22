@@ -220,6 +220,9 @@ def synthesize(
         emit = t[None, :] - delays[:, None]  # emission time at the start of each bin
         mid = emit + dt / 2  # …and at its centre (pulse k sits at k/f)
         field_ = src.envelope(emit, dt) * np.exp(1j * src.phase(mid, rng))
+        noise = src.intensity_factor(emit, dt, rng)  # the laser's classical intensity noise, if any
+        if noise is not None:
+            field_ = field_ * noise
         for k, (d, p) in enumerate(items):
             f = p.amp * field_[k]
             for mod, at in p.mods:
