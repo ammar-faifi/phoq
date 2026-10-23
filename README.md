@@ -74,7 +74,7 @@ Units are SI throughout: metres, seconds, hertz and watts. Powers use `power_dbm
 | Passive | `Attenuator`, `Coupler` (2×2 fused fiber coupler; `BeamSplitter` is its deprecated old name), `PhaseShifter`, `Isolator`, `MatingSleeve` (FC–FC adapter joining two cords), `OpticalDelayLine` (variable free-space delay: dial, carrier phase, Gaussian-beam coupling loss) |
 | Modulators | `PhaseModulator` (φ = π·V/Vπ), `IntensityModulator` (Mach–Zehnder, extinction) — voltage comes only through their `rf` and `bias` inputs; `IQModulator` (dual-parallel MZM: `rf_i`, `rf_q` and three DC biases, `bias_i`, `bias_q`, `bias_p`); `OpticalSwitch` (2×2, bar below the threshold voltage on `ctrl`, cross above: a pattern routes pulse by pulse) |
 | Detectors | `Photodiode`, `BalancedPhotodetector` (two FC inputs whose photocurrents subtract before a switchable-gain amplifier: RF OUTPUT, and a MONITOR output per diode), `SinglePhotonDetector`, `PowerMeter` |
-| Instruments | `Oscilloscope`, `SpectrumAnalyzer` (RF spectrum in dBm: RBW, averaging, detectors, trace average and max hold, Lorentzian and short-delay linewidth fits), `PhotonCounter` (time tagger: per-channel input delays, sub-bins for pulses shorter than a bin), `FunctionGenerator` (2 outputs: dc / sine / square / triangle / ramp / loaded pattern), `DCPowerSupply` (2 outputs, ±30 V) |
+| Instruments | `Oscilloscope` (with an optional ADC resolution, `adc_bits`), `SpectrumAnalyzer` (RF spectrum in dBm: RBW, averaging, detectors, trace average and max hold, Lorentzian and short-delay linewidth fits), `PhotonCounter` (time tagger: per-channel input delays, sub-bins for pulses shorter than a bin), `FunctionGenerator` (2 outputs: dc / sine / square / triangle / ramp / loaded pattern), `DCPowerSupply` (2 outputs, ±30 V) |
 
 Run `phoq catalog` for every port and parameter.
 
@@ -997,8 +997,12 @@ coarsely sampled or aliased sine still reads its (aliased) frequency, while flat
 Records longer than 2 000 points are drawn as a min/max envelope per screen column; the numbers
 always use every sample.
 
-**Not modelled:** ADC quantisation, equivalent-time sampling, trigger jitter and holdoff,
-probe loading. On the modulators: the electrodes' capacitance and velocity mismatch, which make a
+**ADC.** With `adc_bits` > 0, each channel is digitized: 2^bits levels across the screen's 8
+divisions about its offset, and samples off the screen read the end codes. `ScopeResult.codes(ch)`
+returns the integer codes. At 0, the default, samples are exact.
+
+**Not modelled:** ADC non-linearity and interleaving errors, equivalent-time sampling, trigger jitter
+and holdoff, probe loading. On the modulators: the electrodes' capacitance and velocity mismatch, which make a
 real EOM a low-pass on its drive (the generator's voltage is applied instantaneously); bias drift
 and its controller; chirp of single-drive devices.
 
@@ -1258,9 +1262,72 @@ checks the terms against the RP Photonics articles, and has the full tables and 
 `tests/test_laser_noise.py` checks the photodiode against $`2qI + 4k_BT/R + \mathrm{RIN}\,I^2`$
 to 0.1 dB, the variance of δ per bin, and that the noise is shared by every path.
 
+### Quantum random numbers from vacuum fluctuations
+
+`examples/vacuum_noise_qrng.py` builds the vacuum-noise quantum random number generator of Gehring et al. (2021)
+and Park et al. (2025), with the oscilloscope as its ADC:
+
+```
+laser (LO, 4 dBm) → BS-1 ─┬─ 1 m → INPUT+    BPD-1 (PDB450C, 10⁴ V/A, 45 MHz)
+   open input: vacuum ─────┘─ 1 m → INPUT−    RF OUTPUT → OSC-1 CH1 (adc_bits=8)
+```
+
+Only the vacuum enters the coupler's second input. The balanced detector's difference current
+keeps the vacuum's quadrature noise amplified by the LO, which is the shot noise of the previous
+section, while the LO's own noise cancels. Each 8-bit sample is Gaussian, with variance
+$`\sigma^2 = \sigma_Q^2 + \sigma_E^2`$: the vacuum's share plus the classical excess (the amplifier,
+any leaked laser noise).
+Only $\sigma_Q$ is unpredictable. The script estimates three things:
+
+- **Min-entropy against classical side information** (Park Eqs. 7–8): the adversary knows each
+  sample's classical part and guesses its bin, $`H = -\log_2\max\{c_1, \mathrm{erf}(\delta/2\sqrt2\sigma_Q)\}`$.
+  Here c₁ is the end bin, reached when the classical noise pushes a sample up to 5σ_E toward it.
+- **Min-entropy against quantum side information** (Gehring Eq. 67). The excess noise is a thermal
+  state of n photons on a vacuum of variance g², so σ² = g²(1+2n). The bound is maximised over δ;
+  for n = 0 it is the classical bound.
+- **Correlations** (Gehring Eqs. 14, 22, 24). Only what the past cannot predict counts:
+  $`\sigma_X^2 = \exp\langle\ln f(\lambda)\rangle`$, the geometric mean of the samples' PSD. Likewise
+  $\sigma_U^2$ for the excess noise alone. Then g² = σ_X² − σ_U² and n = ½σ²/g² − ½.
+
+A Toeplitz hash then compresses N samples to $`\ell = N H - \log_2(1/2\varepsilon^2)`$ bits
+(Gehring Eq. 1).
+
+The detector's DC output matters. phoq's balanced detector is DC-coupled, with INPUT− 3.2 % less
+responsive, so `build()` trims the coupler to 0.4920 so that the photocurrents match. That is Park's
+precision balancing, and it also cancels the LO's −140 dB/Hz RIN. At 0.5000 the 0.29 V of DC puts
+every sample on an end code of the ±9 mV screen.
+
+| Check | Result |
+| --- | --- |
+| Shot noise: σ² − σ_E² against LO power, −2 to 4 dBm | ∝ I: 407 codes² per mA throughout, R² = 1.0000 (Park: 0.9957) |
+| Quantum-to-classical noise ratio at 1.8 mA | +4.2 dB = 2q(I₊ + I₋) over the NEP noise |
+| Sample rate against the 45 MHz detector | acf(1) 0.002, 0.007, 0.07, 0.30 at 20, 50, 100, 200 MS/s; H per sample 5.56, 5.63, 5.58, 5.41 bits; rate 0.11, 0.28, 0.56, 1.08 Gb/s |
+| 8-bit min-entropy against the ADC range, ±3σ, ±4σ, ±6σ, ±8σ | classical 1.56, 4.14, 5.50, 5.09 bits; quantum 5.78, 5.58, 4.99, 4.58 bits (best range 5.80) |
+| 12 and 16 bits at ±8σ | classical 9.09 and 13.09 bits; quantum 8.58 and 12.58 bits |
+| Extraction at 100 MS/s, 8 bits | 512 samples → 2727 bits, 533 Mb/s; output passes the frequency, runs and byte-χ² checks |
+
+The two side-information models want different ADC ranges. The classical worst case lets the
+adversary push a sample toward an end bin, so it needs a wide range. The quantum bound takes the
+excess noise as Gaussian and is best near ±4σ at 8 bits. Sampling faster than the detector's
+bandwidth still adds bits per second, but each sample carries fewer.
+
+The bounds reproduce the papers' own numbers (`tests/test_qrng.py`):
+
+| Paper | Their value | phoq |
+| --- | --- | --- |
+| Park Eq. (8): σ_Q = 4212 and σ_E = 2107 codes, 16 bits | 13.37 bits | 13.366 bits |
+| Gehring Table 1: σ², σ_X², σ_U² at the worst corner of their confidence intervals | 10.74 bits | 10.78 bits |
+| Gehring Eq. (1): 352 samples at 3.51 bits, ε_hash = 10⁻³² | 1024 bits extracted | 1023 bits |
+
+phoq's "quantum" noise is numpy's pseudo-random generator, so this models a QRNG's design (power,
+balance, bandwidth against sample rate, ADC range and resolution, extraction) and not its
+randomness. Not modelled: the detector's AC coupling, the ADC's non-linearity and interleaving
+errors (which cost Gehring 7.23 of their 10.74 bits), and drifts that would break stationarity.
+[examples/laser_noise.md](examples/laser_noise.md) connects this to the shot-noise measurement.
+
 ### Checked against the literature
 
-The models above were compared with ten references (October 2026):
+The models above were compared with twelve references (October 2026):
 
 - *S. J. van Enk, "Coherent states, beam splitters and photons".* §8 and §12–14: a laser mode is
   a coherent state with Poissonian photon number $P(n) = e^{-|\alpha|^2}|\alpha|^{2n}/n!$ and mean
@@ -1370,6 +1437,31 @@ The models above were compared with ten references (October 2026):
     uncorrelated and add. `examples/laser_noise.py` reproduces 2q(I₊ + I₋) to ±0.4 dB and q to
     0.2 %.
   - [examples/laser_noise.md](examples/laser_noise.md) maps each article onto the code.
+- *T. Gehring et al., "Homodyne-based quantum random number generator at 2.9 Gbps secure against
+  quantum side-information", Nat. Commun. 12, 605 (2021),
+  [doi:10.1038/s41467-020-20813-w](https://doi.org/10.1038/s41467-020-20813-w).*
+  - Eqs. (3) and (49)–(51): Gaussian outcomes of variance g²(1+2n), and the ADC's d bins with end
+    bins beyond ±R.
+  - Eq. (67), maximised over δ: the min-entropy against quantum side information.
+  - Eqs. (9)–(11): the same at the best ADC range.
+  - Eqs. (14), (22), (24): correlated samples, through conditional variances from the PSD.
+  - Eq. (1): the leftover hash lemma.
+  - `examples/vacuum_noise_qrng.py` implements all of these and reproduces Table 1's 10.74 bits to 0.04 bit, and
+    the 1024 extracted bits.
+  - Not modelled: their ADC's non-linearity, measured at 7.23 bits of loss, and the transfer-function
+    calibration of the vacuum level (in phoq the dark noise is measured directly).
+- *S. Park et al., "Precision-balanced homodyne quantum random number generator with uncorrelated
+  IID raw data and NIST-compliant full-entropy extraction", Phys. Scr. 100, 095117 (2025),
+  [doi:10.1088/1402-4896/ae052e](https://doi.org/10.1088/1402-4896/ae052e).*
+  - §3.1: quantum noise linear in LO power above the electronic noise. phoq: R² = 1.0000, against
+    their 0.9957.
+  - §3.2: balancing the two photocurrents to keep the LO's noise out. phoq trims the coupler, as
+    they trim the split with a half-wave plate.
+  - §3.3: correlations falling as the bandwidth exceeds the ADC's Nyquist frequency.
+  - Eqs. (7)–(8): the min-entropy against classical side information, which reproduces their 13.37
+    bits exactly.
+  - Not modelled: their NIST SP 800-90B assessment, SHA3-384 conditioning and SP 800-22 suite, which
+    phoq replaces with a Toeplitz extractor and three quick checks.
 
 ## Quantum protocols
 

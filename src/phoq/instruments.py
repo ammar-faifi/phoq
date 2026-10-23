@@ -18,6 +18,7 @@ from .units import fmt_si, seq125
 
 TIMEBASES = seq125(1e-9, 10e-3)
 SCALES = seq125(1e-9, 10.0)
+DIV_Y = 8  # vertical divisions on the scope's screen, which its ADC spans
 CH_COLORS = ("#facc15", "#22d3ee", "#f472b6", "#4ade80")
 
 
@@ -113,9 +114,17 @@ class ScopeResult:
     trigger_level: float = 0.0
     fs: float = 0.0  # effective sample rate [S/s]
     bandwidth: float = 0.0  # analogue front-end bandwidth [Hz]
+    adc_bits: int = 0  # vertical resolution; 0 = ideal
 
     def __getitem__(self, ch: str) -> Trace:
         return self.channels[ch]
+
+    def codes(self, ch: str) -> np.ndarray:
+        """A channel's ADC codes, 0 … 2^adc_bits − 1 from the bottom of the screen to the top."""
+        if not self.adc_bits:
+            raise ValueError(f"{self.instrument}: no ADC resolution set (adc_bits = 0)")
+        tr = self.channels[ch]
+        return np.rint((tr.data / tr.scale + tr.offset + DIV_Y / 2) / DIV_Y * (2**self.adc_bits - 1)).astype(np.int64)
 
     def summary(self) -> str:
         lines = [
@@ -281,6 +290,15 @@ class Oscilloscope(Component):
     ch2_enabled = Param(True, label="CH2 on")
     ch3_enabled = Param(True, label="CH3 on")
     ch4_enabled = Param(True, label="CH4 on")
+    adc_bits = Param(
+        0,
+        label="ADC resolution (bits)",
+        min=0,
+        max=16,
+        presets=(0, 8, 10, 12, 14, 16),
+        doc="Vertical resolution across the 8-division screen: a sample off the screen reads the end "
+        "code. 0 = ideal, no quantization",
+    )
 
     def __init__(self, name: str | None = None, **params):
         self.armed = False  # single shot: waiting for the first trigger
@@ -308,6 +326,7 @@ class Oscilloscope(Component):
             "bandwidth",
             "sample_rate",
             "max_points",
+            "adc_bits",
             "trigger",
             "trigger_source",
         ]
@@ -355,6 +374,13 @@ class Oscilloscope(Component):
         fs = min(self.sample_rate, self.max_points / window)
         n = max(100, int(round(fs * window)))
         return n / window, n, window / n
+
+    def _digitize(self, v: np.ndarray, scale: float, offset: float) -> np.ndarray:
+        """The ADC: 2^bits levels across the screen (±4 div about the offset); off the screen, the
+        end codes. Returns the voltage each code stands for."""
+        top = 2**self.adc_bits - 1
+        code = np.clip(np.rint((v / scale + offset + DIV_Y / 2) / DIV_Y * top), 0, top)
+        return (code / top * DIV_Y - DIV_Y / 2 - offset) * scale
 
     def _front_end(self, sig: np.ndarray, dt: float) -> np.ndarray:
         """Analogue input bandwidth: two cascaded poles, −3 dB at ``bandwidth``."""
@@ -434,6 +460,8 @@ class Oscilloscope(Component):
             ch = f"ch{i}"
             d = inputs[ch][0] if ch in inputs else None
             data = signals[ch][start : start + n] if ch in signals else None
+            if data is not None and self.adc_bits:
+                data = self._digitize(data, getattr(self, f"ch{i}_scale"), getattr(self, f"ch{i}_offset"))
             channels[ch] = Trace(
                 ch,
                 (f"{d.name}.{inputs[ch][1]}" if isinstance(d, BalancedPhotodetector) else d.name) if d else None,
@@ -456,6 +484,7 @@ class Oscilloscope(Component):
             self.trigger_level,
             fs,
             self.bandwidth,
+            self.adc_bits,
         )
 
     # ---- single shot --------------------------------------------------------------------------------

@@ -203,6 +203,24 @@ What the three measurements show:
   It only just equals the 50 Ω load's own thermal noise, 4kT/R, which it crosses at 1 mA. This is
   the small-resistor problem [RP][rp-shot] describes.
 
+## From shot noise to random numbers: `vacuum_noise_qrng.py`
+
+The cyan line above is a random number generator once it is digitized. [`vacuum_noise_qrng.py`](vacuum_noise_qrng.py) leaves
+the coupler's second input open, so only the vacuum enters it. It samples the difference current
+with the oscilloscope as an 8-bit ADC (`adc_bits=8`), then estimates the min-entropy per sample and
+hashes the samples into bits. Each step maps onto the plot:
+
+- The slope-1 line is the check that the samples are quantum noise. Park et al. (2025) show it at
+  R² = 0.9957; phoq gives 1.0000.
+- The dark-noise clearance becomes the quantum-to-classical noise ratio, which sets how many bits
+  survive an adversary who knows the classical part.
+- The CMRR residue is classical side information too, which is why the detector is balanced.
+
+The results, and the checks against Gehring et al. (2021) and Park et al. (2025), are in the
+README's *Quantum random numbers from vacuum fluctuations* section.
+
+![The QRNG's sample spectrum (LO on against dark), its autocorrelation at four sample rates, and the Gaussian histogram of 8-bit codes](../docs/images/qrng.png)
+
 ## Terms as phoq uses them
 
 | Term | Meaning ([RP Photonics][rp-int]) | In phoq |

@@ -319,6 +319,9 @@ acquisitions are independent records, not consecutive pieces of one record.
   bandwidth.
 - **Sampling.** Every $k$-th sample: point sampling with no anti-alias filter, so a signal above
   half the sample rate aliases, as on a real scope.
+- **ADC.** With `adc_bits` > 0, each sample is rounded to one of $2^\mathrm{bits}$ levels across the
+  8 divisions about the channel's offset; off the screen it reads the end code
+  (`ScopeResult.codes`). At 0 the samples are exact.
 - **Trigger.** *sync* puts $t = 0$ on a pulse of the laser feeding the inputs, with one division of
   pre-trigger. *edge* simulates twice the record and starts at the first rising crossing of the
   level. *free* starts anywhere. Single shot (`arm()`, `single()`) keeps the first triggered record.
@@ -488,8 +491,8 @@ with the time average of synthesized fields: 0.1085 mW against 0.1091 ± 0.0016 
 
 **Instruments**
 
-- Oscilloscope: no ADC quantisation, trigger jitter or holdoff, equivalent-time sampling or probe
-  loading.
+- Oscilloscope: the ADC quantizes ideally (no non-linearity or interleaving errors); no trigger
+  jitter or holdoff, equivalent-time sampling or probe loading.
 - Photon counter: one bin per pulse and no tagger dead time. Each bin averages the light, so two
   pulses inside one bin interfere as if they overlapped, unless `oversample` splits the bin into
   sub-bins shorter than the pulses (a quarter of the width: the overlap is right to 2 %). Channel
