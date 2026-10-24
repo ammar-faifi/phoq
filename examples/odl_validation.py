@@ -40,9 +40,17 @@ from phoq.engine import report, synthesize, trace
 from phoq.units import C0, N_AIR, fmt_si
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from dli import RATE, arms, balance, dli, lock  # noqa: E402  (the shared interferometer)
+from dli import (
+    RATE,
+    arms,
+    balance,
+    dli,
+    lock,
+)  # noqa: E402  (the shared interferometer)
 
-WIDTH = 100e-12  # pulse FWHM for the DLI checks: its delay must match to a fraction of this
+WIDTH = (
+    100e-12  # pulse FWHM for the DLI checks: its delay must match to a fraction of this
+)
 T = 1 / RATE
 
 
@@ -51,7 +59,11 @@ def mzi(linewidth: float = 0.0, wavelength: float = 1550e-9) -> Setup:
     """CW laser → coupler → (0.5 m, PS-1, 0.5 m) and (0.5 m, ODL-1, 0.5 m) → coupler → PD-1, PD-2.
     The cords match, so the arms differ by the delay line alone: δ = τ₀ + τ."""
     setup = Setup("Balanced MZI with a delay line", seed=1)
-    laser = setup.add(Laser("LD-1", mode="cw", power_dbm=0.0, linewidth=linewidth, wavelength=wavelength))
+    laser = setup.add(
+        Laser(
+            "LD-1", mode="cw", power_dbm=0.0, linewidth=linewidth, wavelength=wavelength
+        )
+    )
     bs1, bs2 = setup.add(Coupler("BS-1"), Coupler("BS-2"))
     ps, odl = setup.add(PhaseShifter("PS-1"), OpticalDelayLine("ODL-1"))
     pd1, pd2 = setup.add(Photodiode("PD-1"), Photodiode("PD-2"))
@@ -72,10 +84,31 @@ def build(width: float = WIDTH, linewidth: float = 100e3) -> Setup:
     pulses walk apart, both ports showing two half pulses that no longer interfere."""
     setup = Setup("Delay-line interferometer, 100 ps pulses", seed=3)
     # −20 dBm average is ≈ 1 mW peak in 100 ps pulses: the photodiodes stay linear.
-    laser = setup.add(Laser("LD-1", mode="pulsed", rep_rate=RATE, pulse_width=width, power_dbm=-20.0, linewidth=linewidth))
-    pd_c, pd_d = setup.add(Photodiode("PD-C", bandwidth=20e9), Photodiode("PD-D", bandwidth=20e9))
-    osc = setup.add(Oscilloscope("OSC-1", timebase=1e-9, bandwidth=20e9, sample_rate=50e9,
-                                 ch1_scale=100e-6, ch2_scale=100e-6, ch1_offset=-1.0, ch2_offset=-3.5))
+    laser = setup.add(
+        Laser(
+            "LD-1",
+            mode="pulsed",
+            rep_rate=RATE,
+            pulse_width=width,
+            power_dbm=-20.0,
+            linewidth=linewidth,
+        )
+    )
+    pd_c, pd_d = setup.add(
+        Photodiode("PD-C", bandwidth=20e9), Photodiode("PD-D", bandwidth=20e9)
+    )
+    osc = setup.add(
+        Oscilloscope(
+            "OSC-1",
+            timebase=1e-9,
+            bandwidth=20e9,
+            sample_rate=50e9,
+            ch1_scale=100e-6,
+            ch2_scale=100e-6,
+            ch1_offset=-1.0,
+            ch2_offset=-3.5,
+        )
+    )
     bs_in, bs_out, _, _ = dli(setup, "DLI")
     setup.connect(laser.out, bs_in.a1)
     setup.connect(bs_out.b1, pd_c.inp)
@@ -85,17 +118,32 @@ def build(width: float = WIDTH, linewidth: float = 100e3) -> Setup:
     setup.terminate_spares()
     balance(setup, "LD-1", "PD-C", "DLI-ODL")
     lock(setup, "LD-1", "PD-C", "DLI-PS")
-    osc.h_position = min(trace(setup).delays(pd_c, laser)) % T - 4 * osc.timebase  # pulse mid-screen
+    osc.h_position = (
+        min(trace(setup).delays(pd_c, laser)) % T - 4 * osc.timebase
+    )  # pulse mid-screen
     return setup
 
 
 def counting(width: float = WIDTH, oversample: int = 1) -> Setup:
     """The DLI with single-photon detectors and a time tagger in 1 ns bins (10 per pulse)."""
     setup = Setup("DLI, photon counting", seed=4)
-    laser = setup.add(Laser("LD-1", mode="pulsed", rep_rate=RATE, pulse_width=width, power_dbm=-88.0, linewidth=100e3))
+    laser = setup.add(
+        Laser(
+            "LD-1",
+            mode="pulsed",
+            rep_rate=RATE,
+            pulse_width=width,
+            power_dbm=-88.0,
+            linewidth=100e3,
+        )
+    )
     spd = dict(efficiency=0.8, dark_count_rate=100.0, dead_time=0.0)
-    dm1, dm2 = setup.add(SinglePhotonDetector("DM1", **spd), SinglePhotonDetector("DM2", **spd))
-    cnt = setup.add(PhotonCounter("CNT", slots=200_000, bin_rate=10 * RATE, oversample=oversample))
+    dm1, dm2 = setup.add(
+        SinglePhotonDetector("DM1", **spd), SinglePhotonDetector("DM2", **spd)
+    )
+    cnt = setup.add(
+        PhotonCounter("CNT", slots=200_000, bin_rate=10 * RATE, oversample=oversample)
+    )
     bs_in, bs_out, _, _ = dli(setup, "DLI")
     setup.connect(laser.out, bs_in.a1)
     setup.connect(bs_out.b1, dm1.inp)
@@ -155,7 +203,9 @@ def counted(setup: Setup, batches: int = 2, seed: int = 5) -> float:
 
 def overlap(delta: float, width: float, linewidth: float = 100e3) -> float:
     """Theory without V₀: coherence of neighbouring pulses times their Gaussian field overlap."""
-    return math.exp(-math.pi * linewidth * (T + delta)) * math.exp(-math.log(2) * delta**2 / width**2)
+    return math.exp(-math.pi * linewidth * (T + delta)) * math.exp(
+        -math.log(2) * delta**2 / width**2
+    )
 
 
 # ---- the checks ---------------------------------------------------------------------------------
@@ -164,17 +214,27 @@ def check_delay() -> list[tuple]:
     setup = mzi()
     odl, pd = setup["ODL-1"], setup["PD-1"]
     rows = []
-    for dial, step in ((0.0, 0.0), (105e-12, 0.0), (330e-12, 0.0), (400e-12, 0.0), (123.4567e-12, 1e-15)):
+    for dial, step in (
+        (0.0, 0.0),
+        (105e-12, 0.0),
+        (330e-12, 0.0),
+        (400e-12, 0.0),
+        (123.4567e-12, 1e-15),
+    ):
         odl.set(delay=dial, resolution=step)
         d = sorted(trace(setup).delays(pd))
         warned = any(odl.name in w["text"] for w in report(setup)["warnings"])
-        expect = odl.insertion_delay + min(round(dial / step) * step if step else dial, odl.max_delay)
+        expect = odl.insertion_delay + min(
+            round(dial / step) * step if step else dial, odl.max_delay
+        )
         rows.append((dial, step, d[1] - d[0], expect, warned))
     odl.set(delay=0.0, resolution=0.0)
     return rows
 
 
-def check_fringe(wavelength: float = 1550e-9, span: float = 30e-15, step: float = 0.02e-15) -> tuple[float, float]:
+def check_fringe(
+    wavelength: float = 1550e-9, span: float = 30e-15, step: float = 0.02e-15
+) -> tuple[float, float]:
     """Fringe period of P(τ) at PD-1 from zero crossings over ``span`` of dial, against λ/c."""
     setup = mzi(wavelength=wavelength)
     odl = setup["ODL-1"]
@@ -184,7 +244,9 @@ def check_fringe(wavelength: float = 1550e-9, span: float = 30e-15, step: float 
         odl.delay = float(tau)
         p.append(report(setup)["detectors"]["PD-1"]["power"])
     p = np.array(p) - np.mean(p)
-    k = np.flatnonzero((p[:-1] < 0) & (p[1:] >= 0))  # rising crossings: immune to a biased mean
+    k = np.flatnonzero(
+        (p[:-1] < 0) & (p[1:] >= 0)
+    )  # rising crossings: immune to a biased mean
     cross = taus[k] - p[k] * (taus[k + 1] - taus[k]) / (p[k + 1] - p[k])
     return (cross[-1] - cross[0]) / (len(cross) - 1), wavelength / C0
 
@@ -197,13 +259,20 @@ def check_coherence(linewidth: float = 1e9) -> list[tuple]:
     for dial in (0.0, 100e-12, 200e-12, 330e-12):
         odl.delay = dial
         delta = odl.total_delay
-        rows.append((delta, v0 * math.exp(-math.pi * linewidth * delta),
-                     visibility(setup, "PS-1", steady(setup, "PD-1")),
-                     visibility(setup, "PS-1", synthesized(setup, "PD-1", 20e-12, 250_000))))
+        rows.append(
+            (
+                delta,
+                v0 * math.exp(-math.pi * linewidth * delta),
+                visibility(setup, "PS-1", steady(setup, "PD-1")),
+                visibility(setup, "PS-1", synthesized(setup, "PD-1", 20e-12, 250_000)),
+            )
+        )
     return rows
 
 
-def check_overlap(width: float = WIDTH, dials=(0.0, 55e-12, 105e-12, 155e-12, 205e-12, 330e-12)) -> list[tuple]:
+def check_overlap(
+    width: float = WIDTH, dials=(0.0, 55e-12, 105e-12, 155e-12, 205e-12, 330e-12)
+) -> list[tuple]:
     """DLI visibility against δ = arm difference − T, scanning the dial across the travel."""
     setup = build(width=width)
     odl = setup["DLI-ODL"]
@@ -213,9 +282,17 @@ def check_overlap(width: float = WIDTH, dials=(0.0, 55e-12, 105e-12, 155e-12, 20
         odl.delay = dial
         delta = dial - best
         v0 = ceiling(setup, "LD-1", "PD-C")
-        rows.append((dial, delta, v0 * overlap(delta, width),
-                     visibility(setup, "DLI-PS", steady(setup, "PD-C")),
-                     visibility(setup, "DLI-PS", synthesized(setup, "PD-C", 4e-12, 1_000_000))))
+        rows.append(
+            (
+                dial,
+                delta,
+                v0 * overlap(delta, width),
+                visibility(setup, "DLI-PS", steady(setup, "PD-C")),
+                visibility(
+                    setup, "DLI-PS", synthesized(setup, "PD-C", 4e-12, 1_000_000)
+                ),
+            )
+        )
     return rows
 
 
@@ -227,7 +304,11 @@ def check_cords_alone(width: float) -> tuple[float, float, float]:
     delta = (long_.delay - short.delay - odl.total_delay) - T
     odl.set(insertion_delay=0.0, delay=0.0)
     v0 = ceiling(setup, "LD-1", "PD-C")
-    return delta, v0 * overlap(delta, width), visibility(setup, "DLI-PS", steady(setup, "PD-C"))
+    return (
+        delta,
+        v0 * overlap(delta, width),
+        visibility(setup, "DLI-PS", steady(setup, "PD-C")),
+    )
 
 
 def check_counter(delta: float = 100e-12) -> list[tuple]:
@@ -259,36 +340,61 @@ def check_loss() -> list[tuple]:
         mid = through(odl.max_delay / 2)
         for dial in (0.0, odl.max_delay / 4, odl.max_delay / 2, odl.max_delay):
             d = C0 * (dial - odl.max_delay / 2) / N_AIR
-            rows.append((wl, dial, 10 * math.log10(1 + (d / (2 * z_r)) ** 2), 10 * math.log10(mid / through(dial))))
+            rows.append(
+                (
+                    wl,
+                    dial,
+                    10 * math.log10(1 + (d / (2 * z_r)) ** 2),
+                    10 * math.log10(mid / through(dial)),
+                )
+            )
     return rows
 
 
 if __name__ == "__main__":
     print("1. Group delay: trace delay through the line against τ₀ + τ")
     for dial, step, got, want, warned in check_delay():
-        note = f"step {fmt_si(step, 's')}" if step else ("end stop, warned" if warned else "")
-        print(f"   dial {fmt_si(dial, 's'):>9}: {fmt_si(got, 's', 7):>13}  expected {fmt_si(want, 's', 7):>13}  {note}")
+        note = (
+            f"step {fmt_si(step, 's')}"
+            if step
+            else ("end stop, warned" if warned else "")
+        )
+        print(
+            f"   dial {fmt_si(dial, 's'):>9}: {fmt_si(got, 's', 7):>13}  expected {fmt_si(want, 's', 7):>13}  {note}"
+        )
 
     print("\n2. Carrier phase: fringe period while scanning the dial")
     for wl in (1550e-9, 1310e-9):
         got, want = check_fringe(wl)
-        print(f"   {wl * 1e9:.0f} nm: {fmt_si(got, 's', 6)}  expected λ/c = {fmt_si(want, 's', 6)}")
+        print(
+            f"   {wl * 1e9:.0f} nm: {fmt_si(got, 's', 6)}  expected λ/c = {fmt_si(want, 's', 6)}"
+        )
 
     print("\n3. Coherence: balanced MZI, CW laser of 1 GHz linewidth (τ_c = 318 ps)")
     print(f"   {'δ':>8} {'theory':>8} {'report':>8} {'fields':>8}")
     for delta, want, rep, syn in check_coherence():
         print(f"   {fmt_si(delta, 's'):>8} {want:8.3f} {rep:8.3f} {syn:8.3f}")
 
-    print(f"\n4. Pulse overlap: DLI, {fmt_si(WIDTH, 's')} pulses, 100 kHz laser (dial balanced at 105 ps)")
+    print(
+        f"\n4. Pulse overlap: DLI, {fmt_si(WIDTH, 's')} pulses, 100 kHz laser (dial balanced at 105 ps)"
+    )
     print(f"   {'dial':>8} {'δ':>8} {'theory':>8} {'report':>8} {'fields':>8}")
     for dial, delta, want, rep, syn in check_overlap():
-        print(f"   {fmt_si(dial, 's'):>8} {fmt_si(delta, 's'):>8} {want:8.3f} {rep:8.3f} {syn:8.3f}")
+        print(
+            f"   {fmt_si(dial, 's'):>8} {fmt_si(delta, 's'):>8} {want:8.3f} {rep:8.3f} {syn:8.3f}"
+        )
     for w in (1e-9, WIDTH):
         delta, want, rep = check_cords_alone(w)
-        print(f"   standard cords alone (δ = {fmt_si(delta, 's')}), {fmt_si(w, 's')} pulses: theory {want:.3f}, report {rep:.3f}")
+        print(
+            f"   standard cords alone (δ = {fmt_si(delta, 's')}), {fmt_si(w, 's')} pulses: theory {want:.3f}, report {rep:.3f}"
+        )
     for m, want, got in check_counter():
-        print(f"   time tagger at δ = +100 ps, oversample {m:>2}: counted V = {got:.3f}  (theory {want:.3f})")
+        print(
+            f"   time tagger at δ = +100 ps, oversample {m:>2}: counted V = {got:.3f}  (theory {want:.3f})"
+        )
 
     print("\n5. Coupling loss against the dial, relative to mid-travel (w₀ = 250 µm)")
     for wl, dial, want, got in check_loss():
-        print(f"   {wl * 1e9:.0f} nm, dial {fmt_si(dial, 's'):>9}: {got:6.3f} dB  expected {want:6.3f} dB")
+        print(
+            f"   {wl * 1e9:.0f} nm, dial {fmt_si(dial, 's'):>9}: {got:6.3f} dB  expected {want:6.3f} dB"
+        )

@@ -14,7 +14,9 @@ K_B = 1.380649e-23  # Boltzmann constant [J/K]
 N_GROUP = 1.4682  # SMF-28 group index
 N_EFF = 1.4677  # SMF-28 effective (phase) index
 FIBER_DELAY = N_GROUP / C0  # [s/m], about 4.9 ns per metre
-N_AIR = 1.00027  # refractive index of air near 1550 nm (phase and group differ by ~1e-6)
+N_AIR = (
+    1.00027  # refractive index of air near 1550 nm (phase and group differ by ~1e-6)
+)
 
 # ---- fiber connectors ---------------------------------------------------------------------------
 # End-face polish: PC and UPC are flat (domed, 0°) and mate with each other; APC is angled 8° and
@@ -22,12 +24,20 @@ N_AIR = 1.00027  # refractive index of air near 1550 nm (phase and group differ 
 CONNECTORS = ("FC/UPC", "FC/APC", "FC/PC")
 DEFAULT_CONNECTOR = "FC/UPC"
 CONNECTOR_COLORS = {"FC/UPC": "#2563eb", "FC/PC": "#2563eb", "FC/APC": "#16a34a"}
-CONNECTOR_LOSS_DB = 0.3  # one mated pair of matching connectors (typical; TIA-568 allows 0.75 dB)
-RETURN_LOSS_DB = {"FC/PC": 40.0, "FC/UPC": 50.0, "FC/APC": 60.0}  # typical, per mated pair
+CONNECTOR_LOSS_DB = (
+    0.3  # one mated pair of matching connectors (typical; TIA-568 allows 0.75 dB)
+)
+RETURN_LOSS_DB = {
+    "FC/PC": 40.0,
+    "FC/UPC": 50.0,
+    "FC/APC": 60.0,
+}  # typical, per mated pair
 # An angled face against a flat one leaves an air gap, and the beam leaves the APC fiber
 # refracted by ≈ 3.8°: several dB lost depending on ferrule geometry. An assumed typical value.
 MISMATCH_LOSS_DB = 5.0
-FRESNEL = ((N_EFF - 1) / (N_EFF + 1)) ** 2  # a flat glass–air face reflects 3.6 % (−14.4 dB)
+FRESNEL = (
+    (N_EFF - 1) / (N_EFF + 1)
+) ** 2  # a flat glass–air face reflects 3.6 % (−14.4 dB)
 
 COMMON_WAVELENGTHS = (635e-9, 780e-9, 850e-9, 1310e-9, 1550e-9)
 
@@ -68,7 +78,12 @@ RESPONSIVITY = {
         [0.12, 0.17, 0.24, 0.31, 0.38, 0.46, 0.53, 0.57, 0.57, 0.52, 0.35, 0.10, 0.00],
     ),
 }
-DARK_CURRENT = {"InGaAs": 1e-9, "Si": 0.3e-9, "Ge": 50e-9, "GaAs": 50e-9}  # GaAs: DX25C maximum
+DARK_CURRENT = {
+    "InGaAs": 1e-9,
+    "Si": 0.3e-9,
+    "Ge": 50e-9,
+    "GaAs": 50e-9,
+}  # GaAs: DX25C maximum
 
 # SMF-28 attenuation [dB/km] against wavelength [nm].
 FIBER_ATTENUATION = (

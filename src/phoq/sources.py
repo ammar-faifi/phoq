@@ -11,7 +11,9 @@ from .core import Component, FiberConnectors, Param
 from .units import COMMON_WAVELENGTHS, dbm_to_w, fmt_si, photon_energy, seq125
 
 MODES = ("cw", "pulsed", "sine", "ook")
-RIN_OFF = -200.0  # dB/Hz: a laser without classical intensity noise (no random draws at all)
+RIN_OFF = (
+    -200.0
+)  # dB/Hz: a laser without classical intensity noise (no random draws at all)
 _FWHM = 2.0 * np.sqrt(2.0 * np.log(2.0))  # Gaussian FWHM / sigma
 
 
@@ -149,7 +151,9 @@ class Laser(FiberConnectors, Component):
             out["Coherence time"] = fmt_si(1 / (np.pi * self.linewidth), "s")
         if self.rin_db_hz > RIN_OFF and self.power > 0:
             shot = 10 * math.log10(2 * photon_energy(self.wavelength) / self.power)
-            out["RIN"] = f"{self.rin_db_hz:g} dB/Hz; shot noise at this power: {shot:.1f} dB/Hz"
+            out["RIN"] = (
+                f"{self.rin_db_hz:g} dB/Hz; shot noise at this power: {shot:.1f} dB/Hz"
+            )
         return out
 
     # ---- field synthesis -----------------------------------------------------------------------
@@ -193,7 +197,9 @@ class Laser(FiberConnectors, Component):
             acc = acc + 0.5 * (1 + erf((x - (k0 + j) / f) / (s * math.sqrt(2))))
         return acc
 
-    def intensity_factor(self, t: np.ndarray, dt: float, rng: np.random.Generator) -> np.ndarray | None:
+    def intensity_factor(
+        self, t: np.ndarray, dt: float, rng: np.random.Generator
+    ) -> np.ndarray | None:
         """√(1 + δ) at emission times ``t`` (bin starts, any shape), or None without intensity noise.
 
         δ is white with one-sided PSD S = 10^(rin_db_hz/10): its average over a bin of ``dt`` has
@@ -205,7 +211,9 @@ class Laser(FiberConnectors, Component):
         if k.size == 0:
             return np.ones(k.shape)
         k0 = int(k.min())
-        delta = rng.standard_normal(int(k.max()) - k0 + 1) * math.sqrt(10 ** (self.rin_db_hz / 10) / (2 * dt))
+        delta = rng.standard_normal(int(k.max()) - k0 + 1) * math.sqrt(
+            10 ** (self.rin_db_hz / 10) / (2 * dt)
+        )
         return np.sqrt(np.clip(1.0 + delta[k - k0], 0.0, None))
 
     def phase(self, t: np.ndarray, rng: np.random.Generator) -> np.ndarray:

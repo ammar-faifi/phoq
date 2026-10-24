@@ -23,21 +23,39 @@ def test_photodiode_reads_shot_thermal_and_intensity_noise(rin):
     s = Setup("direct")
     laser = s.add(Laser("LD", mode="cw", power_dbm=3.0, rin_db_hz=rin))
     pd = s.add(Photodiode("PD", bandwidth=1e9, load=50.0, saturation=0.05))
-    esa = s.add(SpectrumAnalyzer("ESA", stop_freq=20e6, rbw=30e3, averages=40, detector="average", noise_floor=-200.0))
+    esa = s.add(
+        SpectrumAnalyzer(
+            "ESA",
+            stop_freq=20e6,
+            rbw=30e3,
+            averages=40,
+            detector="average",
+            noise_floor=-200.0,
+        )
+    )
     s.connect(laser.out, pd.inp)
     s.connect(pd.rf, esa.inp)
     current = report(s)["detectors"]["PD"]["current"]
     f, psd = esa.acquire(trace(s), np.random.default_rng(1)).psd()
     band = (f > 2e6) & (f < 18e6)
-    s_i = psd[band].mean() / esa.input_impedance  # the photocurrent flows into the analyzer's 50 Ω
-    want = 2 * Q_E * current + 4 * K_B * pd.temperature / pd.load + 10 ** (rin / 10) * current**2
+    s_i = (
+        psd[band].mean() / esa.input_impedance
+    )  # the photocurrent flows into the analyzer's 50 Ω
+    want = (
+        2 * Q_E * current
+        + 4 * K_B * pd.temperature / pd.load
+        + 10 ** (rin / 10) * current**2
+    )
     assert 10 * math.log10(s_i / want) == pytest.approx(0.0, abs=0.1)
 
 
 def test_without_intensity_noise_nothing_is_drawn():
     """The default draws no random numbers, so every seeded result from before stays the same."""
     laser = Laser("LD")
-    assert laser.intensity_factor(np.arange(10) * 1e-9, 1e-9, np.random.default_rng(0)) is None
+    assert (
+        laser.intensity_factor(np.arange(10) * 1e-9, 1e-9, np.random.default_rng(0))
+        is None
+    )
     a, b = np.random.default_rng(5), np.random.default_rng(5)
     laser.intensity_factor(np.arange(10) * 1e-9, 1e-9, a)
     assert a.random() == b.random()
@@ -45,9 +63,12 @@ def test_without_intensity_noise_nothing_is_drawn():
 
 def test_intensity_noise_per_bin_and_shared_by_every_path():
     """δ averaged over a bin has variance S/(2Δt), and two paths that leave in the same bins carry
-    the same δ: the ratio of the powers at a coupler's two outputs does not fluctuate."""
+    the same δ: the ratio of the powers at a coupler's two outputs does not fluctuate.
+    """
     s = Setup("shared")
-    laser = s.add(Laser("LD", mode="cw", power_dbm=0.0, rin_db_hz=-120.0, linewidth=0.0))
+    laser = s.add(
+        Laser("LD", mode="cw", power_dbm=0.0, rin_db_hz=-120.0, linewidth=0.0)
+    )
     bs = s.add(Coupler("BS"))
     pd1, pd2 = s.add(Photodiode("PD1"), Photodiode("PD2"))
     s.connect(laser.out, bs.a1)
@@ -55,7 +76,9 @@ def test_intensity_noise_per_bin_and_shared_by_every_path():
     s.connect(bs.b2, pd2.inp, length=1.0)
     s.terminate(bs.a2)
     dt, n = 1e-9, 200_000
-    fields = synthesize(trace(s), [pd1, pd2], np.arange(n) * dt, dt, np.random.default_rng(2))
+    fields = synthesize(
+        trace(s), [pd1, pd2], np.arange(n) * dt, dt, np.random.default_rng(2)
+    )
     p1, p2 = (sum(np.abs(e) ** 2 for e in fields[d].values()) for d in (pd1, pd2))
     rel = p1 / p1.mean() - 1
     assert rel.var() == pytest.approx(10 ** (-120 / 10) / (2 * dt), rel=0.02)
@@ -67,10 +90,14 @@ def test_balanced_difference_keeps_the_shot_noise_and_cancels_the_rin():
     input: RIN·I² above the crossover 2q/RIN, read back to 0.3 dB."""
     dark = EX["noise_density"](EX["build"](laser_on=False), sweeps=8)
     bpd = EX["build"]()["BPD-1"]
-    assert dark == pytest.approx((bpd.setting()[1] * bpd.peak_responsivity()) ** 2, rel=0.05)
+    assert dark == pytest.approx(
+        (bpd.setting()[1] * bpd.peak_responsivity()) ** 2, rel=0.05
+    )
     both = EX["sweep"](2, EX["BOTH_INPUTS"], dark)
     for r in both:
-        assert 10 * math.log10(r["excess"] / (2 * Q_E * r["i"])) == pytest.approx(0.0, abs=0.5)
+        assert 10 * math.log10(r["excess"] / (2 * Q_E * r["i"])) == pytest.approx(
+            0.0, abs=0.5
+        )
     assert EX["fit"](both)[0] / 2 == pytest.approx(Q_E, rel=0.02)
     one = EX["sweep"](1, EX["ONE_INPUT"], dark)
     a, b = EX["fit"](one)
@@ -78,10 +105,16 @@ def test_balanced_difference_keeps_the_shot_noise_and_cancels_the_rin():
     assert a / 2 == pytest.approx(Q_E, rel=0.08)
     top = max(both, key=lambda r: r["i"])
     single = 2 * Q_E * top["i"] + 10 ** (EX["RIN"] / 10) * top["i"] ** 2
-    assert 10 * math.log10(single / top["excess"]) > 15  # what one detector would see of this light
+    assert (
+        10 * math.log10(single / top["excess"]) > 15
+    )  # what one detector would see of this light
 
 
 def test_laser_reports_its_rin_against_the_shot_noise_level():
     laser = Laser("LD", power_dbm=0.0, rin_db_hz=-150.0)
-    shot = 10 * math.log10(2 * 6.62607015e-34 * 299792458 / laser.wavelength / 1e-3)  # 2hν/P
-    assert laser.info()["RIN"] == f"-150 dB/Hz; shot noise at this power: {shot:.1f} dB/Hz"
+    shot = 10 * math.log10(
+        2 * 6.62607015e-34 * 299792458 / laser.wavelength / 1e-3
+    )  # 2hν/P
+    assert (
+        laser.info()["RIN"] == f"-150 dB/Hz; shot noise at this power: {shot:.1f} dB/Hz"
+    )

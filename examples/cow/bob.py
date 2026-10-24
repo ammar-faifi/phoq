@@ -12,13 +12,35 @@ from collections import deque
 import numpy as np
 
 from phoq.parties import Message, Party
-from .common import DB, DM1, DM2, WINDOW, COWParams, Tally, Topic, account, decode, describe, readouts, window
+from .common import (
+    DB,
+    DM1,
+    DM2,
+    WINDOW,
+    COWParams,
+    Tally,
+    Topic,
+    account,
+    decode,
+    describe,
+    readouts,
+    window,
+)
 
 
 class Bob(Party):
     name = "BOB"
     port = 5562
-    instruments = ("BOB-TAP", "BOB-PS", "BOB-ODL", "BOB-VOA", "DB", "DM1", "DM2", "TAGGER")
+    instruments = (
+        "BOB-TAP",
+        "BOB-PS",
+        "BOB-ODL",
+        "BOB-VOA",
+        "DB",
+        "DM1",
+        "DM2",
+        "TAGGER",
+    )
     params = COWParams()
 
     def setup(self) -> None:
@@ -26,18 +48,33 @@ class Bob(Party):
         self.tally = Tally()
         self.key: list[np.ndarray] = []
         self.recent: deque[Tally] = deque(maxlen=WINDOW)  # the running ("now") figures
-        print(f"receiver up · data line t_B={self.params.t_b}: first slot → 0, second → 1 · "
-              f"monitoring DLI one slot ({self.params.slot * 1e9:.2f} ns) unbalanced")
+        print(
+            f"receiver up · data line t_B={self.params.t_b}: first slot → 0, second → 1 · "
+            f"monitoring DLI one slot ({self.params.slot * 1e9:.2f} ns) unbalanced"
+        )
 
     # ---- physical layer -----------------------------------------------------------------------------
     def measure(self, batch) -> None:
         idx, bits, doubles = decode(batch.clicks[DB], self.rng)
-        dm1, dm2 = (np.flatnonzero(batch.clicks[ch]).astype(np.int32) for ch in (DM1, DM2))
-        self.blocks[batch.seq] = dict(idx=idx, bits=bits, n=batch.slots // 2, doubles=doubles)
-        size = self.net.send("ALICE", Topic.DETECT, block=batch.seq, idx=idx.astype(np.int32), dm1=dm1,
-                             dm2=dm2, doubles=doubles)
-        print(f"block {batch.seq}: {idx.size:,} data-line detections ({doubles} double) · "
-              f"DM1 {dm1.size:,} DM2 {dm2.size:,} clicks → announced in {size / 1e3:.1f} kB")
+        dm1, dm2 = (
+            np.flatnonzero(batch.clicks[ch]).astype(np.int32) for ch in (DM1, DM2)
+        )
+        self.blocks[batch.seq] = dict(
+            idx=idx, bits=bits, n=batch.slots // 2, doubles=doubles
+        )
+        size = self.net.send(
+            "ALICE",
+            Topic.DETECT,
+            block=batch.seq,
+            idx=idx.astype(np.int32),
+            dm1=dm1,
+            dm2=dm2,
+            doubles=doubles,
+        )
+        print(
+            f"block {batch.seq}: {idx.size:,} data-line detections ({doubles} double) · "
+            f"DM1 {dm1.size:,} DM2 {dm2.size:,} clicks → announced in {size / 1e3:.1f} kB"
+        )
 
     # ---- classical channel --------------------------------------------------------------------------
     def receive(self, msg: Message) -> None:
@@ -49,13 +86,25 @@ class Bob(Party):
         sample = np.asarray(msg.sample, dtype=np.int64)
         mine = st["bits"][sample]
         self.net.send("ALICE", Topic.ERRORS, block=block, sample_bits=mine)
-        t = account(st["n"], st["idx"].size, decoy, st["doubles"], sample, mine,
-                    np.asarray(msg.sample_bits), msg.monitor)
+        t = account(
+            st["n"],
+            st["idx"].size,
+            decoy,
+            st["doubles"],
+            sample,
+            mine,
+            np.asarray(msg.sample_bits),
+            msg.monitor,
+        )
         key = ~decoy
         key[sample] = False
         self.key.append(st["bits"][key])
         self.tally += t
         self.recent.append(t)
-        print(f"block {block}: {t.decoys:,} decoys removed, {t.sampled} bits compared, {t.errors} wrong → "
-              f"key +{t.key_bits:,} = {self.tally.key_bits:,} bits · {describe(self.tally)}")
-        self.report(**readouts(self.tally, self.params, self.net.stats, window(self.recent)))
+        print(
+            f"block {block}: {t.decoys:,} decoys removed, {t.sampled} bits compared, {t.errors} wrong → "
+            f"key +{t.key_bits:,} = {self.tally.key_bits:,} bits · {describe(self.tally)}"
+        )
+        self.report(
+            **readouts(self.tally, self.params, self.net.stats, window(self.recent))
+        )

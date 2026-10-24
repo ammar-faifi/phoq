@@ -70,7 +70,9 @@ class MPQKDParams:
     l: int = 1000  # maximal pairing interval (rounds)
     sample_fraction: float = 0.1  # share of key Z pairs disclosed to estimate E_Z
     chunk_bits: int = 1000  # sifted key bits reconciled and amplified together
-    cascade_passes: int = 6  # the last passes cost 1–2 parities each and catch hidden error pairs
+    cascade_passes: int = (
+        6  # the last passes cost 1–2 parities each and catch hidden error pairs
+    )
     verify_bits: int = 32  # universal-hash tag that confirms the corrected chunks agree
     estimator: str = "model"  # how e_11^X is sized: "model" (see keyrate.py) or "decoy"
     eps: float = 1e-10  # security parameter of the (labelled) finite-key estimate

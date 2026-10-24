@@ -17,21 +17,35 @@ import math
 
 import numpy as np
 
-from phoq import Attenuator, Coupler, FiberSpool, Laser, Photodiode, Setup, SpectrumAnalyzer
+from phoq import (
+    Attenuator,
+    Coupler,
+    FiberSpool,
+    Laser,
+    Photodiode,
+    Setup,
+    SpectrumAnalyzer,
+)
 from phoq.engine import trace
 from phoq.units import fmt_si
 
 LINEWIDTH = 100e3  # what the measurement should find
 
 
-def build(linewidth: float = LINEWIDTH, spool_m: float = 10e3, averages: int = 200) -> Setup:
+def build(
+    linewidth: float = LINEWIDTH, spool_m: float = 10e3, averages: int = 200
+) -> Setup:
     setup = Setup("Delayed self-homodyne", seed=7)
     laser = setup.add(Laser("LD-1", mode="cw", power_dbm=0.0, linewidth=linewidth))
     split, merge = setup.add(Coupler("BS-1"), Coupler("BS-2"))
     spool = setup.add(FiberSpool("SPL-1", length=spool_m))
     # the short arm gets the spool's loss, so both arms bring the same power: the largest beat
     voa_il = Attenuator.insertion_loss_db.default
-    voa = setup.add(Attenuator("VOA-1", attenuation_db=max(0.0, spool.loss_db(laser.wavelength) - voa_il)))
+    voa = setup.add(
+        Attenuator(
+            "VOA-1", attenuation_db=max(0.0, spool.loss_db(laser.wavelength) - voa_il)
+        )
+    )
     pd = setup.add(Photodiode("PD-1"))
     esa = setup.add(
         SpectrumAnalyzer(
@@ -60,12 +74,19 @@ def measure(setup: Setup, seed: int = 1):
     esa = setup["ESA-1"]
     esa.trace = "write"
     r = esa.acquire(trace(setup), np.random.default_rng(seed))
-    return r, r.fit_lorentzian(0.0)["hwhm"], r.width(3.0)[1], r.width(20.0)[1] / math.sqrt(99)
+    return (
+        r,
+        r.fit_lorentzian(0.0)["hwhm"],
+        r.width(3.0)[1],
+        r.width(20.0)[1] / math.sqrt(99),
+    )
 
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("--plot", metavar="PNG", help="save the spectrum with its Lorentzian fit")
+    ap.add_argument(
+        "--plot", metavar="PNG", help="save the spectrum with its Lorentzian fit"
+    )
     args = ap.parse_args()
 
     setup = build(averages=2000)
@@ -78,18 +99,28 @@ if __name__ == "__main__":
     )
     r, fit, w3, w20 = measure(setup)
     print(r.summary(), "\n")
-    for name, value in (("Lorentzian fit", fit), ("−3 dB point", w3), ("−20 dB point / √99", w20)):
-        print(f"  {name:20} Δν = {fmt_si(value, 'Hz'):>9}  ({100 * (value / laser.linewidth - 1):+.1f} %)")
+    for name, value in (
+        ("Lorentzian fit", fit),
+        ("−3 dB point", w3),
+        ("−20 dB point / √99", w20),
+    ):
+        print(
+            f"  {name:20} Δν = {fmt_si(value, 'Hz'):>9}  ({100 * (value / laser.linewidth - 1):+.1f} %)"
+        )
 
     print("\nThe delay must beat the coherence time (1000 averages each):")
-    print(f"  {'spool':>7} {'τd':>9} {'τd/τc':>6} {'coherence':>9} {'fit':>10} {'−3 dB':>10}")
+    print(
+        f"  {'spool':>7} {'τd':>9} {'τd/τc':>6} {'coherence':>9} {'fit':>10} {'−3 dB':>10}"
+    )
 
     for km in (0.3, 0.6, 1, 2, 5, 10, 25, 50, 100, 150, 200, 250, 300):
         s = build(spool_m=km * 1e3, averages=1000)
         _, f_fit, f3, _ = measure(s)
         td = s["SPL-1"].delay
         coh = math.exp(-2 * math.pi * LINEWIDTH * td)
-        print(f"  {km:5g} km {fmt_si(td, 's'):>9} {td / tau_c:6.1f} {coh:9.2g} {fmt_si(f_fit, 'Hz'):>10} {fmt_si(f3, 'Hz'):>10}")
+        print(
+            f"  {km:5g} km {fmt_si(td, 's'):>9} {td / tau_c:6.1f} {coh:9.2g} {fmt_si(f_fit, 'Hz'):>10} {fmt_si(f3, 'Hz'):>10}"
+        )
 
     if args.plot:
         import matplotlib
@@ -102,12 +133,33 @@ if __name__ == "__main__":
         f, psd = r.psd()
         keep = f > 3 * r.rbw
         fig, ax = plt.subplots(figsize=(7.5, 4))
-        ax.plot(f[keep] / 1e3, 10 * np.log10(psd[keep] * r.rbw / 1e-3), lw=0.8, color="#d4a514", label="analyzer")
+        ax.plot(
+            f[keep] / 1e3,
+            10 * np.log10(psd[keep] * r.rbw / 1e-3),
+            lw=0.8,
+            color="#d4a514",
+            label="analyzer",
+        )
         p = r.fit_lorentzian(0.0)
         model = p["peak_psd"] / (1 + (f[keep] / p["hwhm"]) ** 2) + p["floor_psd"]
-        ax.plot(f[keep] / 1e3, 10 * np.log10(model * r.rbw / 1e-3), "w--", lw=1, label=f"Lorentzian fit, Δν = {fmt_si(p['hwhm'], 'Hz')}")
-        ax.axvline(laser.linewidth / 1e3, color="#60a5fa", lw=0.8, label=f"laser setting {fmt_si(laser.linewidth, 'Hz')}")
-        ax.set(xlabel="frequency [kHz]", ylabel=f"level [dBm in {fmt_si(r.rbw, 'Hz')}]", title="Delayed self-homodyne, 10 km")
+        ax.plot(
+            f[keep] / 1e3,
+            10 * np.log10(model * r.rbw / 1e-3),
+            "w--",
+            lw=1,
+            label=f"Lorentzian fit, Δν = {fmt_si(p['hwhm'], 'Hz')}",
+        )
+        ax.axvline(
+            laser.linewidth / 1e3,
+            color="#60a5fa",
+            lw=0.8,
+            label=f"laser setting {fmt_si(laser.linewidth, 'Hz')}",
+        )
+        ax.set(
+            xlabel="frequency [kHz]",
+            ylabel=f"level [dBm in {fmt_si(r.rbw, 'Hz')}]",
+            title="Delayed self-homodyne, 10 km",
+        )
         ax.grid(alpha=0.3, which="both")
         ax.legend()
         fig.tight_layout()

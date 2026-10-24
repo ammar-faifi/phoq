@@ -72,7 +72,13 @@ KIND_DOC = {
 TIERS = (GENERIC, "datasheet", "validated", "vendor")
 # [limits] keys the lab checks live (phoq.engine.report); other limits are kept for reference
 CHECKED_LIMITS = frozenset(
-    {"optical_input_w", "optical_input_dbm", "bias_voltage_v", "rf_input_dbm", "photons_per_pulse"}
+    {
+        "optical_input_w",
+        "optical_input_dbm",
+        "bias_voltage_v",
+        "rf_input_dbm",
+        "photons_per_pulse",
+    }
 )
 _ID = re.compile(r"[a-z0-9][a-z0-9.\-]*/[a-z0-9][a-z0-9.\-]*")
 _PARAM_KEYS = {"value", "from", "spec", "min", "typ", "max", "note"}
@@ -107,7 +113,11 @@ class Provenance:
         bits = [self.kind.replace("-", " ")]
         if self.spec:
             bits.append(self.spec)
-        bits += [f"{k} {v:g}" for k, v in (("min", self.min), ("typ", self.typ), ("max", self.max)) if v is not None]
+        bits += [
+            f"{k} {v:g}"
+            for k, v in (("min", self.min), ("typ", self.typ), ("max", self.max))
+            if v is not None
+        ]
         if self.note:
             bits.append(self.note)
         return " · ".join(bits)
@@ -123,7 +133,9 @@ class Curve:
     provenance: Provenance
 
     def __call__(self, wavelength: float) -> float:
-        return float(np.interp(wavelength, self.wavelength, self.value, left=0.0, right=0.0))
+        return float(
+            np.interp(wavelength, self.wavelength, self.value, left=0.0, right=0.0)
+        )
 
     @property
     def peak(self) -> float:
@@ -201,14 +213,20 @@ class Preset:
         """Plain-text sheet for ``phoq presets show``."""
         cls = Component.lookup(self.component)
         specs = cls.param_specs() if cls else {}
-        out = [f"{self.id} — {self.title}  [{self.component} · {self.tier} · {self.origin}]"]
+        out = [
+            f"{self.id} — {self.title}  [{self.component} · {self.tier} · {self.origin}]"
+        ]
         if self.description:
             out.append(f"  {self.description}")
         if self.part_number:
             out.append(f"  part number  {self.part_number}")
         src = self.source
         if src:
-            ref = " · ".join(str(src[k]) for k in ("title", "revision", "document", "url", "vendor_url") if src.get(k))
+            ref = " · ".join(
+                str(src[k])
+                for k in ("title", "revision", "document", "url", "vendor_url")
+                if src.get(k)
+            )
             out.append(f"  source       {ref}")
             if src.get("conditions"):
                 out.append(f"  conditions   {src['conditions']}")
@@ -222,13 +240,19 @@ class Preset:
             for key, curve in self.curves.items():
                 out.append(f"    {key:<20} {curve}")
         if self.limits:
-            out.append("  limits       " + " · ".join(f"{k} = {v}" for k, v in self.limits.items()))
+            out.append(
+                "  limits       "
+                + " · ".join(f"{k} = {v}" for k, v in self.limits.items())
+            )
         if self.unsupported:
             out.append("  not modelled")
             for key, value in self.unsupported.items():
                 out.append(f"    {key:<24} {_fmt_entry(value)}")
         if self.notes:
-            out.append("  notes        " + self.notes.strip().replace("\n", "\n               "))
+            out.append(
+                "  notes        "
+                + self.notes.strip().replace("\n", "\n               ")
+            )
         return "\n".join(out)
 
 
@@ -241,10 +265,20 @@ def _fmt(value: Any, unit: str = "") -> str:
 def _fmt_entry(value: Any) -> str:
     if isinstance(value, dict):
         note = value.get("note", "")
-        nums = " ".join(f"{k} {v:g}" for k, v in value.items() if k in ("value", "min", "typ", "max") and isinstance(v, (int, float)))
+        nums = " ".join(
+            f"{k} {v:g}"
+            for k, v in value.items()
+            if k in ("value", "min", "typ", "max") and isinstance(v, (int, float))
+        )
         return (nums + (" — " + note if note else "")).strip() or str(value)
     if isinstance(value, list):
-        return "[" + ", ".join(f"{v:g}" if isinstance(v, (int, float)) else str(v) for v in value) + "]"
+        return (
+            "["
+            + ", ".join(
+                f"{v:g}" if isinstance(v, (int, float)) else str(v) for v in value
+            )
+            + "]"
+        )
     return _fmt(value)
 
 
@@ -264,8 +298,15 @@ def _curve(name: str, entry: Any, where: str) -> Curve:
     if unknown:
         raise PresetError(f"{at}: unexpected keys {sorted(unknown)}")
     xs, ys = entry.get("wavelength_nm"), entry.get("value")
-    if not isinstance(xs, list) or not isinstance(ys, list) or len(xs) != len(ys) or len(xs) < 2:
-        raise PresetError(f"{at} needs 'wavelength_nm' and 'value' lists of the same length (at least 2 points)")
+    if (
+        not isinstance(xs, list)
+        or not isinstance(ys, list)
+        or len(xs) != len(ys)
+        or len(xs) < 2
+    ):
+        raise PresetError(
+            f"{at} needs 'wavelength_nm' and 'value' lists of the same length (at least 2 points)"
+        )
     xs = [_num(v, f"{at}.wavelength_nm") for v in xs]
     ys = [_num(v, f"{at}.value") for v in ys]
     if any(v is None for v in xs + ys):
@@ -276,7 +317,9 @@ def _curve(name: str, entry: Any, where: str) -> Curve:
         raise PresetError(f"{at}: values must not be negative")
     kind = str(entry.get("from", "unstated"))
     if kind not in KINDS:
-        raise PresetError(f"{at}: unknown provenance {kind!r}; use one of {', '.join(KINDS)}")
+        raise PresetError(
+            f"{at}: unknown provenance {kind!r}; use one of {', '.join(KINDS)}"
+        )
     prov = Provenance(kind, str(entry.get("spec", "")), note=str(entry.get("note", "")))
     return Curve(name, tuple(x * 1e-9 for x in xs), tuple(ys), prov)
 
@@ -290,14 +333,20 @@ def parse(text: str, *, path: Path | None = None, origin: str = "user") -> Prese
     except tomllib.TOMLDecodeError as e:
         raise PresetError(f"{where}: not valid TOML: {e}") from None
     if data.get("schema", SCHEMA) != SCHEMA:
-        raise PresetError(f"{where}: schema {data.get('schema')!r} is not supported (this phoq reads schema {SCHEMA})")
+        raise PresetError(
+            f"{where}: schema {data.get('schema')!r} is not supported (this phoq reads schema {SCHEMA})"
+        )
     for key in ("component", "title"):
         if not isinstance(data.get(key), str) or not data[key]:
             raise PresetError(f"{where}: '{key}' is required")
     vendor = str(data.get("vendor") or GENERIC)
-    pid = str(data.get("id") or f"{slug(vendor)}/{path.stem if path else slug(data['title'])}")
+    pid = str(
+        data.get("id") or f"{slug(vendor)}/{path.stem if path else slug(data['title'])}"
+    )
     if not _ID.fullmatch(pid):
-        raise PresetError(f"{where}: id {pid!r} must look like 'vendor/part' (lower-case letters, digits, '-' and '.')")
+        raise PresetError(
+            f"{where}: id {pid!r} must look like 'vendor/part' (lower-case letters, digits, '-' and '.')"
+        )
     tier = str(data.get("tier", "datasheet"))
     if tier not in TIERS:
         raise PresetError(f"{where}: tier {tier!r} is not one of {', '.join(TIERS)}")
@@ -315,10 +364,14 @@ def parse(text: str, *, path: Path | None = None, origin: str = "user") -> Prese
                 raise PresetError(f"{where}: params.{key} needs a 'value'")
             kind = str(entry.get("from", "unstated"))
             if kind not in KINDS:
-                raise PresetError(f"{where}: params.{key}: unknown provenance {kind!r}; use one of {', '.join(KINDS)}")
+                raise PresetError(
+                    f"{where}: params.{key}: unknown provenance {kind!r}; use one of {', '.join(KINDS)}"
+                )
             unknown = set(entry) - _PARAM_KEYS
             if unknown:
-                raise PresetError(f"{where}: params.{key}: unexpected keys {sorted(unknown)}")
+                raise PresetError(
+                    f"{where}: params.{key}: unexpected keys {sorted(unknown)}"
+                )
             params[key] = entry["value"]
             prov[key] = Provenance(
                 kind,
@@ -366,13 +419,17 @@ def check(preset: Preset) -> list[str]:
     _ensure_registry()
     cls = Component.lookup(preset.component)
     if cls is None:
-        return [f"{preset.id}: component {preset.component!r} is not a registered class"]
+        return [
+            f"{preset.id}: component {preset.component!r} is not a registered class"
+        ]
     specs = cls.param_specs()
     problems = []
     for key, value in preset.params.items():
         spec = specs.get(key)
         if spec is None:
-            problems.append(f"{preset.id}: {preset.component} has no parameter {key!r} (valid: {', '.join(specs)})")
+            problems.append(
+                f"{preset.id}: {preset.component} has no parameter {key!r} (valid: {', '.join(specs)})"
+            )
             continue
         try:
             spec.validate(value)
@@ -407,7 +464,9 @@ def _entry_point_dir(ep) -> Path:
         return Path(next(iter(obj.__path__)))
     if getattr(obj, "__file__", None):
         return Path(obj.__file__).parent
-    raise PresetError("the entry point must name a directory, a package, or a callable returning one")
+    raise PresetError(
+        "the entry point must name a directory, a package, or a callable returning one"
+    )
 
 
 def user_dir() -> Path:
@@ -426,7 +485,9 @@ def search_path() -> list[tuple[str, Path]]:
         try:
             dirs.append((f"plugin:{ep.name}", _entry_point_dir(ep)))
         except Exception as e:
-            warnings.warn(f"phoq.presets entry point {ep.name!r} skipped: {e}", stacklevel=2)
+            warnings.warn(
+                f"phoq.presets entry point {ep.name!r} skipped: {e}", stacklevel=2
+            )
     dirs.append(("user", user_dir()))
     for d in filter(None, os.environ.get(ENV_VAR, "").split(os.pathsep)):
         dirs.append(("env", Path(d).expanduser()))
@@ -523,7 +584,11 @@ def search(
 ) -> list[Preset]:
     """Presets for a component class (a subclass sees its base classes' presets), vendor, tag or text."""
     names = _class_names(component)
-    own = component.__name__ if isinstance(component, type) else component and Component.canonical(component)
+    own = (
+        component.__name__
+        if isinstance(component, type)
+        else component and Component.canonical(component)
+    )
     out = []
     for p in registry().values():
         if names is not None and p.component not in names:
@@ -535,7 +600,9 @@ def search(
         if tag and tag.lower() not in {t.lower() for t in p.tags}:
             continue
         if text:
-            hay = " ".join([p.id, p.title, p.part_number, p.description, p.vendor, *p.tags]).lower()
+            hay = " ".join(
+                [p.id, p.title, p.part_number, p.description, p.vendor, *p.tags]
+            ).lower()
             if text.lower() not in hay:
                 continue
         out.append(p)
@@ -551,7 +618,9 @@ def resolve(ref: str | Preset, cls: type[Component]) -> Preset:
     else:
         p = get(ref)
     if p.component not in {k.__name__ for k in cls.__mro__}:
-        raise PresetError(f"preset {p.id!r} is for a {p.component}, not a {cls.__name__}")
+        raise PresetError(
+            f"preset {p.id!r} is for a {p.component}, not a {cls.__name__}"
+        )
     return p
 
 
@@ -560,7 +629,9 @@ def validate_for(preset: Preset, cls: type[Component]) -> None:
     specs: dict[str, Param] = cls.param_specs()
     for key, value in preset.params.items():
         if key not in specs:
-            raise PresetError(f"preset {preset.id!r}: {cls.__name__} has no parameter {key!r}")
+            raise PresetError(
+                f"preset {preset.id!r}: {cls.__name__} has no parameter {key!r}"
+            )
         try:
             specs[key].validate(value)
         except (TypeError, ValueError) as e:

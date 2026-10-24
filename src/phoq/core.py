@@ -156,8 +156,11 @@ class Port:
     @property
     def connector(self) -> str | None:
         """Connector type of an optical port (``"FC/UPC"``, ``"FC/APC"``, …); None if electrical,
-        and for a mating sleeve the type plugged into its other side (None while that is empty)."""
-        return self.component.connector_of(self.name) if self.kind == "optical" else None
+        and for a mating sleeve the type plugged into its other side (None while that is empty).
+        """
+        return (
+            self.component.connector_of(self.name) if self.kind == "optical" else None
+        )
 
     def to_dict(self) -> dict:
         return {
@@ -194,9 +197,15 @@ class Component:
     inputs: ClassVar[tuple[str, ...]] = ()  # port order used by Setup.chain()
     outputs: ClassVar[tuple[str, ...]] = ()
     is_cord: ClassVar[bool] = False  # fiber patch cords join optical ports
-    is_adaptor: ClassVar[bool] = False  # a mating sleeve: the connectors in its two sides mate
-    is_plug: ClassVar[bool] = False  # plugs straight into a port or a sleeve, like a cord's end (a terminator)
-    spectral_curves: ClassVar[dict[str, str]] = {}  # datasheet curves a preset may give: name → unit
+    is_adaptor: ClassVar[bool] = (
+        False  # a mating sleeve: the connectors in its two sides mate
+    )
+    is_plug: ClassVar[bool] = (
+        False  # plugs straight into a port or a sleeve, like a cord's end (a terminator)
+    )
+    spectral_curves: ClassVar[dict[str, str]] = (
+        {}
+    )  # datasheet curves a preset may give: name → unit
     registry: ClassVar[dict[str, type[Component]]] = {}
     aliases: ClassVar[dict[str, str]] = {}  # a renamed class's old name → its name now
 
@@ -484,15 +493,20 @@ class Setup:
             )
         if a.kind == "optical" and a.component.is_plug and b.component.is_plug:
             raise ConnectionError(f"cannot plug {a.path} into {b.path}: both are plugs")
-        if a.kind == "optical" and not any(p.component.is_cord or p.component.is_plug for p in (a, b)):
+        if a.kind == "optical" and not any(
+            p.component.is_cord or p.component.is_plug for p in (a, b)
+        ):
             from .passive import Fiber
 
-            if fiber is None:  # the patch cord a lab would take: its ends match the two ports
+            if (
+                fiber is None
+            ):  # the patch cord a lab would take: its ends match the two ports
                 from .units import DEFAULT_CONNECTOR
 
                 fiber = Fiber(
                     length=length,
-                    connector_a=a.connector or DEFAULT_CONNECTOR,  # an empty sleeve has none yet
+                    connector_a=a.connector
+                    or DEFAULT_CONNECTOR,  # an empty sleeve has none yet
                     connector_b=b.connector or DEFAULT_CONNECTOR,
                 )
             self.add(fiber)
@@ -504,12 +518,15 @@ class Setup:
 
     def terminate(self, port: Port | str, connector: str | None = None) -> Component:
         """Cap an unused optical port with a fiber terminator of its own connector type (or
-        ``connector``), as one caps a homodyne's vacuum input or a coupler's spare output."""
+        ``connector``), as one caps a homodyne's vacuum input or a coupler's spare output.
+        """
         from .passive import FiberTerminator
         from .units import DEFAULT_CONNECTOR
 
         p = self.port(port)
-        cap = self.add(FiberTerminator(connector=connector or p.connector or DEFAULT_CONNECTOR))
+        cap = self.add(
+            FiberTerminator(connector=connector or p.connector or DEFAULT_CONNECTOR)
+        )
         self.connect(p, cap.ports["p"])
         return cap
 
@@ -523,7 +540,12 @@ class Setup:
         return [
             p
             for c in self
-            if not (c.is_cord or c.is_adaptor or c.is_plug or isinstance(c, (Laser, _Detector)))
+            if not (
+                c.is_cord
+                or c.is_adaptor
+                or c.is_plug
+                or isinstance(c, (Laser, _Detector))
+            )
             for p in c.ports.values()
             if p.kind == "optical" and p.peer is None
         ]
@@ -662,7 +684,9 @@ class Setup:
             ctype = Component.lookup(cd["type"])
             if ctype is None:
                 raise ValueError(f"unknown component type {cd['type']!r}")
-            setup.add(ctype(cd["name"], preset=cd.get("preset"), **cd.get("params", {})))
+            setup.add(
+                ctype(cd["name"], preset=cd.get("preset"), **cd.get("params", {}))
+            )
         for a, b in data.get("connections", []):
             setup._mate(setup.port(a), setup.port(b))
         return setup

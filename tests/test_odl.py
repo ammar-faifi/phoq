@@ -1,5 +1,6 @@
 """Optical delay line (examples/odl_validation.py): group delay, carrier phase, coherence, pulse
-overlap in a DLI, coupling loss, and the photon counter resolving pulses inside a bin."""
+overlap in a DLI, coupling loss, and the photon counter resolving pulses inside a bin.
+"""
 
 import math
 from pathlib import Path
@@ -11,13 +12,17 @@ import pytest
 from phoq import OpticalDelayLine
 from phoq.engine import report
 
-EX = run_path(str(Path(__file__).resolve().parents[1] / "examples" / "odl_validation.py"))
+EX = run_path(
+    str(Path(__file__).resolve().parents[1] / "examples" / "odl_validation.py")
+)
 
 
 def test_group_delay_is_the_insertion_delay_plus_the_dial():
     for dial, step, got, want, warned in EX["check_delay"]():
         assert got == pytest.approx(want, abs=1e-16)
-        assert warned == (dial > 330e-12)  # set beyond the travel: stops there, and says so
+        assert warned == (
+            dial > 330e-12
+        )  # set beyond the travel: stops there, and says so
 
 
 def test_resolution_puts_the_dial_on_the_step_grid():
@@ -42,7 +47,9 @@ def test_dli_visibility_is_the_overlap_of_neighbouring_pulses():
     for dial, delta, want, rep, syn in rows:
         assert rep == pytest.approx(want, abs=0.005)
         assert syn == pytest.approx(want, abs=0.02)
-    assert max(rows, key=lambda r: r[3])[0] == 105e-12  # the peak sits where `balance` set it
+    assert (
+        max(rows, key=lambda r: r[3])[0] == 105e-12
+    )  # the peak sits where `balance` set it
 
 
 def test_standard_cords_alone_lose_short_pulses():
@@ -53,7 +60,9 @@ def test_standard_cords_alone_lose_short_pulses():
 
 def test_balance_refuses_a_delay_beyond_the_travel():
     setup = EX["build"]()
-    setup["DLI-ODL"].insertion_delay = 300e-12  # the cords already leave only 205 ps to add
+    setup["DLI-ODL"].insertion_delay = (
+        300e-12  # the cords already leave only 205 ps to add
+    )
     with pytest.raises(ValueError, match="travel"):
         EX["balance"](setup, "LD-1", "PD-C", "DLI-ODL")
 
@@ -83,11 +92,16 @@ def test_coupling_loss_follows_the_gaussian_beam_overlap():
 
 def test_dli_arms_are_standard_cords():
     examples = Path(__file__).resolve().parents[1] / "examples"
-    benches = (run_path(str(examples / name))["build"] for name in ("dli_for_dpsk.py", "dli_for_cow.py"))
+    benches = (
+        run_path(str(examples / name))["build"]
+        for name in ("dli_for_dpsk.py", "dli_for_cow.py")
+    )
     for setup in (*(b() for b in benches), EX["build"]()):
         lengths = {c.length for c in setup if type(c).__name__ == "Fiber"}
         assert lengths <= {0.5, 1.0, 2.0, 3.0}, lengths
-        assert all("ODL" not in w["text"] for w in report(setup)["warnings"])  # within its travel
+        assert all(
+            "ODL" not in w["text"] for w in report(setup)["warnings"]
+        )  # within its travel
 
 
 # Wang et al., "Design of optical fiber delay line with large delay range and low insertion loss",
@@ -105,15 +119,28 @@ def test_coupling_reproduces_wang_2024_fig5():
 
     from phoq.units import C0, N_AIR
 
-    lam, eta0, d = 633e-9, 0.953, np.array(WANG_GAP)  # 0.953: every curve's value at 0 m
+    lam, eta0, d = (
+        633e-9,
+        0.953,
+        np.array(WANG_GAP),
+    )  # 0.953: every curve's value at 0 m
 
     def curve(z_r):
-        odl = OpticalDelayLine(beam_waist=math.sqrt(z_r * lam / math.pi), max_delay=2 * N_AIR / C0)
-        return np.array([eta0 * odl.coupling(lam, odl.max_delay / 2 + x * N_AIR / C0) for x in d])
+        odl = OpticalDelayLine(
+            beam_waist=math.sqrt(z_r * lam / math.pi), max_delay=2 * N_AIR / C0
+        )
+        return np.array(
+            [eta0 * odl.coupling(lam, odl.max_delay / 2 + x * N_AIR / C0) for x in d]
+        )
 
     z4 = least_squares(lambda p: curve(p[0]) - WANG_F4, x0=[0.6]).x[0]
     assert np.sqrt(np.mean((curve(z4) - WANG_F4) ** 2)) < 0.003
-    assert np.sqrt(np.mean((curve(4 * z4) - WANG_F8) ** 2)) < 0.006  # predicted, not fitted
-    for f in (12, 16):  # "the change in coupling efficiency is less than 1 % in the delay range of 0–1 m"
+    assert (
+        np.sqrt(np.mean((curve(4 * z4) - WANG_F8) ** 2)) < 0.006
+    )  # predicted, not fitted
+    for f in (
+        12,
+        16,
+    ):  # "the change in coupling efficiency is less than 1 % in the delay range of 0–1 m"
         c = curve((f / 4) ** 2 * z4)
         assert (eta0 - c[-1]) / eta0 < 0.01

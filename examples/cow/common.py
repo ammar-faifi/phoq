@@ -46,8 +46,17 @@ from phoq.units import fmt_si, photon_energy
 
 BIT0, BIT1, DECOY = 0, 1, 2  # what Alice sends in a pair of slots
 NOTHING = 3  # … and what Eve may re-send instead: no light at all
-DB, DM1, DM2 = "ch1", "ch2", "ch3"  # tagger channels: data line, monitoring constructive / destructive
-MON = ("decoy", "1-0", "other", "dark")  # pulses j−1, j both sent: inside a decoy, across a 1-0
+DB, DM1, DM2 = (
+    "ch1",
+    "ch2",
+    "ch3",
+)  # tagger channels: data line, monitoring constructive / destructive
+MON = (
+    "decoy",
+    "1-0",
+    "other",
+    "dark",
+)  # pulses j−1, j both sent: inside a decoy, across a 1-0
 # boundary, across any other boundary; or neither sent ("dark": a 0-1 boundary, the dark-count reference)
 INTERFERING = (0, 1, 2)
 SUB_BINS = 4  # tagger sub-bins per slot: they resolve the half-slot pulses the modulator carves
@@ -63,17 +72,27 @@ class Topic:
 
 @dataclass
 class COWParams:
-    rate: float = 434e6  # pulse clock C1: one slot τ = 2.30 ns; logical bits at half the rate
+    rate: float = (
+        434e6  # pulse clock C1: one slot τ = 2.30 ns; logical bits at half the rate
+    )
     mu: float = 0.5  # photons per non-empty pulse into the fiber
     decoy: float = 0.1  # fraction f of decoy sequences
-    t_b: float = 0.5  # Bob's tap to the data line (the paper's experiment: a 50/50 coupler)
-    distance: float = 25e3  # Alice–Bob fiber [m]: ≈ 5 dB with its splices, as in the paper
+    t_b: float = (
+        0.5  # Bob's tap to the data line (the paper's experiment: a 50/50 coupler)
+    )
+    distance: float = (
+        25e3  # Alice–Bob fiber [m]: ≈ 5 dB with its splices, as in the paper
+    )
     efficiency: float = 0.10  # detectors, as in the paper …
     dark_count_rate: float = 25e3  # … 2.5·10⁻⁵ dark counts per ns
-    dead_time: float = 0.0  # the paper's detectors needed 10 µs against afterpulsing, not modelled
+    dead_time: float = (
+        0.0  # the paper's detectors needed 10 µs against afterpulsing, not modelled
+    )
     linewidth: float = 1e6  # Alice's laser [Hz] (a DFB; the paper does not say)
     extinction_db: float = 30.0  # intensity modulator: how dark an empty slot is
-    source: str = "cw"  # "cw" + carving modulator, or "gain-switched" (fresh phase every pulse)
+    source: str = (
+        "cw"  # "cw" + carving modulator, or "gain-switched" (fresh phase every pulse)
+    )
     pulse_width: float = 300e-12  # gain-switched pulses only
     sample_fraction: float = 0.1  # sifted bits disclosed to estimate the QBER
     wavelength: float = 1550e-9
@@ -92,11 +111,19 @@ class COWParams:
 class EveParams:
     """Eve's station: she buys the best parts and tells nobody."""
 
-    position: float = 0.5  # where she cuts the fiber, as a fraction of the distance from Alice
-    efficiency: float = 0.9  # her time-of-arrival detector (a superconducting nanowire, say) …
+    position: float = (
+        0.5  # where she cuts the fiber, as a fraction of the distance from Alice
+    )
+    efficiency: float = (
+        0.9  # her time-of-arrival detector (a superconducting nanowire, say) …
+    )
     dark_count_rate: float = 100.0  # … [Hz]; dead time not modelled, as for Bob's
-    linewidth: float = 1e6  # her own CW laser [Hz]: Alice's wavelength, an unrelated phase
-    extinction_db: float = 40.0  # her intensity modulator, better than Alice's: her re-sent pulses are
+    linewidth: float = (
+        1e6  # her own CW laser [Hz]: Alice's wavelength, an unrelated phase
+    )
+    extinction_db: float = (
+        40.0  # her intensity modulator, better than Alice's: her re-sent pulses are
+    )
     # brighter, and so is their leak into the pairs she leaves empty — the only QBER she adds
 
 
@@ -129,13 +156,27 @@ def transmitter(setup: Setup, p: COWParams) -> Attenuator:
     if p.source == "cw":
         laser = setup.add(Laser("ALICE-LD", mode="cw", **common))
     elif p.source == "gain-switched":
-        laser = setup.add(Laser("ALICE-LD", mode="pulsed", rep_rate=p.rate, pulse_width=p.pulse_width,
-                                phase_randomized=True, **common))
+        laser = setup.add(
+            Laser(
+                "ALICE-LD",
+                mode="pulsed",
+                rep_rate=p.rate,
+                pulse_width=p.pulse_width,
+                phase_randomized=True,
+                **common,
+            )
+        )
     else:
         raise ValueError(f"source must be 'cw' or 'gain-switched', not {p.source!r}")
     im = setup.add(IntensityModulator("ALICE-IM", extinction_db=p.extinction_db))
-    awg = setup.add(FunctionGenerator("ALICE-AWG", ch1_shape="dc", ch1_offset=float(im.voltage_for(1.0)),
-                                      ch2_enabled=False))
+    awg = setup.add(
+        FunctionGenerator(
+            "ALICE-AWG",
+            ch1_shape="dc",
+            ch1_offset=float(im.voltage_for(1.0)),
+            ch2_enabled=False,
+        )
+    )
     voa = setup.add(Attenuator("ALICE-VOA", attenuation_db=40.0))
     setup.connect(laser.out, im.p1)
     setup.connect(im.p2, voa.p1)
@@ -160,10 +201,23 @@ def receiver(setup: Setup, p: COWParams, slots: int) -> Coupler:
     setup.connect(odl.p2, bs2.a1, length=0.5)
     setup.connect(bs1.b2, voa.p1, length=1.0)
     setup.connect(voa.p2, bs2.a2, length=1.0)
-    spd = dict(efficiency=p.efficiency, dark_count_rate=p.dark_count_rate, dead_time=p.dead_time)
-    db, dm1, dm2 = (setup.add(SinglePhotonDetector(n, **spd)) for n in ("DB", "DM1", "DM2"))
-    tagger = setup.add(PhotonCounter("TAGGER", slots=slots, bin_rate=p.rate, oversample=SUB_BINS,
-                                     sync_source="ALICE-LD"))
+    spd = dict(
+        efficiency=p.efficiency,
+        dark_count_rate=p.dark_count_rate,
+        dead_time=p.dead_time,
+    )
+    db, dm1, dm2 = (
+        setup.add(SinglePhotonDetector(n, **spd)) for n in ("DB", "DM1", "DM2")
+    )
+    tagger = setup.add(
+        PhotonCounter(
+            "TAGGER",
+            slots=slots,
+            bin_rate=p.rate,
+            oversample=SUB_BINS,
+            sync_source="ALICE-LD",
+        )
+    )
     setup.connect(tap.b1, db.inp)
     setup.connect(tap.b2, bs1.a1)
     setup.connect(bs2.b1, dm1.inp)
@@ -182,15 +236,44 @@ def eavesdropper(setup: Setup, p: COWParams, e: EveParams, slots: int) -> Optica
     pulse k would have been (``calibrate_eve``). Every cord is a standard 1 m one.
     """
     sw = setup.add(OpticalSwitch("EVE-SW"))
-    det = setup.add(SinglePhotonDetector("EVE-D", efficiency=e.efficiency, dark_count_rate=e.dark_count_rate,
-                                         dead_time=0.0))
-    tagger = setup.add(PhotonCounter("EVE-TAGGER", slots=slots, bin_rate=p.rate, oversample=SUB_BINS,
-                                     sync_source="ALICE-LD"))
-    laser = setup.add(Laser("EVE-TX-LD", mode="cw", wavelength=p.wavelength, power_dbm=-10.0, linewidth=e.linewidth))
+    det = setup.add(
+        SinglePhotonDetector(
+            "EVE-D",
+            efficiency=e.efficiency,
+            dark_count_rate=e.dark_count_rate,
+            dead_time=0.0,
+        )
+    )
+    tagger = setup.add(
+        PhotonCounter(
+            "EVE-TAGGER",
+            slots=slots,
+            bin_rate=p.rate,
+            oversample=SUB_BINS,
+            sync_source="ALICE-LD",
+        )
+    )
+    laser = setup.add(
+        Laser(
+            "EVE-TX-LD",
+            mode="cw",
+            wavelength=p.wavelength,
+            power_dbm=-10.0,
+            linewidth=e.linewidth,
+        )
+    )
     im = setup.add(IntensityModulator("EVE-TX-IM", extinction_db=e.extinction_db))
     voa = setup.add(Attenuator("EVE-TX-VOA", attenuation_db=40.0))
-    awg = setup.add(FunctionGenerator("EVE-AWG", trigger="laser", ch1_shape="dc",
-                                      ch1_offset=float(im.voltage_for(0.0)), ch2_shape="dc", ch2_offset=0.0))
+    awg = setup.add(
+        FunctionGenerator(
+            "EVE-AWG",
+            trigger="laser",
+            ch1_shape="dc",
+            ch1_offset=float(im.voltage_for(0.0)),
+            ch2_shape="dc",
+            ch2_offset=0.0,
+        )
+    )
     setup.connect(sw.b2, det.inp)
     setup.connect(det.out, tagger.ch1)
     setup.connect(laser.out, im.p1)
@@ -201,7 +284,11 @@ def eavesdropper(setup: Setup, p: COWParams, e: EveParams, slots: int) -> Optica
     return sw
 
 
-def build(p: COWParams | None = None, slots: int = 400_000, eve: bool | EveParams | None = None) -> Setup:
+def build(
+    p: COWParams | None = None,
+    slots: int = 400_000,
+    eve: bool | EveParams | None = None,
+) -> Setup:
     """The COW hardware, calibrated: Alice's transmitter → fiber → Bob's receiver. ``slots`` time
     slots (``slots``/2 logical bits) make one block.
 
@@ -228,7 +315,9 @@ def build(p: COWParams | None = None, slots: int = 400_000, eve: bool | EveParam
     else:
         sw = eavesdropper(setup, p, e, slots)
         spl_a = setup.add(FiberSpool("SPL-A", length=max(1.0, e.position * p.distance)))
-        spl_b = setup.add(FiberSpool("SPL-B", length=max(1.0, (1 - e.position) * p.distance)))
+        spl_b = setup.add(
+            FiberSpool("SPL-B", length=max(1.0, (1 - e.position) * p.distance))
+        )
         setup.connect(voa.p2, spl_a.p1)
         setup.connect(spl_a.p2, sw.a1)
         setup.connect(sw.b1, spl_b.p1)
@@ -256,11 +345,16 @@ def fiber_input(setup: Setup) -> str:
 
 def path_power(net, detector, source) -> float:
     """Power [W] of one laser reaching a detector, summed over its paths, modulator drives left
-    out as in the trace (``port_power`` adds every laser, and both routes of a switch)."""
-    return source.power * sum(abs(q.amp) ** 2 for q in net.paths.get(detector, []) if q.source is source)
+    out as in the trace (``port_power`` adds every laser, and both routes of a switch).
+    """
+    return source.power * sum(
+        abs(q.amp) ** 2 for q in net.paths.get(detector, []) if q.source is source
+    )
 
 
-def pulse_energy(p: COWParams, laser: Laser, im: IntensityModulator, power: float) -> float:
+def pulse_energy(
+    p: COWParams, laser: Laser, im: IntensityModulator, power: float
+) -> float:
     """Photons in one non-empty pulse from traced ``power``: a CW laser carved for half a slot at
     the modulator's full transmission, or a whole gain-switched pulse."""
     power *= im.t_max  # the trace leaves the modulator's drive out
@@ -277,15 +371,24 @@ def pulse_photons(setup: Setup, p: COWParams, port: str | None = None) -> float:
 def calibrate_mu(setup: Setup, p: COWParams) -> float:
     """Alice's VOA, set so that a non-empty pulse holds μ photons at the fiber input."""
     voa = setup["ALICE-VOA"]
-    voa.attenuation_db = min(80.0, max(0.0, voa.attenuation_db + 10 * math.log10(pulse_photons(setup, p) / p.mu)))
+    voa.attenuation_db = min(
+        80.0,
+        max(0.0, voa.attenuation_db + 10 * math.log10(pulse_photons(setup, p) / p.mu)),
+    )
     return voa.attenuation_db
 
 
 def arms(setup: Setup, detector: str = "DM1") -> tuple:
     """The short- and long-arm paths of Alice's light to a monitoring detector."""
     src = setup["ALICE-LD"]
-    paths = sorted((q for q in trace(setup).paths[setup[detector]] if q.source is src and not q.reflections),
-                   key=lambda q: q.delay)
+    paths = sorted(
+        (
+            q
+            for q in trace(setup).paths[setup[detector]]
+            if q.source is src and not q.reflections
+        ),
+        key=lambda q: q.delay,
+    )
     return paths[0], paths[1]
 
 
@@ -295,7 +398,9 @@ def balance_delay(setup: Setup, p: COWParams) -> float:
     short, long_ = arms(setup)
     want = odl.setting + (long_.delay - short.delay) - p.slot
     if not 0.0 <= want <= odl.max_delay:
-        raise ValueError(f"BOB-ODL would need {fmt_si(want, 's')}, outside its travel: change the DLI's cords")
+        raise ValueError(
+            f"BOB-ODL would need {fmt_si(want, 's')}, outside its travel: change the DLI's cords"
+        )
     odl.delay = want
     return want
 
@@ -323,7 +428,10 @@ def lock(setup: Setup) -> float:
     ps = setup["BOB-PS"]
     ps.phase = 0.0
     short, long_ = arms(setup)
-    ps.phase = float((np.angle(static_amplitude(long_)) - np.angle(static_amplitude(short))) % (2 * math.pi))
+    ps.phase = float(
+        (np.angle(static_amplitude(long_)) - np.angle(static_amplitude(short)))
+        % (2 * math.pi)
+    )
     return ps.phase
 
 
@@ -331,14 +439,18 @@ def align_tagger(setup: Setup) -> float:
     """DB sits behind less fiber than the DLI: delay its channel so slot j means pulse j everywhere."""
     net, src = trace(setup), setup["ALICE-LD"]
     tagger = setup["TAGGER"]
-    tagger.ch1_delay = min(net.delays(setup["DM1"], src)) - min(net.delays(setup["DB"], src))
+    tagger.ch1_delay = min(net.delays(setup["DM1"], src)) - min(
+        net.delays(setup["DB"], src)
+    )
     return tagger.ch1_delay
 
 
 def passing(net, detector, source, part) -> float:
     """When light that ``source`` emits at t = 0 passes ``part`` (a modulator or a switch) on its
     earliest path to ``detector``."""
-    path = min((q for q in net.paths[detector] if q.source is source), key=lambda q: q.delay)
+    path = min(
+        (q for q in net.paths[detector] if q.source is source), key=lambda q: q.delay
+    )
     return next(at for mod, at in path.mods if getattr(mod, "switch", mod) is part)
 
 
@@ -346,7 +458,9 @@ def eve_pulse_photons(setup: Setup, p: COWParams) -> float:
     """Photons that one of Eve's non-empty pulses brings to her own detector, through the switch's
     bar state (her loopback)."""
     laser = setup["EVE-TX-LD"]
-    return pulse_energy(p, laser, setup["EVE-TX-IM"], path_power(trace(setup), setup["EVE-D"], laser))
+    return pulse_energy(
+        p, laser, setup["EVE-TX-IM"], path_power(trace(setup), setup["EVE-D"], laser)
+    )
 
 
 def calibrate_eve(setup: Setup, p: COWParams) -> None:
@@ -362,17 +476,30 @@ def calibrate_eve(setup: Setup, p: COWParams) -> None:
       Bob's detectors.
     """
     voa, awg = setup["EVE-TX-VOA"], setup["EVE-AWG"]
-    voa.attenuation_db = min(80.0, max(0.0, voa.attenuation_db + 10 * math.log10(eve_pulse_photons(setup, p) / p.mu)))
+    voa.attenuation_db = min(
+        80.0,
+        max(
+            0.0,
+            voa.attenuation_db + 10 * math.log10(eve_pulse_photons(setup, p) / p.mu),
+        ),
+    )
     net, alice, eve = trace(setup), setup["ALICE-LD"], setup["EVE-TX-LD"]
     db = setup["DB"]
     awg.ch2_delay = passing(net, setup["EVE-D"], alice, setup["EVE-SW"])
-    awg.ch1_delay = min(net.delays(db, alice)) - min(net.delays(db, eve)) + passing(net, db, eve, setup["EVE-TX-IM"])
+    awg.ch1_delay = (
+        min(net.delays(db, alice))
+        - min(net.delays(db, eve))
+        + passing(net, db, eve, setup["EVE-TX-IM"])
+    )
 
 
 # ---- the data line and the monitoring line --------------------------------------------------------------
-def decode(db: np.ndarray, rng: np.random.Generator) -> tuple[np.ndarray, np.ndarray, int]:
+def decode(
+    db: np.ndarray, rng: np.random.Generator
+) -> tuple[np.ndarray, np.ndarray, int]:
     """Bob's bits from the data detector: a click in the first slot of a pair is 0, in the second
-    1; a click in both gets a random bit. Returns (bit indices with a click, bits, doubles)."""
+    1; a click in both gets a random bit. Returns (bit indices with a click, bits, doubles).
+    """
     c0, c1 = db[0::2], db[1::2]
     idx = np.flatnonzero(c0 | c1)
     both = c0[idx] & c1[idx]
@@ -383,7 +510,8 @@ def decode(db: np.ndarray, rng: np.random.Generator) -> tuple[np.ndarray, np.nda
 
 def interfering(kind: np.ndarray) -> np.ndarray:
     """Per time slot j: the class (index into MON) of pulses j−1 and j at the DLI's output, −1 when
-    only one of them was sent. Slot 0 is skipped: its predecessor belongs to another block."""
+    only one of them was sent. Slot 0 is skipped: its predecessor belongs to another block.
+    """
     occ = occupied(kind)
     cls = np.full(occ.size, -1, dtype=np.int8)
     both, neither = np.zeros(occ.size, dtype=bool), np.zeros(occ.size, dtype=bool)
@@ -418,7 +546,8 @@ def visibility(n1: float, n2: float) -> float:
 
 def visibilities(monitor: np.ndarray, rows=INTERFERING) -> tuple[float, float]:
     """(raw, net) visibility over the given classes. Net subtracts each detector's dark-count
-    probability per slot, measured where neither neighbouring pulse was sent (the paper's net V)."""
+    probability per slot, measured where neither neighbouring pulse was sent (the paper's net V).
+    """
     m = np.asarray(monitor, dtype=float)
     n1, n2, slots = m[list(rows)].sum(axis=0)
     dark = m[MON.index("dark")]
@@ -427,16 +556,23 @@ def visibilities(monitor: np.ndarray, rows=INTERFERING) -> tuple[float, float]:
 
 
 # ---- the eavesdropper: intercept-resend in the time basis ------------------------------------------------
-INCONCLUSIVE = ("empty", "decoy")  # what Eve re-sends for a pair of slots where her detector stayed dark
+INCONCLUSIVE = (
+    "empty",
+    "decoy",
+)  # what Eve re-sends for a pair of slots where her detector stayed dark
 
 
-def intercept(c0: np.ndarray, c1: np.ndarray, attack: np.ndarray, inconclusive: str = "empty") -> np.ndarray:
+def intercept(
+    c0: np.ndarray, c1: np.ndarray, attack: np.ndarray, inconclusive: str = "empty"
+) -> np.ndarray:
     """What Eve re-prepares per logical bit from her clicks in its two slots: the bit she saw, a
     decoy when both slots clicked (she knows what the sequence was, as the paper assumes), and,
     when neither did, nothing (``"empty"``) or a decoy (``"decoy"``). NOTHING where she let the
     bit pass."""
     if inconclusive not in INCONCLUSIVE:
-        raise ValueError(f"inconclusive must be one of {INCONCLUSIVE}, not {inconclusive!r}")
+        raise ValueError(
+            f"inconclusive must be one of {INCONCLUSIVE}, not {inconclusive!r}"
+        )
     out = np.full(attack.size, NOTHING, dtype=np.int8)
     out[attack & c0 & ~c1] = BIT0
     out[attack & c1 & ~c0] = BIT1
@@ -446,12 +582,17 @@ def intercept(c0: np.ndarray, c1: np.ndarray, attack: np.ndarray, inconclusive: 
     return out
 
 
-def resend_mu(clicks: int, attacked: int, resent: int, efficiency: float, p: COWParams) -> float:
+def resend_mu(
+    clicks: int, attacked: int, resent: int, efficiency: float, p: COWParams
+) -> float:
     """Photons per re-sent pulse (at her detector, the point her transmitter is calibrated to) that
     give Bob the photon flux the attacked pairs carried. Her clicks per occupied slot q give the μ
     reaching her detector, 1 − e^{−η μ} = q; that flux, (1 + f)·μ per pair on average, is spread
-    over the pulses she re-sends. With empty inconclusive pairs that is μ/q: brighter, rarer pulses."""
-    pulses = attacked * (1 + p.decoy)  # occupied slots among the attacked pairs, on average
+    over the pulses she re-sends. With empty inconclusive pairs that is μ/q: brighter, rarer pulses.
+    """
+    pulses = attacked * (
+        1 + p.decoy
+    )  # occupied slots among the attacked pairs, on average
     if not clicks or not resent:
         return p.mu
     q = min(clicks / pulses, 0.999)
@@ -476,10 +617,21 @@ class Tally:
     sampled: int = 0  # sifted bits disclosed for the QBER …
     errors: int = 0  # … and wrong
     key_bits: int = 0  # sifted bits not disclosed
-    monitor: np.ndarray = field(default_factory=lambda: np.zeros((len(MON), 3), dtype=np.int64))
+    monitor: np.ndarray = field(
+        default_factory=lambda: np.zeros((len(MON), 3), dtype=np.int64)
+    )
 
     def __iadd__(self, other: Tally) -> Tally:
-        for name in ("bits", "detected", "decoys", "doubles", "sifted", "sampled", "errors", "key_bits"):
+        for name in (
+            "bits",
+            "detected",
+            "decoys",
+            "doubles",
+            "sifted",
+            "sampled",
+            "errors",
+            "key_bits",
+        ):
             setattr(self, name, getattr(self, name) + getattr(other, name))
         self.monitor = self.monitor + other.monitor
         return self
@@ -494,14 +646,29 @@ class Tally:
         return visibilities(self.monitor, rows)[1 if net else 0]
 
 
-def account(bits: int, n_detected: int, decoy: np.ndarray, doubles: int, sample: np.ndarray,
-            mine: np.ndarray, theirs: np.ndarray, monitor: np.ndarray) -> Tally:
+def account(
+    bits: int,
+    n_detected: int,
+    decoy: np.ndarray,
+    doubles: int,
+    sample: np.ndarray,
+    mine: np.ndarray,
+    theirs: np.ndarray,
+    monitor: np.ndarray,
+) -> Tally:
     """One block's public counts, once both stations hold each other's sample bits."""
     sifted = int(n_detected - decoy.sum())
-    return Tally(bits=bits, detected=int(n_detected), decoys=int(decoy.sum()), doubles=doubles,
-                 sifted=sifted, sampled=int(sample.size),
-                 errors=int(np.count_nonzero(np.asarray(mine) != np.asarray(theirs))),
-                 key_bits=sifted - int(sample.size), monitor=np.asarray(monitor, dtype=np.int64))
+    return Tally(
+        bits=bits,
+        detected=int(n_detected),
+        decoys=int(decoy.sum()),
+        doubles=doubles,
+        sifted=sifted,
+        sampled=int(sample.size),
+        errors=int(np.count_nonzero(np.asarray(mine) != np.asarray(theirs))),
+        key_bits=sifted - int(sample.size),
+        monitor=np.asarray(monitor, dtype=np.int64),
+    )
 
 
 def fmt(x, digits: int = 3) -> str:
@@ -510,11 +677,15 @@ def fmt(x, digits: int = 3) -> str:
 
 def describe(t: Tally) -> str:
     """One line with the figures of merit, for the consoles."""
-    return (f"sifted {t.sifted:,} of {t.bits:,} bits · QBER {fmt(t.qber)} ({t.errors}/{t.sampled}) · "
-            f"V raw {fmt(t.v(net=False))}, net {fmt(t.v())} (decoy {fmt(t.v('decoy'))}, 1-0 {fmt(t.v('1-0'))})")
+    return (
+        f"sifted {t.sifted:,} of {t.bits:,} bits · QBER {fmt(t.qber)} ({t.errors}/{t.sampled}) · "
+        f"V raw {fmt(t.v(net=False))}, net {fmt(t.v())} (decoy {fmt(t.v('decoy'))}, 1-0 {fmt(t.v('1-0'))})"
+    )
 
 
-WINDOW = 10  # blocks in the running ("now") figures: a change on the line shows within them
+WINDOW = (
+    10  # blocks in the running ("now") figures: a change on the line shows within them
+)
 
 
 def window(recent) -> Tally:
@@ -525,13 +696,19 @@ def window(recent) -> Tally:
     return total
 
 
-def readouts(t: Tally, p: COWParams, net_stats: dict | None = None, recent: Tally | None = None) -> dict:
+def readouts(
+    t: Tally, p: COWParams, net_stats: dict | None = None, recent: Tally | None = None
+) -> dict:
     """Live read-outs for a station's laptop (and the result dict of a headless run). ``recent``,
     the last ``WINDOW`` blocks, goes first: the laptop's screen shows the first three entries, and
     running figures show an eavesdropper come and go where the totals barely move."""
     out = {}
     if recent is not None:
-        out["QBER now"], out["V_d now"], out["V_1-0 now"] = recent.qber, recent.v("decoy"), recent.v("1-0")
+        out["QBER now"], out["V_d now"], out["V_1-0 now"] = (
+            recent.qber,
+            recent.v("decoy"),
+            recent.v("1-0"),
+        )
     out |= {
         "bits sent": t.bits,
         "detections": t.detected,
@@ -543,9 +720,12 @@ def readouts(t: Tally, p: COWParams, net_stats: dict | None = None, recent: Tall
         "V net": t.v(),
         "V decoy (net)": t.v("decoy"),
         "V 1-0 (net)": t.v("1-0"),
-        "DM dark / slot": t.monitor[MON.index("dark"), :2].sum() / max(2 * t.monitor[MON.index("dark"), 2], 1),
+        "DM dark / slot": t.monitor[MON.index("dark"), :2].sum()
+        / max(2 * t.monitor[MON.index("dark"), 2], 1),
         "sifted / bit": t.sifted / t.bits if t.bits else float("nan"),
-        "sifted rate [bit/s]": t.sifted / t.bits * p.rate / 2 if t.bits else float("nan"),
+        "sifted rate [bit/s]": (
+            t.sifted / t.bits * p.rate / 2 if t.bits else float("nan")
+        ),
     }
     if net_stats:
         out["sent [kB]"] = net_stats["bytes_out"] / 1e3
@@ -572,17 +752,26 @@ def theory(setup: Setup, p: COWParams) -> dict:
     """
     net = trace(setup)
     im, alice = setup["ALICE-IM"], setup["ALICE-LD"]
-    scale = p.mu / net.port_power[fiber_input(setup)]  # photons per pulse per watt of traced power
+    scale = (
+        p.mu / net.port_power[fiber_input(setup)]
+    )  # photons per pulse per watt of traced power
     mu_b = scale * path_power(net, setup["DB"], alice)
     p_d = -math.expm1(-p.dark_count_rate * p.slot)
     leak = im.t_min / im.t_max * (2.0 if p.source == "cw" else 1.0)
     pa = 1 - (1 - p_d) * math.exp(-p.efficiency * mu_b)
     pb = 1 - (1 - p_d) * math.exp(-p.efficiency * leak * mu_b)
     det = 1 - (1 - pa) * (1 - pb)
-    m1, m2 = (scale * alice.power * abs(q.amp) ** 2 for q in arms(setup))  # amplitudes without the drive
+    m1, m2 = (
+        scale * alice.power * abs(q.amp) ** 2 for q in arms(setup)
+    )  # amplitudes without the drive
     balance = 2 * math.sqrt(m1 * m2) / (m1 + m2)
-    v = balance * (math.exp(-math.pi * p.linewidth * p.slot) if p.source == "cw" else 0.0)
-    plus, minus = (1 - (1 - p_d) * math.exp(-p.efficiency * (m1 + m2) * (1 + sign * v)) for sign in (1, -1))
+    v = balance * (
+        math.exp(-math.pi * p.linewidth * p.slot) if p.source == "cw" else 0.0
+    )
+    plus, minus = (
+        1 - (1 - p_d) * math.exp(-p.efficiency * (m1 + m2) * (1 + sign * v))
+        for sign in (1, -1)
+    )
     return {
         "mu_B": mu_b,
         "detected / bit": (1 - p.decoy) * det + p.decoy * (1 - (1 - pa) ** 2),
@@ -627,29 +816,57 @@ def eve_theory(setup: Setup, p: COWParams, fraction: float) -> dict:
     """
     th, net = theory(setup, p), trace(setup)
     det, alice, p_ir, f_d = setup["EVE-D"], setup["ALICE-LD"], fraction, p.decoy
-    mu_d = p.mu / net.port_power[fiber_input(setup)] * path_power(net, det, alice)  # Alice's pulse at Eve's detector
-    leak_a, leak_e = (2 * im.t_min / im.t_max for im in (setup["ALICE-IM"], setup["EVE-TX-IM"]))  # a dark slot
+    mu_d = (
+        p.mu / net.port_power[fiber_input(setup)] * path_power(net, det, alice)
+    )  # Alice's pulse at Eve's detector
+    leak_a, leak_e = (
+        2 * im.t_min / im.t_max for im in (setup["ALICE-IM"], setup["EVE-TX-IM"])
+    )  # a dark slot
     p_de = -math.expm1(-det.dark_count_rate * p.slot)
     q = 1 - (1 - p_de) * math.exp(-det.efficiency * mu_d)  # she clicks on a pulse …
-    q1 = 1 - (1 - p_de) * math.exp(-det.efficiency * leak_a * mu_d)  # … and on an empty slot
+    q1 = 1 - (1 - p_de) * math.exp(
+        -det.efficiency * leak_a * mu_d
+    )  # … and on an empty slot
     resent = (1 - f_d) * (q + q1) + f_d * 2 * q  # pulses she re-sends per attacked pair
     q_hat = resent / (1 + f_d)  # her clicks per occupied slot: what resend_mu inverts
     mu_e = -math.log1p(-q_hat) / det.efficiency / q_hat
     p_d = -math.expm1(-p.dark_count_rate * p.slot)
-    s = th["mu_B"] / mu_d * mu_e  # one of her pulses at DB: the loopback reference holds for her light too
+    s = (
+        th["mu_B"] / mu_d * mu_e
+    )  # one of her pulses at DB: the loopback reference holds for her light too
     pa, pb = (1 - (1 - p_d) * math.exp(-p.efficiency * n) for n in (s, leak_e * s))
     det_bit, err_bit = 1 - (1 - pa) * (1 - pb), pb * (1 - pa) + 0.5 * pa * pb
     det_dec, det_empty = 1 - (1 - pa) ** 2, 1 - (1 - pb) ** 2
-    right, wrong, both, none = q * (1 - q1), (1 - q) * q1, q * q1, (1 - q) * (1 - q1)  # her outcomes on a bit
+    right, wrong, both, none = (
+        q * (1 - q1),
+        (1 - q) * q1,
+        q * q1,
+        (1 - q) * (1 - q1),
+    )  # her outcomes on a bit
     sift_att = (right + wrong) * det_bit + both * det_dec + none * det_empty
-    err_att = right * err_bit + wrong * (det_bit - err_bit) + 0.5 * (both * det_dec + none * det_empty)
-    decoy_att = 2 * q * (1 - q) * det_bit + q * q * det_dec + (1 - q) ** 2 * det_empty  # an attacked decoy
-    sift0, decoy0 = th["sifted / bit"] / (1 - f_d), (th["detected / bit"] - th["sifted / bit"]) / f_d
+    err_att = (
+        right * err_bit
+        + wrong * (det_bit - err_bit)
+        + 0.5 * (both * det_dec + none * det_empty)
+    )
+    decoy_att = (
+        2 * q * (1 - q) * det_bit + q * q * det_dec + (1 - q) ** 2 * det_empty
+    )  # an attacked decoy
+    sift0, decoy0 = (
+        th["sifted / bit"] / (1 - f_d),
+        (th["detected / bit"] - th["sifted / bit"]) / f_d,
+    )
     sift = (1 - p_ir) * sift0 + p_ir * sift_att
-    v, v_e = th["V net"], th["DLI balance"] * math.exp(-math.pi * setup["EVE-TX-LD"].linewidth * p.slot)
+    v, v_e = th["V net"], th["DLI balance"] * math.exp(
+        -math.pi * setup["EVE-TX-LD"].linewidth * p.slot
+    )
     im_e, sw = setup["EVE-TX-IM"], setup["EVE-SW"]
-    c = q + 2 * (1 - q) * math.sqrt(im_e.t_min / im_e.t_max)  # coherent share of a pair she attacked
-    x = 10 ** (-sw.crosstalk_db / 20)  # amplitude of Alice's diverted pulse through the bar state
+    c = q + 2 * (1 - q) * math.sqrt(
+        im_e.t_min / im_e.t_max
+    )  # coherent share of a pair she attacked
+    x = 10 ** (
+        -sw.crosstalk_db / 20
+    )  # amplitude of Alice's diverted pulse through the bar state
     xi = 2 * (1 - q) / (2 - q)
     return {
         "mu at Eve": mu_d,
@@ -657,10 +874,13 @@ def eve_theory(setup: Setup, p: COWParams, fraction: float) -> dict:
         "mu_E": mu_e,
         "V_E": v_e,
         "V decoy": (1 - p_ir) * v + p_ir * c * v_e,
-        "V 1-0": (1 - p_ir) ** 2 * v + 2 * p_ir * (1 - p_ir) * x * v + p_ir**2 * c * v_e,
+        "V 1-0": (1 - p_ir) ** 2 * v
+        + 2 * p_ir * (1 - p_ir) * x * v
+        + p_ir**2 * c * v_e,
         "xi": xi,
         "1 - V (paper)": p_ir * xi,
-        "detected / bit": (1 - f_d) * sift + f_d * ((1 - p_ir) * decoy0 + p_ir * decoy_att),
+        "detected / bit": (1 - f_d) * sift
+        + f_d * ((1 - p_ir) * decoy0 + p_ir * decoy_att),
         "sifted / bit": (1 - f_d) * sift,
         "QBER": ((1 - p_ir) * sift0 * th["QBER"] + p_ir * err_att) / sift,
     }

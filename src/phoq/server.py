@@ -228,7 +228,9 @@ class LabSession:
                 if inst.running and now >= self.esa_next.get(inst.name, 0.0):
                     res = inst.acquire(net, self.rng)
                     took = time.monotonic() - now
-                    self.esa_next[inst.name] = now + max(0.2, 3 * took)  # long sweeps run less often
+                    self.esa_next[inst.name] = now + max(
+                        0.2, 3 * took
+                    )  # long sweeps run less often
                     msgs.append({"type": "frame", "frame": res.to_json()})
             if self.experiment:  # parties drive the blocks
                 if time.monotonic() - self.experiment.last_acquire >= 0.5:

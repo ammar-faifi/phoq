@@ -16,7 +16,13 @@ from importlib.metadata import PackageNotFoundError, version as _version
 
 from . import presets
 from .core import Component, Param, Port, Setup, Transfer
-from .detectors import BalancedPhotodetector, Photodiode, PowerMeter, PowerReading, SinglePhotonDetector
+from .detectors import (
+    BalancedPhotodetector,
+    Photodiode,
+    PowerMeter,
+    PowerReading,
+    SinglePhotonDetector,
+)
 from .engine import Network, report, synthesize, trace
 from .generators import DCPowerSupply, FunctionGenerator
 from .instruments import (

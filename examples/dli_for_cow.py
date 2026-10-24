@@ -39,10 +39,18 @@ from phoq.engine import trace
 from phoq.units import FIBER_DELAY, fmt_si, photon_energy
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from dli import RATE, balance, dli, lock, slot_delay  # noqa: E402  (the shared interferometer)
+from dli import (
+    RATE,
+    balance,
+    dli,
+    lock,
+    slot_delay,
+)  # noqa: E402  (the shared interferometer)
 
 
-def cow_sequence(n_bits: int, decoy: float = 0.1, seed: int = 3) -> tuple[np.ndarray, np.ndarray]:
+def cow_sequence(
+    n_bits: int, decoy: float = 0.1, seed: int = 3
+) -> tuple[np.ndarray, np.ndarray]:
     """Slot intensities (0/1) for n_bits logical bits: 0 → (μ, 0), 1 → (0, μ), decoy → (μ, μ)."""
     rng = np.random.default_rng(seed)
     kind = np.where(rng.random(n_bits) < decoy, 2, rng.integers(0, 2, n_bits))
@@ -52,19 +60,37 @@ def cow_sequence(n_bits: int, decoy: float = 0.1, seed: int = 3) -> tuple[np.nda
     return kind, slots
 
 
-def build(linewidth: float = 100e3, randomized: bool = False, mu: float = 0.5, km: float = 25.0, n_bits: int = 500) -> Setup:
+def build(
+    linewidth: float = 100e3,
+    randomized: bool = False,
+    mu: float = 0.5,
+    km: float = 25.0,
+    n_bits: int = 500,
+) -> Setup:
     """Alice: pulsed laser → intensity modulator (COW pattern) → VOA (μ per pulse). 25 km of fiber.
-    Bob: 90:10 tap → data detector DB; 10 % → DLI → DM1 (constructive), DM2 → time tagger."""
+    Bob: 90:10 tap → data detector DB; 10 % → DLI → DM1 (constructive), DM2 → time tagger.
+    """
     setup = Setup("Delay-line interferometer: COW monitoring line", seed=9)
-    laser = setup.add(Laser("LD-A", mode="pulsed", rep_rate=RATE, pulse_width=1e-9, power_dbm=-10.0,
-                            linewidth=linewidth, phase_randomized=randomized))
+    laser = setup.add(
+        Laser(
+            "LD-A",
+            mode="pulsed",
+            rep_rate=RATE,
+            pulse_width=1e-9,
+            power_dbm=-10.0,
+            linewidth=linewidth,
+            phase_randomized=randomized,
+        )
+    )
     im = setup.add(IntensityModulator("IM-A"))
     fg = setup.add(FunctionGenerator("FG-A"))
     voa = setup.add(Attenuator("VOA-A"))
     spool = setup.add(FiberSpool("SPL", length=km * 1e3))
     tap = setup.add(Coupler("TAP", ratio=0.9))
     spd = dict(efficiency=0.8, dark_count_rate=100.0, dead_time=30e-9)  # SNSPD-like
-    db, dm1, dm2 = (setup.add(SinglePhotonDetector(n, **spd)) for n in ("DB", "DM1", "DM2"))
+    db, dm1, dm2 = (
+        setup.add(SinglePhotonDetector(n, **spd)) for n in ("DB", "DM1", "DM2")
+    )
     cnt = setup.add(PhotonCounter("CNT", slots=200 * n_bits * 2))
     setup.connect(laser.out, im.p1)
     setup.connect(im.p2, voa.p1)
@@ -82,7 +108,9 @@ def build(linewidth: float = 100e3, randomized: bool = False, mu: float = 0.5, k
 
     kind, slots = cow_sequence(n_bits)
     setup.cow = {"kind": kind, "slots": slots}  # Alice's record, for the analysis below
-    fg.set_pattern("ch1", im.voltage_for(np.where(slots > 0, im.t_max, im.t_min)), rate=RATE)
+    fg.set_pattern(
+        "ch1", im.voltage_for(np.where(slots > 0, im.t_max, im.t_min)), rate=RATE
+    )
     # μ photons per non-empty pulse leaving Alice
     net = trace(setup)
     p_out = net.port_power["SPL.p1"]
@@ -101,7 +129,9 @@ def monitor(setup: Setup, batches: int = 5, seed: int = 2) -> dict:
     """Visibility on pulse pairs that should interfere, and the data line's error rate."""
     slots, kind = setup.cow["slots"], setup.cow["kind"]
     n = slots.size
-    pair = (slots > 0) & (np.roll(slots, 1) > 0)  # slot k: pulse k and pulse k−1 both present
+    pair = (slots > 0) & (
+        np.roll(slots, 1) > 0
+    )  # slot k: pulse k and pulse k−1 both present
     runner = Runner(setup, seed=seed)
     n1 = n2 = 0
     right = wrong = 0
@@ -118,15 +148,25 @@ def monitor(setup: Setup, batches: int = 5, seed: int = 2) -> dict:
         right += int(np.sum(keyed & (click_slot == kind[bit])))
         wrong += int(np.sum(keyed & (click_slot != kind[bit])))
     v = (n1 - n2) / (n1 + n2) if n1 + n2 else float("nan")
-    return {"V": v, "n1": n1, "n2": n2, "qber": wrong / max(right + wrong, 1), "sifted": right + wrong}
+    return {
+        "V": v,
+        "n1": n1,
+        "n2": n2,
+        "qber": wrong / max(right + wrong, 1),
+        "sifted": right + wrong,
+    }
 
 
 if __name__ == "__main__":
     T = 1 / RATE
     odl = build()["DLI-ODL"]
-    print(f"DLI: cords 3 m (long arm) − 1 m (short arm) = {fmt_si(2 * FIBER_DELAY, 's')}; delay line "
-          f"{fmt_si(odl.insertion_delay, 's')} + {fmt_si(odl.delay, 's')} on the dial → one slot T = {fmt_si(T, 's')}\n")
-    print("COW monitoring line (μ = 0.5, 25 km, 10 % tap to the DLI, SNSPD-like detectors)")
+    print(
+        f"DLI: cords 3 m (long arm) − 1 m (short arm) = {fmt_si(2 * FIBER_DELAY, 's')}; delay line "
+        f"{fmt_si(odl.insertion_delay, 's')} + {fmt_si(odl.delay, 's')} on the dial → one slot T = {fmt_si(T, 's')}\n"
+    )
+    print(
+        "COW monitoring line (μ = 0.5, 25 km, 10 % tap to the DLI, SNSPD-like detectors)"
+    )
     print(f"   {'source':38} {'V':>6} {'expected':>8} {'DM1':>6} {'DM2':>6}  data QBER")
     for title, kw in (
         ("coherent pulse train, 100 kHz", dict(linewidth=100e3)),
@@ -135,5 +175,9 @@ if __name__ == "__main__":
         ("no phase relation between pulses", dict(randomized=True)),
     ):
         m = monitor(build(**kw))
-        exp_v = 0.0 if kw.get("randomized") else math.exp(-math.pi * kw["linewidth"] * T)
-        print(f"   {title:38} {m['V']:6.3f} {exp_v:8.3f} {m['n1']:6d} {m['n2']:6d}  {m['qber']:.4f} ({m['sifted']} bits)")
+        exp_v = (
+            0.0 if kw.get("randomized") else math.exp(-math.pi * kw["linewidth"] * T)
+        )
+        print(
+            f"   {title:38} {m['V']:6.3f} {exp_v:8.3f} {m['n1']:6d} {m['n2']:6d}  {m['qber']:.4f} ({m['sifted']} bits)"
+        )

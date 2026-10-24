@@ -75,22 +75,43 @@ PPM = 23.4  # how fast Alice's clock really runs [ppm] (Bob does not know)
 L = 1000  # string length: one frame P = L / f = 10 µs
 CARVE = 4  # AWG samples per symbol: a "1" lights the first, a pulse of 1/4 symbol
 EPOCH = 3.21e-6  # Bob's clock reads this much later than Alice's (Bob does not know)
-RESOLUTION = 100e-12  # Bob's tagger bin (``resolution=``; phoq's tagger goes down to 20 ps)
+RESOLUTION = (
+    100e-12  # Bob's tagger bin (``resolution=``; phoq's tagger goes down to 20 ps)
+)
 RECORD = 2e-3  # one acquisition [s] (``record=``)
 DEAD_TIME = 1e-6  # free-running InGaAs hold-off (``dead_time=``)
 MU = 0.2  # photons per "1" pulse at the detector
 SEARCH_PPM = 100.0  # how far from nominal Bob looks for Alice's clock
 # (dead time, μ, record) at 1 ns symbols: saturated, then attenuated until the detector waits ≈ τd/10
-DEAD_CASES = ((40e-6, MU, 20e-3), (40e-6, 0.002, 2e-3), (40e-6, 0.002, 20e-3), (100e-6, MU, 50e-3), (100e-6, 0.0008, 50e-3))
-GHZ = dict(rate=1e9, resolution=20e-12)  # 1 ns time bins: an AWG at 4 GS/s carves 250 ps pulses
-LONG = dict(rate=1e9, resolution=250e-12)  # the same with 250 ps bins: still under half a symbol (see build)
+DEAD_CASES = (
+    (40e-6, MU, 20e-3),
+    (40e-6, 0.002, 2e-3),
+    (40e-6, 0.002, 20e-3),
+    (100e-6, MU, 50e-3),
+    (100e-6, 0.0008, 50e-3),
+)
+GHZ = dict(
+    rate=1e9, resolution=20e-12
+)  # 1 ns time bins: an AWG at 4 GS/s carves 250 ps pulses
+LONG = dict(
+    rate=1e9, resolution=250e-12
+)  # the same with 250 ps bins: still under half a symbol (see build)
 MAX_SLOTS = 100_000_000  # the tagger's bins per acquisition; a longer record is several, back to back
 
 
 # ---- the bench ----------------------------------------------------------------------------------
-def build(km: float = 0.0, ppm: float = PPM, epoch: float = EPOCH, record: float = RECORD, seed: int = 7,
-          carve: int = CARVE, rate: float = F_NOM, resolution: float = RESOLUTION,
-          dead_time: float = DEAD_TIME, mu: float = MU) -> Setup:
+def build(
+    km: float = 0.0,
+    ppm: float = PPM,
+    epoch: float = EPOCH,
+    record: float = RECORD,
+    seed: int = 7,
+    carve: int = CARVE,
+    rate: float = F_NOM,
+    resolution: float = RESOLUTION,
+    dead_time: float = DEAD_TIME,
+    mu: float = MU,
+) -> Setup:
     """CW laser → IM (the string, carved, repeated) → VOA → [fiber] → SPD → free-running tagger.
 
     ``rate`` is the agreed symbol rate (the AWG then runs at ``carve`` × ``rate``), ``resolution``
@@ -104,9 +125,18 @@ def build(km: float = 0.0, ppm: float = PPM, epoch: float = EPOCH, record: float
     voa = setup.add(Attenuator("VOA-1"))
     spd = setup.add(SinglePhotonDetector("SPD-1", dead_time=dead_time))
     bins = round(record / resolution)
-    setup.acquisitions = -(-bins // MAX_SLOTS)  # the tagger runs on, and the detector's dead time with it
-    tagger = setup.add(PhotonCounter("TAGGER", bin_rate=1 / resolution, slots=-(-bins // setup.acquisitions),
-                                     compensate_delay=False, ch1_delay=epoch))
+    setup.acquisitions = -(
+        -bins // MAX_SLOTS
+    )  # the tagger runs on, and the detector's dead time with it
+    tagger = setup.add(
+        PhotonCounter(
+            "TAGGER",
+            bin_rate=1 / resolution,
+            slots=-(-bins // setup.acquisitions),
+            compensate_delay=False,
+            ch1_delay=epoch,
+        )
+    )
     setup.connect(laser.out, im.p1)
     setup.connect(im.p2, voa.p1)
     if km > 0:
@@ -128,22 +158,36 @@ def build(km: float = 0.0, ppm: float = PPM, epoch: float = EPOCH, record: float
     setup.mu = mu
     # μ photons in a "1" pulse at the detector: CW power through the open modulator for one sample
     voa.attenuation_db = 0.0
-    on = trace(setup).port_power["SPD-1.inp"] * im.t_max  # the trace leaves the modulator's drive out
-    voa.attenuation_db = 10 * math.log10(on / (carve * f_a) / photon_energy(laser.wavelength) / mu)
+    on = (
+        trace(setup).port_power["SPD-1.inp"] * im.t_max
+    )  # the trace leaves the modulator's drive out
+    voa.attenuation_db = 10 * math.log10(
+        on / (carve * f_a) / photon_energy(laser.wavelength) / mu
+    )
     return setup
 
 
 def truth(setup: Setup) -> dict:
     """What Bob should find: Alice's clock and Δ = time of flight + his clock's offset (mod P)."""
     f_a = setup.symbol_rate
-    delay = min(trace(setup).delays(setup["SPD-1"], setup["LD-1"])) + setup["TAGGER"].ch1_delay
-    return {"f": f_a, "L": setup.string.size, "delay": delay, "delay mod P": delay % (setup.string.size / f_a)}
+    delay = (
+        min(trace(setup).delays(setup["SPD-1"], setup["LD-1"]))
+        + setup["TAGGER"].ch1_delay
+    )
+    return {
+        "f": f_a,
+        "L": setup.string.size,
+        "delay": delay,
+        "delay mod P": delay % (setup.string.size / f_a),
+    }
 
 
 def record(setup: Setup, seed: int = 1) -> np.ndarray:
     """One record: Bob's time stamps [s] on his own clock (one acquisition, or several back to back)."""
     runner = Runner(setup, seed=seed)
-    return np.concatenate([runner.acquire("TAGGER").timestamps("ch1") for _ in range(setup.acquisitions)])
+    return np.concatenate(
+        [runner.acquire("TAGGER").timestamps("ch1") for _ in range(setup.acquisitions)]
+    )
 
 
 # ---- Bob's analysis: time stamps → clock, frame, delay ----------------------------------------------
@@ -151,17 +195,24 @@ def periodogram(t: np.ndarray, freqs: np.ndarray) -> np.ndarray:
     """Z(f) = |Σ e^{2πi f t}|² / N: the spectrum of the click train straight from the time stamps."""
     out = np.empty(freqs.size)
     for a in range(0, freqs.size, 256):  # keep the (frequencies × clicks) block small
-        f = freqs[a:a + 256, None]
-        out[a:a + 256] = np.abs(np.exp(2j * np.pi * f * t[None, :]).sum(axis=1)) ** 2 / t.size
+        f = freqs[a : a + 256, None]
+        out[a : a + 256] = (
+            np.abs(np.exp(2j * np.pi * f * t[None, :]).sum(axis=1)) ** 2 / t.size
+        )
     return out
 
 
-def recover_clock(t: np.ndarray, f_nom: float = F_NOM, search_ppm: float = SEARCH_PPM) -> dict:
+def recover_clock(
+    t: np.ndarray, f_nom: float = F_NOM, search_ppm: float = SEARCH_PPM
+) -> dict:
     """Step 1: the FFT of the click histogram, then the periodogram of the time stamps around its peak.
     A long record with few clicks (a long dead time) skips the histogram, which would not fit in
-    memory, and scans the periodogram over the whole search window at a quarter FFT bin."""
+    memory, and scans the periodogram over the whole search window at a quarter FFT bin.
+    """
     span = t[-1] - t[0]
-    dt = 1 / (8 * f_nom)  # 8 histogram bins per symbol: the clock line is well below Nyquist
+    dt = 1 / (
+        8 * f_nom
+    )  # 8 histogram bins per symbol: the clock line is well below Nyquist
     step = 1 / span  # one FFT bin
     if span / dt <= 2**25:
         hist = np.bincount(((t - t[0]) / dt).astype(np.int64)).astype(float)
@@ -174,8 +225,12 @@ def recover_clock(t: np.ndarray, f_nom: float = F_NOM, search_ppm: float = SEARC
         spec = periodogram(t, freq)
         window = np.ones(freq.size, dtype=bool)
     coarse = float(freq[window][np.argmax(spec[window])])
-    elsewhere = window & (np.abs(freq - coarse) > 2 * step)  # the rest of the search window
-    runner_up = float(spec[elsewhere].max() / spec[window].max()) if elsewhere.any() else 0.0
+    elsewhere = window & (
+        np.abs(freq - coarse) > 2 * step
+    )  # the rest of the search window
+    runner_up = (
+        float(spec[elsewhere].max() / spec[window].max()) if elsewhere.any() else 0.0
+    )
     fine = coarse + np.linspace(-2, 2, 801) * step
     z = periodogram(t, fine)
     k = int(np.argmax(z))
@@ -184,8 +239,16 @@ def recover_clock(t: np.ndarray, f_nom: float = F_NOM, search_ppm: float = SEARC
         f = float(fine[k] + 0.5 * (y0 - y2) / (y0 - 2 * y1 + y2) * (fine[1] - fine[0]))
     else:
         f = float(fine[k])
-    return {"f": f, "coarse": coarse, "fft bin": step, "span": span, "spectrum": (freq, spec), "zoom": (fine, z),
-            "depth": math.sqrt(float(z[k]) / t.size), "runner-up": runner_up}
+    return {
+        "f": f,
+        "coarse": coarse,
+        "fft bin": step,
+        "span": span,
+        "spectrum": (freq, spec),
+        "zoom": (fine, z),
+        "depth": math.sqrt(float(z[k]) / t.size),
+        "runner-up": runner_up,
+    }
 
 
 def symbol_phase(t: np.ndarray, f: float) -> float:
@@ -193,7 +256,9 @@ def symbol_phase(t: np.ndarray, f: float) -> float:
     return float(np.angle(np.exp(2j * np.pi * f * t).sum()) / (2 * np.pi)) % 1.0
 
 
-def check_frame(t: np.ndarray, f: float, min_len: int = 200, max_len: int = 5000) -> dict:
+def check_frame(
+    t: np.ndarray, f: float, min_len: int = 200, max_len: int = 5000
+) -> dict:
     """Step 2, epoch folding: the trial frame length whose folded click histogram departs most
     from flat, to compare with the agreed L. Lengths below ``min_len`` (inside the detector's
     dead time) are not searched."""
@@ -209,8 +274,12 @@ def check_frame(t: np.ndarray, f: float, min_len: int = 200, max_len: int = 5000
     k = int(np.argmax(sig))
     # a length sharing a factor g with L keeps a share g/L of the excess (L/2, 2L, …); coprime ones none
     other = np.gcd(lengths, lengths[k]) == 1
-    return {"L": int(lengths[k]), "scan": (lengths, sig), "significance": float(sig[k]),
-            "noise": float(sig[other].max())}
+    return {
+        "L": int(lengths[k]),
+        "scan": (lengths, sig),
+        "significance": float(sig[k]),
+        "noise": float(sig[other].max()),
+    }
 
 
 def recover_delay(t: np.ndarray, f: float, string: np.ndarray) -> dict:
@@ -220,12 +289,21 @@ def recover_delay(t: np.ndarray, f: float, string: np.ndarray) -> dict:
     n = np.rint(t * f - theta).astype(np.int64)
     hist = np.bincount(n % size, minlength=size).astype(float)
     ref = 2.0 * string - 1.0  # ±1: the correlation peak stands L above a ±√L floor
-    xcorr = np.fft.irfft(np.fft.rfft(hist) * np.conj(np.fft.rfft(ref)), size)  # C[d] = Σ_m h[m] s[m − d]
+    xcorr = np.fft.irfft(
+        np.fft.rfft(hist) * np.conj(np.fft.rfft(ref)), size
+    )  # C[d] = Σ_m h[m] s[m − d]
     d = int(np.argmax(xcorr))
     floor = np.delete(xcorr, d)
     on_ones = float(hist[(np.flatnonzero(string) + d) % size].sum() / hist.sum())
-    return {"D": d, "theta": theta, "delay mod P": (d + theta) / f, "xcorr": xcorr, "folded": hist,
-            "peak / rms": float((xcorr[d] - floor.mean()) / floor.std()), "on ones": on_ones}
+    return {
+        "D": d,
+        "theta": theta,
+        "delay mod P": (d + theta) / f,
+        "xcorr": xcorr,
+        "folded": hist,
+        "peak / rms": float((xcorr[d] - floor.mean()) / floor.std()),
+        "on ones": on_ones,
+    }
 
 
 def synchronize(t: np.ndarray, string: np.ndarray, f_nom: float = F_NOM) -> dict:
@@ -238,7 +316,12 @@ def synchronize(t: np.ndarray, string: np.ndarray, f_nom: float = F_NOM) -> dict
 def waiting_time(setup: Setup) -> float:
     """Mean wait W of a live detector for its next click: 1/(f·⟨s⟩·(1 − e^{−ημ}) + dark rate)."""
     spd = setup["SPD-1"]
-    rate = setup.symbol_rate * setup.string.mean() * -math.expm1(-spd.efficiency * setup.mu) + spd.dark_count_rate
+    rate = (
+        setup.symbol_rate
+        * setup.string.mean()
+        * -math.expm1(-spd.efficiency * setup.mu)
+        + spd.dark_count_rate
+    )
     return 1 / rate
 
 
@@ -258,19 +341,32 @@ def report(km: float = 0.0, seed: int = 1, **bench) -> dict:
     c, d = s["clock"], s["delay"]
     p = true["L"] / true["f"]
     err = (d["delay mod P"] - true["delay mod P"] + p / 2) % p - p / 2
-    return {"setup": setup, "t": t, "sync": s, "truth": true, "f error ppm": (c["f"] / true["f"] - 1) * 1e6,
-            "delay error": err, "assigned": assigned(t, s, true),
-            "depth": math.sqrt(periodogram(t, np.array([true["f"]]))[0] / t.size),  # the line at Alice's clock
-            "spacing": float(np.median(np.diff(t)) * setup.nominal)}  # symbols between clicks (median)
+    return {
+        "setup": setup,
+        "t": t,
+        "sync": s,
+        "truth": true,
+        "f error ppm": (c["f"] / true["f"] - 1) * 1e6,
+        "delay error": err,
+        "assigned": assigned(t, s, true),
+        "depth": math.sqrt(
+            periodogram(t, np.array([true["f"]]))[0] / t.size
+        ),  # the line at Alice's clock
+        "spacing": float(np.median(np.diff(t)) * setup.nominal),
+    }  # symbols between clicks (median)
 
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("--plot", metavar="PNG", help="save the spectrum, periodogram and correlations")
+    ap.add_argument(
+        "--plot", metavar="PNG", help="save the spectrum, periodogram and correlations"
+    )
     args = ap.parse_args()
-    print(f"Alice: CW laser, {F_NOM / 1e6:.0f} MHz nominal, clock {PPM:+.1f} ppm, a {L}-bit random string "
-          f"(frame {fmt_si(L / F_NOM, 's')}) carved into {fmt_si(1 / (CARVE * F_NOM), 's')} pulses · "
-          f"Bob: free-running tagger, {fmt_si(RESOLUTION, 's')} bins, {fmt_si(RECORD, 's')} records\n")
+    print(
+        f"Alice: CW laser, {F_NOM / 1e6:.0f} MHz nominal, clock {PPM:+.1f} ppm, a {L}-bit random string "
+        f"(frame {fmt_si(L / F_NOM, 's')}) carved into {fmt_si(1 / (CARVE * F_NOM), 's')} pulses · "
+        f"Bob: free-running tagger, {fmt_si(RESOLUTION, 's')} bins, {fmt_si(RECORD, 's')} records\n"
+    )
     runs = {}
     for km in (0.0, 25.0):
         r = runs[km] = report(km)
@@ -278,58 +374,97 @@ if __name__ == "__main__":
         c, fr, d = s["clock"], s["frame"], s["delay"]
         link = f"{km:.0f} km of fiber" if km else "patch cords only"
         print(f"{link}: {s['clicks']:,} clicks")
-        print(f"  1. clock  FFT peak {c['coarse'] / 1e6:.6f} MHz (bin {fmt_si(c['fft bin'], 'Hz')}) → periodogram "
-              f"{c['f'] / 1e6:.7f} MHz; Alice's {true['f'] / 1e6:.7f} MHz: {r['f error ppm'] * 1e3:+.0f} ppb "
-              f"(Bob reads her clock as {(c['f'] / F_NOM - 1) * 1e6:+.3f} ppm)")
-        print(f"  2. frame  epoch folding peaks at L = {fr['L']} symbols ({fr['significance']:.0f} σ; best length "
-              f"coprime to it: {fr['noise']:.1f} σ): the agreed {true['L']}")
-        print(f"  3. delay  cross-correlation peak at D = {d['D']} symbols ({d['peak / rms']:.0f} σ above the floor), "
-              f"θ = {d['theta']:.4f} → Δ mod P = {fmt_si(d['delay mod P'], 's', 7)}; true "
-              f"{fmt_si(true['delay mod P'], 's', 7)} (flight + epoch = {fmt_si(true['delay'], 's', 6)}): "
-              f"error {r['delay error'] * 1e12:+.0f} ps")
-        print(f"     {d['on ones'] * 100:.2f} % of clicks fall on the string's 1s; "
-              f"{r['assigned'] * 100:.2f} % get their true symbol index\n")
+        print(
+            f"  1. clock  FFT peak {c['coarse'] / 1e6:.6f} MHz (bin {fmt_si(c['fft bin'], 'Hz')}) → periodogram "
+            f"{c['f'] / 1e6:.7f} MHz; Alice's {true['f'] / 1e6:.7f} MHz: {r['f error ppm'] * 1e3:+.0f} ppb "
+            f"(Bob reads her clock as {(c['f'] / F_NOM - 1) * 1e6:+.3f} ppm)"
+        )
+        print(
+            f"  2. frame  epoch folding peaks at L = {fr['L']} symbols ({fr['significance']:.0f} σ; best length "
+            f"coprime to it: {fr['noise']:.1f} σ): the agreed {true['L']}"
+        )
+        print(
+            f"  3. delay  cross-correlation peak at D = {d['D']} symbols ({d['peak / rms']:.0f} σ above the floor), "
+            f"θ = {d['theta']:.4f} → Δ mod P = {fmt_si(d['delay mod P'], 's', 7)}; true "
+            f"{fmt_si(true['delay mod P'], 's', 7)} (flight + epoch = {fmt_si(true['delay'], 's', 6)}): "
+            f"error {r['delay error'] * 1e12:+.0f} ps"
+        )
+        print(
+            f"     {d['on ones'] * 100:.2f} % of clicks fall on the string's 1s; "
+            f"{r['assigned'] * 100:.2f} % get their true symbol index\n"
+        )
 
-    print(f"1 ns time bins: {fmt_si(GHZ['rate'], 'Hz')} symbols, AWG at {fmt_si(CARVE * GHZ['rate'], 'S/s')} "
-          f"(1, 0, 0, 0): {fmt_si(1 / (CARVE * GHZ['rate']), 's')} pulses, frame {fmt_si(L / GHZ['rate'], 's')}, "
-          f"{fmt_si(GHZ['resolution'], 's')} tagger bins")
-    print(f"   {'link':>8} {'record':>7} {'dead time':>9} {'clicks':>6} {'spacing':>8} {'clock error':>11} "
-          f"{'frame check (σ; coprime best)':>30} {'delay error':>11} {'assigned':>8}")
-    for km, rec, dead in ((0.0, 2e-4, 1e-6), (0.0, 2e-3, 1e-6), (0.0, 2e-4, 50e-9), (25.0, 2e-4, 50e-9)):
+    print(
+        f"1 ns time bins: {fmt_si(GHZ['rate'], 'Hz')} symbols, AWG at {fmt_si(CARVE * GHZ['rate'], 'S/s')} "
+        f"(1, 0, 0, 0): {fmt_si(1 / (CARVE * GHZ['rate']), 's')} pulses, frame {fmt_si(L / GHZ['rate'], 's')}, "
+        f"{fmt_si(GHZ['resolution'], 's')} tagger bins"
+    )
+    print(
+        f"   {'link':>8} {'record':>7} {'dead time':>9} {'clicks':>6} {'spacing':>8} {'clock error':>11} "
+        f"{'frame check (σ; coprime best)':>30} {'delay error':>11} {'assigned':>8}"
+    )
+    for km, rec, dead in (
+        (0.0, 2e-4, 1e-6),
+        (0.0, 2e-3, 1e-6),
+        (0.0, 2e-4, 50e-9),
+        (25.0, 2e-4, 50e-9),
+    ):
         r = report(km, record=rec, dead_time=dead, **GHZ)
         s, fr = r["sync"], r["sync"]["frame"]
         check = f"{fr['L']} {'ok' if fr['L'] == L else 'wrong'} ({fr['significance']:.0f} σ; {fr['noise']:.1f} σ)"
-        print(f"   {f'{km:.0f} km':>8} {fmt_si(rec, 's'):>7} {fmt_si(dead, 's'):>9} {s['clicks']:6d} "
-              f"{r['spacing']:8.0f} {r['f error ppm'] * 1e3:+7.0f} ppb {check:>30} "
-              f"{r['delay error'] * 1e12:+8.1f} ps {r['assigned'] * 100:7.1f} %")
-    print("   (spacing: median symbols between clicks. With 1 µs of dead time the detector is saturated and\n"
-          "    clicks about once per 1000 + 25 symbols, a rhythm of its own next to the 1000-symbol frame.)\n")
+        print(
+            f"   {f'{km:.0f} km':>8} {fmt_si(rec, 's'):>7} {fmt_si(dead, 's'):>9} {s['clicks']:6d} "
+            f"{r['spacing']:8.0f} {r['f error ppm'] * 1e3:+7.0f} ppb {check:>30} "
+            f"{r['delay error'] * 1e12:+8.1f} ps {r['assigned'] * 100:7.1f} %"
+        )
+    print(
+        "   (spacing: median symbols between clicks. With 1 µs of dead time the detector is saturated and\n"
+        "    clicks about once per 1000 + 25 symbols, a rhythm of its own next to the 1000-symbol frame.)\n"
+    )
 
-    print("Long dead times: a free-running InGaAs SPAD held off 40 or 100 µs against afterpulsing (phoq has no\n"
-          f"afterpulsing: here the dead time only costs clicks). 1 ns symbols, {fmt_si(LONG['resolution'], 's')} tagger bins")
-    print(f"   {'dead time':>9} {'μ':>6} {'record':>6} {'clicks':>6} {'T/(τd+W)':>8} {'W/τd':>6} {'runner-up':>9} "
-          f"{'clock error':>11} {'frame check (σ; coprime best)':>30} {'delay error':>11} {'assigned':>8}")
+    print(
+        "Long dead times: a free-running InGaAs SPAD held off 40 or 100 µs against afterpulsing (phoq has no\n"
+        f"afterpulsing: here the dead time only costs clicks). 1 ns symbols, {fmt_si(LONG['resolution'], 's')} tagger bins"
+    )
+    print(
+        f"   {'dead time':>9} {'μ':>6} {'record':>6} {'clicks':>6} {'T/(τd+W)':>8} {'W/τd':>6} {'runner-up':>9} "
+        f"{'clock error':>11} {'frame check (σ; coprime best)':>30} {'delay error':>11} {'assigned':>8}"
+    )
     for dead, mu, rec in DEAD_CASES:
         r = report(record=rec, dead_time=dead, mu=mu, **LONG)
         s, fr = r["sync"], r["sync"]["frame"]
         w = waiting_time(r["setup"])
         check = f"{fr['L']} {'ok' if fr['L'] == L else 'wrong'} ({fr['significance']:.0f} σ; {fr['noise']:.1f} σ)"
-        print(f"   {fmt_si(dead, 's'):>9} {mu:6g} {fmt_si(rec, 's'):>6} {s['clicks']:6d} {rec / (dead + w):8.0f} "
-              f"{w / dead:6.3f} {s['clock']['runner-up']:9.2f} {r['f error ppm'] * 1e3:+8.0f} ppb {check:>30} "
-              f"{r['delay error'] * 1e12:+8.1f} ps {r['assigned'] * 100:7.1f} %")
-    print("   (W: a live detector's mean wait for its next click. Saturated, W ≪ τd: the clicks come almost every τd\n"
-          "    and strobe Alice's clock, so the line has copies every 1/τd, 25 ppm at 40 µs and 10 ppm at 100 µs,\n"
-          "    and ±100 ppm of search holds several (runner-up ≈ 1): which one wins is chance, and the rhythm also\n"
-          "    fools the frame check. With W ≈ τd/10 the waits scatter the copies.)\n")
+        print(
+            f"   {fmt_si(dead, 's'):>9} {mu:6g} {fmt_si(rec, 's'):>6} {s['clicks']:6d} {rec / (dead + w):8.0f} "
+            f"{w / dead:6.3f} {s['clock']['runner-up']:9.2f} {r['f error ppm'] * 1e3:+8.0f} ppb {check:>30} "
+            f"{r['delay error'] * 1e12:+8.1f} ps {r['assigned'] * 100:7.1f} %"
+        )
+    print(
+        "   (W: a live detector's mean wait for its next click. Saturated, W ≪ τd: the clicks come almost every τd\n"
+        "    and strobe Alice's clock, so the line has copies every 1/τd, 25 ppm at 40 µs and 10 ppm at 100 µs,\n"
+        "    and ±100 ppm of search holds several (runner-up ≈ 1): which one wins is chance, and the rhythm also\n"
+        "    fools the frame check. With W ≈ τd/10 the waits scatter the copies.)\n"
+    )
 
-    print("Carving: the clock line's depth at Alice's clock, and what steps 1 and 3 make of it")
-    print(f"   {'pulse':>16} {'depth':>6} {'sinc(πd)':>8} {'clock error':>12} {'delay error':>12} {'assigned':>9}")
+    print(
+        "Carving: the clock line's depth at Alice's clock, and what steps 1 and 3 make of it"
+    )
+    print(
+        f"   {'pulse':>16} {'depth':>6} {'sinc(πd)':>8} {'clock error':>12} {'delay error':>12} {'assigned':>9}"
+    )
     for carve in (4, 2, 1):
         r = report(carve=carve)
         dty = 1 / carve
-        name = "NRZ (d = 1)" if carve == 1 else f"{fmt_si(dty / F_NOM, 's')} (d = 1/{carve})"
-        print(f"   {name:>16} {r['depth']:6.3f} {math.sin(math.pi * dty) / (math.pi * dty):8.3f} "
-              f"{r['f error ppm'] * 1e3:+9.0f} ppb {r['delay error'] * 1e12:+9.0f} ps {r['assigned'] * 100:8.1f} %")
+        name = (
+            "NRZ (d = 1)"
+            if carve == 1
+            else f"{fmt_si(dty / F_NOM, 's')} (d = 1/{carve})"
+        )
+        print(
+            f"   {name:>16} {r['depth']:6.3f} {math.sin(math.pi * dty) / (math.pi * dty):8.3f} "
+            f"{r['f error ppm'] * 1e3:+9.0f} ppb {r['delay error'] * 1e12:+9.0f} ps {r['assigned'] * 100:8.1f} %"
+        )
 
     if args.plot:
         import matplotlib
@@ -345,18 +480,38 @@ if __name__ == "__main__":
         freq, spec = c["spectrum"]
         sel = np.abs(freq - F_NOM) < 2e6
         ax[0, 0].semilogy((freq[sel] - F_NOM) / 1e3, spec[sel], lw=0.8, color="#60a5fa")
-        ax[0, 0].set(title="1. FFT of the click histogram", xlabel="f − 100 MHz [kHz]", ylabel="power")
+        ax[0, 0].set(
+            title="1. FFT of the click histogram",
+            xlabel="f − 100 MHz [kHz]",
+            ylabel="power",
+        )
         fine, z = c["zoom"]
         ax[0, 1].plot((fine - F_NOM), z, color="#60a5fa")
-        ax[0, 1].axvline(r["truth"]["f"] - F_NOM, color="#d6409f", ls="--", lw=1, label="Alice's clock")
-        ax[0, 1].set(title="1. periodogram of the time stamps", xlabel="f − 100 MHz [Hz]", ylabel="Z(f)")
+        ax[0, 1].axvline(
+            r["truth"]["f"] - F_NOM,
+            color="#d6409f",
+            ls="--",
+            lw=1,
+            label="Alice's clock",
+        )
+        ax[0, 1].set(
+            title="1. periodogram of the time stamps",
+            xlabel="f − 100 MHz [Hz]",
+            ylabel="Z(f)",
+        )
         ax[0, 1].legend(fontsize=8)
         lengths, sig = fr["scan"]
         ax[1, 0].plot(lengths, sig, lw=0.7, color="#4ade80")
-        ax[1, 0].set(title=f"2. epoch folding: the light repeats every {fr['L']} symbols",
-                     xlabel="trial frame length [symbols]", ylabel="significance [σ]")
+        ax[1, 0].set(
+            title=f"2. epoch folding: the light repeats every {fr['L']} symbols",
+            xlabel="trial frame length [symbols]",
+            ylabel="significance [σ]",
+        )
         ax[1, 1].plot(d["xcorr"], lw=0.7, color="#d4a514")
-        ax[1, 1].set(title=f"3. cross-correlation with the string: D = {d['D']}", xlabel="lag d [symbols]")
+        ax[1, 1].set(
+            title=f"3. cross-correlation with the string: D = {d['D']}",
+            xlabel="lag d [symbols]",
+        )
         for a in ax.flat:
             a.grid(alpha=0.3)
         fig.tight_layout()

@@ -16,7 +16,9 @@ from phoq.units import fmt_si, w_to_dbm
 U, A = "FC/UPC", "FC/APC"
 
 
-def build(cords=(U, U, U, U), *, laser=U, detector=U, plugged=True, name="Connector cascade") -> Setup:
+def build(
+    cords=(U, U, U, U), *, laser=U, detector=U, plugged=True, name="Connector cascade"
+) -> Setup:
     """A laser, ``cords`` patch cords joined by mating sleeves, then a photodiode.
 
     Each entry of ``cords`` is one cord: a connector type for both ends, or an (end A, end B)
@@ -51,15 +53,21 @@ CASES = [
 ]
 
 if __name__ == "__main__":
-    print(f"{'':38} {'matings':>7} {'at the PD':>11} {'current':>9} {'back to LD':>10}  strongest reflection")
+    print(
+        f"{'':38} {'matings':>7} {'at the PD':>11} {'current':>9} {'back to LD':>10}  strongest reflection"
+    )
     for title, kw in CASES:
         setup = build(**kw)
         r = report(setup)
         pd, src = r["detectors"]["PD-1"], r["sources"]["LD-1"]
-        matings = len(kw.get("cords", (U,) * 4)) + kw.get("plugged", True)  # laser–cord, sleeves, cord–PD
+        matings = len(kw.get("cords", (U,) * 4)) + kw.get(
+            "plugged", True
+        )  # laser–cord, sleeves, cord–PD
         power = f"{w_to_dbm(pd['power']):.2f} dBm" if pd["power"] > 0 else "—"
         back = src["readouts"]["Back-reflection"].split(" · ")[0]
         strongest = src["readouts"].get("Strongest reflection", "")
-        print(f"{title:38} {matings:7d} {power:>11} {fmt_si(pd['current'], 'A'):>9} {back:>10}  {strongest}")
+        print(
+            f"{title:38} {matings:7d} {power:>11} {fmt_si(pd['current'], 'A'):>9} {back:>10}  {strongest}"
+        )
         for w in r["warnings"]:
             print(f"{'':40}! {w['text'].split(': ')[0]}")

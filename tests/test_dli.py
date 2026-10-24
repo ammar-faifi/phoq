@@ -53,7 +53,12 @@ def test_tagger_channel_delay_aligns_like_a_matched_cord():
     cord.port("DB.inp").peer.component.length = 3.0
     matched = COW["monitor"](cord, batches=2)
     assert tagged["V"] == pytest.approx(matched["V"], abs=0.005)
-    assert tagged["qber"] == pytest.approx(matched["qber"], abs=0.0005) and tagged["qber"] < 0.005
+    assert (
+        tagged["qber"] == pytest.approx(matched["qber"], abs=0.0005)
+        and tagged["qber"] < 0.005
+    )
     unaligned = COW["build"]()
-    unaligned["CNT"].ch1_delay = 0.0  # DM1/DM2 then land almost a slot late: wrong pairs counted
+    unaligned["CNT"].ch1_delay = (
+        0.0  # DM1/DM2 then land almost a slot late: wrong pairs counted
+    )
     assert COW["monitor"](unaligned, batches=2)["V"] < 0.6

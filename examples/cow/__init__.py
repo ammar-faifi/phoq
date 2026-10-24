@@ -133,7 +133,11 @@ class COWResult:
     @property
     def qber(self) -> float:
         """Error rate of the whole sifted key (god's-eye: both keys are in one place)."""
-        return float(np.mean(self.alice_key != self.bob_key)) if self.alice_key.size else float("nan")
+        return (
+            float(np.mean(self.alice_key != self.bob_key))
+            if self.alice_key.size
+            else float("nan")
+        )
 
     def summary(self) -> str:
         p, t, e, v = self.params, self.tally, self.expected, self.eve
@@ -145,37 +149,60 @@ class COWResult:
             f"QBER {self.qber:.4f} on the whole sifted key (expected {e['QBER']:.4f})",
         ]
         if not v:
-            lines.append(f"V raw {t.v(net=False):.4f} (expected {e['V raw']:.4f}) · net {t.v():.4f} (decoy "
-                         f"{t.v('decoy'):.4f}, 1-0 {t.v('1-0'):.4f}; expected {e['V net']:.4f})")
+            lines.append(
+                f"V raw {t.v(net=False):.4f} (expected {e['V raw']:.4f}) · net {t.v():.4f} (decoy "
+                f"{t.v('decoy'):.4f}, 1-0 {t.v('1-0'):.4f}; expected {e['V net']:.4f})"
+            )
             return "\n".join(lines)
-        return "\n".join(lines + [
-            f"V raw {t.v(net=False):.4f} · net {t.v():.4f} · decoy {t.v('decoy'):.4f} (expected {e['V decoy']:.4f}), "
-            f"1-0 {t.v('1-0'):.4f} (expected {e['V 1-0']:.4f}); {e['V net']:.4f} without Eve",
-            f"Eve intercepted {v['attacked'] / v['bits']:.0%} of the bits · clicks per pulse {v['q']:.3f} (expected "
-            f"{e['q (Eve)']:.3f}) · re-sent μ_E {v['mu_e']:.3f} (expected {e['mu_E']:.3f}) · paper: 1 − V = I·ξ "
-            f"= {e['1 - V (paper)']:.4f}",
-        ])
+        return "\n".join(
+            lines
+            + [
+                f"V raw {t.v(net=False):.4f} · net {t.v():.4f} · decoy {t.v('decoy'):.4f} (expected {e['V decoy']:.4f}), "
+                f"1-0 {t.v('1-0'):.4f} (expected {e['V 1-0']:.4f}); {e['V net']:.4f} without Eve",
+                f"Eve intercepted {v['attacked'] / v['bits']:.0%} of the bits · clicks per pulse {v['q']:.3f} (expected "
+                f"{e['q (Eve)']:.3f}) · re-sent μ_E {v['mu_e']:.3f} (expected {e['mu_E']:.3f}) · paper: 1 − V = I·ξ "
+                f"= {e['1 - V (paper)']:.4f}",
+            ]
+        )
 
 
-def eavesdrop(setup: Setup, runner: Runner, p: COWParams, attack: np.ndarray, att0: float,
-              inconclusive: str = "empty") -> dict:
+def eavesdrop(
+    setup: Setup,
+    runner: Runner,
+    p: COWParams,
+    attack: np.ndarray,
+    att0: float,
+    inconclusive: str = "empty",
+) -> dict:
     """One block of Eve's, as ``eve.py`` runs it: switch the attacked bits into her detector,
-    record her tagger, re-prepare what she saw and program her transmitter before Bob records."""
+    record her tagger, re-prepare what she saw and program her transmitter before Bob records.
+    """
     sw, im, awg = setup["EVE-SW"], setup["EVE-TX-IM"], setup["EVE-AWG"]
     awg.set_pattern("ch2", sw.voltage_for(np.repeat(attack, 2)), p.rate)
-    awg.set_pattern("ch1", [float(im.voltage_for(0.0))], 2 * p.rate)  # dark while she listens
+    awg.set_pattern(
+        "ch1", [float(im.voltage_for(0.0))], 2 * p.rate
+    )  # dark while she listens
     d = runner.acquire("EVE-TAGGER").clicks["ch1"]
     c0, c1 = d[0::2], d[1::2]
     occ = occupied(intercept(c0, c1, attack, inconclusive))
     clicks = int(np.count_nonzero(c0 & attack) + np.count_nonzero(c1 & attack))
-    mu_e = resend_mu(clicks, int(attack.sum()), int(occ.sum()), setup["EVE-D"].efficiency, p)
+    mu_e = resend_mu(
+        clicks, int(attack.sum()), int(occ.sum()), setup["EVE-D"].efficiency, p
+    )
     setup["EVE-TX-VOA"].attenuation_db = resend_attenuation(att0, mu_e, p)
     awg.set_pattern("ch1", im.voltage_for(carving(occ)), 2 * p.rate)
     return dict(bits=attack.size, attacked=int(attack.sum()), clicks=clicks, mu_e=mu_e)
 
 
-def run(p: COWParams | None = None, blocks: int = 4, slots: int = 400_000, seed: int | None = None,
-        setup: Setup | None = None, eve: float | None = None, inconclusive: str = "empty") -> COWResult:
+def run(
+    p: COWParams | None = None,
+    blocks: int = 4,
+    slots: int = 400_000,
+    seed: int | None = None,
+    setup: Setup | None = None,
+    eve: float | None = None,
+    inconclusive: str = "empty",
+) -> COWResult:
     """Single-process reference: prepare, record and sift ``blocks`` blocks with both records in
     one place; the QBER is counted on the whole sifted key.
 
@@ -193,21 +220,37 @@ def run(p: COWParams | None = None, blocks: int = 4, slots: int = 400_000, seed:
         kind = draw(runner.rng, tagger.slots // 2, p)
         awg.set_pattern("ch1", im.voltage_for(carving(occupied(kind))), 2 * p.rate)
         if eve is not None:
-            block = eavesdrop(setup, runner, p, runner.rng.random(kind.size) < eve, att0, inconclusive)
+            block = eavesdrop(
+                setup, runner, p, runner.rng.random(kind.size) < eve, att0, inconclusive
+            )
             seen = {k: seen[k] + block[k] for k in seen} | dict(mu_e=block["mu_e"])
         clicks = runner.acquire("TAGGER").clicks
         idx, bits, doubles = decode(clicks[DB], runner.rng)
         sent = kind[idx]
         decoy = sent == DECOY
-        monitor = monitor_counts(kind, np.flatnonzero(clicks[DM1]), np.flatnonzero(clicks[DM2]))
+        monitor = monitor_counts(
+            kind, np.flatnonzero(clicks[DM1]), np.flatnonzero(clicks[DM2])
+        )
         keep = np.flatnonzero(~decoy)
-        tally += account(kind.size, idx.size, decoy, doubles, keep, sent[keep], bits[keep], monitor)
+        tally += account(
+            kind.size, idx.size, decoy, doubles, keep, sent[keep], bits[keep], monitor
+        )
         alice_key.append(sent[keep].astype(np.int8))
         bob_key.append(bits[keep])
     expected = theory(setup, p)
     if eve is not None:
         setup["EVE-TX-VOA"].attenuation_db = att0
         expected |= eve_theory(setup, p, eve)
-        seen["q"] = seen["clicks"] / (seen["attacked"] * (1 + p.decoy)) if seen["attacked"] else float("nan")
-    return COWResult(p, tally, expected, np.concatenate(alice_key), np.concatenate(bob_key),
-                     seen if eve is not None else {})
+        seen["q"] = (
+            seen["clicks"] / (seen["attacked"] * (1 + p.decoy))
+            if seen["attacked"]
+            else float("nan")
+        )
+    return COWResult(
+        p,
+        tally,
+        expected,
+        np.concatenate(alice_key),
+        np.concatenate(bob_key),
+        seen if eve is not None else {},
+    )

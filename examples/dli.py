@@ -39,27 +39,39 @@ def dli(setup: Setup, tag: str):
 def arms(setup: Setup, laser: str, detector: str) -> tuple:
     """The short- and long-arm paths of ``laser``'s light to ``detector`` (the routes: stray
     paths reflected off connectors are left out)."""
-    paths = sorted((p for p in trace(setup).paths[setup[detector]] if p.source is setup[laser] and not p.reflections),
-                   key=lambda p: p.delay)
+    paths = sorted(
+        (
+            p
+            for p in trace(setup).paths[setup[detector]]
+            if p.source is setup[laser] and not p.reflections
+        ),
+        key=lambda p: p.delay,
+    )
     return paths[0], paths[1]
 
 
-def balance(setup: Setup, laser: str, detector: str, odl: str, rate: float = RATE) -> float:
+def balance(
+    setup: Setup, laser: str, detector: str, odl: str, rate: float = RATE
+) -> float:
     """Set the delay line so the long arm is one slot 1/rate longer than the short one, as you
-    would with the dial; fails when the cords leave more (or less) than the line can reach."""
+    would with the dial; fails when the cords leave more (or less) than the line can reach.
+    """
     line = setup[odl]
     short, long_ = arms(setup, laser, detector)
     want = line.setting + 1 / rate - (long_.delay - short.delay)
     if not 0.0 <= want <= line.max_delay:
-        raise ValueError(f"{odl} would need {fmt_si(want, 's')}, outside its 0–{fmt_si(line.max_delay, 's')} "
-                         "travel: change the cords in the arms")
+        raise ValueError(
+            f"{odl} would need {fmt_si(want, 's')}, outside its 0–{fmt_si(line.max_delay, 's')} "
+            "travel: change the cords in the arms"
+        )
     line.delay = want
     return want
 
 
 def lock(setup: Setup, laser: str, detector: str, shifter: str) -> float:
     """Set the phase shifter so neighbouring pulses with equal phases interfere constructively at
-    ``detector`` (a real DLI is temperature-tuned to this point). Modulators count at 0 V."""
+    ``detector`` (a real DLI is temperature-tuned to this point). Modulators count at 0 V.
+    """
     ps = setup[shifter]
     ps.phase = 0.0
 
@@ -70,7 +82,9 @@ def lock(setup: Setup, laser: str, detector: str, shifter: str) -> float:
         return a
 
     short, long_ = arms(setup, laser, detector)
-    ps.phase = float((np.angle(static(long_)) - np.angle(static(short))) % (2 * math.pi))
+    ps.phase = float(
+        (np.angle(static(long_)) - np.angle(static(short))) % (2 * math.pi)
+    )
     return ps.phase
 
 

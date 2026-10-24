@@ -213,7 +213,9 @@ def main(argv=None) -> list[dict]:
             title=f"MP-QKD showcase, {args.blocks} × {args.rounds:,} pulses per point",
         )
         ax.grid(True, which="major", alpha=0.3)
-        ax.grid(True, which="minor", alpha=0.1)  # on black a full-strength minor grid buries the curves
+        ax.grid(
+            True, which="minor", alpha=0.1
+        )  # on black a full-strength minor grid buries the curves
         ax.legend(fontsize=8)
         fig.tight_layout()
         fig.savefig(args.plot, dpi=140)

@@ -224,7 +224,9 @@ class FunctionGenerator(Component):
         v = self.pattern_volts(ch)
         lo, hi = float(v.min()), float(v.max())
         levels = f"constant {lo:+.2f} V" if lo == hi else f"{lo:+.2f} … {hi:+.2f} V"
-        return f"pattern {freq} · {levels} · {v.size:,} symbol{'' if v.size == 1 else 's'}"
+        return (
+            f"pattern {freq} · {levels} · {v.size:,} symbol{'' if v.size == 1 else 's'}"
+        )
 
     def info(self):
         out = {}

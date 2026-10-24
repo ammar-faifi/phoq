@@ -18,7 +18,13 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from .core import Setup
-from .detectors import BalancedPhotodetector, Photodiode, PowerMeter, SinglePhotonDetector, _Detector
+from .detectors import (
+    BalancedPhotodetector,
+    Photodiode,
+    PowerMeter,
+    SinglePhotonDetector,
+    _Detector,
+)
 from .generators import FunctionGenerator
 from .modulators import _Modulator
 from .passive import OpticalDelayLine
@@ -51,7 +57,9 @@ class Path:
     delay: float
     mods: tuple = ()  # ((modulator, delay at which the light passes it), ...)
     port: str = "inp"  # the detector input it enters (a balanced detector has two)
-    reflections: int = 0  # connector reflections on the way: 0 for the route itself, 1–2 for a stray
+    reflections: int = (
+        0  # connector reflections on the way: 0 for the route itself, 1–2 for a stray
+    )
     sites: tuple = ()  # (where it reflected, the open port's path or None), in order
 
 
@@ -64,15 +72,19 @@ class Network:
         default_factory=lambda: defaultdict(float)
     )  # "NAME.port" → W arriving
     # laser → {(own light?, reflection site or other laser's name) → W entering its output}
-    returned: dict = field(default_factory=lambda: defaultdict(lambda: defaultdict(float)))
+    returned: dict = field(
+        default_factory=lambda: defaultdict(lambda: defaultdict(float))
+    )
 
     def delays(self, detector, source=None, reflected: bool = False) -> list[float]:
         """Propagation delays of the routes reaching ``detector`` (optionally from one laser); with
-        ``reflected``, also of the stray paths that bounced off connectors on the way."""
+        ``reflected``, also of the stray paths that bounced off connectors on the way.
+        """
         return [
             p.delay
             for p in self.paths.get(detector, [])
-            if (source is None or p.source is source) and (reflected or not p.reflections)
+            if (source is None or p.source is source)
+            and (reflected or not p.reflections)
         ]
 
     def mean_powers(self, detector, port: str | None = None) -> dict[float, float]:
@@ -150,7 +162,11 @@ def trace(setup: Setup) -> Network:
         while stack:
             port, amp, delay, mods, hops, refl, site = stack.pop()
             gain = abs(amp) ** 2
-            if hops > MAX_HOPS or gain < MIN_GAIN or (refl > 1 and gain < MIN_GAIN_TWICE_REFLECTED):
+            if (
+                hops > MAX_HOPS
+                or gain < MIN_GAIN
+                or (refl > 1 and gain < MIN_GAIN_TWICE_REFLECTED)
+            ):
                 continue
             peer, via = port.peer, ""
             if peer is not None and peer.component.is_adaptor:
@@ -160,7 +176,9 @@ def trace(setup: Setup) -> Network:
                 if peer is not None and peer.component.is_adaptor:
                     continue  # sleeve plugged into a sleeve: nothing to mate with
             if peer is None:
-                if port.connector is not None:  # an open cord or part: light leaves, a flat end reflects 3.6 %
+                if (
+                    port.connector is not None
+                ):  # an open cord or part: light leaves, a flat end reflects 3.6 %
                     r = open_end_reflection(port.connector)
                     net.open_ends.append(
                         {
@@ -170,14 +188,45 @@ def trace(setup: Setup) -> Network:
                         }
                     )
                     if refl < MAX_REFLECTIONS:
-                        here = _sites(site, f"open {port.connector} end {port.path}{via}", port.path)
-                        _enter(net, stack, src, port, amp * math.sqrt(r), delay, mods, hops, refl + 1, here)
+                        here = _sites(
+                            site,
+                            f"open {port.connector} end {port.path}{via}",
+                            port.path,
+                        )
+                        _enter(
+                            net,
+                            stack,
+                            src,
+                            port,
+                            amp * math.sqrt(r),
+                            delay,
+                            mods,
+                            hops,
+                            refl + 1,
+                            here,
+                        )
                 continue
             t, r_back, _ = mating(port.connector, peer.connector)
             if refl < MAX_REFLECTIONS and r_back > 0:
-                here = _sites(site, f"{port.path} ({port.connector}) ↔ {peer.path} ({peer.connector}){via}")
-                _enter(net, stack, src, port, amp * math.sqrt(r_back), delay, mods, hops, refl + 1, here)
-            _enter(net, stack, src, peer, amp * math.sqrt(t), delay, mods, hops, refl, site)
+                here = _sites(
+                    site,
+                    f"{port.path} ({port.connector}) ↔ {peer.path} ({peer.connector}){via}",
+                )
+                _enter(
+                    net,
+                    stack,
+                    src,
+                    port,
+                    amp * math.sqrt(r_back),
+                    delay,
+                    mods,
+                    hops,
+                    refl + 1,
+                    here,
+                )
+            _enter(
+                net, stack, src, peer, amp * math.sqrt(t), delay, mods, hops, refl, site
+            )
     return net
 
 
@@ -192,13 +241,17 @@ def _enter(net, stack, src, port, amp, delay, mods, hops, refl, site) -> None:
     w = src.power * abs(amp) ** 2
     net.port_power[port.path] += w
     if comp.is_cord:
-        flow = net.fibers.setdefault(comp.name, {"fwd": 0.0, "bwd": 0.0, "wavelength": wl})
+        flow = net.fibers.setdefault(
+            comp.name, {"fwd": 0.0, "bwd": 0.0, "wavelength": wl}
+        )
         flow["fwd" if port.name == "a" else "bwd"] += w
         if w >= max(flow["fwd"], flow["bwd"]):
             flow["wavelength"] = wl
     if isinstance(comp, _Detector):
         if port.name in comp.inputs:
-            net.paths[comp].append(Path(src, amp, delay, mods, port.name, refl, site or ()))
+            net.paths[comp].append(
+                Path(src, amp, delay, mods, port.name, refl, site or ())
+            )
         return
     if isinstance(comp, Laser):
         own = comp is src
@@ -207,7 +260,9 @@ def _enter(net, stack, src, port, amp, delay, mods, hops, refl, site) -> None:
         return
     for tr in comp.scatter(port, wl):
         new_mods = mods + ((tr.mod, delay + tr.delay),) if tr.mod is not None else mods
-        stack.append((tr.port, amp * tr.amp, delay + tr.delay, new_mods, hops + 1, refl, site))
+        stack.append(
+            (tr.port, amp * tr.amp, delay + tr.delay, new_mods, hops + 1, refl, site)
+        )
 
 
 def synthesize(
@@ -237,7 +292,9 @@ def synthesize(
         emit = t[None, :] - delays[:, None]  # emission time at the start of each bin
         mid = emit + dt / 2  # …and at its centre (pulse k sits at k/f)
         field_ = src.envelope(emit, dt) * np.exp(1j * src.phase(mid, rng))
-        noise = src.intensity_factor(emit, dt, rng)  # the laser's classical intensity noise, if any
+        noise = src.intensity_factor(
+            emit, dt, rng
+        )  # the laser's classical intensity noise, if any
         if noise is not None:
             field_ = field_ * noise
         for k, (d, p) in enumerate(items):
@@ -317,7 +374,9 @@ def report(setup: Setup, net: Network | None = None) -> dict:
             ] = f"{nbar:.3g}"
             if d.curve("efficiency") is not None:
                 for wl in sorted(powers):
-                    entry["readouts"][f"PDE at {wl * 1e9:.0f} nm"] = f"{d.efficiency_at(wl):.3g}"
+                    entry["readouts"][
+                        f"PDE at {wl * 1e9:.0f} nm"
+                    ] = f"{d.efficiency_at(wl):.3g}"
                 if P > 0 and seen == 0:
                     warnings.append(
                         {
@@ -386,7 +445,9 @@ def report(setup: Setup, net: Network | None = None) -> dict:
         rf_dbm = lim.get("rf_input_dbm")
         for port in c.rf_ports if rf_dbm is not None else ():
             _, peak = _port_level(c, port)
-            v_max = math.sqrt(2 * dbm_to_w(float(rf_dbm)) * 50.0)  # sine of that power into 50 Ω
+            v_max = math.sqrt(
+                2 * dbm_to_w(float(rf_dbm)) * 50.0
+            )  # sine of that power into 50 Ω
             if peak > v_max:
                 drive = "RF drive" if port == "rf" else f"RF drive on {port}"
                 warnings.append(
@@ -427,14 +488,21 @@ def report(setup: Setup, net: Network | None = None) -> dict:
     pairs = [  # every mated pair of connectors: direct, or the two held in a mating sleeve
         (a, b, "")
         for a, b in setup.connections()
-        if a.kind == "optical" and not (a.component.is_adaptor or b.component.is_adaptor)
+        if a.kind == "optical"
+        and not (a.component.is_adaptor or b.component.is_adaptor)
     ] + [
         (s.ports["p1"].peer, s.ports["p2"].peer, f" in {s.name}")
         for s in setup
-        if s.is_adaptor and s.ports["p1"].peer is not None and s.ports["p2"].peer is not None
+        if s.is_adaptor
+        and s.ports["p1"].peer is not None
+        and s.ports["p2"].peer is not None
     ]
     for a, b, via in pairs:  # APC against PC/UPC: mechanically fits, optically does not
-        if a.component.is_adaptor or b.component.is_adaptor or angled(a.connector) == angled(b.connector):
+        if (
+            a.component.is_adaptor
+            or b.component.is_adaptor
+            or angled(a.connector) == angled(b.connector)
+        ):
             continue
         flat = a if not angled(a.connector) else b
         warnings.append(
@@ -455,21 +523,29 @@ def report(setup: Setup, net: Network | None = None) -> dict:
     }
 
 
-STRAY_WARN = 1e-7  # an open port's reflection reaching a detector at −70 dB of its direct light
+STRAY_WARN = (
+    1e-7  # an open port's reflection reaching a detector at −70 dB of its direct light
+)
 
 
 def _open_port_strays(net: Network) -> list:
     """Open connectors whose reflections, all paths together, go on to a detector strongly enough
     to beat with the light that reaches it directly: power ratio r beats at 2√r, so −70 dB is a
-    6·10⁻⁴ ripple, and a delayed copy turns the laser's phase noise into intensity noise."""
+    6·10⁻⁴ ripple, and a delayed copy turns the laser's phase noise into intensity noise.
+    """
     stray: dict = {}
     for d, paths in net.paths.items():
-        direct = sum(abs(p.amp) ** 2 * p.source.power for p in paths if not p.reflections)
+        direct = sum(
+            abs(p.amp) ** 2 * p.source.power for p in paths if not p.reflections
+        )
         if direct <= 0:
             continue
         for p in paths:
             for port in {port for _, port in p.sites if port is not None}:
-                stray[(port, d.name)] = stray.get((port, d.name), 0.0) + abs(p.amp) ** 2 * p.source.power / direct
+                stray[(port, d.name)] = (
+                    stray.get((port, d.name), 0.0)
+                    + abs(p.amp) ** 2 * p.source.power / direct
+                )
     return [
         {
             "level": "warn",
@@ -488,12 +564,15 @@ def _merge_open_ends(ends: list) -> list:
     for e in ends:
         key = (e["port"], e["wavelength"])
         merged[key] = merged.get(key, 0.0) + e["power"]
-    return [{"port": port, "power": w, "wavelength": wl} for (port, wl), w in merged.items()]
+    return [
+        {"port": port, "power": w, "wavelength": wl} for (port, wl), w in merged.items()
+    ]
 
 
 def _sources(setup: Setup, net: Network) -> dict:
     """Per laser: its own light reflected back into its output (the setup's return loss as the
-    laser sees it, with the strongest reflection named) and light injected by other lasers."""
+    laser sees it, with the strongest reflection named) and light injected by other lasers.
+    """
     out = {}
     for src in setup.of_type(Laser):
         came = net.returned.get(src, {})
@@ -509,10 +588,16 @@ def _sources(setup: Setup, net: Network) -> dict:
             )
             if back > 0:
                 site = max(own, key=own.get)
-                readouts["Strongest reflection"] = f"{site} ({10 * math.log10(own[site] / src.power):.1f} dB)"
+                readouts["Strongest reflection"] = (
+                    f"{site} ({10 * math.log10(own[site] / src.power):.1f} dB)"
+                )
         if other > 0:
             readouts["Light from other lasers"] = fmt_si(other, "W")
-        out[src.name] = {"back_reflection": back, "injected": other, "readouts": readouts}
+        out[src.name] = {
+            "back_reflection": back,
+            "injected": other,
+            "readouts": readouts,
+        }
     return out
 
 
@@ -521,7 +606,9 @@ def _balanced(d: BalancedPhotodetector, net: Network, warnings: list) -> dict:
     plus, minus = net.mean_powers(d, "inp_plus"), net.mean_powers(d, "inp_minus")
     p_plus, p_minus = sum(plus.values()), sum(minus.values())
     i_plus, i_minus = d.mean_currents(plus, minus)
-    show = lambda p: f"{fmt_si(p, 'W')} · {w_to_dbm(p):.1f} dBm" if p > 0 else "—"  # noqa: E731
+    show = lambda p: (
+        f"{fmt_si(p, 'W')} · {w_to_dbm(p):.1f} dBm" if p > 0 else "—"
+    )  # noqa: E731
     readouts = {"INPUT+": show(p_plus), "INPUT−": show(p_minus)}
     out = {"power": p_plus + p_minus, "current": i_plus - i_minus, "readouts": readouts}
     try:
@@ -534,15 +621,19 @@ def _balanced(d: BalancedPhotodetector, net: Network, warnings: list) -> dict:
     readouts["RF OUTPUT"] = f"{rf:+.4g} V (high-Z), {rf / 2:+.4g} V into 50 Ω"
     readouts["MONITOR+ / MONITOR−"] = f"{mon[0]:.4g} V / {mon[1]:.4g} V"
     if p_plus + p_minus > 0:
-        readouts["Balance (P₊ − P₋)/(P₊ + P₋)"] = f"{(p_plus - p_minus) / (p_plus + p_minus):+.2%}"
+        readouts["Balance (P₊ − P₋)/(P₊ + P₋)"] = (
+            f"{(p_plus - p_minus) / (p_plus + p_minus):+.2%}"
+        )
     if abs(rf) > swing:
         status = ("Saturated", "bad")
-        warnings.append({
-            "level": "warn",
-            "text": f"{d.name} RF OUTPUT would reach {rf:+.3g} V, beyond its ±{swing:g} V swing at "
-            f"{fmt_si(d.gain, 'V/A')}: balance the inputs (their difference must stay below "
-            f"{fmt_si(d.cw_saturation_power(), 'W')} at peak responsivity) or lower the gain.",
-        })
+        warnings.append(
+            {
+                "level": "warn",
+                "text": f"{d.name} RF OUTPUT would reach {rf:+.3g} V, beyond its ±{swing:g} V swing at "
+                f"{fmt_si(d.gain, 'V/A')}: balance the inputs (their difference must stay below "
+                f"{fmt_si(d.cw_saturation_power(), 'W')} at peak responsivity) or lower the gain.",
+            }
+        )
     elif p_plus + p_minus <= 0:
         status = ("No light", "")
     elif min(p_plus, p_minus) <= 0:
@@ -550,13 +641,20 @@ def _balanced(d: BalancedPhotodetector, net: Network, warnings: list) -> dict:
     else:
         status = ("Balanced", "ok")
     if d.monitor_swing > 0 and max(mon) > d.monitor_swing:
-        warnings.append({
-            "level": "warn",
-            "text": f"{d.name} MONITOR output would reach {max(mon):.3g} V, beyond its {d.monitor_swing:g} V swing: "
-            f"more than {fmt_si(d.monitor_swing / d.monitor_gain / max(d.peak_responsivity(), 1e-12), 'W')} on one input.",
-        })
+        warnings.append(
+            {
+                "level": "warn",
+                "text": f"{d.name} MONITOR output would reach {max(mon):.3g} V, beyond its {d.monitor_swing:g} V swing: "
+                f"more than {fmt_si(d.monitor_swing / d.monitor_gain / max(d.peak_responsivity(), 1e-12), 'W')} on one input.",
+            }
+        )
     readouts["Status"] = status[0]
-    return out | {"rf": rf, "monitors": mon, "status": status[0], "status_level": status[1]}
+    return out | {
+        "rf": rf,
+        "monitors": mon,
+        "status": status[0],
+        "status_level": status[1],
+    }
 
 
 def _incident_power(net: Network, comp) -> float:
@@ -565,7 +663,9 @@ def _incident_power(net: Network, comp) -> float:
     if isinstance(comp, _Detector):
         return max(sum(net.mean_powers(comp, port).values()) for port in comp.inputs)
     return sum(
-        net.port_power.get(p.path, 0.0) for p in comp.ports.values() if p.kind == "optical"
+        net.port_power.get(p.path, 0.0)
+        for p in comp.ports.values()
+        if p.kind == "optical"
     )
 
 

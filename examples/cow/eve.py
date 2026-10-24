@@ -33,7 +33,9 @@ import numpy as np
 from phoq.loading import import_source
 from phoq.parties import Party
 
-cow = import_source(Path(__file__).resolve().parent)  # the protocol package, however it was loaded
+cow = import_source(
+    Path(__file__).resolve().parent
+)  # the protocol package, however it was loaded
 common = cow.common
 
 
@@ -41,24 +43,46 @@ class Eve(Party):
     name = "EVE"
     port = 5563
     stage = 1  # she detects before Bob and re-encodes in measure()
-    instruments = ("EVE-SW", "EVE-D", "EVE-TAGGER", "EVE-TX-LD", "EVE-TX-IM", "EVE-TX-VOA", "EVE-AWG")
+    instruments = (
+        "EVE-SW",
+        "EVE-D",
+        "EVE-TAGGER",
+        "EVE-TX-LD",
+        "EVE-TX-IM",
+        "EVE-TX-VOA",
+        "EVE-AWG",
+    )
     params = common.COWParams()  # Alice and Bob's public parameters: she knows them too
-    fraction = float(os.environ.get("PHOQ_EVE_FRACTION", "1.0"))  # share of the bits intercepted
-    inconclusive = os.environ.get("PHOQ_EVE_INCONCLUSIVE", "empty")  # what she re-sends when she saw nothing
-    resend_mu = float(os.environ["PHOQ_EVE_MU"]) if "PHOQ_EVE_MU" in os.environ else None
+    fraction = float(
+        os.environ.get("PHOQ_EVE_FRACTION", "1.0")
+    )  # share of the bits intercepted
+    inconclusive = os.environ.get(
+        "PHOQ_EVE_INCONCLUSIVE", "empty"
+    )  # what she re-sends when she saw nothing
+    resend_mu = (
+        float(os.environ["PHOQ_EVE_MU"]) if "PHOQ_EVE_MU" in os.environ else None
+    )
 
     def setup(self) -> None:
         if self.inconclusive not in common.INCONCLUSIVE:
-            raise ValueError(f"PHOQ_EVE_INCONCLUSIVE must be one of {common.INCONCLUSIVE}")
+            raise ValueError(
+                f"PHOQ_EVE_INCONCLUSIVE must be one of {common.INCONCLUSIVE}"
+            )
         self.blocks: dict[int, np.ndarray] = {}
-        self.totals = dict(bits=0, attacked=0, clicks=0, resent_bits=0, resent_decoys=0, empty=0)
+        self.totals = dict(
+            bits=0, attacked=0, clicks=0, resent_bits=0, resent_decoys=0, empty=0
+        )
         self.engaged = True  # her AWG's CH2 drives the switch; with that output off it rests in bar
-        self.att0 = self.hw.get("EVE-TX-VOA", "attenuation_db")  # calibrated: μ photons per pulse at her detector
+        self.att0 = self.hw.get(
+            "EVE-TX-VOA", "attenuation_db"
+        )  # calibrated: μ photons per pulse at her detector
         self.efficiency = self.hw.get("EVE-D", "efficiency")
         self.dark = float(self.hw.call("EVE-TX-IM", "voltage_for", 0.0))
-        print(f"eavesdropper up · intercept-resend in the time basis on {self.fraction:.0%} of the bits · "
-              f"inconclusive → {self.inconclusive} · re-sends with μ_E = "
-              f"{'flux-matched' if self.resend_mu is None else self.resend_mu}")
+        print(
+            f"eavesdropper up · intercept-resend in the time basis on {self.fraction:.0%} of the bits · "
+            f"inconclusive → {self.inconclusive} · re-sends with μ_E = "
+            f"{'flux-matched' if self.resend_mu is None else self.resend_mu}"
+        )
 
     # ---- physical layer -----------------------------------------------------------------------------
     def prepare(self, block: int, n: int) -> None:
@@ -66,10 +90,17 @@ class Eve(Party):
         engaged = bool(self.hw.get("EVE-AWG", "ch2_enabled"))
         if engaged != self.engaged:
             self.engaged = engaged
-            print("switch drive on: intercepting again" if engaged else
-                  "switch drive off: the switch rests in bar, Alice's light passes untouched")
-        attack = (self.rng.random(n // 2) < self.fraction) & engaged  # per logical bit: both of its slots
-        v_sw = self.hw.call("EVE-SW", "voltage_for", np.repeat(attack, 2))  # cross: into her detector, hers out
+            print(
+                "switch drive on: intercepting again"
+                if engaged
+                else "switch drive off: the switch rests in bar, Alice's light passes untouched"
+            )
+        attack = (
+            self.rng.random(n // 2) < self.fraction
+        ) & engaged  # per logical bit: both of its slots
+        v_sw = self.hw.call(
+            "EVE-SW", "voltage_for", np.repeat(attack, 2)
+        )  # cross: into her detector, hers out
         self.hw.call("EVE-AWG", "set_pattern", "ch2", v_sw, p.rate)
         # her transmitter dark while she listens: a one-symbol pattern keeps the channel in pattern mode
         self.hw.call("EVE-AWG", "set_pattern", "ch1", [self.dark], 2 * p.rate)
@@ -85,8 +116,12 @@ class Eve(Party):
         occ = common.occupied(sent)
         clicks = int(np.count_nonzero(c0 & attack) + np.count_nonzero(c1 & attack))
         attacked = int(attack.sum())
-        mu_e = self.resend_mu or common.resend_mu(clicks, attacked, int(occ.sum()), self.efficiency, p)
-        self.hw.set("EVE-TX-VOA", attenuation_db=common.resend_attenuation(self.att0, mu_e, p))
+        mu_e = self.resend_mu or common.resend_mu(
+            clicks, attacked, int(occ.sum()), self.efficiency, p
+        )
+        self.hw.set(
+            "EVE-TX-VOA", attenuation_db=common.resend_attenuation(self.att0, mu_e, p)
+        )
         volts = self.hw.call("EVE-TX-IM", "voltage_for", common.carving(occ))
         self.hw.call("EVE-AWG", "set_pattern", "ch1", volts, 2 * p.rate)
         counts = np.bincount(sent[attack], minlength=4)
@@ -97,15 +132,19 @@ class Eve(Party):
         t["resent_bits"] += int(counts[common.BIT0] + counts[common.BIT1])
         t["resent_decoys"] += int(counts[common.DECOY])
         t["empty"] += int(counts[common.NOTHING])
-        print(f"block {batch.seq}: intercepted {attacked:,} of {attack.size:,} bits, {clicks:,} clicks → re-sent "
-              f"{counts[0] + counts[1]:,} bits, {counts[2]:,} decoys, {counts[3]:,} empty · μ_E = {mu_e:.3f}")
+        print(
+            f"block {batch.seq}: intercepted {attacked:,} of {attack.size:,} bits, {clicks:,} clicks → re-sent "
+            f"{counts[0] + counts[1]:,} bits, {counts[2]:,} decoys, {counts[3]:,} empty · μ_E = {mu_e:.3f}"
+        )
         pulses = attacked * (1 + p.decoy)
-        self.report(**{  # this block first (the laptop's screen shows three entries), then the totals
-            "intercepting": attacked / attack.size,
-            "p(click | pulse)": clicks / pulses if pulses else float("nan"),
-            "re-sent μ_E": mu_e,
-            "bits intercepted": t["attacked"],
-            "bits re-sent": t["resent_bits"],
-            "decoys re-sent": t["resent_decoys"],
-            "pairs left empty": t["empty"],
-        })
+        self.report(
+            **{  # this block first (the laptop's screen shows three entries), then the totals
+                "intercepting": attacked / attack.size,
+                "p(click | pulse)": clicks / pulses if pulses else float("nan"),
+                "re-sent μ_E": mu_e,
+                "bits intercepted": t["attacked"],
+                "bits re-sent": t["resent_bits"],
+                "decoys re-sent": t["resent_decoys"],
+                "pairs left empty": t["empty"],
+            }
+        )

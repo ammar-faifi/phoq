@@ -196,7 +196,9 @@ def main(argv: list[str] | None = None) -> None:
     )
 
     p = sub.add_parser(
-        "run", parents=[common], help="run a setup headlessly and print the measurements"
+        "run",
+        parents=[common],
+        help="run a setup headlessly and print the measurements",
     )
     p.add_argument(
         "file",
@@ -243,7 +245,9 @@ def main(argv: list[str] | None = None) -> None:
     )
     p.set_defaults(fn=cmd_run)
 
-    p = sub.add_parser("serve", parents=[common], help="serve a setup to the 3D virtual lab")
+    p = sub.add_parser(
+        "serve", parents=[common], help="serve a setup to the 3D virtual lab"
+    )
     p.add_argument(
         "file",
         nargs="?",
@@ -285,14 +289,18 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--open", action="store_true", help="open the browser")
     p.set_defaults(fn=cmd_serve)
 
-    p = sub.add_parser("export", parents=[common], help="convert a setup to JSON or Python")
+    p = sub.add_parser(
+        "export", parents=[common], help="convert a setup to JSON or Python"
+    )
     p.add_argument("file")
     p.add_argument("--format", choices=("json", "python"), default="python")
     p.add_argument("-o", "--output")
     p.set_defaults(fn=cmd_export)
 
     p = sub.add_parser(
-        "catalog", parents=[common], help="list component types, ports, parameters and presets"
+        "catalog",
+        parents=[common],
+        help="list component types, ports, parameters and presets",
     )
     p.set_defaults(fn=cmd_catalog)
 
@@ -302,10 +310,18 @@ def main(argv: list[str] | None = None) -> None:
         help="list part presets, or show one with its provenance (phoq presets exail/mx-ln-10)",
     )
     p.add_argument("id", nargs="?", help="a preset id to show in full")
-    p.add_argument("--type", metavar="CLASS", help="only presets for this component class")
+    p.add_argument(
+        "--type", metavar="CLASS", help="only presets for this component class"
+    )
     p.add_argument("--vendor")
-    p.add_argument("--search", metavar="TEXT", help="match id, title, part number, tags")
-    p.add_argument("--no-generic", action="store_true", help="hide the generic (class default) presets")
+    p.add_argument(
+        "--search", metavar="TEXT", help="match id, title, part number, tags"
+    )
+    p.add_argument(
+        "--no-generic",
+        action="store_true",
+        help="hide the generic (class default) presets",
+    )
     p.add_argument("--paths", action="store_true", help="print the preset search path")
     p.set_defaults(fn=cmd_presets)
 

@@ -12,18 +12,27 @@ import pytest
 EX = run_path(str(Path(__file__).resolve().parents[1] / "examples" / "clock_sync.py"))
 
 
-@pytest.mark.parametrize("bench", [dict(km=0.0), dict(km=25.0, ppm=-57.0, epoch=7.77e-6)])
+@pytest.mark.parametrize(
+    "bench", [dict(km=0.0), dict(km=25.0, ppm=-57.0, epoch=7.77e-6)]
+)
 def test_bob_recovers_clock_and_delay(bench):
     r = EX["report"](**bench)
     s, true = r["sync"], r["truth"]
     assert s["clicks"] > 1000
-    assert abs(r["f error ppm"]) < 0.15  # ≈ 30 ppb rms from the 2.5 ns pulse, against tens of ppm
-    assert s["frame"]["L"] == true["L"] and s["frame"]["significance"] > 4 * s["frame"]["noise"]
+    assert (
+        abs(r["f error ppm"]) < 0.15
+    )  # ≈ 30 ppb rms from the 2.5 ns pulse, against tens of ppm
+    assert (
+        s["frame"]["L"] == true["L"]
+        and s["frame"]["significance"] > 4 * s["frame"]["noise"]
+    )
     assert abs(r["delay error"]) < 200e-12
     assert r["assigned"] > 0.999 and s["delay"]["on ones"] > 0.98
     assert r["depth"] == pytest.approx(math.sin(math.pi / 4) / (math.pi / 4), abs=0.03)
     if bench["km"]:
-        assert true["delay"] > true["L"] / true["f"]  # Δ itself is beyond one frame: known mod P only
+        assert (
+            true["delay"] > true["L"] / true["f"]
+        )  # Δ itself is beyond one frame: known mod P only
 
 
 def test_nrz_carving_leaves_no_clock_line():
@@ -56,32 +65,47 @@ def test_one_nanosecond_time_bins():
     """1 GHz symbols, a 4 GS/s AWG carving 250 ps pulses, 20 ps tagger bins, a 50 ns detector."""
     r = EX["report"](record=2e-4, dead_time=50e-9, **EX["GHZ"])
     s, true = r["sync"], r["truth"]
-    assert s["clicks"] > 1500 and true["f"] == pytest.approx(1e9 * (1 + EX["PPM"] * 1e-6))
+    assert s["clicks"] > 1500 and true["f"] == pytest.approx(
+        1e9 * (1 + EX["PPM"] * 1e-6)
+    )
     assert abs(r["f error ppm"]) < 0.15
-    assert s["frame"]["L"] == true["L"] and s["frame"]["significance"] > 4 * s["frame"]["noise"]
+    assert (
+        s["frame"]["L"] == true["L"]
+        and s["frame"]["significance"] > 4 * s["frame"]["noise"]
+    )
     assert abs(r["delay error"]) < 30e-12 and r["assigned"] > 0.999
     assert r["depth"] == pytest.approx(math.sin(math.pi / 4) / (math.pi / 4), abs=0.03)
 
 
 def test_saturated_detector_ticks_next_to_the_frame():
     """A 1 µs dead time at 1 GHz: about one click per dead time plus a short wait. With so few clicks
-    the blind frame check cannot confirm L, but the clock and the delay (which use the agreed L) hold."""
+    the blind frame check cannot confirm L, but the clock and the delay (which use the agreed L) hold.
+    """
     r = EX["report"](record=2e-4, **EX["GHZ"])
     s = r["sync"]
     assert s["clicks"] < 260 and 1000 <= r["spacing"] < 1060  # symbols between clicks
     lengths, sig = s["frame"]["scan"]
     assert sig[lengths == 1000][0] < 10  # ≈ N / √(2L): too weak to stand out
-    assert abs(r["f error ppm"]) < 0.3 and abs(r["delay error"]) < 50e-12 and r["assigned"] > 0.99
+    assert (
+        abs(r["f error ppm"]) < 0.3
+        and abs(r["delay error"]) < 50e-12
+        and r["assigned"] > 0.99
+    )
 
 
 def test_dead_time_outlasts_the_tagger_chunks_and_records():
     """A 40 µs dead time against 10 µs chunks: the detector stays dead across each cut, and across
-    the start of the next acquisition, so a bright input clicks exactly once per dead time."""
+    the start of the next acquisition, so a bright input clicks exactly once per dead time.
+    """
     from phoq import Laser, PhotonCounter, Runner, Setup, SinglePhotonDetector
 
     s = Setup("dead time")
     laser = s.add(Laser("LD", mode="cw", power_dbm=-30.0))  # ~80 photons per 10 ns bin
-    spd = s.add(SinglePhotonDetector("SPD", efficiency=1.0, dark_count_rate=0.0, dead_time=40e-6))
+    spd = s.add(
+        SinglePhotonDetector(
+            "SPD", efficiency=1.0, dark_count_rate=0.0, dead_time=40e-6
+        )
+    )
     cnt = s.add(PhotonCounter("CNT", bin_rate=1e8, slots=400_000, chunk=1000))
     s.connect(laser.out, spd.inp)
     s.connect(spd.out, cnt.ch1)
@@ -93,7 +117,8 @@ def test_dead_time_outlasts_the_tagger_chunks_and_records():
 
 def test_long_dead_time_below_saturation_recovers_clock_and_delay():
     """40 µs, attenuated until a live detector waits about τd/10: N ≈ T/(τd + W) clicks, the copies of
-    the clock line every 1/τd washed out, and 45 clicks enough for the clock and the delay."""
+    the clock line every 1/τd washed out, and 45 clicks enough for the clock and the delay.
+    """
     r = EX["report"](record=2e-3, dead_time=40e-6, mu=0.002, **EX["LONG"])
     s = r["sync"]
     w = EX["waiting_time"](r["setup"])
@@ -101,12 +126,17 @@ def test_long_dead_time_below_saturation_recovers_clock_and_delay():
     assert s["clicks"] == pytest.approx(2e-3 / (40e-6 + w), rel=0.15)
     assert np.diff(r["t"]).min() >= 40e-6 - 1e-12
     assert s["clock"]["runner-up"] < 0.6
-    assert abs(r["f error ppm"]) < 0.2 and abs(r["delay error"]) < 100e-12 and r["assigned"] > 0.99
+    assert (
+        abs(r["f error ppm"]) < 0.2
+        and abs(r["delay error"]) < 100e-12
+        and r["assigned"] > 0.99
+    )
 
 
 def test_saturated_long_dead_time_strobes_the_clock():
     """Saturated (μ = 0.2), the clicks come every τd plus ~40 ns: copies of the clock line every
-    1/τd stand as tall as the line itself, which the runner-up ratio flags without the truth."""
+    1/τd stand as tall as the line itself, which the runner-up ratio flags without the truth.
+    """
     r = EX["report"](record=2e-3, dead_time=40e-6, **EX["LONG"])
     assert r["sync"]["clicks"] == pytest.approx(50, abs=1)
     assert r["sync"]["clock"]["runner-up"] > 0.9

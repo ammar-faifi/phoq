@@ -7,7 +7,16 @@ import math
 import warnings
 
 from .core import Component, FiberConnectors, Param, Transfer
-from .units import C0, CONNECTORS, FIBER_DELAY, N_AIR, N_EFF, db_to_t, fiber_attenuation, fmt_si
+from .units import (
+    C0,
+    CONNECTORS,
+    FIBER_DELAY,
+    N_AIR,
+    N_EFF,
+    db_to_t,
+    fiber_attenuation,
+    fmt_si,
+)
 
 
 def _span(
@@ -136,7 +145,13 @@ class MatingSleeve(Component):
         a, b = self.ports["p1"].peer, self.ports["p2"].peer
         if a is None or b is None:
             held = a or b
-            return {"Mating": f"{held.path} ({held.connector}) meets an empty side" if held else "empty"}
+            return {
+                "Mating": (
+                    f"{held.path} ({held.connector}) meets an empty side"
+                    if held
+                    else "empty"
+                )
+            }
         t, ra, rb = mating(a.connector, b.connector)
         return {
             "Mating": f"{a.path} ({a.connector}) ↔ {b.path} ({b.connector})",
@@ -258,7 +273,9 @@ class Coupler(FiberConnectors, Component):
 
 
 Component.aliases["BeamSplitter"] = "Coupler"
-RENAMED = "BeamSplitter is now Coupler (a 2×2 fused fiber coupler); the old name will go"
+RENAMED = (
+    "BeamSplitter is now Coupler (a 2×2 fused fiber coupler); the old name will go"
+)
 
 
 def __getattr__(name: str):
@@ -315,27 +332,56 @@ class OpticalDelayLine(FiberConnectors, Component):
     outputs = ("p2",)
 
     delay = Param(
-        0.0, unit="s", label="Delay", min=0.0, max=10e-9, display=("ps", 1e12),
+        0.0,
+        unit="s",
+        label="Delay",
+        min=0.0,
+        max=10e-9,
+        display=("ps", 1e12),
         doc="Dial setting: the delay added to the delay at zero",
     )
     max_delay = Param(
-        330e-12, unit="s", label="Delay range", min=1e-12, max=10e-9, display=("ps", 1e12),
+        330e-12,
+        unit="s",
+        label="Delay range",
+        min=1e-12,
+        max=10e-9,
+        display=("ps", 1e12),
         doc="Full travel of the stage, as delay",
     )
     insertion_delay = Param(
-        100e-12, unit="s", label="Delay at zero", min=0.0, max=100e-9, display=("ps", 1e12),
+        100e-12,
+        unit="s",
+        label="Delay at zero",
+        min=0.0,
+        max=100e-9,
+        display=("ps", 1e12),
         doc="Connector-to-connector delay at the zero setting (internal fiber and shortest gap)",
     )
     resolution = Param(
-        0.0, unit="s", label="Resolution", min=0.0, max=10e-12, display=("fs", 1e15),
+        0.0,
+        unit="s",
+        label="Resolution",
+        min=0.0,
+        max=10e-12,
+        display=("fs", 1e15),
         doc="Smallest delay step of the stage (0 = continuous)",
     )
     insertion_loss_db = Param(
-        1.0, unit="dB", label="Insertion loss", min=0.0, max=10.0,
+        1.0,
+        unit="dB",
+        label="Insertion loss",
+        min=0.0,
+        max=10.0,
         doc="Loss at the best-coupled gap (mid-travel)",
     )
     beam_waist = Param(
-        0.25e-3, unit="m", label="Beam waist", min=10e-6, max=5e-3, display=("µm", 1e6),
+        0.25e-3,
+        unit="m",
+        label="Beam waist",
+        min=10e-6,
+        max=5e-3,
+        display=("µm", 1e6),
         doc="1/e² radius of the collimated beam between the collimators",
     )
 
@@ -363,12 +409,18 @@ class OpticalDelayLine(FiberConnectors, Component):
         return 1.0 / (1.0 + (d / (2 * z_r)) ** 2)
 
     def loss_db(self, wavelength: float, setting: float | None = None) -> float:
-        return self.insertion_loss_db - 10 * math.log10(self.coupling(wavelength, setting))
+        return self.insertion_loss_db - 10 * math.log10(
+            self.coupling(wavelength, setting)
+        )
 
     def scatter(self, port, wavelength):
         # The fixed part counts as fiber of the same delay; the air path adds 2πν·τ.
-        cycles = (N_EFF * self.insertion_delay / FIBER_DELAY + C0 * self.setting) / wavelength
-        amp = math.sqrt(db_to_t(self.loss_db(wavelength))) * cmath.exp(-2j * math.pi * (cycles % 1.0))
+        cycles = (
+            N_EFF * self.insertion_delay / FIBER_DELAY + C0 * self.setting
+        ) / wavelength
+        amp = math.sqrt(db_to_t(self.loss_db(wavelength))) * cmath.exp(
+            -2j * math.pi * (cycles % 1.0)
+        )
         other = self.ports["p2"] if port.name == "p1" else self.ports["p1"]
         return [Transfer(other, amp, self.total_delay)]
 

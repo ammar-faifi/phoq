@@ -227,18 +227,30 @@ def test_generator_describes_pattern_levels():
     """A pattern reads as the levels it takes, so one with no swing shows where it sits rather than
     '0.00 Vpp' (an eavesdropper's switch held in cross: 2 V on its control input)."""
     s = Setup()
-    fg = s.add(FunctionGenerator(ch1_shape="sine", ch1_freq=1e6, ch1_vpp=3.0, ch2_shape="pattern"))
+    fg = s.add(
+        FunctionGenerator(
+            ch1_shape="sine", ch1_freq=1e6, ch1_vpp=3.0, ch2_shape="pattern"
+        )
+    )
     sw = s.add(OpticalSwitch())
     s.connect(fg.ch2, sw.ctrl)
     assert fg.describe("ch1") == "sine 1 MHz · 3.00 Vpp"
     assert fg.describe("ch2") == "pattern 10 MHz · 2.00 Vpp · NO PATTERN LOADED"
     fg.set_pattern("ch1", [0.0, 1.5, 4.0, 0.25], rate=10e6)
     assert fg.describe("ch1") == "pattern 10 MHz · +0.00 … +4.00 V · 4 symbols"
-    fg.ch1_offset = -1.0  # the levels follow the amplitude and offset, as on the instrument
+    fg.ch1_offset = (
+        -1.0
+    )  # the levels follow the amplitude and offset, as on the instrument
     assert fg.describe("ch1") == "pattern 10 MHz · -3.00 … +1.00 V · 4 symbols"
     fg.set_pattern("ch2", sw.voltage_for(np.ones(6, dtype=bool)), rate=434e6)
-    assert fg.ch2_vpp == 0.0 and fg.describe("ch2") == "pattern 434 MHz · constant +2.00 V · 6 symbols"
-    assert sw.info()["Control"].endswith("constant +2.00 V · 6 symbols") and sw.info()["Cross fraction"] == "1"
+    assert (
+        fg.ch2_vpp == 0.0
+        and fg.describe("ch2") == "pattern 434 MHz · constant +2.00 V · 6 symbols"
+    )
+    assert (
+        sw.info()["Control"].endswith("constant +2.00 V · 6 symbols")
+        and sw.info()["Cross fraction"] == "1"
+    )
     fg.ch2_vpp = 1.0  # a flat pattern stays flat at any amplitude
     assert "constant +2.00 V" in fg.describe("ch2")
     fg.ch2_enabled = False
@@ -517,12 +529,15 @@ def _click_setup(slots=20_000):
 
 def test_synthesize_offset_moves_one_detectors_bins():
     """A channel delay's grid offset gives the fields of a shifted time grid, same phase walk."""
-    s = Setup.from_chain(Laser(rep_rate=100e6, pulse_width=1e-9, linewidth=10e6), Photodiode(), seed=1)
+    s = Setup.from_chain(
+        Laser(rep_rate=100e6, pulse_width=1e-9, linewidth=10e6), Photodiode(), seed=1
+    )
     net, d = trace(s), s["PD-1"]
     t, dt = np.arange(4000) * 10e-12, 10e-12
     a = synthesize(net, [d], t, dt, np.random.default_rng(3), {d: 2.5e-9})[d]
     b = synthesize(net, [d], t + 2.5e-9, dt, np.random.default_rng(3))[d]
     assert a.keys() == b.keys() and all(np.allclose(a[wl], b[wl]) for wl in a)
+
 
 def test_counter_batches_are_continuous_in_time():
     s = _click_setup()
@@ -994,7 +1009,6 @@ def test_save_load_and_python_export_roundtrip(tmp_path):
     assert namespace["setup"].to_dict() == s.to_dict()
 
 
-
 def test_beamsplitter_is_the_old_name_of_coupler():
     """Scripts and setups saved before the rename still work: the old name hands over a Coupler."""
     with pytest.warns(DeprecationWarning, match="now Coupler"):
@@ -1003,12 +1017,20 @@ def test_beamsplitter_is_the_old_name_of_coupler():
     s = Setup("old")
     s.add(Laser("LD-1"), Coupler("BS-1"))
     s.connect("LD-1.out", "BS-1.a1")
-    data = json.loads(json.dumps(s.to_dict()).replace('"Coupler"', '"BeamSplitter"'))  # an old save
+    data = json.loads(
+        json.dumps(s.to_dict()).replace('"Coupler"', '"BeamSplitter"')
+    )  # an old save
     loaded = Setup.from_dict(data)
-    assert type(loaded["BS-1"]) is Coupler and loaded.to_dict() == s.to_dict()  # saved anew as Coupler
+    assert (
+        type(loaded["BS-1"]) is Coupler and loaded.to_dict() == s.to_dict()
+    )  # saved anew as Coupler
     from phoq.core import Component
 
-    assert Component.lookup("BeamSplitter") is Coupler and "BeamSplitter" not in Component.registry
+    assert (
+        Component.lookup("BeamSplitter") is Coupler
+        and "BeamSplitter" not in Component.registry
+    )
+
 
 # ---- API -----------------------------------------------------------------------------------------
 def test_api_edits_the_python_objects():
@@ -1018,9 +1040,20 @@ def test_api_edits_the_python_objects():
     s = Setup.from_chain(Laser(), Photodiode(), Oscilloscope(), name="api test")
     with TestClient(create_app(s, web_dir=None)) as client:
         types = [t["type"] for t in client.get("/api/catalog").json()["types"]]
-        assert "Laser" in types and types.count("Coupler") == 1 and "BeamSplitter" not in types
-        assert client.post("/api/components", json={"type": "BeamSplitter", "name": "BS-9"}).status_code == 200
-        assert type(s["BS-9"]) is Coupler  # an old client's type name still adds a coupler
+        assert (
+            "Laser" in types
+            and types.count("Coupler") == 1
+            and "BeamSplitter" not in types
+        )
+        assert (
+            client.post(
+                "/api/components", json={"type": "BeamSplitter", "name": "BS-9"}
+            ).status_code
+            == 200
+        )
+        assert (
+            type(s["BS-9"]) is Coupler
+        )  # an old client's type name still adds a coupler
         s.remove("BS-9")
         assert (
             client.patch(

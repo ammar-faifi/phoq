@@ -24,7 +24,16 @@ import math
 
 import numpy as np
 
-from phoq import Coupler, FiberSpool, Laser, PhaseShifter, Photodiode, Runner, Setup, SpectrumAnalyzer
+from phoq import (
+    Coupler,
+    FiberSpool,
+    Laser,
+    PhaseShifter,
+    Photodiode,
+    Runner,
+    Setup,
+    SpectrumAnalyzer,
+)
 from phoq.engine import trace
 from phoq.units import fmt_si
 
@@ -41,7 +50,8 @@ def build(
     averages: int = 300,
 ) -> Setup:
     """The bench. The analyzer defaults to RBW = Δν/10 and a span of 20 Δν, widened to show at
-    least five fringes (period 1/τd) when the delay is shorter than the coherence time."""
+    least five fringes (period 1/τd) when the delay is shorter than the coherence time.
+    """
     setup = Setup("Narrow-linewidth self-homodyne", seed=7)
     laser = setup.add(Laser("LD-1", mode="cw", power_dbm=10.0, linewidth=linewidth))
     split, merge = setup.add(Coupler("BS-1"), Coupler("BS-2"))
@@ -97,8 +107,12 @@ def measure(setup: Setup, seed: int = 1, phases=(0.0, math.pi / 2)) -> dict:
 
 def report(linewidth: float, spools_km, averages: int) -> None:
     tau_c = 1 / (math.pi * linewidth)
-    print(f"\n{fmt_si(linewidth, 'Hz')} laser, coherence time τc = {fmt_si(tau_c, 's')}")
-    print(f"  {'spool':>7} {'loss':>6} {'τd/τc':>6} {'depth':>6} {'RBW':>7} {'span':>8}  {'short-delay fit':>15} {'one θ':>9} {'Lorentzian':>10} {'−3 dB':>9}")
+    print(
+        f"\n{fmt_si(linewidth, 'Hz')} laser, coherence time τc = {fmt_si(tau_c, 's')}"
+    )
+    print(
+        f"  {'spool':>7} {'loss':>6} {'τd/τc':>6} {'depth':>6} {'RBW':>7} {'span':>8}  {'short-delay fit':>15} {'one θ':>9} {'Lorentzian':>10} {'−3 dB':>9}"
+    )
     for km in spools_km:
         setup = build(linewidth, km, averages=averages)
         m = measure(setup)
@@ -111,16 +125,24 @@ def report(linewidth: float, spools_km, averages: int) -> None:
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("--plot", metavar="PNG", help="save the 100 Hz, 500 km spectrum with its fit")
+    ap.add_argument(
+        "--plot", metavar="PNG", help="save the 100 Hz, 500 km spectrum with its fit"
+    )
     args = ap.parse_args()
 
-    print("Short-delay fit = Eqs. (28)–(31) on spectra averaged at θ and θ + π/2; 'one θ' = the same fit on")
-    print("a single bias phase; Lorentzian and −3 dB assume a delay much longer than τc.")
+    print(
+        "Short-delay fit = Eqs. (28)–(31) on spectra averaged at θ and θ + π/2; 'one θ' = the same fit on"
+    )
+    print(
+        "a single bias phase; Lorentzian and −3 dB assume a delay much longer than τc."
+    )
     report(1e3, (100, 200, 400), averages=500)
     report(100.0, (50, 100, 200, 500), averages=300)
     for km in (1500, 3900):
         loss = FiberSpool(length=500e3).loss_db(1550e-9) * km / 500
-        print(f"  (the long-delay route at 100 Hz: {km} km = {km * 1e3 * FiberSpool(length=1).delay / (1 / (math.pi * 100)):.1f} τc, {loss:.0f} dB of fiber loss)")
+        print(
+            f"  (the long-delay route at 100 Hz: {km} km = {km * 1e3 * FiberSpool(length=1).delay / (1 / (math.pi * 100)):.1f} τc, {loss:.0f} dB of fiber loss)"
+        )
 
     if args.plot:
         import matplotlib
@@ -138,17 +160,41 @@ if __name__ == "__main__":
         keep = f > 3 * r.rbw
         u = f[keep]
         dnu = p["linewidth"]
-        s2 = 1 - math.exp(-2 * math.pi * dnu * tau) * (np.cos(2 * math.pi * u * tau) + 2 * math.pi * dnu * tau * np.sinc(2 * u * tau))
+        s2 = 1 - math.exp(-2 * math.pi * dnu * tau) * (
+            np.cos(2 * math.pi * u * tau)
+            + 2 * math.pi * dnu * tau * np.sinc(2 * u * tau)
+        )
         model = p["amplitude"] * dnu / (dnu**2 + u**2) * s2 + p["floor_psd"]
         lor = r.fit_lorentzian(0.0)
         fig, ax = plt.subplots(figsize=(7.5, 4))
         to_dbm = lambda w: 10 * np.log10(w * r.rbw / 1e-3)  # noqa: E731
-        ax.plot(u, to_dbm(psd[keep]), lw=0.8, color="#d4a514", label="analyzer, θ and θ + π/2 averaged")
-        ax.plot(u, to_dbm(model), "w--", lw=1, label=f"Eqs. (28)–(31) fit: Δν = {fmt_si(dnu, 'Hz')}")
-        ax.plot(u, to_dbm(lor["peak_psd"] / (1 + (u / lor["hwhm"]) ** 2) + lor["floor_psd"]), ":", color="#60a5fa", lw=1.2,
-                label=f"Lorentzian fit (assumes τd ≫ τc): {fmt_si(lor['hwhm'], 'Hz')}")
-        ax.set(xlabel="frequency [Hz]", ylabel=f"level [dBm in {fmt_si(r.rbw, 'Hz')}]",
-               title=f"100 Hz laser, 500 km delay (τd = {tau / (1 / (math.pi * 100)):.2f} τc)")
+        ax.plot(
+            u,
+            to_dbm(psd[keep]),
+            lw=0.8,
+            color="#d4a514",
+            label="analyzer, θ and θ + π/2 averaged",
+        )
+        ax.plot(
+            u,
+            to_dbm(model),
+            "w--",
+            lw=1,
+            label=f"Eqs. (28)–(31) fit: Δν = {fmt_si(dnu, 'Hz')}",
+        )
+        ax.plot(
+            u,
+            to_dbm(lor["peak_psd"] / (1 + (u / lor["hwhm"]) ** 2) + lor["floor_psd"]),
+            ":",
+            color="#60a5fa",
+            lw=1.2,
+            label=f"Lorentzian fit (assumes τd ≫ τc): {fmt_si(lor['hwhm'], 'Hz')}",
+        )
+        ax.set(
+            xlabel="frequency [Hz]",
+            ylabel=f"level [dBm in {fmt_si(r.rbw, 'Hz')}]",
+            title=f"100 Hz laser, 500 km delay (τd = {tau / (1 / (math.pi * 100)):.2f} τc)",
+        )
         ax.grid(alpha=0.3)
         ax.legend(fontsize=8)
         fig.tight_layout()
