@@ -1,17 +1,19 @@
-"""Alice: the transmitter. She draws bit 0, bit 1 or a decoy for every logical bit, programs the
-intensity modulator's AWG, and leads the sifting once Bob has announced his detections.
+"""Alice: the transmitter. She draws bit 0, bit 1 or a decoy for every logical bit,
+programs the intensity modulator's AWG, and leads the sifting once Bob has announced his
+detections.
 
 Per block, on the classical channel (the paper's steps 2–4):
 
-    [#1] Bob's ``detect`` arrives: which bits gave a data-line click (not in which slot) and the
-         slots where his monitoring detectors fired
-    → [#2] she flags the detections that were decoys, discloses a random sample of her bits at the
-           others for the QBER, and counts DM1 and DM2 clicks where two neighbouring pulses were
-           both sent: the visibilities V_d (inside decoys) and V_1−0 (across 1-0 boundaries)
-           (``sift``)
+    [#1] Bob's ``detect`` arrives: which bits gave a data-line click (not in which slot)
+         and the slots where his monitoring detectors fired
+    → [#2] she flags the detections that were decoys, discloses a random sample of her
+           bits at the others for the QBER, and counts DM1 and DM2 clicks where two
+           neighboring pulses were both sent: the visibilities V_d (inside decoys) and
+           V_1−0 (across 1-0 boundaries) (``sift``)
     → [#3] Bob's ``errors`` returns his bits at the sample → both tally the block.
 
-Error correction and privacy amplification are not implemented: the result is the sifted key.
+Error correction and privacy amplification are not implemented: the result is the sifted
+key.
 """
 
 from __future__ import annotations
@@ -51,11 +53,11 @@ class Alice(Party):
         self.key: list[np.ndarray] = []
         self.recent: deque[Tally] = deque(maxlen=WINDOW)  # the running ("now") figures
         print(
-            f"transmitter up · {p.source} laser carved at {p.rate / 1e6:.0f} MHz · μ={p.mu} · "
-            f"decoys f={p.decoy} · {p.distance / 1e3:.0f} km to BOB"
+            f"transmitter up · {p.source} laser carved at {p.rate / 1e6:.0f} MHz ·"
+            f" μ={p.mu} · decoys f={p.decoy} · {p.distance / 1e3:.0f} km to BOB"
         )
 
-    # ---- physical layer -----------------------------------------------------------------------------
+    # ---- physical layer --------------------------------------------------------------
     def prepare(self, block: int, n: int) -> None:
         p = self.params
         kind = draw(
@@ -66,11 +68,11 @@ class Alice(Party):
         self.blocks[block] = dict(kind=kind)
         counts = np.bincount(kind, minlength=3)
         print(
-            f"block {block}: programmed {kind.size:,} bits · 0: {counts[0]:,} 1: {counts[1]:,} "
-            f"decoy: {counts[2]:,} (kept private)"
+            f"block {block}: programmed {kind.size:,} bits · 0: {counts[0]:,} 1:"
+            f" {counts[1]:,} decoy: {counts[2]:,} (kept private)"
         )
 
-    # ---- classical channel --------------------------------------------------------------------------
+    # ---- classical channel -----------------------------------------------------------
     def receive(self, msg: Message) -> None:
         block = msg.block
         if msg.sender != "BOB" or block is None or block not in self.blocks:
@@ -129,8 +131,9 @@ class Alice(Party):
         self.tally += t
         self.recent.append(t)
         print(
-            f"block {block}: {t.detected:,} detections, {t.decoys:,} decoys removed → key +{t.key_bits:,} "
-            f"= {self.tally.key_bits:,} bits · {describe(self.tally)}"
+            f"block {block}: {t.detected:,} detections, {t.decoys:,} decoys removed →"
+            f" key +{t.key_bits:,} = {self.tally.key_bits:,} bits ·"
+            f" {describe(self.tally)}"
         )
         self.report(
             **readouts(self.tally, self.params, self.net.stats, window(self.recent))

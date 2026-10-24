@@ -1,16 +1,18 @@
 """Classical post-processing primitives for [CLASSICAL #6]: Cascade, universal hashing.
 
-Pure functions and two small state machines, so they can be exercised in one process (tests) and
-driven over the classical channel by the stations (:mod:`.station`). Nothing here knows about
-sockets: the corrector asks for parities of (pass, lo, hi) blocks and the reference answers them;
-every answered parity is one leaked bit and both sides count the same number.
+Pure functions and two small state machines, so they can be exercised in one process
+(tests) and driven over the classical channel by the stations (:mod:`.station`). Nothing
+here knows about sockets: the corrector asks for parities of (pass, lo, hi) blocks and
+the reference answers them; every answered parity is one leaked bit and both sides count
+the same number.
 
-Cascade (Brassard & Salvail 1994): the key is shuffled per pass with a public seed and cut into
-blocks of k_1, 2k_1, 4k_1 … bits; for every block whose parity differs from the reference the
-corrector binary-searches the error with the reference's sub-block parities. Correcting a bit
-flips the parity of the blocks of earlier passes that contain it, which exposes further errors
-("cascade"). Residual errors are caught by the verification tag. Toeplitz hashing with a public
-seed is a universal₂ family, used both for that tag and for privacy amplification.
+Cascade (Brassard & Salvail 1994): the key is shuffled per pass with a public seed and
+cut into blocks of k_1, 2k_1, 4k_1 … bits; for every block whose parity differs from the
+reference the corrector binary-searches the error with the reference's sub-block
+parities. Correcting a bit flips the parity of the blocks of earlier passes that contain
+it, which exposes further errors ("cascade"). Residual errors are caught by the
+verification tag. Toeplitz hashing with a public seed is a universal₂ family, used both
+for that tag and for privacy amplification.
 """
 
 from __future__ import annotations
@@ -26,11 +28,11 @@ Block = tuple[
 ]  # (pass, lo, hi) in the pass's permuted order, hi exclusive
 
 
-# ---- shared pieces ------------------------------------------------------------------------------------
+# ---- shared pieces -------------------------------------------------------------------
 def block_sizes(n: int, qber: float, passes: int) -> list[int]:
-    """k_1 ≈ 0.73 / QBER, doubling each pass, but never more than half the key: a pass whose
-    single block spans everything cannot separate two hidden errors, while two blocks still
-    do so half of the time (one or two extra parities per pass)."""
+    """k_1 ≈ 0.73 / QBER, doubling each pass, but never more than half the key: a pass
+    whose single block spans everything cannot separate two hidden errors, while two
+    blocks still do so half of the time (one or two extra parities per pass)."""
     cap = max(1, n // 2)
     k1 = cap if qber <= 0 else int(math.ceil(0.73 / qber))
     k1 = max(2, min(cap, k1)) if n > 3 else max(1, n)
@@ -50,7 +52,8 @@ def _parity(bits: np.ndarray, perm: np.ndarray, lo: int, hi: int) -> int:
 
 
 class CascadeReference:
-    """The side whose key is the reference (Alice): answers parity queries, counts what it leaks."""
+    """The side whose key is the reference (Alice): answers parity queries, counts what
+    it leaks."""
 
     def __init__(self, key: np.ndarray, seed: int, qber: float, passes: int = 4):
         self.key = np.asarray(key, dtype=np.uint8)
@@ -69,10 +72,11 @@ class CascadeReference:
 
 
 class CascadeCorrector:
-    """The side that corrects its key towards the reference (Bob).
+    """The side that corrects its key toward the reference (Bob).
 
-    Drive it with ``receive(blocks, parities)`` for every answer (the first call carries the
-    first pass's top-level blocks); it returns the next blocks to ask for, ``[]`` once finished.
+    Drive it with ``receive(blocks, parities)`` for every answer (the first call carries
+    the first pass's top-level blocks); it returns the next blocks to ask for, ``[]``
+    once finished.
     """
 
     def __init__(self, key: np.ndarray, seed: int, qber: float, passes: int = 4):
@@ -88,7 +92,7 @@ class CascadeCorrector:
         self.leak = 0
         self.done = self.n == 0
 
-    # ---- helpers --------------------------------------------------------------------------------
+    # ---- helpers ---------------------------------------------------------------------
     def _mine(self, b: Block) -> int:
         p, lo, hi = b
         return _parity(self.key, self.perms[p], lo, hi)
@@ -118,7 +122,8 @@ class CascadeCorrector:
                 self.active.add(top)
 
     def _step(self) -> list[Block]:
-        """Descend every active search as far as cached parities allow; return what to ask."""
+        """Descend every active search as far as cached parities allow; return what to
+        ask."""
         while True:
             queries: list[Block] = []
             progressed = False
@@ -155,7 +160,8 @@ class CascadeCorrector:
             return blocks
 
     def receive(self, blocks: list[Block], parities: list[int]) -> list[Block]:
-        """Record the reference's parities for ``blocks`` and return the next queries."""
+        """Record the reference's parities for ``blocks`` and return the next
+        queries."""
         if self.done:
             return []
         self.leak += len(parities)
@@ -177,7 +183,8 @@ class CascadeCorrector:
 def cascade_in_process(
     key_a: np.ndarray, key_b: np.ndarray, seed: int, qber: float, passes: int = 4
 ):
-    """Run Cascade between two keys in one process; returns (corrected key_b, reference, corrector)."""
+    """Run Cascade between two keys in one process; returns (corrected key_b, reference,
+    corrector)."""
     ref = CascadeReference(key_a, seed, qber, passes)
     cor = CascadeCorrector(key_b, seed, qber, passes)
     blocks, parities = ref.first_pass()
@@ -189,9 +196,10 @@ def cascade_in_process(
     return cor.key, ref, cor
 
 
-# ---- universal hashing -------------------------------------------------------------------------------
+# ---- universal hashing ---------------------------------------------------------------
 def toeplitz_hash(bits: np.ndarray, seed: int, m: int) -> np.ndarray:
-    """``m`` output bits of a Toeplitz matrix drawn from ``seed`` applied to ``bits`` over GF(2)."""
+    """``m`` output bits of a Toeplitz matrix drawn from ``seed`` applied to ``bits``
+    over GF(2)."""
     x = np.asarray(bits, dtype=np.uint8)
     n = x.size
     if m <= 0 or n == 0:
@@ -204,7 +212,8 @@ def toeplitz_hash(bits: np.ndarray, seed: int, m: int) -> np.ndarray:
 
 
 def verification_tag(bits: np.ndarray, seed: int, tag_bits: int) -> bytes:
-    """A universal-hash tag of the key: equal tags ⇒ equal keys except with probability 2^-tag_bits."""
+    """A universal-hash tag of the key: equal tags ⇒ equal keys except with probability
+    2^-tag_bits."""
     return np.packbits(toeplitz_hash(bits, seed, tag_bits)).tobytes()
 
 
@@ -217,7 +226,8 @@ def bits_to_hex(bits: np.ndarray) -> str:
 
 
 def key_digest(bits: np.ndarray) -> str:
-    """Short fingerprint of a key for the read-outs (both consoles must show the same one)."""
+    """Short fingerprint of a key for the read-outs (both consoles must show the same
+    one)."""
     return hashlib.sha256(
         np.packbits(np.asarray(bits, dtype=np.uint8)).tobytes()
     ).hexdigest()[:16]

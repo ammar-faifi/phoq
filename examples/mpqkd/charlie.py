@@ -1,5 +1,5 @@
-"""Charlie: the untrusted relay in the middle. He owns the beam splitter, the detectors and the
-time tagger, and announces every round's outcome publicly ([CLASSICAL #1])."""
+"""Charlie: the untrusted relay in the middle. He owns the beam splitter, the detectors
+and the time tagger, and announces every round's outcome publicly ([CLASSICAL #1])."""
 
 from __future__ import annotations
 
@@ -36,8 +36,9 @@ class Charlie(Party):
         t["single"] += single.size
         t["double"] += double
         print(
-            f"block {batch.seq}: {single.size:,} single clicks (p {single.size / batch.slots:.3e}), "
-            f"{double} double clicks discarded → announced in {size / 1e3:.1f} kB"
+            f"block {batch.seq}: {single.size:,} single clicks (p"
+            f" {single.size / batch.slots:.3e}), {double} double clicks discarded →"
+            f" announced in {size / 1e3:.1f} kB"
         )
         self.report(
             **{

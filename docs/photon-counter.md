@@ -33,18 +33,18 @@ base.
 
 - **The bin width.** It is Δt = 1/`bin_rate`, or one period of the pulsed laser feeding the
   detectors, so there is one bin per pulse.
-- **The bin centres.** With delay compensation on, the grid is shifted by the earliest arrival of
+- **The bin centers.** With delay compensation on, the grid is shifted by the earliest arrival of
   that laser's light. Bin $k$ then spans
 
   ```math
   [\,t_\mathrm{shift} + k\Delta t - \tfrac{\Delta t}{2},\; t_\mathrm{shift} + k\Delta t + \tfrac{\Delta t}{2}\,),
   ```
 
-  centred on pulse $k$ after its time of flight.
+  centered on pulse $k$ after its time of flight.
 - **A running clock.** The counter keeps a running bin index, so the next acquisition starts where
   this one ended, like a free-running tagger whose clock never stops. A time stamp is that absolute
   index divided by the bin rate.
-- **Channel delays.** A channel's input delay is not added afterwards. It shifts the grid on which
+- **Channel delays.** A channel's input delay is not added afterward. It shifts the grid on which
   that channel's light is computed: channel N's bin $k$ holds the light that arrived `chN_delay`
   before the bin time. Its time stamps therefore read arrival time + delay, as a tagger's software
   delay does. Because the shift is in the grid, channels with different delays still see the same
@@ -112,7 +112,7 @@ float noise, so 40 µs at 10 ns is 4000 bins, not 4001. The candidates are walke
 is kept only if it lies at least $d$ bins after the last kept click. Two properties follow
 directly from that rule:
 
-- **Non-paralysable.** A candidate that falls inside the dead time is simply dropped. It does not
+- **Non-paralyzable.** A candidate that falls inside the dead time is simply dropped. It does not
   restart the dead time, so a photon arriving while the detector is dead has no effect.
 - **A renewal process.** After each kept click the detector is blind for exactly τ_d. It then waits
   a random time for the next candidate, independent of everything before. The time between clicks
@@ -125,7 +125,7 @@ picture then gives the click rate and the number of clicks in a record of length
 \text{rate} = \frac{1}{\tau_d + W} = \frac{R}{1 + R\,\tau_d}, \qquad N \approx \frac{T}{\tau_d + W}.
 ```
 
-The rate saturates at 1/τ_d once $R\tau_d \gg 1$; this is the textbook non-paralysable dead-time
+The rate saturates at 1/τ_d once $R\tau_d \gg 1$; this is the textbook non-paralyzable dead-time
 law, here a consequence of the keep-rule. In the clock example a fraction ⟨s⟩ of the symbols are
 1s, each carrying μ photons, at symbol rate $f$. So
 
@@ -301,9 +301,9 @@ across the joins, so the result is one continuous record.
 
 ## 7. What the counter leaves out
 
-- No tagger dead time or timing jitter: a click is stamped at the centre of its bin.
+- No tagger dead time or timing jitter: a click is stamped at the center of its bin.
 - No detector timing jitter, afterpulsing, twilight events or gating; the dead time is
-  non-paralysable.
+  non-paralyzable.
 - One click per bin and channel: two photons in one bin are one click.
 - A chunk boundary re-draws the lasers' phase walks and a free-running generator's start time
   (section 2). Only the dead time carries across.

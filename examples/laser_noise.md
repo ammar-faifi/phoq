@@ -24,7 +24,7 @@ flowchart LR
 ```
 
 The laser emits $`E(t) = \sqrt{P(t)\,(1+\delta(t))}\;e^{i\varphi(t)}`$. Both noises in it are drawn
-once per acquisition and per laser. Every path through the setup reads the same realisation at its
+once per acquisition and per laser. Every path through the setup reads the same realization at its
 own emission time. That is what makes interference, and the cancellation in a balanced detector,
 come out right. Shot noise is added later, at detection, and electronic noise after it.
 
@@ -52,7 +52,7 @@ delayed copy of the same laser. phoq has both:
 - Phase noise also sets the visibility of the delay-line interferometers in
   [`dli_for_dpsk.py`](dli_for_dpsk.py) and [`dli_for_cow.py`](dli_for_cow.py).
 
-**Not modelled:** 1/f (flicker) frequency noise, technical drift, and the coupling of intensity to
+**Not modeled:** 1/f (flicker) frequency noise, technical drift, and the coupling of intensity to
 phase noise (the linewidth enhancement factor).
 
 ## Intensity noise
@@ -88,7 +88,7 @@ shot-noise level: the effect [RP][rp-shot] warns of when a beam is attenuated fo
 The laser's inspector shows both numbers. For example, at 3 dBm and 1550 nm the shot-noise RIN is
 −158.9 dB/Hz, so a −135 dB/Hz laser lies 24 dB above it.
 
-**Not modelled:** the relaxation-oscillation peak, excess low-frequency (pump) noise, and mode
+**Not modeled:** the relaxation-oscillation peak, excess low-frequency (pump) noise, and mode
 hopping. The `balanced_detection.py` demo's 5 % rms noise below 30 kHz is technical wander
 emulated with an intensity modulator, not `rin_db_hz`.
 
@@ -126,7 +126,7 @@ also keeps *heterodyne* (a frequency-shifted local oscillator) apart from *balan
 
 **In phoq.** `BalancedPhotodetector.detect` computes each diode's current from its own fields. Each
 gets its own shot noise, drawn independently. The INPUT− diode's responsivity is short by
-$10^{-\mathrm{CMRR}/20}$, which is how the CMRR is modelled. The two currents are subtracted before
+$10^{-\mathrm{CMRR}/20}$, which is how the CMRR is modeled. The two currents are subtracted before
 the amplifier noise (NEP) is added. Classical noise common to both inputs, the laser's δ above all,
 leaves a residue $`\mathrm{RIN}\,(I_+ - I_-)^2`$. The README's *Balanced photodetector* section has
 the rest: the gain switch, the path-length CMRR and the monitors.

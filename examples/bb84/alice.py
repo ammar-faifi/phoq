@@ -1,16 +1,17 @@
-"""Alice: the transmitter. She draws intensity, basis and bit for every pulse, programs her AWG,
-and leads the sifting once Bob has announced his detections.
+"""Alice: the transmitter. She draws intensity, basis and bit for every pulse, programs
+her AWG, and leads the sifting once Bob has announced his detections.
 
 Per block, on the classical channel:
 
     [#1] Bob's ``detect`` arrives (which pulses clicked, his basis for every pulse)
-    → [#2] she keeps the detections whose bases match, counts what she sent per (intensity, basis)
-           against Bob's bases, discloses the intensity label of every detection, all her X-basis
-           bits and a random sample of her Z-μ bits (``sift``)
+    → [#2] she keeps the detections whose bases match, counts what she sent per
+           (intensity, basis) against Bob's bases, discloses the intensity label of
+           every detection, all her X-basis bits and a random sample of her Z-μ bits
+           (``sift``)
     → [#3] Bob's ``errors`` returns his bits at those positions → both tally the block.
 
-Error correction and privacy amplification are not implemented: the key rate is the asymptotic
-GLLP figure computed from the tallies.
+Error correction and privacy amplification are not implemented: the key rate is the
+asymptotic GLLP figure computed from the tallies.
 """
 
 from __future__ import annotations
@@ -54,11 +55,11 @@ class Alice(Party):
         self.tally = Tally()
         self.key: list[np.ndarray] = []
         print(
-            f"transmitter up · μ={p.mu} ν={p.nu} vac≈{p.vacuum:.1e} with p={p.probabilities} · "
-            f"p_Z={p.p_z} · {p.distance / 1e3:.0f} km to BOB"
+            f"transmitter up · μ={p.mu} ν={p.nu} vac≈{p.vacuum:.1e} with"
+            f" p={p.probabilities} · p_Z={p.p_z} · {p.distance / 1e3:.0f} km to BOB"
         )
 
-    # ---- physical layer -----------------------------------------------------------------------------
+    # ---- physical layer --------------------------------------------------------------
     def prepare(self, block: int, n: int) -> None:
         p, m = self.params, n // BINS  # the lab counts tagger bins; three per pulse
         label = self.rng.choice(3, size=m, p=p.probabilities).astype(np.int8)
@@ -73,11 +74,12 @@ class Alice(Party):
         self.blocks[block] = dict(label=label, basis=basis, bit=bit)
         counts = np.bincount(label, minlength=3)
         print(
-            f"block {block}: programmed {m:,} pulses · μ {counts[0]:,} ν {counts[1]:,} vac {counts[2]:,} · "
-            f"Z {int(np.count_nonzero(basis == B_Z)):,} X {int(np.count_nonzero(basis == B_X)):,} (all kept private)"
+            f"block {block}: programmed {m:,} pulses · μ {counts[0]:,} ν {counts[1]:,}"
+            f" vac {counts[2]:,} · Z {int(np.count_nonzero(basis == B_Z)):,} X"
+            f" {int(np.count_nonzero(basis == B_X)):,} (all kept private)"
         )
 
-    # ---- classical channel --------------------------------------------------------------------------
+    # ---- classical channel -----------------------------------------------------------
     def receive(self, msg: Message) -> None:
         block = msg.block
         if msg.sender != "BOB" or block is None or block not in self.blocks:
@@ -143,8 +145,9 @@ class Alice(Party):
         self.tally += t
         est = estimate(self.tally, self.params)
         print(
-            f"block {block}: {int(sift['keep'].sum()):,} of {sift['keep'].size:,} detections sifted · "
-            f"key +{t.key_bits:,} = {self.tally.key_bits:,} bits · {describe(est)}"
+            f"block {block}: {int(sift['keep'].sum()):,} of {sift['keep'].size:,}"
+            f" detections sifted · key +{t.key_bits:,} = {self.tally.key_bits:,} bits ·"
+            f" {describe(est)}"
         )
         self.report(**readouts(self.tally, est, self.net.stats))
         del self.blocks[block]

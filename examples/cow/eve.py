@@ -1,26 +1,29 @@
-"""Eve: intercept-resend in the time basis on a fraction of the bits, from a station spliced into
-the fiber.
+"""Eve: intercept-resend in the time basis on a fraction of the bits, from a station
+spliced into the fiber.
 
-Load her with ``--party examples/cow/eve.py`` (``build()`` then puts her station on the line, see
-``common.eavesdropper``). For every logical bit she picks, her 2×2 switch sends both of its slots
-into her time-of-arrival detector and puts her own transmitter's light onto the line instead;
-every other bit passes through the bar state untouched. She re-prepares what she saw with her own
-CW laser (``common.intercept``): the bit, a decoy when both slots clicked, nothing when neither
-did (or a decoy, ``PHOQ_EVE_INCONCLUSIVE=decoy``). Her pulses are brighter and rarer, matched to
-the photon flux she took out (``common.resend_mu``), so Bob's detection rate stays put and his
-data-line QBER barely moves (her modulator's leak into the pairs she leaves empty). What she
-cannot restore is the phase between neighbouring pulses: across every boundary between one of
-her pulses and one of Alice's, and inside every decoy she took for a bit, the coherence is gone,
-and V_d and V_1−0 fall with the fraction she intercepts (``common.eve_theory``).
+Load her with ``--party examples/cow/eve.py`` (``build()`` then puts her station on the
+line, see ``common.eavesdropper``). For every logical bit she picks, her 2×2 switch
+sends both of its slots into her time-of-arrival detector and puts her own transmitter's
+light onto the line instead; every other bit passes through the bar state untouched. She
+re-prepares what she saw with her own CW laser (``common.intercept``): the bit, a decoy
+when both slots clicked, nothing when neither did (or a decoy,
+``PHOQ_EVE_INCONCLUSIVE=decoy``). Her pulses are brighter and rarer, matched to the
+photon flux she took out (``common.resend_mu``), so Bob's detection rate stays put and
+his data-line QBER barely moves (her modulator's leak into the pairs she leaves empty).
+What she cannot restore is the phase between neighboring pulses: across every boundary
+between one of her pulses and one of Alice's, and inside every decoy she took for a bit,
+the coherence is gone, and V_d and V_1−0 fall with the fraction she intercepts
+(``common.eve_theory``).
 
-She is a ``stage = 1`` party: the lab records her tagger before Bob's and lets her program her
-transmitter from the clicks (``measure``) before the light goes on — the feed-forward a real
-station does with some latency, absorbed by Bob's clock calibration.
+She is a ``stage = 1`` party: the lab records her tagger before Bob's and lets her
+program her transmitter from the clicks (``measure``) before the light goes on — the
+feed-forward a real station does with some latency, absorbed by Bob's clock calibration.
 
-Environment: ``PHOQ_EVE_FRACTION`` (default 1.0), ``PHOQ_EVE_INCONCLUSIVE`` (``empty``, the
-default, or ``decoy``) and ``PHOQ_EVE_MU`` (photons per re-sent pulse at her detector; default:
-flux-matched) set her strategy without editing this file. In the lab, turning EVE-AWG's CH2
-output off leaves her switch in the bar state: she stands down until it is back on.
+Environment: ``PHOQ_EVE_FRACTION`` (default 1.0), ``PHOQ_EVE_INCONCLUSIVE`` (``empty``,
+the default, or ``decoy``) and ``PHOQ_EVE_MU`` (photons per re-sent pulse at her
+detector; default: flux-matched) set her strategy without editing this file. In the lab,
+turning EVE-AWG's CH2 output off leaves her switch in the bar state: she stands down
+until it is back on.
 """
 
 from __future__ import annotations
@@ -72,19 +75,21 @@ class Eve(Party):
         self.totals = dict(
             bits=0, attacked=0, clicks=0, resent_bits=0, resent_decoys=0, empty=0
         )
-        self.engaged = True  # her AWG's CH2 drives the switch; with that output off it rests in bar
+        # her AWG's CH2 drives the switch; with that output off it rests in bar
+        self.engaged = True
         self.att0 = self.hw.get(
             "EVE-TX-VOA", "attenuation_db"
         )  # calibrated: μ photons per pulse at her detector
         self.efficiency = self.hw.get("EVE-D", "efficiency")
         self.dark = float(self.hw.call("EVE-TX-IM", "voltage_for", 0.0))
         print(
-            f"eavesdropper up · intercept-resend in the time basis on {self.fraction:.0%} of the bits · "
-            f"inconclusive → {self.inconclusive} · re-sends with μ_E = "
-            f"{'flux-matched' if self.resend_mu is None else self.resend_mu}"
+            "eavesdropper up · intercept-resend in the time basis on"
+            f" {self.fraction:.0%} of the bits · inconclusive → {self.inconclusive} ·"
+            " re-sends with μ_E ="
+            f" {'flux-matched' if self.resend_mu is None else self.resend_mu}"
         )
 
-    # ---- physical layer -----------------------------------------------------------------------------
+    # ---- physical layer --------------------------------------------------------------
     def prepare(self, block: int, n: int) -> None:
         p = self.params
         engaged = bool(self.hw.get("EVE-AWG", "ch2_enabled"))
@@ -93,7 +98,10 @@ class Eve(Party):
             print(
                 "switch drive on: intercepting again"
                 if engaged
-                else "switch drive off: the switch rests in bar, Alice's light passes untouched"
+                else (
+                    "switch drive off: the switch rests in bar, Alice's light passes"
+                    " untouched"
+                )
             )
         attack = (
             self.rng.random(n // 2) < self.fraction
@@ -102,7 +110,8 @@ class Eve(Party):
             "EVE-SW", "voltage_for", np.repeat(attack, 2)
         )  # cross: into her detector, hers out
         self.hw.call("EVE-AWG", "set_pattern", "ch2", v_sw, p.rate)
-        # her transmitter dark while she listens: a one-symbol pattern keeps the channel in pattern mode
+        # her transmitter dark while she listens: a one-symbol pattern keeps the channel
+        # in pattern mode
         self.hw.call("EVE-AWG", "set_pattern", "ch1", [self.dark], 2 * p.rate)
         self.blocks[block] = attack
 
@@ -133,12 +142,15 @@ class Eve(Party):
         t["resent_decoys"] += int(counts[common.DECOY])
         t["empty"] += int(counts[common.NOTHING])
         print(
-            f"block {batch.seq}: intercepted {attacked:,} of {attack.size:,} bits, {clicks:,} clicks → re-sent "
-            f"{counts[0] + counts[1]:,} bits, {counts[2]:,} decoys, {counts[3]:,} empty · μ_E = {mu_e:.3f}"
+            f"block {batch.seq}: intercepted {attacked:,} of {attack.size:,} bits,"
+            f" {clicks:,} clicks → re-sent {counts[0] + counts[1]:,} bits,"
+            f" {counts[2]:,} decoys, {counts[3]:,} empty · μ_E = {mu_e:.3f}"
         )
         pulses = attacked * (1 + p.decoy)
         self.report(
-            **{  # this block first (the laptop's screen shows three entries), then the totals
+            # this block first (the laptop's screen shows three entries), then the
+            # totals
+            **{
                 "intercepting": attacked / attack.size,
                 "p(click | pulse)": clicks / pulses if pulses else float("nan"),
                 "re-sent μ_E": mu_e,

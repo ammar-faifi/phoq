@@ -1,9 +1,9 @@
-"""Vacuum-noise QRNG (examples/vacuum_noise_qrng.py) and the oscilloscope's ADC: the min-entropy bounds against
-the papers' own numbers (Park et al. 2025, Eq. 8; Gehring et al. 2021, Table 1 and Eq. 1), the
-bounds' limits, and the bench: shot noise linear in LO power, the quantum-to-classical noise ratio
-from shot noise against the amplifier's NEP, correlations against sample rate, the vacuum's share of
-each sample by ablating the shot-noise draw, the vacuum input left open or capped, and
-extraction."""
+"""Vacuum-noise QRNG (examples/vacuum_noise_qrng.py) and the oscilloscope's ADC: the
+min-entropy bounds against the papers' own numbers (Park et al. 2025, Eq. 8; Gehring et
+al. 2021, Table 1 and Eq. 1), the bounds' limits, and the bench: shot noise linear in LO
+power, the quantum-to-classical noise ratio from shot noise against the amplifier's NEP,
+correlations against sample rate, the vacuum's share of each sample by ablating the
+shot-noise draw, the vacuum input left open or capped, and extraction."""
 
 import itertools
 import math
@@ -24,7 +24,8 @@ EX = run_path(
 
 
 def test_scope_adc_quantizes_across_the_screen():
-    """2^bits codes over the 8 divisions about the offset; beyond them, the end codes."""
+    """2^bits codes over the 8 divisions about the offset; beyond them, the end
+    codes."""
     s = Setup("adc")
     fg = s.add(FunctionGenerator("FG", ch1_shape="sine", ch1_freq=1e6, ch1_vpp=1.0))
     osc = s.add(
@@ -55,8 +56,9 @@ def test_park_2025_eq8_classical_side_information():
 
 
 def test_gehring_2021_table1_quantum_side_information():
-    """σ² = 3.96, σ_X² = 3.29, σ_U² = 2.49 (×10⁷ codes², 16 bits): the ideal-ADC min-entropy at the
-    worst corner of the confidence intervals is the paper's 10.74 bits."""
+    """σ² = 3.96, σ_X² = 3.29, σ_U² = 2.49 (×10⁷ codes², 16 bits): the ideal-ADC
+    min-entropy at the worst corner of the confidence intervals is the paper's 10.74
+    bits."""
 
     def h(s2, sx2, su2):
         return EX["h_quantum_optimal_range"](0.5 * s2 / (sx2 - su2) - 0.5, 16)
@@ -70,8 +72,9 @@ def test_gehring_2021_table1_quantum_side_information():
 
 
 @pytest.mark.parametrize("g", [5.0, 20.0])
-def test_quantum_bound_without_excess_noise_is_the_vacuum_centre_bin(g):
-    """n = 0 (a pure vacuum): nothing to correlate with, so the bound is the classical one."""
+def test_quantum_bound_without_excess_noise_is_the_vacuum_center_bin(g):
+    """n = 0 (a pure vacuum): nothing to correlate with, so the bound is the classical
+    one."""
     assert EX["h_quantum"](g, 0.0, 12) == pytest.approx(
         -math.log2(erf(1 / (2 * math.sqrt(2) * g))), rel=1e-9
     )
@@ -129,9 +132,10 @@ def test_bench_shot_noise_qcnr_and_correlations():
 
 
 def _volts(setup, sweeps, monkeypatch, shot=True):
-    """The scope's unquantized samples over ``sweeps`` records (``record``'s streams). ``shot=False``
-    zeroes the BPD's shot-noise draw but still makes it, so every other random number (trigger, RIN,
-    TIA noise) is the same: what is left is each sample's classical part."""
+    """The scope's unquantized samples over ``sweeps`` records (``record``'s streams).
+    ``shot=False`` zeroes the BPD's shot-noise draw but still makes it, so every other
+    random number (trigger, RIN, TIA noise) is the same: what is left is each sample's
+    classical part."""
     osc = setup["OSC-1"]
     bits, osc.adc_bits = osc.adc_bits, 0
     try:
@@ -150,10 +154,11 @@ def _volts(setup, sweeps, monkeypatch, shot=True):
 
 @pytest.mark.parametrize("balanced, rin", [(True, -140.0), (False, -120.0)])
 def test_vacuum_share_by_ablation_against_the_lo_off_method(balanced, rin, monkeypatch):
-    """v − e is the shot noise alone (the detector is linear before the ADC), and its share of the
-    variance is 2q(I₊ + I₋) over the total, with the amplifier's (NEP·ℜ)² and the leaked RIN·(I₊ − I₋)².
-    The lab's estimate, LO on minus LO off, agrees on the balanced bench. On a 50:50 coupler with a
-    noisy LO it counts the leaked RIN as quantum: that noise exists only while the LO is on.
+    """v − e is the shot noise alone (the detector is linear before the ADC), and its
+    share of the variance is 2q(I₊ + I₋) over the total, with the amplifier's (NEP·ℜ)²
+    and the leaked RIN·(I₊ − I₋)². The lab's estimate, LO on minus LO off, agrees on the
+    balanced bench. On a 50:50 coupler with a noisy LO it counts the leaked RIN as
+    quantum: that noise exists only while the LO is on.
     """
     scale = EX["fit_range"](EX["build"]())
     s = EX["build"](balanced=balanced, scale=scale)
@@ -181,10 +186,10 @@ def test_vacuum_share_by_ablation_against_the_lo_off_method(balanced, rin, monke
         assert truth < 0.4 and lab - truth > 0.4
 
 
-def test_eve_with_classical_side_information_guesses_the_centre_code(monkeypatch):
-    """Eve knows each sample's classical part e and bets on the code that contains it, the centre of
-    a Gaussian of σ_Q codes. Her hit rate is the guessing probability erf(δ/2√2σ_Q): the min-entropy,
-    measured."""
+def test_eve_with_classical_side_information_guesses_the_center_code(monkeypatch):
+    """Eve knows each sample's classical part e and bets on the code that contains it,
+    the center of a Gaussian of σ_Q codes. Her hit rate is the guessing probability
+    erf(δ/2√2σ_Q): the min-entropy, measured."""
     s = EX["build"]()
     EX["fit_range"](s)
     osc = s["OSC-1"]
@@ -201,10 +206,11 @@ def test_eve_with_classical_side_information_guesses_the_centre_code(monkeypatch
 
 
 def test_an_open_or_wrongly_capped_vacuum_port_is_classical_noise(monkeypatch):
-    """Left open (a flat FC/UPC end), or capped with an angled cap on a flat port, the vacuum input
-    sends LO light reflected off the detector's inputs back in. It beats with the LO: RF OUTPUT
-    leaves the ADC's range, and the added noise is classical (the ablation leaves the shot-noise
-    part as it was). The report says why; the matching FC/APC cap removes all of it."""
+    """Left open (a flat FC/UPC end), or capped with an angled cap on a flat port, the
+    vacuum input sends LO light reflected off the detector's inputs back in. It beats
+    with the LO: RF OUTPUT leaves the ADC's range, and the added noise is classical (the
+    ablation leaves the shot-noise part as it was). The report says why; the matching
+    FC/APC cap removes all of it."""
     scale = EX["fit_range"](EX["build"]())
     rows = {r["port"]: r for r in EX["vacuum_port_check"](scale)}
     capped, opened, wrong = rows["capped"], rows["open"], rows["apc-on-upc"]

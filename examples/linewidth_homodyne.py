@@ -1,15 +1,19 @@
-"""Measure a laser's linewidth with a delayed self-homodyne and the RF spectrum analyzer.
+"""Measure a laser's linewidth with a delayed self-homodyne and the RF spectrum
+analyzer.
 
-    uv run python examples/linewidth_homodyne.py                  # measure, then sweep the delay
-    uv run python examples/linewidth_homodyne.py --plot dsh.png   # also save the spectrum and fit
-    uv run phoq serve examples/linewidth_homodyne.py              # the bench in 3D, averaging live
+    # measure, then sweep the delay
+    uv run python examples/linewidth_homodyne.py
+    # also save the spectrum and fit
+    uv run python examples/linewidth_homodyne.py --plot dsh.png
+    # the bench in 3D, averaging live
+    uv run phoq serve examples/linewidth_homodyne.py
 
-    laser → 50:50 ─┬─ 10 km spool (τd = 49 µs) ───────────┬─ 50:50 → photodiode → spectrum analyzer
-                   └─ attenuator (balances the two arms) ─┘
+    laser → 50:50 ─┬─ 10 km spool (τd = 49 µs) ───────────┬─ 50:50 → photodiode
+                   └─ attenuator (balances the two arms) ─┘        → spectrum analyzer
 
-With τd ≫ τc = 1/(πΔν) the two arms reach the coupler mutually incoherent, and the photocurrent's
-RF spectrum is a Lorentzian at 0 Hz whose half width at half maximum is the laser linewidth Δν
-(README, "Laser linewidth by delayed self-homodyne").
+With τd ≫ τc = 1/(πΔν) the two arms reach the coupler mutually incoherent, and the
+photocurrent's RF spectrum is a Lorentzian at 0 Hz whose half width at half maximum is
+the laser linewidth Δν (README, "Laser linewidth by delayed self-homodyne").
 """
 
 import argparse
@@ -39,7 +43,8 @@ def build(
     laser = setup.add(Laser("LD-1", mode="cw", power_dbm=0.0, linewidth=linewidth))
     split, merge = setup.add(Coupler("BS-1"), Coupler("BS-2"))
     spool = setup.add(FiberSpool("SPL-1", length=spool_m))
-    # the short arm gets the spool's loss, so both arms bring the same power: the largest beat
+    # the short arm gets the spool's loss, so both arms bring the same power: the
+    # largest beat
     voa_il = Attenuator.insertion_loss_db.default
     voa = setup.add(
         Attenuator(
@@ -64,13 +69,15 @@ def build(
     setup.connect(split.b2, voa.p1)  # short arm
     setup.connect(voa.p2, merge.a2)
     setup.connect(merge.b1, pd.inp)
-    setup.terminate_spares()  # every unused coupler port capped: open, a flat port reflects 3.6 %
+    # every unused coupler port capped: open, a flat port reflects 3.6 %
+    setup.terminate_spares()
     setup.connect(pd.rf, esa.inp)
     return setup
 
 
 def measure(setup: Setup, seed: int = 1):
-    """One sweep; the linewidth from a Lorentzian fit, the −3 dB point and the −20 dB point."""
+    """One sweep; the linewidth from a Lorentzian fit, the −3 dB point and the −20 dB
+    point."""
     esa = setup["ESA-1"]
     esa.trace = "write"
     r = esa.acquire(trace(setup), np.random.default_rng(seed))
@@ -83,7 +90,7 @@ def measure(setup: Setup, seed: int = 1):
 
 
 if __name__ == "__main__":
-    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument(
         "--plot", metavar="PNG", help="save the spectrum with its Lorentzian fit"
     )
@@ -93,9 +100,10 @@ if __name__ == "__main__":
     laser, spool = setup["LD-1"], setup["SPL-1"]
     tau_c, tau_d = 1 / (math.pi * laser.linewidth), spool.delay
     print(
-        f"laser linewidth {fmt_si(laser.linewidth, 'Hz')} (coherence time {fmt_si(tau_c, 's')}); "
-        f"delay {fmt_si(tau_d, 's')} = {tau_d / tau_c:.0f} τc, coherence left "
-        f"e^(−2πΔν·τd) = {math.exp(-2 * math.pi * laser.linewidth * tau_d):.1e}\n"
+        f"laser linewidth {fmt_si(laser.linewidth, 'Hz')} (coherence time"
+        f" {fmt_si(tau_c, 's')}); delay {fmt_si(tau_d, 's')} = {tau_d / tau_c:.0f} τc,"
+        " coherence left e^(−2πΔν·τd) ="
+        f" {math.exp(-2 * math.pi * laser.linewidth * tau_d):.1e}\n"
     )
     r, fit, w3, w20 = measure(setup)
     print(r.summary(), "\n")
@@ -105,12 +113,14 @@ if __name__ == "__main__":
         ("−20 dB point / √99", w20),
     ):
         print(
-            f"  {name:20} Δν = {fmt_si(value, 'Hz'):>9}  ({100 * (value / laser.linewidth - 1):+.1f} %)"
+            f"  {name:20} Δν = {fmt_si(value, 'Hz'):>9} "
+            f" ({100 * (value / laser.linewidth - 1):+.1f} %)"
         )
 
     print("\nThe delay must beat the coherence time (1000 averages each):")
     print(
-        f"  {'spool':>7} {'τd':>9} {'τd/τc':>6} {'coherence':>9} {'fit':>10} {'−3 dB':>10}"
+        f"  {'spool':>7} {'τd':>9} {'τd/τc':>6} {'coherence':>9} {'fit':>10}"
+        f" {'−3 dB':>10}"
     )
 
     for km in (0.3, 0.6, 1, 2, 5, 10, 25, 50, 100, 150, 200, 250, 300):
@@ -119,7 +129,8 @@ if __name__ == "__main__":
         td = s["SPL-1"].delay
         coh = math.exp(-2 * math.pi * LINEWIDTH * td)
         print(
-            f"  {km:5g} km {fmt_si(td, 's'):>9} {td / tau_c:6.1f} {coh:9.2g} {fmt_si(f_fit, 'Hz'):>10} {fmt_si(f3, 'Hz'):>10}"
+            f"  {km:5g} km {fmt_si(td, 's'):>9} {td / tau_c:6.1f} {coh:9.2g}"
+            f" {fmt_si(f_fit, 'Hz'):>10} {fmt_si(f3, 'Hz'):>10}"
         )
 
     if args.plot:

@@ -28,7 +28,7 @@ conditions = "SMF-28 pigtail (10 µm SPAD); each row's own excess bias V_EX and 
 [params]
 connector = { value = "FC/PC", from = "datasheet-typ", spec = "Fiber pigtail type: FC/PC, SMF-28 (10 µm SPAD)" }
 efficiency = { value = 0.25, from = "datasheet-typ", spec = "Photon detection efficiency, V_EX = 7 V (fixed-gate mode only), 1550 nm", note = "Free-running and free-gate modes are limited to V_EX = 5 V; the PDE-vs-bias plot gives about 22 % there" }
-dark_count_rate = { value = 250.0, from = "datasheet-typ", spec = "DCR, SMF-28 desktop version, V_EX = 2 V, SPAD temperature 'Low', free running, hold-off 100 µs", max = 600.0, note = "Rises with V_EX and as the hold-off is shortened (afterpulsing, not modelled)" }
+dark_count_rate = { value = 250.0, from = "datasheet-typ", spec = "DCR, SMF-28 desktop version, V_EX = 2 V, SPAD temperature 'Low', free running, hold-off 100 µs", max = 600.0, note = "Rises with V_EX and as the hold-off is shortened (afterpulsing, not modeled)" }
 ref_wavelength = { value = 1550e-9, from = "datasheet-condition", spec = "PDE is specified at λ = 1550 nm" }
 dead_time = { value = 100e-6, from = "datasheet-typ", spec = "Hold-off time at which the DCR is specified; software-selectable 1 µs … 3 ms in 10 ns steps", min = 1e-6, max = 3e-3 }
 
@@ -42,7 +42,7 @@ value = [0.0008, 0.0019, 0.0043, 0.0082, 0.0183, 0.0579, 0.0788, 0.0983, 0.1146,
 [unsupported]
 timing_jitter_fwhm_s = { typ = 200e-12, note = "V_EX = 4 V, all modes; 100 ps typ at 7 V in fixed-gate mode. The click model has no timing jitter: a click lands in its laser time bin" }
 irf_decay_time_s = { typ = 60e-12, max = 100e-12, note = "V_EX = 4 V; longer below 975 nm" }
-gating = "Gate width 1 ns … 1.5 ms, gate repetition up to 100 MHz, internal or external trigger with programmable delays. Only free-running operation is modelled"
-afterpulsing = "Not specified beyond the DCR-vs-hold-off curves; not modelled"
-spad_temperature_k = { min = 225, max = 243, note = "four software-selectable values; not modelled" }
+gating = "Gate width 1 ns … 1.5 ms, gate repetition up to 100 MHz, internal or external trigger with programmable delays. Only free-running operation is modeled"
+afterpulsing = "Not specified beyond the DCR-vs-hold-off curves; not modeled"
+spad_temperature_k = { min = 225, max = 243, note = "four software-selectable values; not modeled" }
 output_pulse = "PHOTON OUT: NIM (−800 mV into 50 Ω) or TTL, 10 ns; the model emits 1 V, 5 ns pulses"

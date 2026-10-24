@@ -102,7 +102,7 @@ function addLights(scene) {
   fill.position.set(-120, 80, -40);
   scene.add(fill);
 
-  // Coloured accent lights give the dark lab some depth.
+  // Colored accent lights give the dark lab some depth.
   const cyan = new THREE.PointLight(0x22d3ee, 0.35, 0, 0);
   cyan.position.set(-140, 60, -120);
   const magenta = new THREE.PointLight(0xff3fb4, 0.22, 0, 0);

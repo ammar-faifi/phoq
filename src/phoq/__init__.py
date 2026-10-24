@@ -4,11 +4,14 @@ Build an experiment from components, wire it, run it::
 
     from phoq import Setup, Laser, Fiber, Photodiode, Oscilloscope
 
-    setup = Setup.from_chain(Laser(power_dbm=-7), Fiber(length=2), Photodiode(), Oscilloscope())
+    setup = Setup.from_chain(
+        Laser(power_dbm=-7), Fiber(length=2), Photodiode(), Oscilloscope()
+    )
     print(setup.run().summary())
 
-Every computation happens here in Python. ``phoq serve my_setup.py`` starts a FastAPI server
-and the 3D virtual lab (``phoq/web``) as an optional, live visualizer of the same objects.
+Every computation happens here in Python. ``phoq serve my_setup.py`` starts a FastAPI
+server and the 3D virtual lab (``phoq/web``) as an optional, live visualizer of the same
+objects.
 """
 
 import warnings

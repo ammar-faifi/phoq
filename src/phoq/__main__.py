@@ -21,7 +21,8 @@ def _tasks(paths):
 
 
 def _parties_and_setup(args):
-    """Parties from --protocol / --party, and the setup from the file or the protocol's build()."""
+    """Parties from --protocol / --party, and the setup from the file or the protocol's
+    build()."""
     from .parties import load_parties, load_protocol
 
     parties, protocol = [], None
@@ -111,7 +112,8 @@ def cmd_serve(args) -> None:
         print(f"  analysis     {', '.join(t.name for t in tasks)}")
     if parties:
         print(
-            f"  parties      {', '.join(p.name for p in parties)} (classical channel on localhost TCP)"
+            f"  parties      {', '.join(p.name for p in parties)} (classical channel on"
+            " localhost TCP)"
         )
     serve(
         setup,
@@ -144,9 +146,10 @@ def cmd_catalog(args) -> None:
 
     for t in catalog()["types"]:
         print(f"{t['type']:<22} {t['label']} — {t['description']}")
-        print(
-            f"{'':<22} ports: {', '.join(p['name'] + ('*' if p['kind'] == 'electrical' else '') for p in t['ports'])}"
+        ports = ", ".join(
+            p["name"] + ("*" if p["kind"] == "electrical" else "") for p in t["ports"]
         )
+        print(f"{'':<22} ports: {ports}")
         print(f"{'':<22} params: {', '.join(p['name'] for p in t['params'])}")
         parts = [p["id"] for p in t["presets"] if p["tier"] != "generic"]
         print(f"{'':<22} presets: generic{', ' + ', '.join(parts) if parts else ''}\n")
@@ -183,7 +186,10 @@ def cmd_presets(args) -> None:
 def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(
         prog="phoq",
-        description="phoq — headless photonics & quantum-communication lab with an optional 3D visualizer.",
+        description=(
+            "phoq — headless photonics & quantum-communication lab with an optional 3D"
+            " visualizer."
+        ),
     )
     sub = ap.add_subparsers(dest="cmd", required=True)
     common = argparse.ArgumentParser(add_help=False)
@@ -192,7 +198,10 @@ def main(argv: list[str] | None = None) -> None:
         action="append",
         default=[],
         metavar="DIR",
-        help="directory of part presets (.toml, searched recursively); repeatable, also $PHOQ_PRESETS",
+        help=(
+            "directory of part presets (.toml, searched recursively); repeatable, also"
+            " $PHOQ_PRESETS"
+        ),
     )
 
     p = sub.add_parser(
@@ -203,7 +212,10 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument(
         "file",
         nargs="?",
-        help="setup: a .py defining `setup` or `build()`, a .json, or a package directory such as examples/mpqkd; optional with --protocol",
+        help=(
+            "setup: a .py defining `setup` or `build()`, a .json, or a package"
+            " directory such as examples/mpqkd; optional with --protocol"
+        ),
     )
     p.add_argument(
         "-i",
@@ -226,7 +238,10 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument(
         "--protocol",
         metavar="NAME",
-        help="protocol package with PARTIES and build(): a path, a folder under ./examples (mpqkd), or a module",
+        help=(
+            "protocol package with PARTIES and build(): a path, a folder under"
+            " ./examples (mpqkd), or a module"
+        ),
     )
     p.add_argument(
         "--party",
@@ -277,7 +292,10 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument(
         "--protocol",
         metavar="NAME",
-        help="protocol package with PARTIES and build(): a path, a folder under ./examples (mpqkd), or a module",
+        help=(
+            "protocol package with PARTIES and build(): a path, a folder under"
+            " ./examples (mpqkd), or a module"
+        ),
     )
     p.add_argument(
         "--party",
@@ -307,7 +325,10 @@ def main(argv: list[str] | None = None) -> None:
     p = sub.add_parser(
         "presets",
         parents=[common],
-        help="list part presets, or show one with its provenance (phoq presets exail/mx-ln-10)",
+        help=(
+            "list part presets, or show one with its provenance (phoq presets"
+            " exail/mx-ln-10)"
+        ),
     )
     p.add_argument("id", nargs="?", help="a preset id to show in full")
     p.add_argument(

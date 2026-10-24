@@ -1,25 +1,31 @@
 """Decoy-state BB84 with phase coding on the simulated hardware — no relay, two parties.
 
-Physical layer (one :class:`~phoq.Setup`, viewable in the virtual lab; see ``common.build``)::
+Physical layer (one :class:`~phoq.Setup`, viewable in the virtual lab; see
+``common.build``)::
 
-    ALICE-AWG ch1 ─┐         ch2 ─┐
-    ALICE-LD → ALICE-IM → [ALICE-BS1 ⇒ short / long + ALICE-PM ⇒ ALICE-BS2] → ALICE-VOA → SPL ─┐
-                                                                                             │
-    BOB-AWG ch1 ─────────────────────────────────┐                                           │
-    [BOB-BS1 ⇒ short / long + BOB-PS + BOB-PM ⇒ BOB-BS2] → DET-0, DET-1 → TAGGER ◄───────────┘
+    ALICE-AWG ch1 ─┐                                ch2 ─┐
+    ALICE-LD → ALICE-IM → [ALICE-BS1 ⇒ short / long + ALICE-PM ⇒ ALICE-BS2]
+                                                                → ALICE-VOA → SPL ─┐
+    BOB-AWG ch1 ──────────────────────────┐                                        │
+    [BOB-BS1 ⇒ short / long + BOB-PS + BOB-PM ⇒ BOB-BS2] → DET-0, DET-1 → TAGGER ◄─┘
 
-With an eavesdropper (``--party examples/bb84/eve.py``) the spool is cut in two and EVE-SW, a 2×2
-optical switch, sits in between with Eve's receiver on its second output and her transmitter on
-its second input.
+With an eavesdropper (``--party examples/bb84/eve.py``) the spool is cut in two and
+EVE-SW, a 2×2 optical switch, sits in between with Eve's receiver on its second output
+and her transmitter on its second input.
 
-Parties, each in its own file and its own process, talking over an authenticated public channel:
+Parties, each in its own file and its own process, talking over an authenticated public
+channel:
 
-* :class:`Alice` (:mod:`.alice`) draws intensity, basis and bit per pulse and leads the sifting.
-* :class:`Bob` (:mod:`.bob`) draws his basis per pulse, announces his detections and answers.
-* :class:`Eve` (``eve.py``, loaded with ``--party``) intercepts a fraction of the pulses.
+* :class:`Alice` (:mod:`.alice`) draws intensity, basis and bit per pulse and leads the
+  sifting.
+* :class:`Bob` (:mod:`.bob`) draws his basis per pulse, announces his detections and
+  answers.
+* :class:`Eve` (``eve.py``, loaded with ``--party``) intercepts a fraction of the
+  pulses.
 
-``PARTIES`` and ``build()`` make this a protocol package: ``phoq run --protocol bb84``. The
-single-process reference ``run()`` (one god's-eye view of both records) is kept for tests.
+``PARTIES`` and ``build()`` make this a protocol package: ``phoq run --protocol bb84``.
+The single-process reference ``run()`` (one god's-eye view of both records) is kept for
+tests.
 """
 
 from __future__ import annotations
@@ -96,8 +102,8 @@ __all__ = [
 
 
 def prepare(setup: Setup, p: BB84Params, pulses: int, rng: np.random.Generator) -> dict:
-    """God's-eye state preparation: Alice's intensities, bases and bits and Bob's bases, loaded
-    into both AWGs at once."""
+    """God's-eye state preparation: Alice's intensities, bases and bits and Bob's bases,
+    loaded into both AWGs at once."""
     label = rng.choice(3, size=pulses, p=p.probabilities).astype(np.int8)
     basis = (rng.random(pulses) >= p.p_z).astype(np.int8)
     bit = rng.integers(0, 2, size=pulses, dtype=np.int8)
@@ -135,10 +141,19 @@ class BB84Result:
         p, t, e = self.params, self.tally, self.estimate
         q = e["gains"]
         lines = [
-            f"BB84 over {p.distance / 1e3:.0f} km, μ = {p.mu}, ν = {p.nu}, {t.pulses:,} pulses",
-            f"sifted {int(t.detected.sum()):,} detections, raw key {t.key_bits:,} bits (true error rate {self.qber:.4f})",
-            f"gains Z: μ {q[I_MU, B_Z]:.3e} ν {q[I_NU, B_Z]:.3e} vac {q[I_VAC, B_Z]:.3e} · "
-            f"X: μ {q[I_MU, B_X]:.3e} ν {q[I_NU, B_X]:.3e} vac {q[I_VAC, B_X]:.3e}",
+            (
+                f"BB84 over {p.distance / 1e3:.0f} km, μ = {p.mu}, ν = {p.nu},"
+                f" {t.pulses:,} pulses"
+            ),
+            (
+                f"sifted {int(t.detected.sum()):,} detections, raw key {t.key_bits:,}"
+                f" bits (true error rate {self.qber:.4f})"
+            ),
+            (
+                f"gains Z: μ {q[I_MU, B_Z]:.3e} ν {q[I_NU, B_Z]:.3e} vac"
+                f" {q[I_VAC, B_Z]:.3e} · X: μ {q[I_MU, B_X]:.3e} ν {q[I_NU, B_X]:.3e}"
+                f" vac {q[I_VAC, B_X]:.3e}"
+            ),
             describe(e),
         ]
         return "\n".join(lines)
@@ -150,7 +165,8 @@ def run(
     seed: int | None = None,
     setup: Setup | None = None,
 ) -> BB84Result:
-    """Single-process reference: prepare, record, sift with both records in one place."""
+    """Single-process reference: prepare, record, sift with both records in one
+    place."""
     p = p or BB84Params()
     setup = setup or build(p, pulses, eve=False)
     setup["TAGGER"].slots = BINS * pulses

@@ -17,7 +17,8 @@ def instruments_of(setup: Setup) -> list[Component]:
 
 
 class Results(dict):
-    """Instrument name → result object, plus the steady-state ``report`` of the network."""
+    """Instrument name → result object, plus the steady-state ``report`` of the
+    network."""
 
     def __init__(self, *args, report: dict | None = None, **kw):
         super().__init__(*args, **kw)
@@ -49,7 +50,8 @@ class Sweep:
 
 
 class Runner:
-    """Runs a :class:`Setup` headlessly. One random generator per runner (seed for repeatability)."""
+    """Runs a :class:`Setup` headlessly. One random generator per runner
+    (seed for repeatability)."""
 
     def __init__(self, setup: Setup, seed: int | None = None):
         self.setup = setup
@@ -63,12 +65,14 @@ class Runner:
         return inst.acquire(net or trace(self.setup), self.rng)
 
     def single(self, instrument: Component | str, attempts: int = 100):
-        """Single shot on an oscilloscope: wait for the first trigger and hold that sweep."""
+        """Single shot on an oscilloscope: wait for the first trigger and hold that
+        sweep."""
         inst = self.setup[instrument] if isinstance(instrument, str) else instrument
         return inst.single(trace(self.setup), self.rng, attempts)
 
     def run(self, *instruments: Component | str) -> Results:
-        """Acquire the given instruments (default: all of them) on one snapshot of the network."""
+        """Acquire the given instruments (default: all of them) on one snapshot of the
+        network."""
         net = trace(self.setup)
         chosen = [
             self.setup[i] if isinstance(i, str) else i for i in instruments
@@ -88,7 +92,8 @@ class Runner:
     ) -> Sweep:
         """Run once per value of ``component.param`` and collect ``measure(results)``.
 
-        Example: ``runner.sweep(voa, "attenuation_db", range(0, 40, 5), lambda r: r["OPM-1"].power)``
+        Example: ``runner.sweep(voa, "attenuation_db", range(0, 40, 5), lambda r:
+        r["OPM-1"].power)``
         """
         comp = self.setup[component] if isinstance(component, str) else component
         original = getattr(comp, param)
@@ -109,12 +114,14 @@ class Runner:
         param: str,
         values: Iterable,
     ):
-        """Acquire ``analyzer`` once per value of ``component.param`` and power-average the
-        spectra (:meth:`~phoq.SpectrumResult.average`); the parameter is restored afterwards.
+        """Acquire ``analyzer`` once per value of ``component.param`` and power-average
+        the spectra (:meth:`~phoq.SpectrumResult.average`); the parameter is restored
+        afterward.
 
-        For a delayed self-homodyne, step a phase shifter in one arm over the bias phase:
-        ``runner.average_spectrum(esa, ps, "phase", [0, math.pi / 2])``. The θ-dependent part of
-        the beat varies as cos 2θ and sin 2θ, so two settings a quarter wave apart cancel it.
+        For a delayed self-homodyne, step a phase shifter in one arm over the bias
+        phase: ``runner.average_spectrum(esa, ps, "phase", [0, math.pi / 2])``. The
+        θ-dependent part of the beat varies as cos 2θ and sin 2θ, so two settings a
+        quarter wave apart cancel it.
         """
         from .instruments import SpectrumResult
 

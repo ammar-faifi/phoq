@@ -20,5 +20,6 @@ class Bob(Station):
         return (intensity_front == 0).astype(np.int8)
 
     def x_bit(self, k, flip):
-        """X pairs: flip the bit when Charlie's two clicks fell on different detectors (L,R) or (R,L)."""
+        """X pairs: flip the bit when Charlie's two clicks fell on different detectors
+        (L,R) or (R,L)."""
         return (k ^ flip.astype(np.int8)).astype(np.int8)

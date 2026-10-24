@@ -61,15 +61,15 @@ phoq run --protocol bb84 --party examples/bb84/eve.py   # decoy-state BB84 with 
 | **Port** | `laser.out`, `pd.inp`, `pd.rf`, … Each is `optical` or `electrical`. |
 | **Setup** | Owns named components and port connections. `connect(a, b)` joins two ports. Two bulkhead optical ports automatically get a 1 m `Fiber` patch cord between them. `chain(...)` wires items one after another. |
 | **Runner** | `setup.run()` acquires every instrument. `Runner(setup).sweep(comp, "param", values, measure)` sweeps a parameter. |
-| **Instruments** | `Oscilloscope` (traces + measurements; selectable analogue `bandwidth`, `sample_rate` and record memory `max_points`; `Runner.single(osc)` waits for the first trigger and holds that sweep), `PhotonCounter` (click record per pulse), `PowerMeter`. |
+| **Instruments** | `Oscilloscope` (traces + measurements; selectable analog `bandwidth`, `sample_rate` and record memory `max_points`; `Runner.single(osc)` waits for the first trigger and holds that sweep), `PhotonCounter` (click record per pulse), `PowerMeter`. |
 
-Units are SI throughout: metres, seconds, hertz and watts. Powers use `power_dbm` and losses `*_db`.
+Units are SI throughout: meters, seconds, hertz and watts. Powers use `power_dbm` and losses `*_db`.
 
 ### Components
 
 | Category | Classes |
 | --- | --- |
-| Sources | `Laser` (CW / pulsed / sine / OOK, linewidth, detuning, relative intensity noise, per-pulse phase randomisation) |
+| Sources | `Laser` (CW / pulsed / sine / OOK, linewidth, detuning, relative intensity noise, per-pulse phase randomization) |
 | Fiber | `Fiber` (patch cord), `FiberSpool` |
 | Passive | `Attenuator`, `Coupler` (2×2 fused fiber coupler; `BeamSplitter` is its deprecated old name), `PhaseShifter`, `Isolator`, `MatingSleeve` (FC–FC adapter joining two cords), `FiberTerminator` (cap for an unused port: plugs straight in, absorbs), `OpticalDelayLine` (variable free-space delay: dial, carrier phase, Gaussian-beam coupling loss) |
 | Modulators | `PhaseModulator` (φ = π·V/Vπ), `IntensityModulator` (Mach–Zehnder, extinction) — voltage comes only through their `rf` and `bias` inputs; `IQModulator` (dual-parallel MZM: `rf_i`, `rf_q` and three DC biases, `bias_i`, `bias_q`, `bias_p`); `OpticalSwitch` (2×2, bar below the threshold voltage on `ctrl`, cross above: a pattern routes pulse by pulse) |
@@ -80,12 +80,12 @@ Run `phoq catalog` for every port and parameter.
 
 ### Fiber connectors
 
-Every fiber port has a connector type, following the usual colour code: **FC/UPC blue**, **FC/APC
+Every fiber port has a connector type, following the usual color code: **FC/UPC blue**, **FC/APC
 green**, and FC/PC (the older flat polish, as many datasheets still list it) blue too. A part's
 `connector` sets all its fiber ports; a `Fiber` patch cord has `connector_a` and `connector_b`, so
 a cord with one of each is a hybrid cord. `setup.connect()` between two bulkheads picks the cord a
 lab would take, with ends that match the two ports. In the 3D lab connector housings and boots,
-and the collar of every bulkhead, show the colour. While you carry a connector, free ports where
+and the collar of every bulkhead, show the color. While you carry a connector, free ports where
 it would make an angled-to-flat mating light up amber instead of cyan.
 
 | Mated pair | Loss | Reflected back |
@@ -254,7 +254,7 @@ value = [0.085, 0.119, 0.179, …, 0.020]
 The curve gives the shape; the table value at `ref_wavelength` fixes the scale, so the datasheet's
 headline number is reproduced exactly where it was specified and the plot fills in the rest.
 Where the plot and the table disagree (they often do by 5–20 %), the preset's `note` says so. The
-shipped curves were digitized from the vendor PDFs at 300 dpi by tracing the series colour against
+shipped curves were digitized from the vendor PDFs at 300 dpi by tracing the series color against
 the plot's gridlines.
 
 **Your own presets.** phoq looks, in this order, in the package, in packages that register the
@@ -409,7 +409,7 @@ receive(message)    whatever the parties say to each other                      
 ```
 
 `examples/mpqkd` is split accordingly — `common.py` (public parameters, the
-hardware, the pairing/sifting maths), `station.py` (what Alice and Bob share), `alice.py`,
+hardware, the pairing/sifting math), `station.py` (what Alice and Bob share), `alice.py`,
 `bob.py`, `charlie.py` — and the annotations map onto messages:
 
 | `examples/mpqkd/reference.py` | Message | Who |
@@ -443,7 +443,7 @@ bound on the X single-photon-pair yield does not close even asymptotically — t
 simulation takes e₁₁ˣ from the model too (its Eq. D15). `MPQKDParams(estimator="decoy")` sizes
 with the rigorous bound instead and then distils no key here. All sizing is asymptotic; a
 simplified finite-key length (Chernoff/Hoeffding terms, ε = 10⁻¹⁰) is reported next to it,
-clearly labelled, and is zero at this scale.
+clearly labeled, and is zero at this scale.
 
 Run it with the three parties as processes, headless or live:
 
@@ -494,7 +494,7 @@ detector dead time across records, and what long dead times do to the clicks.
 - **Lasers:** the envelope is averaged over each sample bin, so a 100 ps pulse is exact at any
   timebase. Phase is a Wiener process from the linewidth, drawn once per acquisition and shared
   by all paths. That makes interferometer visibility and Alice/Bob phase drift physical. A white
-  relative intensity noise (`rin_db_hz`) can be added, also one realisation shared by all paths;
+  relative intensity noise (`rin_db_hz`) can be added, also one realization shared by all paths;
   shot noise comes on top at detection. See
   [examples/laser_noise.md](examples/laser_noise.md).
 - **Photodiode:** I = Σ R(λ)·P + I_dark plus white shot noise (density 2qI) and thermal noise
@@ -508,7 +508,7 @@ detector dead time across records, and what long dead times do to the clicks.
   [Theory](#theory-modulators-delay-lines-balanced-detection-and-the-instruments) below.
 - **Steady-state report:** `phoq.report(setup)` gives mean powers, currents, open-connector
   emission and warnings. It uses the mutual coherence γ(Δτ) = exp(−πΔν|Δτ|) × envelope overlap.
-- **Not modelled:** polarisation, dispersion, nonlinearity, afterpulsing.
+- **Not modeled:** polarization, dispersion, nonlinearity, afterpulsing.
 
 ## Theory: modulators, delay lines, balanced detection and the instruments
 
@@ -553,13 +553,13 @@ real devices split slightly unequally, which rounds the null off at $T_\min = 1/
 caps the maximum at $T_\max = \mathrm{ER}/(\mathrm{ER}+1)$, where ER is the (linear) extinction
 ratio set by `extinction_db`. $\varphi_0$ (`phi0`) is the arms' intrinsic path difference: it
 shifts the whole curve along $V$, and in a real device it drifts with temperature and charge, which
-is what a bias controller nulls (the drift itself is not modelled). The three bias points for
+is what a bias controller nulls (the drift itself is not modeled). The three bias points for
 $\varphi_0 = 0$:
 
 | $V$ | $T$ | Use |
 | --- | --- | --- |
 | 0 | $\mathrm{ER}/(\mathrm{ER}+1)$ | maximum transmission (default, nothing connected) |
-| $V_\pi/2$ | ½ | *quadrature*: $dT/dV = -\pi k/2V_\pi$, the steepest and most linear point, for analogue modulation |
+| $V_\pi/2$ | ½ | *quadrature*: $dT/dV = -\pi k/2V_\pi$, the steepest and most linear point, for analog modulation |
 | $V_\pi$ | $1/(\mathrm{ER}+1)$ | *null*: pulse carving, vacuum / decoy states |
 
 At quadrature a small drive $v$ gives $T \approx \tfrac12 - \tfrac{\pi}{2V_\pi}v$, i.e. a modulation
@@ -568,7 +568,7 @@ device with $V_\pi$ = 4 V swings $T$ between about 0.30 and 0.70). `im.voltage_f
 $`V = (V_\pi/\pi)\left[\arccos\!\big((2T - 1)/k\big) - \varphi_0\right] - V_\mathrm{bias}`$, so protocol
 code can ask for a transmission. Asking for 0 or 1 gives the null or the maximum.
 
-**Time base.** A function-generator pattern has one value per symbol, symbol $k$ centred on
+**Time base.** A function-generator pattern has one value per symbol, symbol $k$ centered on
 $t = k/f_\mathrm{sym}$. With the default *aligned* time base the generator is treated as a
 calibrated AWG locked to the laser clock: the voltage a pulse sees is evaluated at the pulse's
 emission time, so pulse $k$ meets symbol $k$ in whichever modulator the channel drives, whatever
@@ -698,7 +698,7 @@ and IQM-1's inspector shows the bias point in degrees and the carrier it leaves.
 | 16-QAM mean power: report against synthesized fields | 5/18 of the input | to 1 % |
 | Through the receiver against the model, four cases | the fit on `field()` | angle 0.5°, gain 0.02, carrier 1.5 dB, outer/inner 0.06, EVM 8 % |
 
-Not modelled:
+Not modeled:
 
 - The RF bandwidth (25 GHz for the MXIQ-LN-30): drives act instantly, so keep the symbol rate well
   below it.
@@ -776,7 +776,7 @@ power.
 The coupling law is the one Wang et al. (2024) derive for a fiber delay line, and phoq reproduces
 their computed curves (see [Checked against the literature](#checked-against-the-literature)).
 
-Not modelled: stage pitch and yaw (beam walk-off adds loss across the travel: for 12 mm lenses 1 m
+Not modeled: stage pitch and yaw (beam walk-off adds loss across the travel: for 12 mm lenses 1 m
 apart, Wang et al. find that a 0.0085° tilt or a 0.86 mm offset of the coupling lens halves the
 coupling), back-reflection from the collimator faces, thermal drift, backlash and repeatability.
 
@@ -958,9 +958,9 @@ wind lidar, distributed fiber vibration sensing and OCT.
 
 ### Oscilloscope
 
-The signal chain is detector → analogue front end → sampler → record → display and measurements.
+The signal chain is detector → analog front end → sampler → record → display and measurements.
 
-**Front end.** The input bandwidth $f_\mathrm{BW}$ (`bandwidth`) is modelled as two identical
+**Front end.** The input bandwidth $f_\mathrm{BW}$ (`bandwidth`) is modeled as two identical
 first-order poles at $`f_1 = 1.554\,f_\mathrm{BW}`$, chosen so that $|H(f_\mathrm{BW})|^2 = \tfrac12$:
 
 ```math
@@ -980,7 +980,7 @@ f_s = \min\!\left(f_\mathrm{set},\; N_\max / W\right), \qquad N = f_s W, \qquad 
 ```
 
 so a 5 GS/s scope with 20 000 points runs at 5 GS/s up to 400 ns/div and drops to 2 MS/s at
-1 ms/div, as a real instrument does. Internally the analogue signal is computed on a grid
+1 ms/div, as a real instrument does. Internally the analog signal is computed on a grid
 $\Delta t/k$ with $k = \lceil 6 f_\mathrm{BW}\Delta t\rceil$ (capped) so the front end is resolved,
 then *point-sampled* at the sample instants with no anti-alias filter. A component at frequency
 $f$ therefore appears at the folded frequency
@@ -1016,7 +1016,7 @@ always use every sample.
 divisions about its offset, and samples off the screen read the end codes. `ScopeResult.codes(ch)`
 returns the integer codes. At 0, the default, samples are exact.
 
-**Not modelled:** ADC non-linearity and interleaving errors, equivalent-time sampling, trigger jitter
+**Not modeled:** ADC non-linearity and interleaving errors, equivalent-time sampling, trigger jitter
 and holdoff, probe loading. On the modulators: the electrodes' capacitance and velocity mismatch, which make a
 real EOM a low-pass on its drive (the generator's voltage is applied instantaneously); bias drift
 and its controller; chirp of single-drive devices.
@@ -1104,7 +1104,7 @@ S_i(f) = \frac{4\mathcal{R}^2P_1P_2}{\pi}\,\frac{\Delta\nu}{\Delta\nu^2 + f^2}
 ```
 
 The RF spectrum is the optical lineshape convolved with itself, a Lorentzian of half width
-$\Delta\nu$ centred at 0 Hz. In homodyne (no frequency shift) it folds about DC, so **the −3 dB
+$\Delta\nu$ centered at 0 Hz. In homodyne (no frequency shift) it folds about DC, so **the −3 dB
 frequency equals the laser linewidth**. The heterodyne version, with an acousto-optic shift
 $f_\mathrm{AOM}$, shows the same Lorentzian around $f_\mathrm{AOM}$ with a full −3 dB width of $2\Delta\nu$.
 The level falls 20 dB at $`f = \sqrt{99}\,\Delta\nu \approx 9.95\,\Delta\nu`$. This is the review's rule
@@ -1132,7 +1132,7 @@ $f_\mathrm{AOM}$ in the heterodyne version), the spectrum is the Lorentzian abov
 S_i(f) = \frac{4\mathcal{R}^2P_1P_2}{\pi}\,\frac{\Delta\nu}{\Delta\nu^2+f^2}\Big\lbrace 1 - e^{-2\pi\Delta\nu\tau_d}\Big[\cos 2\pi f\tau_d + \frac{\Delta\nu}{f}\sin 2\pi f\tau_d\Big]\Big\rbrace
 ```
 
-plus a coherent line at the centre of weight $e^{-2\pi\Delta\nu\tau_d}$ (at 0 Hz in homodyne, where the
+plus a coherent line at the center of weight $e^{-2\pi\Delta\nu\tau_d}$ (at 0 Hz in homodyne, where the
 AC-coupled input blocks it). The fringes have period $1/\tau_d$ and depth $e^{-2\pi\Delta\nu\tau_d}$, the
 coherence left between the arms. Averaged over eight settings of a `PhaseShifter` in the short arm,
 phoq's spectrum matches this expression in absolute level to 0.07 dB rms from 20 kHz to 1.5 MHz,
@@ -1252,7 +1252,7 @@ backscattering in the spool (§5 notes double Rayleigh scattering distorts the l
 ### Laser intensity noise and shot noise
 
 `Laser(rin_db_hz=…)` gives a laser classical relative intensity noise: a white one-sided PSD of
-δP/P̄ in dB/Hz, one realisation per laser shared by all its paths. Shot noise is drawn at detection,
+δP/P̄ in dB/Hz, one realization per laser shared by all its paths. Shot noise is drawn at detection,
 so a photodiode reads $`S_I = \mathcal R^2\bar P^2\,\mathrm{RIN} + 2q\bar I + 4k_BT/R`$.
 `examples/laser_noise.py` measures both with a PDB450C at 10⁵ V/A and the spectrum analyzer:
 
@@ -1298,7 +1298,7 @@ Only $\sigma_Q$ is unpredictable. The script estimates three things:
   sample's classical part and guesses its bin, $`H = -\log_2\max\{c_1, \mathrm{erf}(\delta/2\sqrt2\sigma_Q)\}`$.
   Here c₁ is the end bin, reached when the classical noise pushes a sample up to 5σ_E toward it.
 - **Min-entropy against quantum side information** (Gehring Eq. 67). The excess noise is a thermal
-  state of n photons on a vacuum of variance g², so σ² = g²(1+2n). The bound is maximised over δ;
+  state of n photons on a vacuum of variance g², so σ² = g²(1+2n). The bound is maximized over δ;
   for n = 0 it is the classical bound.
 - **Correlations** (Gehring Eqs. 14, 22, 24). Only what the past cannot predict counts:
   $`\sigma_X^2 = \exp\langle\ln f(\lambda)\rangle`$, the geometric mean of the samples' PSD. Likewise
@@ -1350,7 +1350,7 @@ The bounds reproduce the papers' own numbers (`tests/test_qrng.py`):
 
 phoq's "quantum" noise is numpy's pseudo-random generator, so this models a QRNG's design (power,
 balance, bandwidth against sample rate, ADC range and resolution, extraction) and not its
-randomness. Not modelled: the detector's AC coupling, the ADC's non-linearity and interleaving
+randomness. Not modeled: the detector's AC coupling, the ADC's non-linearity and interleaving
 errors (which cost Gehring 7.23 of their 10.74 bits), and drifts that would break stationarity.
 [examples/laser_noise.md](examples/laser_noise.md) connects this to the shot-noise measurement.
 
@@ -1386,7 +1386,7 @@ The models above were compared with twelve references (October 2026):
   earlier clamp in `IntensityModulator`; Eq. (7) the sum $V = V_\mathrm{RF} + V_\mathrm{DC}$ that the
   `rf` and `bias` inputs implement; Eq. (8) the drift term $\varphi_\mathrm{drift}$ behind the new
   `phi0`; and Eqs. (9)–(10) the push–pull drive. The paper's bias-control and predistortion
-  sections (§4–5) are not modelled. AOMs are not part of the lab.
+  sections (§4–5) are not modeled. AOMs are not part of the lab.
 - *J.-Q. Chen et al., "Linewidth measurement of a narrow-linewidth laser: principles, methods, and
   systems", Sensors 24, 3656 (2024), [doi:10.3390/s24113656](https://doi.org/10.3390/s24113656).*
   §2.2 and Fig. 1b: the delayed self-homodyne interferometer that `examples/linewidth_homodyne.py`
@@ -1447,7 +1447,7 @@ The models above were compared with twelve references (October 2026):
   16-QAM and 64-QAM at ½(i + jq). Figs. 2.27–2.28: undershoots and chirp at the symbol
   transitions, which need the RF bandwidth phoq does not model. See
   [IQ modulator](#iq-modulator) and `tests/test_iq_modulator.py`. Eqs. (2.3)–(2.8): laser phase
-  noise as a random walk with a Lorentzian line, which is `Laser.phase`, and RIN modelled as white
+  noise as a random walk with a Lorentzian line, which is `Laser.phase`, and RIN modeled as white
   Gaussian noise, which is `Laser.rin_db_hz`.
 - *R. Paschotta, RP Photonics Encyclopedia:
   [phase noise](https://www.rp-photonics.com/phase_noise.html),
@@ -1471,13 +1471,13 @@ The models above were compared with twelve references (October 2026):
   [doi:10.1038/s41467-020-20813-w](https://doi.org/10.1038/s41467-020-20813-w).*
   - Eqs. (3) and (49)–(51): Gaussian outcomes of variance g²(1+2n), and the ADC's d bins with end
     bins beyond ±R.
-  - Eq. (67), maximised over δ: the min-entropy against quantum side information.
+  - Eq. (67), maximized over δ: the min-entropy against quantum side information.
   - Eqs. (9)–(11): the same at the best ADC range.
   - Eqs. (14), (22), (24): correlated samples, through conditional variances from the PSD.
   - Eq. (1): the leftover hash lemma.
   - `examples/vacuum_noise_qrng.py` implements all of these and reproduces Table 1's 10.74 bits to 0.04 bit, and
     the 1024 extracted bits.
-  - Not modelled: their ADC's non-linearity, measured at 7.23 bits of loss, and the transfer-function
+  - Not modeled: their ADC's non-linearity, measured at 7.23 bits of loss, and the transfer-function
     calibration of the vacuum level (in phoq the dark noise is measured directly).
 - *S. Park et al., "Precision-balanced homodyne quantum random number generator with uncorrelated
   IID raw data and NIST-compliant full-entropy extraction", Phys. Scr. 100, 095117 (2025),
@@ -1489,7 +1489,7 @@ The models above were compared with twelve references (October 2026):
   - §3.3: correlations falling as the bandwidth exceeds the ADC's Nyquist frequency.
   - Eqs. (7)–(8): the min-entropy against classical side information, which reproduces their 13.37
     bits exactly.
-  - Not modelled: their NIST SP 800-90B assessment, SHA3-384 conditioning and SP 800-22 suite, which
+  - Not modeled: their NIST SP 800-90B assessment, SHA3-384 conditioning and SP 800-22 suite, which
     phoq replaces with a Toeplitz extractor and three quick checks.
 
 ## Quantum protocols
@@ -1521,12 +1521,12 @@ and shows that the framework is protocol-agnostic. It is phase-coding BB84 with 
 pulses and three decoy intensities: Alice's pulsed laser → intensity modulator (μ, ν or vacuum
 per pulse) → unbalanced Mach–Zehnder interferometer with a phase modulator in the long arm
 (φ ∈ {0, π} for Z, {π/2, 3π/2} for X between the early and the late time slot) → VOA calibrated to
-μ → fiber spool → Bob's matching interferometer (phase shifter for the stabilisation, phase
+μ → fiber spool → Bob's matching interferometer (phase shifter for the stabilization, phase
 modulator for θ = 0 or π/2) → two SPDs → time tagger with three bins per pulse. In the middle
 bin the late half of the early slot interferes with the early half of the late slot: DET-0 clicks
 for φ − θ = 0, DET-1 for π, and the satellite bins are ignored. `build()` calibrates μ at the
 fiber input and the interferometer phase, then adds the residual phase error of an imperfectly
-stabilised interferometer (0.2 rad ≈ 1 % QBER).
+stabilized interferometer (0.2 rad ≈ 1 % QBER).
 
 ```bash
 phoq run --protocol bb84 --blocks 20
@@ -1574,9 +1574,9 @@ period $T$ longer. It is built from two `Coupler`s and standard cords: 0.5 m + 0
 205 ps (100 ps insertion delay and 105 ps on the dial; see [Optical delay line](#optical-delay-line)). Each output slot then
 holds pulse $k$ on top of pulse $k-1$, so the constructive port receives
 $\tfrac12[1 + V\cos(\varphi_k - \varphi_{k-1} + \theta)]$ of the light and the destructive port the
-rest. Here $V = e^{-\pi\Delta\nu T}$ is the coherence between neighbouring pulses. This is the
+rest. Here $V = e^{-\pi\Delta\nu T}$ is the coherence between neighboring pulses. This is the
 demodulator of differential phase-shift keying (DPSK) and the monitoring line of coherent one-way
-(COW) QKD, which checks that neighbouring non-empty pulses keep their phase relation: an attack
+(COW) QKD, which checks that neighboring non-empty pulses keep their phase relation: an attack
 that measures and re-prepares pulses breaks it, and the visibility drops.
 
 The interferometer lives in `examples/dli.py`, a helper module, and two benches use it, each
@@ -1602,7 +1602,7 @@ DPSK demodulation (photodiodes, one 2 µs scope sweep)
 `phoq serve examples/dli_for_dpsk.py` opens this bench. The scope shows the constructive port
 (CH1), the destructive port (CH2) and the bits (CH3, the generator's second channel delayed into
 the decoding slot); every "1" leaves by the destructive port. In the inspector, turn `DLI-PS`'s
-phase to swap the ports, raise `LD-1`'s linewidth to 10 or 100 MHz to watch neighbouring pulses
+phase to swap the ports, raise `LD-1`'s linewidth to 10 or 100 MHz to watch neighboring pulses
 lose their phase relation, or tick *Random phase per pulse* to break it altogether.
 
 **COW monitoring line: `examples/dli_for_cow.py`.** Bits as a pulse in one of two slots, 10 %
@@ -1710,7 +1710,7 @@ QBER 0.0119 on the whole sifted key (expected 0.0116)
 V raw 0.9484 (expected 0.9471) · net 0.9920 (decoy 0.9923, 1-0 0.9941; expected 0.9928)
 ```
 
-The net visibility is the coherence of neighbouring pulses, $e^{-\pi\Delta\nu\tau}$ = 0.993 for
+The net visibility is the coherence of neighboring pulses, $e^{-\pi\Delta\nu\tau}$ = 0.993 for
 1 MHz over one slot. Dark counts on DM2 bring the raw value down to 0.947. With the gain-switched
 source, the data line is unchanged (QBER 1.1 %) but V averages −0.003 ± 0.034 over 12 runs. The
 paper measured raw V ≥ 92 % and net V ≈ 98 %. Its QBER was 5.2 %, but 4 % of that came from
@@ -1791,10 +1791,10 @@ The data line cannot tell. Bob's detection rate stays where it was with the stat
 QBER moves by a few tenths of a percent (her leak, below), because a time-of-arrival measurement
 disturbs nothing the data line reads. The
 visibilities fall with the intercepted fraction p_IR (the paper's notation; f stays the decoy
-fraction). Coherence survives only where both neighbouring pulses come from one
+fraction). Coherence survives only where both neighboring pulses come from one
 laser. Across a 1-0 boundary that means both bits were left alone, probability (1 − p_IR)², or
 both were re-sent by Eve (p_IR²·q). Inside a decoy it means the decoy was left alone, or Eve
-recognised it and re-sent a decoy (p_IR·q). Weighted by Bob's monitoring clicks,
+recognized it and re-sent a decoy (p_IR·q). Weighted by Bob's monitoring clicks,
 
 ```math
 V_d = (1-p_{IR})\,V + p_{IR}\,c\,V_E, \qquad V_{1-0} = (1-p_{IR})^2\,V + p_{IR}^2\,c\,V_E, \qquad c = q + 2(1-q)\sqrt{\varepsilon_E},
@@ -1804,7 +1804,7 @@ with V = V_E = 0.993 the coherence of either laser over one slot. The √ε_E te
 modulator leak: next to a pulse she re-sends alone, the empty slot still holds her laser's light
 at √ε_E of the pulse's amplitude, coherent with it. That adds 0.017 at 40 dB extinction and
 0.054 at 30 dB. (`eve_theory()` also keeps the switch's −40 dB crosstalk, which lets a diverted
-pulse of Alice's interfere with an untouched neighbour: +0.005 at most.) V₁₋₀ falls faster than
+pulse of Alice's interfere with an untouched neighbor: +0.005 at most.) V₁₋₀ falls faster than
 V_d, because intercepting a fraction of the bits breaks every boundary between an intercepted bit
 and one left alone. This is why the paper requires V₁₋₀ = V_d.
 
@@ -1812,7 +1812,7 @@ The paper estimates the damage as 1 − V = I·ξ. Here I = p_IR: with the flux 
 Bob gets in an attacked pair is a bit Eve re-sent and knows. ξ = 2e^{−μt}/(1 + e^{−μt}) is the
 chance that Eve saw one pulse of a decoy and not the other; with e^{−μt} → 1 − q, ξ = 0.925. That
 estimate counts decoy events, while Bob's clicks weight them by photons, and a decoy Eve
-recognises carries two pulses. The visibility therefore drops by p_IR·(1 − c)·V = 0.84 p_IR rather
+recognizes carries two pulses. The visibility therefore drops by p_IR·(1 − c)·V = 0.84 p_IR rather
 than p_IR·ξ = 0.925 p_IR. The two agree for small q and a dark modulator; the table's last column
 gives the paper's V.
 
@@ -1842,7 +1842,7 @@ clicks alone.
 
 - Alice: a CW laser and an intensity modulator. Her AWG runs at 100 MHz + 23.4 ppm (Bob does not
   know the offset) with four samples per symbol, and plays each bit of an L = 1000-bit string as
-  (s_k, 0, 0, 0). A 1 lights a 2.5 ns pulse centred on her clock tick, a 0 stays dark, and a frame
+  (s_k, 0, 0, 0). A 1 lights a 2.5 ns pulse centered on her clock tick, a 0 stays dark, and a frame
   is P = 10 µs. A VOA sets 0.2 photons per "1" pulse at the detector.
 - Bob: a single-photon detector (η = 25 %, 1 µs dead time) and a free-running time tagger with
   100 ps bins: no delay compensation, no lock to Alice, and an unknown 3.21 µs clock epoch, set as
@@ -1852,7 +1852,7 @@ The analysis uses only the time stamps, the agreed string and the nominal rate:
 
 1. **Clock.** The click train has a spectral line at Alice's symbol rate. The FFT of the click
    histogram finds it to one FFT bin (1/T = 500 Hz for a 2 ms record). The periodogram of the time
-   stamps themselves, $Z(f) = |\sum_i e^{2\pi i f t_i}|^2$, maximised around that bin, then fits the
+   stamps themselves, $Z(f) = |\sum_i e^{2\pi i f t_i}|^2$, maximized around that bin, then fits the
    clicks' phase against time. Its precision is $`\sigma_f \approx \sqrt{12}\,f\sigma_t/(T\sqrt N)`$
    for N clicks spread by $\sigma_t$ around the clock ticks, here the 2.5 ns pulse's 0.72 ns rms:
    tens of ppb.
@@ -1910,7 +1910,7 @@ symbols), a rhythm of its own right next to the 1000-symbol frame:
   only reaches about N/√(2L) ≈ 4.5 σ there.
 - With 1900 clicks the true L wins at 38 σ, but the rhythm still shows at 10 σ.
 - A 50 ns detector, as with SNSPDs, gives ten times the clicks in the same 200 µs and takes the
-  artefact away (a 2.8 σ floor).
+  artifact away (a 2.8 σ floor).
 
 The clock and the delay never needed the blind check, since they use the agreed L.
 `tests/test_sync.py` runs the 50 ns case and the saturated 1 µs case.

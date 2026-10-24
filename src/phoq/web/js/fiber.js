@@ -11,7 +11,7 @@ export const CONN_LEN = 4.0;          // ferrule face → end of strain-relief b
 export const CONN_SEAT = 0.8;         // how far the coupling nut slides over the receptacle
 export const REST_Y = 0.6;            // connector axis height when lying on the table (nut radius 0.56)
 const CABLE_R = 0.16;
-const CABLE_Y = CABLE_R + 0.04;       // cable centre line when lying on the breadboard
+const CABLE_Y = CABLE_R + 0.04;       // cable center line when lying on the breadboard
 
 /**
  * A curve that never dips below `floor`. Catmull-Rom splines overshoot where a cable drops
@@ -63,7 +63,7 @@ export class FiberEnd {
     this.dir = new THREE.Vector3(1, 0, 0);
 
     this.connector = 'FC/UPC';
-    this.bodyMat = connMat.body.clone();   // coloured by connector type
+    this.bodyMat = connMat.body.clone();   // colored by connector type
     this.bootMat = connMat.boot.clone();
     const g = new THREE.Group();
     const along = (mesh, z) => { mesh.rotation.x = Math.PI / 2; mesh.position.z = z; mesh.castShadow = true; g.add(mesh); return mesh; };
@@ -86,7 +86,7 @@ export class FiberEnd {
     g.add(this.glow);
   }
 
-  /** Connector housing and boot in the type's colour: FC/UPC blue, FC/APC green. */
+  /** Connector housing and boot in the type's color: FC/UPC blue, FC/APC green. */
   setConnector(type) {
     this.connector = type ?? 'FC/UPC';
     const c = connectorColor(this.connector);
@@ -217,7 +217,7 @@ export class FiberVisual {
     const P = this.flow.fwd + this.flow.bwd;
     if (showFlow && P > 1e-12) {
       const level = Math.min(1, Math.max(0.15, (Math.log10(P) + 10) / 8));   // 100 pW → dim, 10 mW → full
-      this.material.color.setHex(0x6e5c10);      // darker jacket so the light colour reads
+      this.material.color.setHex(0x6e5c10);      // darker jacket so the light color reads
       this.material.emissive.setHex(wavelengthColor(this.flow.wavelength).hex);
       this.material.emissiveIntensity = 0.25 + 0.9 * level;
       this.flowTex.offset.x -= (this.flow.fwd >= this.flow.bwd ? 1 : -1) * dt * 1.6;

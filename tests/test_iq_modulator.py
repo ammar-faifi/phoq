@@ -1,8 +1,9 @@
-"""IQ modulator against M. Seimetz, "High-Order Modulation for Optical Fiber Transmission" (Springer
-2009), ch. 2: the field transfer function at the operating point (Eqs. 2.15–2.18), the arcsin drive
-of the conventional IQ transmitter (Eqs. 2.46–2.47), and the MZM it is built from (Eqs. 2.13–2.14);
-then the finite extinction, the engine's steady state against synthesized fields, the Exail
-MXIQ-LN presets and absolute maximum ratings, and the bench of examples/iq_modulator.py.
+"""IQ modulator against M. Seimetz, "High-Order Modulation for Optical Fiber
+Transmission" (Springer 2009), ch. 2: the field transfer function at the operating point
+(Eqs. 2.15–2.18), the arcsin drive of the conventional IQ transmitter (Eqs. 2.46–2.47),
+and the MZM it is built from (Eqs. 2.13–2.14); then the finite extinction, the engine's
+steady state against synthesized fields, the Exail MXIQ-LN presets and absolute maximum
+ratings, and the bench of examples/iq_modulator.py.
 """
 
 import math
@@ -27,15 +28,16 @@ EX = run_path(str(Path(__file__).resolve().parents[1] / "examples" / "iq_modulat
 
 
 def ideal(**kw) -> IQModulator:
-    """MXIQ-LN-30 electrodes with MZMs of 80 dB extinction: within 10⁻⁴ of a perfect modulator."""
+    """MXIQ-LN-30 electrodes with MZMs of 80 dB extinction: within 10⁻⁴ of a perfect
+    modulator."""
     return IQModulator(
         v_pi=5.0, v_pi_bias=6.0, v_pi_phase=9.5, extinction_db=80.0, **kw
     )
 
 
 def test_operating_point_gives_seimetz_eq_2_16_to_2_18():
-    """MZMs at the null, arms in quadrature: E_out/E_in = ½cos(Δφ_I/2) + j½cos(Δφ_Q/2), with
-    Δφ = u·π/Vπ and u the RF drive on top of the −Vπ bias (Eq. 2.15)."""
+    """MZMs at the null, arms in quadrature: E_out/E_in = ½cos(Δφ_I/2) + j½cos(Δφ_Q/2),
+    with Δφ = u·π/Vπ and u the RF drive on top of the −Vπ bias (Eq. 2.15)."""
     iqm = ideal()
     b = iqm.operating_bias()
     rf_i, rf_q = np.meshgrid(np.linspace(-5, 5, 21), np.linspace(-5, 5, 21))
@@ -64,7 +66,8 @@ def test_operating_point_gives_seimetz_eq_2_16_to_2_18():
     [[-1, -1 / 3, 1 / 3, 1], [-1, -5 / 7, -3 / 7, -1 / 7, 1 / 7, 3 / 7, 5 / 7, 1]],
 )
 def test_arcsin_drive_places_square_qam_exactly(levels):
-    """Eqs. (2.46)–(2.47), u = (2Vπ/π)·arcsin(i): 16-QAM and 64-QAM land on ½(i + jq)."""
+    """Eqs. (2.46)–(2.47), u = (2Vπ/π)·arcsin(i): 16-QAM and 64-QAM land on
+    ½(i + jq)."""
     iqm = ideal()
     b = iqm.operating_bias()
     sym = np.add.outer(np.array(levels), 1j * np.array(levels)).ravel()
@@ -114,9 +117,9 @@ def outer_fringe_bench():
 
 
 def test_dc3_alone_sweeps_the_outer_interferometer():
-    """Both MZMs at full transmission (0 V) carry the same real field, so the outer arms interfere
-    fully: P ∝ cos²(φ_P/2), φ_P = π·V_DC3/Vπ_DC3. Static, so the report takes the modulator's exact
-    complex factor."""
+    """Both MZMs at full transmission (0 V) carry the same real field, so the outer arms
+    interfere fully: P ∝ cos²(φ_P/2), φ_P = π·V_DC3/Vπ_DC3. Static, so the report takes
+    the modulator's exact complex factor."""
     s = outer_fringe_bench()
     iqm, psu = s["IQM"], s["PSU"]
     full = report(s)["detectors"]["PM"]["power"]
@@ -131,8 +134,9 @@ def test_dc3_alone_sweeps_the_outer_interferometer():
 
 
 def test_steady_state_matches_synthesized_16qam():
-    """Driven by 16-QAM patterns, the report's mean power (mean_factor over the symbols) equals the
-    time average of the synthesized field, ¼·E[i² + q²] = 5/18 of the input at the operating point.
+    """Driven by 16-QAM patterns, the report's mean power (mean_factor over the symbols)
+    equals the time average of the synthesized field, ¼·E[i² + q²] = 5/18 of the input
+    at the operating point.
     """
     s = outer_fringe_bench()
     iqm = s["IQM"]
@@ -199,8 +203,8 @@ def test_ratings_are_checked_on_every_electrode():
 
 @pytest.mark.parametrize("title, kw", EX["CASES"])
 def test_the_receiver_reads_what_the_transfer_function_predicts(title, kw):
-    """Through the 90° hybrid, the balanced detectors, the scope and the DSP: the same fit as on
-    IQM.field() of each symbol, to within the receiver's noise."""
+    """Through the 90° hybrid, the balanced detectors, the scope and the DSP: the same
+    fit as on IQM.field() of each symbol, to within the receiver's noise."""
     setup = EX["build"](**kw)
     r, m = EX["measure"](setup), EX["model"](setup)
     assert r["angle"] == pytest.approx(m["angle"], abs=0.5)
@@ -211,8 +215,9 @@ def test_the_receiver_reads_what_the_transfer_function_predicts(title, kw):
 
 
 def test_the_cases_show_their_signatures():
-    """Each bias error moves its own number: DC3 the I/Q angle, DC1 the carrier, a linear drive
-    the ratio of the outer to the inner levels (sin 90°/sin 30° = 2 instead of 3)."""
+    """Each bias error moves its own number: DC3 the I/Q angle, DC1 the carrier, a
+    linear drive the ratio of the outer to the inner levels (sin 90°/sin 30° = 2 instead
+    of 3)."""
     m = {title: EX["model"](EX["build"](**kw)) for title, kw in EX["CASES"]}
     assert m["operating point"]["angle"] == pytest.approx(90.0, abs=0.05)
     assert m["DC3 10° off quadrature"]["angle"] == pytest.approx(100.0, abs=0.05)

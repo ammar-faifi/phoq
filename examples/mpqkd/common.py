@@ -1,11 +1,13 @@
-"""What the MP-QKD parties share: public parameters, the hardware, the post-processing maths.
+"""What the MP-QKD parties share: public parameters, the hardware, the post-processing
+math.
 
-Everything here is public knowledge — the protocol's parameters (μ, ν, their probabilities, D, the
-pairing interval l, the disclosed-sample fraction, the post-processing sizes) are agreed before the
-run ([CLASSICAL #2] in ``examples/mpqkd/reference.py``),
-and the pairing / sifting functions are the deterministic algorithms both stations run on the
-same public announcements. Private data (each station's intensities and phases) never passes
-through this module's functions except inside that station's own process.
+Everything here is public knowledge — the protocol's parameters (μ, ν, their
+probabilities, D, the pairing interval l, the disclosed-sample fraction, the
+post-processing sizes) are agreed before the run ([CLASSICAL #2] in
+``examples/mpqkd/reference.py``), and the pairing / sifting functions are the
+deterministic algorithms both stations run on the same public announcements. Private
+data (each station's intensities and phases) never passes through this module's
+functions except inside that station's own process.
 """
 
 from __future__ import annotations
@@ -37,26 +39,30 @@ STATIONS = ("ALICE", "BOB")
 
 
 class Topic:
-    """Message topics on the classical channel (see ``examples/mpqkd/reference.py`` [CLASSICAL #1–#5])."""
+    """Message topics on the classical channel (see ``examples/mpqkd/reference.py``
+    [CLASSICAL #1–#5])."""
 
     CLICKS = "clicks"  # #1 Charlie → all: single-click rounds and which detector
-    BASIS = "basis"  # #3 Alice ↔ Bob: basis label per pair (Z / X / '0'), never the intensities
+    # #3 Alice ↔ Bob: basis label per pair (Z / X / '0'), never the intensities
+    BASIS = "basis"
     THETA = "theta"  # #4 Alice ↔ Bob: alignment angle of each X pair
     XBITS = "xbits"  # #5 Alice ↔ Bob: X-basis bits, disclosed for error estimation
-    SAMPLE = (
-        "sample"  # #5 leader → partner: positions and bits of a Z sample to disclose
+    SAMPLE = (  # #5 leader → partner: positions and bits of a Z sample to disclose
+        "sample"
     )
     SAMPLE_REPLY = "sample-reply"  # #5 partner → leader: its bits at those positions
-    EC_START = "ec-start"  # #6 leader → partner: the chunk to reconcile, Cascade seed, first parities
+    # #6 leader → partner: the chunk to reconcile, Cascade seed, first parities
+    EC_START = "ec-start"
     EC_QUERY = "ec-query"  # #6 partner → leader: parities wanted (pass, lo, hi)
-    EC_PARITY = (
-        "ec-parity"  # #6 leader → partner: those parities (each one a leaked bit)
+    EC_PARITY = (  # #6 leader → partner: those parities (each one a leaked bit)
+        "ec-parity"
     )
-    EC_DONE = (
-        "ec-done"  # #6 partner → leader: Cascade finished, verification tag of its key
+    EC_DONE = (  # #6 partner → leader: Cascade finished, verification tag of its key
+        "ec-done"
     )
     VERIFIED = "verified"  # #6 leader → partner: tag matched (or not: chunk dropped)
-    PA = "pa"  # #6 leader → partner: Toeplitz seed and output length for the verified chunks
+    # #6 leader → partner: Toeplitz seed and output length for the verified chunks
+    PA = "pa"
 
 
 @dataclass
@@ -75,7 +81,7 @@ class MPQKDParams:
     )
     verify_bits: int = 32  # universal-hash tag that confirms the corrected chunks agree
     estimator: str = "model"  # how e_11^X is sized: "model" (see keyrate.py) or "decoy"
-    eps: float = 1e-10  # security parameter of the (labelled) finite-key estimate
+    eps: float = 1e-10  # security parameter of the (labeled) finite-key estimate
     efficiency: float = 0.5  # detector efficiency
     dark_count_rate: float = 6.25  # [Hz]; ≈ 1e-8 per 1.6 ns bin
     linewidth: float = 3e3  # each laser [Hz]
@@ -85,9 +91,10 @@ class MPQKDParams:
     extinction_db: float = 40.0  # intensity-modulator extinction (vacuum leakage)
 
 
-# ---- the hardware (physical layer) ------------------------------------------------------------------
+# ---- the hardware (physical layer) ---------------------------------------------------
 def build(p: MPQKDParams | None = None, rounds: int = 200_000) -> Setup:
-    """The MP-QKD hardware with μ already calibrated. Each station's AWG drives its modulators."""
+    """The MP-QKD hardware with μ already calibrated. Each station's AWG drives its
+    modulators."""
     p = p or MPQKDParams()
     setup = Setup("MP-QKD link")
     for tag in STATIONS:
@@ -133,7 +140,8 @@ def build(p: MPQKDParams | None = None, rounds: int = 200_000) -> Setup:
 
 
 def calibrate_mu(setup: Setup, mu: float) -> dict[str, float]:
-    """Set each station's VOA so ``mu`` photons per pulse enter its fiber link (like a power-meter check)."""
+    """Set each station's VOA so ``mu`` photons per pulse enter its fiber link
+    (like a power-meter check)."""
     out = {}
     for tag in STATIONS:
         laser, voa = setup[f"{tag}-LD"], setup[f"{tag}-VOA"]
@@ -147,7 +155,7 @@ def calibrate_mu(setup: Setup, mu: float) -> dict[str, float]:
     return out
 
 
-# ---- post-processing (ported from examples/mpqkd/reference.py) -----------------------------------------------------
+# ---- post-processing (ported from examples/mpqkd/reference.py) -----------------------
 def simple_pairing(click_idx: np.ndarray, l: int) -> tuple[np.ndarray, np.ndarray]:
     """Box 2: pair the front click with the next one if it is within l rounds."""
     fronts, rears, front = [], [], None
@@ -177,15 +185,17 @@ def draw_levels(rng: np.random.Generator, n: int, p: MPQKDParams) -> np.ndarray:
 
 
 def transmissions(p: MPQKDParams) -> np.ndarray:
-    """Intensity-modulator transmission asked for each level: μ is the calibrated maximum."""
+    """Intensity-modulator transmission asked for each level: μ is the calibrated
+    maximum."""
     return np.array([0.0, p.nu / p.mu, 1.0])
 
 
 def assign_basis(lev_i: np.ndarray, lev_j: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """Basis and announced intensity level of a pair from its two pulse levels (Table of the
-    paper's Methods III.2): one vacuum → Z with the bright level; two equal bright → X with that
-    level; two vacua → '0'; two unequal bright → discarded. Each station computes this from its own
-    draws; the level says *how bright*, never *which* pulse was bright (that is the Z key bit).
+    """Basis and announced intensity level of a pair from its two pulse levels (Table of
+    the paper's Methods III.2): one vacuum → Z with the bright level; two equal bright →
+    X with that level; two vacua → '0'; two unequal bright → discarded. Each station
+    computes this from its own draws; the level says *how bright*, never *which* pulse
+    was bright (that is the Z key bit).
     """
     lev_i, lev_j = np.asarray(lev_i, dtype=np.int8), np.asarray(lev_j, dtype=np.int8)
     nz_i, nz_j = lev_i > 0, lev_j > 0
@@ -198,8 +208,9 @@ def assign_basis(lev_i: np.ndarray, lev_j: np.ndarray) -> tuple[np.ndarray, np.n
 
 
 def sift_and_map(F, R, lev_a, ph_a, lev_b, ph_b, detector, D) -> dict:
-    """God's-eye sifting used by the single-process reference run (both records in one place):
-    the key from the (μ, μ) Z pairs, E_X from the (μ, μ) X pairs."""
+    """God's-eye sifting used by the single-process reference run
+    (both records in one place): the key from the (μ, μ) Z pairs, E_X from the (μ, μ) X
+    pairs."""
     (basis_a, level_a), (basis_b, level_b) = assign_basis(
         lev_a[F], lev_a[R]
     ), assign_basis(lev_b[F], lev_b[R])

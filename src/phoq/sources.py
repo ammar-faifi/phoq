@@ -20,11 +20,12 @@ _FWHM = 2.0 * np.sqrt(2.0 * np.log(2.0))  # Gaussian FWHM / sigma
 class Laser(FiberConnectors, Component):
     """Fiber-coupled DFB laser module with an internal isolator.
 
-    The emitted field is ``sqrt(P(t)·(1 + δ(t))) · exp(i φ(t))`` where the envelope follows ``mode``,
-    the phase performs a random walk set by ``linewidth`` (plus ``detuning`` and, for weak coherent
-    pulse sources, an optional uniformly random phase per pulse), and δ is the laser's classical
-    relative intensity noise, white at ``rin_db_hz``. Shot noise is not part of δ: phoq draws it at
-    detection, so a detector measures RIN = rin + 2hν/(ηP).
+    The emitted field is ``sqrt(P(t)·(1 + δ(t))) · exp(i φ(t))`` where the envelope
+    follows ``mode``, the phase performs a random walk set by ``linewidth`` (plus
+    ``detuning`` and, for weak coherent pulse sources, an optional uniformly random
+    phase per pulse), and δ is the laser's classical relative intensity noise, white at
+    ``rin_db_hz``. Shot noise is not part of δ: phoq draws it at detection, so a
+    detector measures RIN = rin + 2hν/(ηP).
     """
 
     category = "source"
@@ -86,8 +87,10 @@ class Laser(FiberConnectors, Component):
         min=RIN_OFF,
         max=-80.0,
         presets=(RIN_OFF, -160.0, -150.0, -140.0, -130.0, -120.0),
-        doc="One-sided PSD of the classical relative intensity noise δP/P̄, white; the shot noise "
-        "comes on top at detection. −200 dB/Hz = none",
+        doc=(
+            "One-sided PSD of the classical relative intensity noise δP/P̄, white; the"
+            " shot noise comes on top at detection. −200 dB/Hz = none"
+        ),
     )
     phase_randomized = Param(
         False,
@@ -109,7 +112,7 @@ class Laser(FiberConnectors, Component):
         }.get(self.mode, [])
         return f + ["linewidth", "detuning", "rin_db_hz"]
 
-    # ---- derived quantities -------------------------------------------------------------------
+    # ---- derived quantities ----------------------------------------------------------
     @property
     def power(self) -> float:
         """Average output power [W]."""
@@ -156,9 +159,10 @@ class Laser(FiberConnectors, Component):
             )
         return out
 
-    # ---- field synthesis -----------------------------------------------------------------------
+    # ---- field synthesis -------------------------------------------------------------
     def envelope(self, t: np.ndarray, dt: float) -> np.ndarray:
-        """sqrt of the power averaged over [t, t+dt) — exact for any sampling interval."""
+        """sqrt of the power averaged over [t, t+dt) — exact for any sampling
+        interval."""
         P = self.power
         if P <= 0:
             return np.zeros_like(t, dtype=float)
@@ -188,7 +192,8 @@ class Laser(FiberConnectors, Component):
         return np.sqrt(np.clip(avg, 0.0, None))
 
     def _pulse_cum(self, x: np.ndarray) -> np.ndarray:
-        """Number of Gaussian pulses (centred on k/f) emitted before time x, up to a constant."""
+        """Number of Gaussian pulses (centered on k/f) emitted before time x, up to a
+        constant."""
         f, s = self.rep_rate, self.sigma
         k0 = np.floor(x * f)
         m = int(np.ceil(6 * s * f)) + 1
@@ -200,11 +205,13 @@ class Laser(FiberConnectors, Component):
     def intensity_factor(
         self, t: np.ndarray, dt: float, rng: np.random.Generator
     ) -> np.ndarray | None:
-        """√(1 + δ) at emission times ``t`` (bin starts, any shape), or None without intensity noise.
+        """√(1 + δ) at emission times ``t`` (bin starts, any shape), or None without
+        intensity noise.
 
-        δ is white with one-sided PSD S = 10^(rin_db_hz/10): its average over a bin of ``dt`` has
-        variance S/(2·dt). The bins sit on one absolute grid of ``dt``, so every path of this laser
-        that leaves in the same bin carries the same δ, as the phase walk is shared."""
+        δ is white with one-sided PSD S = 10^(rin_db_hz/10): its average over a bin of
+        ``dt`` has variance S/(2·dt). The bins sit on one absolute grid of ``dt``, so
+        every path of this laser that leaves in the same bin carries the same δ, as the
+        phase walk is shared."""
         if self.rin_db_hz <= RIN_OFF:
             return None
         k = np.floor(np.asarray(t, dtype=float) / dt).astype(np.int64)
@@ -217,7 +224,8 @@ class Laser(FiberConnectors, Component):
         return np.sqrt(np.clip(1.0 + delta[k - k0], 0.0, None))
 
     def phase(self, t: np.ndarray, rng: np.random.Generator) -> np.ndarray:
-        """One joint phase realisation evaluated at arbitrary (possibly repeated) times."""
+        """One joint phase realization evaluated at arbitrary (possibly repeated)
+        times."""
         flat = np.asarray(t, dtype=float).ravel()
         phi = np.full(flat.shape, rng.uniform(0, 2 * np.pi))
         if self.linewidth > 0 and flat.size:

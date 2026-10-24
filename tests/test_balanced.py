@@ -1,8 +1,9 @@
-"""Balanced photodetector against the Thorlabs PDB440x/PDB450x operation manual (21709-d02, version
-2.4): RF OUTPUT = (ℜP₁ − ℜP₂)·G (§3.3), the CW saturation powers, monitor conversion gain and monitor
-saturation (§3, Technical Data), CMRR measured the way §3.6 measures it, and the path-length limit of
-§3.7. Then the amplifier's NEP and the two diodes' shot noise, the report's warnings, the 50 Ω load,
-and the bench of examples/balanced_detection.py."""
+"""Balanced photodetector against the Thorlabs PDB440x/PDB450x operation manual
+(21709-d02, version 2.4): RF OUTPUT = (ℜP₁ − ℜP₂)·G (§3.3), the CW saturation powers,
+monitor conversion gain and monitor saturation (§3, Technical Data), CMRR measured the
+way §3.6 measures it, and the path-length limit of §3.7. Then the amplifier's NEP and
+the two diodes' shot noise, the report's warnings, the 50 Ω load, and the bench of
+examples/balanced_detection.py."""
 
 import math
 from pathlib import Path
@@ -42,8 +43,9 @@ def bench(
     power_dbm=5.0,
     analyzer=False,
 ) -> Setup:
-    """Laser → IM (a sine at ``freq`` on the quadrature point, or none) → coupler → INPUT+ and,
-    when ``minus``, INPUT−; RF OUTPUT to a scope (or a spectrum analyzer), MONITOR+ to the scope.
+    """Laser → IM (a sine at ``freq`` on the quadrature point, or none) → coupler →
+    INPUT+ and, when ``minus``, INPUT−; RF OUTPUT to a scope (or a spectrum analyzer),
+    MONITOR+ to the scope.
     """
     s = Setup("balanced")
     laser = s.add(Laser("LD", mode="cw", wavelength=wavelength, power_dbm=power_dbm))
@@ -88,7 +90,8 @@ def scope(s: Setup, seed: int = 1):
 
 
 def tone(v: np.ndarray, t: np.ndarray, freq: float) -> float:
-    """Amplitude of the component at ``freq``, as a network analyzer's receiver measures selectively."""
+    """Amplitude of the component at ``freq``, as a network analyzer's receiver measures
+    selectively."""
     a = np.column_stack(
         [np.cos(2 * np.pi * freq * t), np.sin(2 * np.pi * freq * t), np.ones_like(t)]
     )
@@ -105,8 +108,9 @@ def tone(v: np.ndarray, t: np.ndarray, freq: float) -> float:
     ],
 )
 def test_rf_output_is_the_photocurrent_difference_times_the_gain(preset, wavelength):
-    """§3.3: U_RF = (ℜ(λ)·P₁ − ℜ(λ)·P₂)·G; a 70:30 split leaves 40 % of the light unbalanced.
-    The monitors read each diode alone, and the time-domain output averages to the same.
+    """§3.3: U_RF = (ℜ(λ)·P₁ − ℜ(λ)·P₂)·G; a 70:30 split leaves 40 % of the light
+    unbalanced. The monitors read each diode alone, and the time-domain output averages
+    to the same.
     """
     s = bench(preset=preset, wavelength=wavelength, ratio=0.7, power_dbm=-12.0)
     bpd, net = s["BPD"], trace(s)
@@ -128,7 +132,8 @@ def test_rf_output_is_the_photocurrent_difference_times_the_gain(preset, wavelen
 
 
 def test_single_detector_mode_signs():
-    """§3.2: in single detector mode RF OUTPUT is positive from INPUT+ and negative from INPUT−."""
+    """§3.2: in single detector mode RF OUTPUT is positive from INPUT+ and negative from
+    INPUT−."""
     s = bench(power_dbm=-10.0, minus=False)
     assert report(s)["detectors"]["BPD"]["rf"] > 0
     assert report(s)["detectors"]["BPD"]["status"] == "Single input"
@@ -155,8 +160,8 @@ def test_cw_saturation_monitor_gain_and_monitor_saturation_match_the_manual(
     assert bpd.cw_saturation_power(wavelength) == pytest.approx(
         manual, rel=0.04
     )  # the manual rounds
-    # "conversion gain 10 V/mW" at peak responsivity; "Saturation of the MONITOR outputs will occur
-    # at optical input power greater than 1 mW"
+    # "conversion gain 10 V/mW" at peak responsivity; "Saturation of the MONITOR outputs
+    # will occur at optical input power greater than 1 mW"
     assert bpd.monitor_gain * bpd.peak_responsivity() == pytest.approx(10e3, rel=1e-3)
     assert bpd.monitor_swing / (
         bpd.monitor_gain * bpd.peak_responsivity()
@@ -178,8 +183,8 @@ def test_equal_inputs_leave_the_common_mode_residue(cmrr):
 
 
 def rejection(freq: float, cords=(1.0, 1.0), cmrr=None, seed=1) -> float:
-    """§3.6: the RF OUTPUT's response at ``freq`` from one input, over its response with both
-    inputs lit by the same modulated light (a common-mode signal) [dB]."""
+    """§3.6: the RF OUTPUT's response at ``freq`` from one input, over its response with
+    both inputs lit by the same modulated light (a common-mode signal) [dB]."""
     single, both = (
         bench(freq=freq, cords=cords, cmrr=cmrr, minus=m, gain=1e3)
         for m in (False, True)
@@ -190,15 +195,17 @@ def rejection(freq: float, cords=(1.0, 1.0), cmrr=None, seed=1) -> float:
 
 @pytest.mark.parametrize("freq", [1e6, 30e6])
 def test_cmrr_measured_as_section_3_6_measures_it(freq):
-    """Matched powers and paths: the RF OUTPUT's own frequency response cancels in the ratio."""
+    """Matched powers and paths: the RF OUTPUT's own frequency response cancels in the
+    ratio."""
     assert rejection(freq) == pytest.approx(30.0, abs=0.1)
 
 
 @pytest.mark.parametrize("freq", [1e6, 3e6, 10e6])
 def test_path_length_difference_limits_the_rejection_as_section_3_7_shows(freq):
-    """A path difference Δτ turns the cancellation into |1 − e^(−i2πfΔτ)|: a rejection of
-    −20·log10(2·sin(πfΔτ)), the curves of the §3.7 figure (in air; in fiber ΔL divided by 1.5).
-    1 m and 2 m cords, with an ideal detector so the paths alone limit it."""
+    """A path difference Δτ turns the cancellation into |1 − e^(−i2πfΔτ)|: a rejection
+    of −20·log10(2·sin(πfΔτ)), the curves of the §3.7 figure (in air; in fiber ΔL
+    divided by 1.5). 1 m and 2 m cords, with an ideal detector so the paths alone limit
+    it."""
     s = bench(cords=(1.0, 2.0))
     paths = trace(s).paths[s["BPD"]]
     plus, minus = (
@@ -216,15 +223,17 @@ def test_path_length_difference_limits_the_rejection_as_section_3_7_shows(freq):
 
 
 def noise_bandwidth(bw: float, dt: float) -> float:
-    """Equivalent noise bandwidth of the detector's sampled one-pole filter, → (π/2)·bw as dt → 0."""
+    """Equivalent noise bandwidth of the detector's sampled one-pole filter, → (π/2)·bw
+    as dt → 0."""
     alpha = -math.expm1(-dt * 2 * math.pi * bw)
     return alpha / (2 - alpha) / (2 * dt)
 
 
 @pytest.mark.parametrize("watts", [0.0, 50e-6, 400e-6])
 def test_rf_noise_is_the_nep_plus_both_diodes_shot_noise(watts):
-    """Dark: the amplifier's NEP. Lit: each diode adds its own shot noise 2qi; they are independent,
-    so they add in power, while the light's common mean cancels (the residue is the CMRR's).
+    """Dark: the amplifier's NEP. Lit: each diode adds its own shot noise 2qi; they are
+    independent, so they add in power, while the light's common mean cancels
+    (the residue is the CMRR's).
     """
     bpd = BalancedPhotodetector(preset="thorlabs/pdb450c", gain=1e4)
     bw, nep, _ = bpd.setting()
@@ -280,7 +289,8 @@ def test_report_warns_of_saturation_damage_and_a_missing_gain():
 
 
 def test_spectrum_analyzer_sees_half_the_voltage_on_its_50_ohms():
-    """The manual's swings and conversion gains are for a high-impedance load, half into 50 Ω."""
+    """The manual's swings and conversion gains are for a high-impedance load, half into
+    50 Ω."""
     freq = 1e6
     s = bench(freq=freq, minus=False, power_dbm=0.0)
     amplitude = tone((r := scope(s))["ch1"].data, r.t, freq)

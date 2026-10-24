@@ -1,24 +1,30 @@
 """Balanced detection: a weak heterodyne beat on a noisy local oscillator.
 
-    uv run python examples/balanced_detection.py                  # beat, LO-noise rejection, gain table
-    uv run python examples/balanced_detection.py --plot bpd.png   # also save the three scope traces
-    uv run phoq serve examples/balanced_detection.py              # the bench in 3D
+    # beat, LO-noise rejection, gain table
+    uv run python examples/balanced_detection.py
+    # also save the three scope traces
+    uv run python examples/balanced_detection.py --plot bpd.png
+    # the bench in 3D
+    uv run phoq serve examples/balanced_detection.py
 
-    LO laser, 8 dBm → IM (5 % rms, < 30 kHz) ───────┐            ┌─ 1 m → INPUT+    RF OUTPUT → CH1
-                                                    ├─ 50:50 ────┤                   MONITOR+  → CH2
-    signal laser, −30 dBm, +400 kHz ────────────────┘            └─ 1 m → INPUT−    MONITOR−  → CH3
+    LO laser, 8 dBm → IM (5 % rms, < 30 kHz) ─┐         ┌─ 1 m → INPUT+  RF OUTPUT → CH1
+                                              ├─ 50:50 ─┤                MONITOR+  → CH2
+    signal laser, −30 dBm, +400 kHz ──────────┘         └─ 1 m → INPUT−  MONITOR−  → CH3
 
-The coupler's outputs carry P± = ½(P_LO + P_S) ± √(P_LO·P_S)·cos(2πΔf·t + φ): the LO, with its
-intensity noise, is the same on both inputs, and the beat has opposite signs. The detector subtracts
-the two photocurrents before its transimpedance amplifier, U_RF = G·(ℜ₊P₊ − ℜ₋P₋) (Thorlabs
-PDB440x/PDB450x manual, §3.3): the beat adds up, and the LO and its noise cancel down to the
-common-mode rejection (30 dB leaves 3 % of one diode's), so the half-milliwatt LO on each diode no
-longer saturates the amplifier. Each monitor reads one photodiode alone (10 V/mW, DC–1 MHz): the
-noisy LO with a beat on top that is half the RF's size and in antiphase on the two monitors.
+The coupler's outputs carry P± = ½(P_LO + P_S) ± √(P_LO·P_S)·cos(2πΔf·t + φ): the LO,
+with its intensity noise, is the same on both inputs, and the beat has opposite signs.
+The detector subtracts the two photocurrents before its transimpedance amplifier, U_RF =
+G·(ℜ₊P₊ − ℜ₋P₋) (Thorlabs PDB440x/PDB450x manual, §3.3): the beat adds up, and the LO
+and its noise cancel down to the common-mode rejection
+(30 dB leaves 3 % of one diode's), so the half-milliwatt LO on each diode no longer
+saturates the amplifier. Each monitor reads one photodiode alone (10 V/mW, DC–1 MHz):
+the noisy LO with a beat on top that is half the RF's size and in antiphase on the two
+monitors.
 
-In the lab, CH2 and CH3 show the LO noise moving the two monitors together while CH1 shows a clean
-beat. Untick LD-S's emission to look at what is left of the noise on CH1. Turn the gain switch up
-one step to 10⁵ V/A and the beat's crests clip at the +4.6 V rail.
+In the lab, CH2 and CH3 show the LO noise moving the two monitors together while CH1
+shows a clean beat. Untick LD-S's emission to look at what is left of the noise on CH1.
+Turn the gain switch up one step to 10⁵ V/A and the beat's crests clip at the +4.6 V
+rail.
 """
 
 import argparse
@@ -38,7 +44,8 @@ from phoq import (
 from phoq.engine import report, trace
 from phoq.units import fmt_si
 
-BEAT = 400e3  # signal − LO optical frequency: inside the 45 MHz RF bandwidth and the 1 MHz monitors
+# signal − LO optical frequency: inside the 45 MHz RF bandwidth and the 1 MHz monitors
+BEAT = 400e3
 RIN = 0.05  # the LO's relative intensity noise: 5 % rms, over the band below CORNER
 CORNER = (
     30e3  # its one-pole corner: slow technical wander, not the laser's white rin_db_hz
@@ -48,8 +55,9 @@ CORNER = (
 def lo_noise(
     n: int, rate: float, rms: float = RIN, corner: float = CORNER, seed: int = 5
 ) -> np.ndarray:
-    """Relative intensity fluctuations δ(t), n samples at ``rate``: white noise through a one-pole
-    low-pass at ``corner``, built in the frequency domain so the pattern repeats without a jump.
+    """Relative intensity fluctuations δ(t), n samples at ``rate``: white noise through
+    a one-pole low-pass at ``corner``, built in the frequency domain so the pattern
+    repeats without a jump.
     """
     rng = np.random.default_rng(seed)
     f = np.fft.rfftfreq(n, 1 / rate)
@@ -102,7 +110,8 @@ def build(gain: float = 1e4, signal: bool = True, rin: float = RIN) -> Setup:
     setup.connect(bpd.rf, osc.ch1)
     setup.connect(bpd.mon_plus, osc.ch2)
     setup.connect(bpd.mon_minus, osc.ch3)
-    # the IM sits at quadrature, T = ½, and the pattern moves it by δ: the LO's intensity noise
+    # the IM sits at quadrature, T = ½, and the pattern moves it by δ: the LO's
+    # intensity noise
     rate = 4e6
     fg.set_pattern(
         "ch1", im.voltage_for(0.5 * (1 + lo_noise(2**15, rate, rin))), rate=rate
@@ -131,9 +140,10 @@ def input_powers(setup: Setup, laser: str) -> tuple[float, float]:
 
 
 def expected_beat(setup: Setup, output: str = "rf") -> float:
-    """Beat amplitude at an output. Each diode sees 2ℜ±√(P_LO±·P_S±), in antiphase on the two, so
-    RF OUTPUT, which subtracts them, adds them: G·|H(Δf)|·2(ℜ₊√(P_LO₊·P_S₊) + ℜ₋√(P_LO₋·P_S₋)).
-    A monitor shows its own diode's: 10 V/mW·|H_mon(Δf)|·2ℜ±√(P_LO±·P_S±)."""
+    """Beat amplitude at an output. Each diode sees 2ℜ±√(P_LO±·P_S±), in antiphase on
+    the two, so RF OUTPUT, which subtracts them, adds them: G·|H(Δf)|·2(ℜ₊√(P_LO₊·P_S₊)
+    + ℜ₋√(P_LO₋·P_S₋)). A monitor shows its own diode's: 10
+    V/mW·|H_mon(Δf)|·2ℜ±√(P_LO±·P_S±)."""
     bpd = setup["BPD-1"]
     lo, sig = input_powers(setup, "LD-LO"), input_powers(setup, "LD-S")
     beats = [
@@ -156,10 +166,10 @@ def sweep(setup: Setup, seed: int = 1):
 
 
 def beat_amplitudes(setup: Setup, sweeps: int = 8) -> tuple[float, float]:
-    """√2 × rms over several sweeps, which is the beat's amplitude whatever the two lasers' phases
-    do, with the LO power's wander inside one sweep averaged out: (on RF OUTPUT, on half the
-    difference of the monitors, where the LO and its noise drop out and the beat stays only if it
-    is opposite on the two)."""
+    """√2 × rms over several sweeps, which is the beat's amplitude whatever the two
+    lasers' phases do, with the LO power's wander inside one sweep averaged out: (on RF
+    OUTPUT, on half the difference of the monitors, where the LO and its noise drop out
+    and the beat stays only if it is opposite on the two)."""
     runs = [sweep(setup, seed)[1] for seed in range(sweeps)]
     rf = np.mean([r.var() for r, _, _ in runs])
     mon = np.mean([((p - m) / 2).var() for _, p, m in runs])
@@ -167,11 +177,11 @@ def beat_amplitudes(setup: Setup, sweeps: int = 8) -> tuple[float, float]:
 
 
 def lo_noise_through(setup: Setup, sweeps: int = 8) -> dict:
-    """With the signal blocked: the LO noise on MONITOR+ and on RF (rms), how closely MONITOR−
-    follows MONITOR+, and the common-mode rejection [dB], the part of the RF output that follows
-    MONITOR+, both referred to photocurrent.
-    A regression rather than a ratio of rms values, so neither the amplifier's own noise nor the
-    monitor's 1 MHz pole biases it."""
+    """With the signal blocked: the LO noise on MONITOR+ and on RF (rms), how closely
+    MONITOR− follows MONITOR+, and the common-mode rejection [dB], the part of the RF
+    output that follows MONITOR+, both referred to photocurrent. A regression rather
+    than a ratio of rms values, so neither the amplifier's own noise nor the monitor's 1
+    MHz pole biases it."""
     bpd, sig = setup["BPD-1"], setup["LD-S"]
     was, sig.enabled = sig.enabled, False
     try:
@@ -191,7 +201,7 @@ def lo_noise_through(setup: Setup, sweeps: int = 8) -> dict:
 
 
 if __name__ == "__main__":
-    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--plot", metavar="PNG", help="save the three scope traces")
     args = ap.parse_args()
 
@@ -199,8 +209,8 @@ if __name__ == "__main__":
     bpd = setup["BPD-1"]
     entry = report(setup)["detectors"]["BPD-1"]
     print(
-        f"{bpd.name}: {bpd.preset}, gain {fmt_si(bpd.gain, 'V/A')}, RF bandwidth {fmt_si(bpd.bandwidth, 'Hz')}, "
-        f"CMRR {bpd.cmrr_db:g} dB\n"
+        f"{bpd.name}: {bpd.preset}, gain {fmt_si(bpd.gain, 'V/A')}, RF bandwidth"
+        f" {fmt_si(bpd.bandwidth, 'Hz')}, CMRR {bpd.cmrr_db:g} dB\n"
     )
     for key, value in entry["readouts"].items():
         print(f"  {key:28} {value}")
@@ -219,15 +229,19 @@ if __name__ == "__main__":
     )  # INPUT+'s photocurrent alone
     print(f"\nScope, {fmt_si(10 * res.timebase, 's')} sweeps:")
     print(
-        f"  RF beat             {rf_beat:.3f} V amplitude, expected {want_rf:.3f} V ({100 * (rf_beat / want_rf - 1):+.1f} %)"
+        f"  RF beat             {rf_beat:.3f} V amplitude, expected {want_rf:.3f} V"
+        f" ({100 * (rf_beat / want_rf - 1):+.1f} %)"
     )
     print(
-        f"  MONITOR± beat       {mon_beat:.3f} V on (MON+ − MON−)/2, expected {want_mon:.3f} V "
-        f"({100 * (mon_beat / want_mon - 1):+.1f} %): opposite on the two monitors"
+        f"  MONITOR± beat       {mon_beat:.3f} V on (MON+ − MON−)/2, expected"
+        f" {want_mon:.3f} V ({100 * (mon_beat / want_mon - 1):+.1f} %): opposite on the"
+        " two monitors"
     )
     print(
-        f"  signal blocked      LO noise {1e3 * noise['mon']:.0f} mV rms on MONITOR+ ({100 * noise['mon'] / mon_dc:.1f} % "
-        f"of {mon_dc:.2f} V), the same on MONITOR− (correlation {noise['together']:+.2f}), {1e3 * noise['rf']:.1f} mV rms on RF"
+        f"  signal blocked      LO noise {1e3 * noise['mon']:.0f} mV rms on MONITOR+"
+        f" ({100 * noise['mon'] / mon_dc:.1f} % of {mon_dc:.2f} V), the same on"
+        f" MONITOR− (correlation {noise['together']:+.2f}), {1e3 * noise['rf']:.1f} mV"
+        " rms on RF"
     )
     print(
         f"  LO noise rejection  {noise['rejection']:.1f} dB (CMRR {bpd.cmrr_db:g} dB)"
@@ -256,8 +270,9 @@ if __name__ == "__main__":
             else "this bench" if gain == bpd.gain else ""
         )
         print(
-            f"  {fmt_si(gain, 'V/A'):>9} {fmt_si(bw, 'Hz'):>10} {fmt_si(nep, 'W/√Hz'):>12} "
-            f"{fmt_si(d.cw_saturation_power(), 'W'):>9}  {dc:+.3g} V ± {beat:.3g} V  {state}"
+            f"  {fmt_si(gain, 'V/A'):>9} {fmt_si(bw, 'Hz'):>10}"
+            f" {fmt_si(nep, 'W/√Hz'):>12} {fmt_si(d.cw_saturation_power(), 'W'):>9} "
+            f" {dc:+.3g} V ± {beat:.3g} V  {state}"
         )
 
     if args.plot:
@@ -280,8 +295,9 @@ if __name__ == "__main__":
             ax.grid(alpha=0.3)
         axes[-1].set(xlabel="time from trigger [µs]")
         axes[0].set_title(
-            f"{bpd.preset} at {fmt_si(bpd.gain, 'V/A')}: {fmt_si(BEAT, 'Hz')} beat on a LO with "
-            f"{100 * RIN:g} % rms intensity noise below {fmt_si(CORNER, 'Hz')}",
+            f"{bpd.preset} at {fmt_si(bpd.gain, 'V/A')}: {fmt_si(BEAT, 'Hz')} beat on a"
+            f" LO with {100 * RIN:g} % rms intensity noise below"
+            f" {fmt_si(CORNER, 'Hz')}",
             fontsize=10,
         )
         fig.tight_layout()

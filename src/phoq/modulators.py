@@ -1,11 +1,12 @@
 """Electro-optic modulators.
 
-A modulator has no drive of its own: it applies a voltage-dependent factor to the light passing
-through it. The voltage is the sum of what is plugged into its two electrical inputs, ``rf``
-(normally a :class:`~phoq.FunctionGenerator` channel) and ``bias`` (normally a
-:class:`~phoq.DCPowerSupply` output). An unconnected input contributes 0 V. The
-:class:`IQModulator` has two RF inputs and three bias inputs, one per electrode. The
-:class:`OpticalSwitch` follows the same rule: its route is set by the voltage on ``ctrl``.
+A modulator has no drive of its own: it applies a voltage-dependent factor to the light
+passing through it. The voltage is the sum of what is plugged into its two electrical
+inputs, ``rf`` (normally a :class:`~phoq.FunctionGenerator` channel) and ``bias``
+(normally a :class:`~phoq.DCPowerSupply` output). An unconnected input contributes 0 V.
+The :class:`IQModulator` has two RF inputs and three bias inputs, one per electrode. The
+:class:`OpticalSwitch` follows the same rule: its route is set by the voltage on
+``ctrl``.
 """
 
 from __future__ import annotations
@@ -45,7 +46,10 @@ class _Modulator(FiberConnectors, Component):
         label="Vπ (bias electrode)",
         min=0.0,
         max=20.0,
-        doc="Vπ of the DC electrodes when they differ from the RF ones (datasheets quote both); 0 = same as Vπ",
+        doc=(
+            "Vπ of the DC electrodes when they differ from the RF ones (datasheets"
+            " quote both); 0 = same as Vπ"
+        ),
     )
     insertion_loss_db = Param(3.0, unit="dB", label="Insertion loss", min=0.0, max=20.0)
 
@@ -55,7 +59,7 @@ class _Modulator(FiberConnectors, Component):
         self.add_port("rf", "electrical", "in", "RF drive in")
         self.add_port("bias", "electrical", "in", "DC bias in")
 
-    # ---- the electrical inputs -----------------------------------------------------------------
+    # ---- the electrical inputs -------------------------------------------------------
     def _source(self, port: str):
         """(component, channel) feeding ``port``, or None."""
         peer = self.ports[port].peer
@@ -83,12 +87,13 @@ class _Modulator(FiberConnectors, Component):
         return 0.0 if src is None else src[0].static_voltage(src[1])
 
     def bias_scale(self) -> float:
-        """Factor referring a bias-electrode voltage to the RF electrode: Vπ_RF / Vπ_DC."""
+        """Factor referring a bias-electrode voltage to the RF electrode: Vπ_RF /
+        Vπ_DC."""
         return self.v_pi / self.v_pi_bias if self.v_pi_bias > 0 else 1.0
 
     def bias_voltage(self) -> float:
-        """DC level on the bias input (the mean of its waveform if it is not a DC source),
-        referred to the RF electrode."""
+        """DC level on the bias input (the mean of its waveform if it is not a DC
+        source), referred to the RF electrode."""
         src = self._source("bias")
         if src is None:
             return 0.0
@@ -115,7 +120,7 @@ class _Modulator(FiberConnectors, Component):
             total = total + (v * self.bias_scale() if port == "bias" else v)
         return total
 
-    # ---- optics ----------------------------------------------------------------------------------
+    # ---- optics ----------------------------------------------------------------------
     def response(self, volts) -> np.ndarray:
         """Complex field factor for a total electrode voltage (overridden)."""
         raise NotImplementedError
@@ -128,7 +133,8 @@ class _Modulator(FiberConnectors, Component):
         return complex(np.asarray(self.response([self.static_voltage()]))[0])
 
     def mean_factor(self) -> float:
-        """Time-averaged power factor |response|² of the current drive (bias taken as DC)."""
+        """Time-averaged power factor |response|² of the current drive
+        (bias taken as DC)."""
         if self.is_static():
             v = np.array([self.static_voltage()])
         else:
@@ -156,7 +162,8 @@ class _Modulator(FiberConnectors, Component):
             )
         if self.v_pi_bias > 0:
             out["Bias electrode"] = (
-                f"Vπ {self.v_pi_bias:g} V: quadrature at {self.v_pi_bias / 2:g} V, null at {self.v_pi_bias:g} V"
+                f"Vπ {self.v_pi_bias:g} V: quadrature at {self.v_pi_bias / 2:g} V, null"
+                f" at {self.v_pi_bias:g} V"
             )
         return out
 
@@ -185,16 +192,17 @@ class PhaseModulator(_Modulator):
 class IntensityModulator(_Modulator):
     """Mach–Zehnder intensity modulator (push–pull, Fraunhofer IIS 2024 Eqs. 4–10).
 
-    The two arms carry powers P₁ + P₂ = P_in and recombine with a phase difference
-    φ = π(V_rf + V_bias)/Vπ + φ₀, so the output is P = ½P_in + √(P₁P₂)·cos φ.  Writing the
+    The two arms carry powers P₁ + P₂ = P_in and recombine with a phase difference φ =
+    π(V_rf + V_bias)/Vπ + φ₀, so the output is P = ½P_in + √(P₁P₂)·cos φ. Writing the
     arm imbalance as k = 2√(P₁P₂)/P_in gives the transmission
 
         T(V) = ½[1 + k·cos(π·V/Vπ + φ₀)],   k = (ER − 1)/(ER + 1),
 
-    with T_max = ER/(ER+1) and T_min = 1/(ER+1): a finite extinction ratio ER comes from the
-    arms not splitting exactly 50:50, not from a clamp. 0 V is maximum transmission, Vπ/2
-    quadrature (the linear point) and Vπ the null; φ₀ is the intrinsic path imbalance that
-    drifts in real devices (a bias controller would null it — not modelled).
+    with T_max = ER/(ER+1) and T_min = 1/(ER+1): a finite extinction ratio ER comes from
+    the arms not splitting exactly 50:50, not from a clamp. 0 V is maximum transmission,
+    Vπ/2 quadrature (the linear point) and Vπ the null; φ₀ is the intrinsic path
+    imbalance that drifts in real devices (a bias controller would null it — not
+    modeled).
     """
 
     prefix = "IM"
@@ -208,7 +216,10 @@ class IntensityModulator(_Modulator):
         label="Intrinsic phase imbalance φ₀",
         min=-math.pi,
         max=math.pi,
-        doc="Static arm path difference; shifts the whole curve along V (bias drift, not modelled, would move it)",
+        doc=(
+            "Static arm path difference; shifts the whole curve along V (bias drift,"
+            " not modeled, would move it)"
+        ),
     )
 
     @property
@@ -228,7 +239,8 @@ class IntensityModulator(_Modulator):
     floor = t_min
 
     def transmission(self, volts) -> np.ndarray:
-        """Power transmission for a total electrode voltage (relative to the insertion loss)."""
+        """Power transmission for a total electrode voltage
+        (relative to the insertion loss)."""
         v = np.asarray(volts, dtype=float)
         return 0.5 * (1.0 + self.contrast * np.cos(np.pi * v / self.v_pi + self.phi0))
 
@@ -236,7 +248,8 @@ class IntensityModulator(_Modulator):
         return np.sqrt(self.transmission(volts))
 
     def voltage_for(self, transmission):
-        """rf voltage giving power transmission ``transmission`` (clipped to [T_min, T_max]) on top of the bias."""
+        """rf voltage giving power transmission ``transmission``
+        (clipped to [T_min, T_max]) on top of the bias."""
         t = np.clip(np.asarray(transmission, dtype=float), self.t_min, self.t_max)
         return (
             self.v_pi / np.pi * (np.arccos((2.0 * t - 1.0) / self.contrast) - self.phi0)
@@ -256,11 +269,13 @@ class IntensityModulator(_Modulator):
 
 
 class IQModulator(_Modulator):
-    """Optical IQ modulator: a dual-parallel Mach–Zehnder (Seimetz 2009, §2.1.2, Fig. 2.3).
+    """Optical IQ modulator: a dual-parallel Mach–Zehnder
+    (Seimetz 2009, §2.1.2, Fig. 2.3).
 
-    Light splits into an in-phase (I) and a quadrature (Q) arm, each a push–pull MZM, and recombines
-    after a relative phase set on a third DC electrode. Each MZM gives the signed field behind the
-    intensity modulator's T = ½[1 + k·cos φ], k from the extinction ratio:
+    Light splits into an in-phase (I) and a quadrature (Q) arm, each a push–pull MZM,
+    and recombines after a relative phase set on a third DC electrode. Each MZM gives
+    the signed field behind the intensity modulator's T = ½[1 + k·cos φ], k from the
+    extinction ratio:
 
         e(φ) = [√(1+k)·cos(φ/2) + j·√(1−k)·sin(φ/2)] / √2,
         φ_I = π·(V_rf,I + V_DC1·Vπ/Vπ_bias)/Vπ + φ0_I,   φ_Q likewise from rf_q and DC2,
@@ -269,17 +284,21 @@ class IQModulator(_Modulator):
 
         E_out/E_in = ½·[e(φ_I) + e^{jφ_P}·e(φ_Q)],   φ_P = π·V_DC3/Vπ_phase + φ0_P.
 
-    At the operating point, both MZMs at their null (DC1 = DC2 = −Vπ_bias) and the arms in
-    quadrature (DC3 = Vπ_phase/2), this is Eq. (2.16): E_out/E_in = ½[cos(Δφ_I/2) + j·cos(Δφ_Q/2)].
-    The drive u = (2Vπ/π)·arcsin(i) of Eqs. (2.46)–(2.47) (:meth:`voltage_for`) then puts the field at
-    ½(i + jq) for any point (i, q) of the unit square. The MZMs' finite extinction leaves a carrier of
-    (1 − k)/4 of full transmission at that point, and the φ0 are path imbalances that move every
-    bias point (a bias controller would track them; not modelled).
+    At the operating point, both MZMs at their null (DC1 = DC2 = −Vπ_bias) and the arms
+    in quadrature (DC3 = Vπ_phase/2), this is Eq. (2.16): E_out/E_in =
+    ½[cos(Δφ_I/2) + j·cos(Δφ_Q/2)]. The drive u = (2Vπ/π)·arcsin(i) of Eqs.
+    (2.46)–(2.47) (:meth:`voltage_for`) then puts the field at ½(i + jq) for any point
+    (i, q) of the unit square. The MZMs' finite extinction leaves a carrier of (1 − k)/4
+    of full transmission at that point, and the φ0 are path imbalances that move every
+    bias point (a bias controller would track them; not modeled).
     """
 
     prefix = "IQM"
     label = "IQ modulator"
-    description = "Dual-parallel MZM: I and Q MZMs and an I/Q phase; rf_i, rf_q and three DC biases"
+    description = (
+        "Dual-parallel MZM: I and Q MZMs and an I/Q phase; rf_i, rf_q and three DC"
+        " biases"
+    )
     inputs = ("p1", "rf_i", "rf_q")
     rf_ports = ("rf_i", "rf_q")
     bias_ports = ("bias_i", "bias_q", "bias_p")
@@ -290,7 +309,10 @@ class IQModulator(_Modulator):
         label="Vπ (phase electrode)",
         min=0.0,
         max=30.0,
-        doc="Vπ of the DC electrode setting the I/Q phase; 0 = same as the I and Q bias electrodes",
+        doc=(
+            "Vπ of the DC electrode setting the I/Q phase; 0 = same as the I and Q bias"
+            " electrodes"
+        ),
     )
     extinction_db = Param(
         30.0, unit="dB", label="Extinction ratio (each MZM)", min=0.1, max=80.0
@@ -331,7 +353,8 @@ class IQModulator(_Modulator):
 
     @property
     def contrast(self) -> float:
-        """Each MZM's arm-imbalance factor k = 2√(P₁P₂)/P_in, from its extinction ratio."""
+        """Each MZM's arm-imbalance factor k = 2√(P₁P₂)/P_in, from its extinction
+        ratio."""
         er = 10 ** (self.extinction_db / 10)
         return (er - 1) / (er + 1)
 
@@ -345,10 +368,10 @@ class IQModulator(_Modulator):
         """Vπ of the phase electrode."""
         return self.v_pi_phase or self.v_pi_dc
 
-    # ---- the transfer function --------------------------------------------------------------
+    # ---- the transfer function -------------------------------------------------------
     def field(self, rf_i, rf_q, dc_i=0.0, dc_q=0.0, dc_p=0.0) -> np.ndarray:
-        """E_out/E_in (insertion loss aside) for the voltages on rf_i, rf_q and the three DC
-        electrodes, each as applied at its own port."""
+        """E_out/E_in (insertion loss aside) for the voltages on rf_i, rf_q and the
+        three DC electrodes, each as applied at its own port."""
         k = self.contrast
         a, b = math.sqrt((1 + k) / 2), math.sqrt((1 - k) / 2)
 
@@ -370,9 +393,10 @@ class IQModulator(_Modulator):
         )
 
     def voltage_for(self, i, q=None) -> tuple[np.ndarray, np.ndarray]:
-        """RF drives (V_I, V_Q) that place the field at ½(i + jq), for i and q in [−1, 1], with both
-        MZMs at their null at −Vπ: u = (2Vπ/π)·arcsin(i), Eqs. (2.46)–(2.47). ``i`` may also be
-        complex symbols i + jq. At the null at +Vπ instead, that axis comes out mirrored.
+        """RF drives (V_I, V_Q) that place the field at ½(i + jq), for i and q in
+        [−1, 1], with both MZMs at their null at −Vπ: u = (2Vπ/π)·arcsin(i), Eqs.
+        (2.46)–(2.47). ``i`` may also be complex symbols i + jq. At the null at +Vπ
+        instead, that axis comes out mirrored.
         """
         if q is None:
             z = np.asarray(i, dtype=complex)
@@ -389,15 +413,15 @@ class IQModulator(_Modulator):
         return u(i), u(q)
 
     def operating_bias(self) -> dict[str, float]:
-        """DC voltages for the operating point of Eq. (2.16) when every φ0 is zero: both MZMs at
-        their null at −Vπ_bias, the arms in quadrature at +Vπ_phase/2."""
+        """DC voltages for the operating point of Eq. (2.16) when every φ0 is zero: both
+        MZMs at their null at −Vπ_bias, the arms in quadrature at +Vπ_phase/2."""
         return {
             "bias_i": -self.v_pi_dc,
             "bias_q": -self.v_pi_dc,
             "bias_p": self.v_pi_p / 2,
         }
 
-    # ---- the engine's modulator contract ----------------------------------------------------
+    # ---- the engine's modulator contract ---------------------------------------------
     def _volts(self, port: str, t_mod, t_emit=None) -> np.ndarray:
         src = self._source(port)
         if src is None:
@@ -423,7 +447,8 @@ class IQModulator(_Modulator):
 
     def response(self, volts) -> np.ndarray:
         raise TypeError(
-            f"{self.name}: an IQ modulator has five electrodes; use field() or static_factor()"
+            f"{self.name}: an IQ modulator has five electrodes; use field() or"
+            " static_factor()"
         )
 
     def factor(self, t_mod, t_emit) -> np.ndarray:
@@ -441,8 +466,9 @@ class IQModulator(_Modulator):
         )
 
     def mean_factor(self) -> float:
-        """Time-averaged |E_out/E_in|² of the present drive (DC inputs taken at their mean). I and Q
-        loaded as patterns of one length are taken symbol by symbol; otherwise as unrelated.
+        """Time-averaged |E_out/E_in|² of the present drive
+        (DC inputs taken at their mean). I and Q loaded as patterns of one length are
+        taken symbol by symbol; otherwise as unrelated.
         """
         vi, vq = self._samples("rf_i"), self._samples("rf_q")
         if vi.size != vq.size:
@@ -451,8 +477,8 @@ class IQModulator(_Modulator):
         return float(np.mean(np.abs(self.field(vi, vq, *dc)) ** 2))
 
     def phases(self) -> tuple[float, float, float]:
-        """(φ_I, φ_Q, φ_P) at the present DC levels with no RF [rad]: −π, −π and π/2 at the
-        operating point."""
+        """(φ_I, φ_Q, φ_P) at the present DC levels with no RF [rad]: −π, −π and π/2 at
+        the operating point."""
         dc = {p: float(self._samples(p).mean()) for p in self.bias_ports}
         return (
             np.pi * dc["bias_i"] / self.v_pi_dc + self.phi0_i,
@@ -478,7 +504,8 @@ class IQModulator(_Modulator):
         wrap = lambda x: (math.degrees(x) + 180) % 360 - 180  # noqa: E731
         pi, pq, pp = self.phases()
         out["Bias point"] = (
-            f"I {wrap(pi):+.1f}°, Q {wrap(pq):+.1f}° (null ±180°); I/Q phase {wrap(pp):+.1f}° (quadrature 90°)"
+            f"I {wrap(pi):+.1f}°, Q {wrap(pq):+.1f}° (null ±180°); I/Q phase"
+            f" {wrap(pp):+.1f}° (quadrature 90°)"
         )
         carrier = float(
             np.abs(
@@ -496,9 +523,9 @@ class IQModulator(_Modulator):
 
 class _SwitchRoute:
     """One of the two routes through an :class:`OpticalSwitch`, as the engine sees it: a
-    time-dependent amplitude factor driven by the switch's control input (same contract as a
-    modulator: ``factor``, ``response``, ``is_static``, ``static_voltage``, ``static_factor``,
-    ``mean_factor``, ``drivers``)."""
+    time-dependent amplitude factor driven by the switch's control input (same contract
+    as a modulator: ``factor``, ``response``, ``is_static``, ``static_voltage``,
+    ``static_factor``, ``mean_factor``, ``drivers``)."""
 
     def __init__(self, switch: OpticalSwitch, crossed: bool):
         self.switch, self.crossed = switch, crossed
@@ -531,12 +558,13 @@ class _SwitchRoute:
 class OpticalSwitch(FiberConnectors, Component):
     """2×2 electro-optic switch: *bar* (a1→b1, a2→b2) or *cross* (a1→b2, a2→b1).
 
-    Like a modulator it has no setting of its own: the state follows the voltage on its ``ctrl``
-    input — cross at or above ``threshold``, bar below, and bar when nothing is connected (0 V).
-    A function-generator pattern on ``ctrl`` therefore routes pulse by pulse (an eavesdropper's
-    tap, time multiplexing, a protected path). ``voltage_for(cross)`` gives the drive for a wanted
-    sequence of states. The unselected route leaks ``crosstalk_db`` below the selected one, both
-    carry ``insertion_loss_db``, and the device is reciprocal.
+    Like a modulator it has no setting of its own: the state follows the voltage on its
+    ``ctrl`` input — cross at or above ``threshold``, bar below, and bar when nothing is
+    connected (0 V). A function-generator pattern on ``ctrl`` therefore routes pulse by
+    pulse (an eavesdropper's tap, time multiplexing, a protected path).
+    ``voltage_for(cross)`` gives the drive for a wanted sequence of states. The
+    unselected route leaks ``crosstalk_db`` below the selected one, both carry
+    ``insertion_loss_db``, and the device is reciprocal.
     """
 
     category = "modulator"
@@ -554,7 +582,10 @@ class OpticalSwitch(FiberConnectors, Component):
         label="Switch threshold",
         min=0.1,
         max=30.0,
-        doc="ctrl ≥ threshold selects the cross state; voltage_for() swings 0 … 2×threshold",
+        doc=(
+            "ctrl ≥ threshold selects the cross state; voltage_for() swings 0 …"
+            " 2×threshold"
+        ),
     )
     insertion_loss_db = Param(1.0, unit="dB", label="Insertion loss", min=0.0, max=20.0)
     crosstalk_db = Param(
@@ -575,7 +606,7 @@ class OpticalSwitch(FiberConnectors, Component):
             True: _SwitchRoute(self, True),
         }
 
-    # ---- the control input (same contract as the modulators' rf/bias inputs) ------------------
+    # ---- the control input (same contract as the modulators' rf/bias inputs) ---------
     def _source(self):
         peer = self.ports["ctrl"].peer
         if peer is None or not callable(getattr(peer.component, "voltage", None)):
@@ -601,25 +632,28 @@ class OpticalSwitch(FiberConnectors, Component):
         return np.asarray(src[0].voltage(src[1], t_mod, t_emit), dtype=float)
 
     def drive_samples(self) -> np.ndarray:
-        """The control waveform over one period (or every symbol of a pattern), for averaging."""
+        """The control waveform over one period (or every symbol of a pattern), for
+        averaging."""
         src = self._source()
         if src is None or src[0].is_static(src[1]):
             return np.array([self.static_voltage()])
         return np.asarray(src[0].waveform(src[1]), dtype=float)
 
-    # ---- routing --------------------------------------------------------------------------------
+    # ---- routing ---------------------------------------------------------------------
     def crossed(self, volts) -> np.ndarray:
         """True where the control voltage selects the cross state."""
         return np.asarray(volts, dtype=float) >= self.threshold
 
     def route_amplitude(self, volts, crossed_route: bool) -> np.ndarray:
-        """Field factor of the bar (False) or cross (True) route at the given control voltages."""
+        """Field factor of the bar (False) or cross (True) route at the given control
+        voltages."""
         leak = math.sqrt(db_to_t(self.crosstalk_db))
         selected = self.crossed(volts) == crossed_route
         return np.where(selected, math.sqrt(1.0 - leak * leak), leak)
 
     def voltage_for(self, cross) -> np.ndarray:
-        """Control voltage per symbol for the wanted state: 0 V for bar, 2×threshold for cross."""
+        """Control voltage per symbol for the wanted state: 0 V for bar, 2×threshold for
+        cross."""
         return np.where(np.asarray(cross, dtype=bool), 2.0 * self.threshold, 0.0)
 
     def scatter(self, port, wavelength):

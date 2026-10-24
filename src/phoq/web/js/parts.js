@@ -22,7 +22,7 @@ export const MAT = {
   acrylic: new THREE.MeshStandardMaterial({ color: 0xa5d8ff, metalness: 0.1, roughness: 0.1, transparent: true, opacity: 0.28, depthWrite: false }),
 };
 
-// Bulkhead colour collar per connector type (shared materials: FC/UPC blue, FC/APC green).
+// Bulkhead color collar per connector type (shared materials: FC/UPC blue, FC/APC green).
 const COLLAR = Object.fromEntries(Object.keys(CONNECTOR_COLORS).map((k) => [k,
   new THREE.MeshStandardMaterial({ color: connectorColor(k), metalness: 0.15, roughness: 0.45 })]));
 
@@ -224,7 +224,7 @@ export class Part {
   // ---- state from the server -------------------------------------------------------------
   refresh(comp) {
     this.comp = comp;
-    for (const p of comp.ports) {   // connector type of each bulkhead → collar colour
+    for (const p of comp.ports) {   // connector type of each bulkhead → collar color
       const port = this.ports.get(p.name);
       if (!port?.collar) continue;
       port.connector = p.connector ?? null;   // a sleeve: what its other side holds, if anything
@@ -399,7 +399,7 @@ const BUILDERS = {
     p.onRefresh = (c) => { p.knob.rotation.y = -(c.params.attenuation_db / 80) * Math.PI * 1.5; };
   },
 
-  /** Fiber terminator: a dark cap with a band in its polish's colour. Mated onto a port it rides
+  /** Fiber terminator: a dark cap with a band in its polish's color. Mated onto a port it rides
    *  there over the receptacle (Part.followMount); loose, it lies on a small tray. */
   FiberTerminator(p) {
     p.footprint = { w: 4.4, d: 3 };
@@ -809,7 +809,7 @@ function parseRate(s) {
 // Coax cable for an electrical connection (detector output → instrument input)
 // ---------------------------------------------------------------------------------------------
 const coaxMat = new THREE.MeshStandardMaterial({ color: 0x1b1e24, roughness: 0.6, metalness: 0.1 });
-const COAX_R = 0.28, COAX_Y = COAX_R + 0.04;   // centre height when lying on the table
+const COAX_R = 0.28, COAX_Y = COAX_R + 0.04;   // center height when lying on the table
 
 export class Coax {
   constructor(lab, a, b) {

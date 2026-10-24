@@ -1,4 +1,5 @@
-"""Measurement instruments. Each has ``acquire(network, rng)`` returning a result object."""
+"""Measurement instruments. Each has ``acquire(network, rng)`` returning a result
+object."""
 
 from __future__ import annotations
 
@@ -46,9 +47,9 @@ def _sync_laser(net: Network, dets, name: str) -> Laser | None:
 def measure(data: np.ndarray, dt: float) -> dict:
     """Mean, extremes, RMS and the frequency of a trace.
 
-    A clean, well-sampled signal is timed by hysteretic mid-level crossings; a coarsely sampled one
-    (where sample-to-sample steps look like noise) by its spectral peak, which is also what an
-    aliased signal shows. Flat noise reports no frequency.
+    A clean, well-sampled signal is timed by hysteretic mid-level crossings; a coarsely
+    sampled one (where sample-to-sample steps look like noise) by its spectral peak,
+    which is also what an aliased signal shows. Flat noise reports no frequency.
     """
     mn, mx = float(data.min()), float(data.max())
     n = data.size
@@ -88,7 +89,7 @@ def measure(data: np.ndarray, dt: float) -> dict:
     return out
 
 
-# ---------------------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------------
 @dataclass
 class Trace:
     channel: str
@@ -113,14 +114,15 @@ class ScopeResult:
     trigger_source: str = ""
     trigger_level: float = 0.0
     fs: float = 0.0  # effective sample rate [S/s]
-    bandwidth: float = 0.0  # analogue front-end bandwidth [Hz]
+    bandwidth: float = 0.0  # analog front-end bandwidth [Hz]
     adc_bits: int = 0  # vertical resolution; 0 = ideal
 
     def __getitem__(self, ch: str) -> Trace:
         return self.channels[ch]
 
     def codes(self, ch: str) -> np.ndarray:
-        """A channel's ADC codes, 0 … 2^adc_bits − 1 from the bottom of the screen to the top."""
+        """A channel's ADC codes, 0 … 2^adc_bits − 1 from the bottom of the screen to
+        the top."""
         if not self.adc_bits:
             raise ValueError(f"{self.instrument}: no ADC resolution set (adc_bits = 0)")
         tr = self.channels[ch]
@@ -132,8 +134,9 @@ class ScopeResult:
 
     def summary(self) -> str:
         lines = [
-            f"{self.instrument}: {fmt_si(self.timebase, 's')}/div, {fmt_si(self.fs, 'S/s')}, BW {fmt_si(self.bandwidth, 'Hz')}, "
-            f"trigger {self.trigger}{'' if self.triggered else ' (untriggered)'}"
+            f"{self.instrument}: {fmt_si(self.timebase, 's')}/div,"
+            f" {fmt_si(self.fs, 'S/s')}, BW {fmt_si(self.bandwidth, 'Hz')}, trigger"
+            f" {self.trigger}{'' if self.triggered else ' (untriggered)'}"
         ]
         for tr in self.channels.values():
             if tr.data is None:
@@ -141,12 +144,14 @@ class ScopeResult:
             m = tr.meas
             f = f", f {fmt_si(m['freq'], 'Hz')}" if m.get("freq") else ""
             lines.append(
-                f"  {tr.channel} ← {tr.source}: mean {fmt_si(m['mean'], tr.unit)}, pk-pk {fmt_si(m['pk_pk'], tr.unit)}{f}"
+                f"  {tr.channel} ← {tr.source}: mean {fmt_si(m['mean'], tr.unit)},"
+                f" pk-pk {fmt_si(m['pk_pk'], tr.unit)}{f}"
             )
         return "\n".join(lines)
 
     def plot(self, ax=None):
-        """Matplotlib plot of the enabled traces (one y-axis per unit), in the dark_background style."""
+        """Matplotlib plot of the enabled traces (one y-axis per unit), in the
+        dark_background style."""
         import matplotlib.pyplot as plt
 
         with plt.style.context("dark_background"):
@@ -210,7 +215,8 @@ class ScopeResult:
 
 
 def _for_display(data: np.ndarray, max_pts: int = 2000) -> np.ndarray:
-    """Long records go to the screen as a min/max envelope, like a scope's display decimation."""
+    """Long records go to the screen as a min/max envelope, like a scope's display
+    decimation."""
     n = data.size
     if n <= max_pts:
         return data
@@ -223,7 +229,8 @@ def _for_display(data: np.ndarray, max_pts: int = 2000) -> np.ndarray:
 
 
 class Oscilloscope(Component):
-    """Four-channel digital oscilloscope. Connect detector outputs (``pd.rf``, ``spd.out``) to ch1…ch4."""
+    """Four-channel digital oscilloscope. Connect detector outputs
+    (``pd.rf``, ``spd.out``) to ch1…ch4."""
 
     category = "instrument"
     prefix = "OSC"
@@ -252,7 +259,7 @@ class Oscilloscope(Component):
     bandwidth = Param(
         1e9,
         unit="Hz",
-        label="Analogue bandwidth",
+        label="Analog bandwidth",
         min=1e6,
         max=50e9,
         log=True,
@@ -267,7 +274,10 @@ class Oscilloscope(Component):
         max=50e9,
         log=True,
         presets=seq125(1e6, 20e9),
-        doc="The record memory caps it at slow timebases: effective rate = min(this, max_points / window)",
+        doc=(
+            "The record memory caps it at slow timebases: effective rate = min(this,"
+            " max_points / window)"
+        ),
     )
     max_points = Param(
         20_000,
@@ -302,8 +312,10 @@ class Oscilloscope(Component):
         min=0,
         max=16,
         presets=(0, 8, 10, 12, 14, 16),
-        doc="Vertical resolution across the 8-division screen: a sample off the screen reads the end "
-        "code. 0 = ideal, no quantization",
+        doc=(
+            "Vertical resolution across the 8-division screen: a sample off the screen"
+            " reads the end code. 0 = ideal, no quantization"
+        ),
     )
 
     def __init__(self, name: str | None = None, **params):
@@ -377,21 +389,22 @@ class Oscilloscope(Component):
         ]
 
     def record(self) -> tuple[float, int, float]:
-        """(effective sample rate, record length, sample interval) for the current settings."""
+        """(effective sample rate, record length, sample interval) for the current
+        settings."""
         window = 10 * self.timebase
         fs = min(self.sample_rate, self.max_points / window)
         n = max(100, int(round(fs * window)))
         return n / window, n, window / n
 
     def _digitize(self, v: np.ndarray, scale: float, offset: float) -> np.ndarray:
-        """The ADC: 2^bits levels across the screen (±4 div about the offset); off the screen, the
-        end codes. Returns the voltage each code stands for."""
+        """The ADC: 2^bits levels across the screen (±4 div about the offset); off the
+        screen, the end codes. Returns the voltage each code stands for."""
         top = 2**self.adc_bits - 1
         code = np.clip(np.rint((v / scale + offset + DIV_Y / 2) / DIV_Y * top), 0, top)
         return (code / top * DIV_Y - DIV_Y / 2 - offset) * scale
 
     def _front_end(self, sig: np.ndarray, dt: float) -> np.ndarray:
-        """Analogue input bandwidth: two cascaded poles, −3 dB at ``bandwidth``."""
+        """Analog input bandwidth: two cascaded poles, −3 dB at ``bandwidth``."""
         if self.bandwidth >= 0.45 / dt:
             return sig
         alpha = -math.expm1(-dt * 2 * math.pi * 1.554 * self.bandwidth)
@@ -404,9 +417,10 @@ class Oscilloscope(Component):
     def acquire(self, net: Network, rng: np.random.Generator) -> ScopeResult:
         """One sweep.
 
-        The analogue signal is simulated finer than the sample interval (enough to resolve the
-        front-end bandwidth), low-passed by the bandwidth, then point-sampled at the effective
-        sample rate — so a rate below twice the signal bandwidth aliases, as on a real scope.
+        The analog signal is simulated finer than the sample interval (enough to
+        resolve the front-end bandwidth), low-passed by the bandwidth, then
+        point-sampled at the effective sample rate — so a rate below twice the signal
+        bandwidth aliases, as on a real scope.
         """
         inputs = {ch: src for ch, src in self._inputs().items() if src is not None}
         dets = self._detectors(inputs)
@@ -414,7 +428,7 @@ class Oscilloscope(Component):
         tb = self.timebase
         k = max(
             1, min(math.ceil(6 * self.bandwidth * dt), max(1, 200_000 // n))
-        )  # analogue oversampling
+        )  # analog oversampling
         dts = dt / k
         edge = self.trigger == "edge"
         total = 2 * n if edge else n
@@ -440,7 +454,7 @@ class Oscilloscope(Component):
         for ch, (d, port) in inputs.items():
             if isinstance(
                 d, BalancedPhotodetector
-            ):  # its outputs share one noise realisation
+            ):  # its outputs share one noise realization
                 if d not in balanced:
                     balanced[d] = d.detect(fields[d], dts, rng, t_sim.size)
                 raw = balanced[d][port]  # the scope's input is high-impedance
@@ -509,9 +523,10 @@ class Oscilloscope(Component):
             self.adc_bits,
         )
 
-    # ---- single shot --------------------------------------------------------------------------------
+    # ---- single shot -----------------------------------------------------------------
     def arm(self) -> None:
-        """Stop free running and wait for the next trigger; the first triggered sweep is then held."""
+        """Stop free running and wait for the next trigger; the first triggered sweep is
+        then held."""
         self.running = False
         self.held = None
         self.armed = True
@@ -525,10 +540,12 @@ class Oscilloscope(Component):
     def single(
         self, net: Network, rng: np.random.Generator, attempts: int = 100
     ) -> ScopeResult | None:
-        """Arm, wait for the first trigger and hold that sweep (``running`` stays False).
+        """Arm, wait for the first trigger and hold that sweep
+        (``running`` stays False).
 
-        Each attempt looks at one window of signal; a sync or free-run trigger fires on the first,
-        an edge trigger whenever the source crosses the level. Returns None if no trigger came.
+        Each attempt looks at one window of signal; a sync or free-run trigger fires on
+        the first, an edge trigger whenever the source crosses the level. Returns None
+        if no trigger came.
         """
         if not self.armed:
             self.arm()
@@ -579,13 +596,15 @@ class Oscilloscope(Component):
             self.trigger_level = float(np.max(first.data)) * 0.5
 
 
-# ---------------------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------------
 @dataclass
 class CounterResult:
-    """One batch of time-tagger data: a click record per channel, ``slots`` bins at ``rate``.
+    """One batch of time-tagger data: a click record per channel, ``slots`` bins at
+    ``rate``.
 
     ``start`` is the index of the first bin in the instrument's continuous time base, so
-    :meth:`timestamps` and :meth:`events` give absolute times that run on from batch to batch.
+    :meth:`timestamps` and :meth:`events` give absolute times that run on from batch to
+    batch.
     """
 
     instrument: str
@@ -606,11 +625,12 @@ class CounterResult:
         return self.start / self.rate
 
     def timestamps(self, channel: str) -> np.ndarray:
-        """Absolute click times [s] on a channel (bin k is centred on t = k / rate)."""
+        """Absolute click times [s] on a channel (bin k is centered on t = k / rate)."""
         return (self.start + np.flatnonzero(self.clicks[channel])) / self.rate
 
     def events(self) -> np.ndarray:
-        """Every click as a time-ordered structured array with fields ``t`` [s] and ``ch`` (1-based)."""
+        """Every click as a time-ordered structured array with fields ``t`` [s] and
+        ``ch`` (1-based)."""
         parts = []
         for ch, rec in self.clicks.items():
             idx = np.flatnonzero(rec)
@@ -637,17 +657,20 @@ class CounterResult:
 
     def summary(self) -> str:
         lines = [
-            f"{self.instrument}: {self.slots:,} bins at {fmt_si(self.rate, 'Hz')} ({fmt_si(self.duration, 's')})"
+            f"{self.instrument}: {self.slots:,} bins at {fmt_si(self.rate, 'Hz')}"
+            f" ({fmt_si(self.duration, 's')})"
         ]
         for ch, n in self.counts.items():
             lines.append(
-                f"  {ch} ← {self.sources[ch]}: {n:,} clicks, {fmt_si(n / self.duration, 'Hz')}, p = {n / self.slots:.3e}"
+                f"  {ch} ← {self.sources[ch]}: {n:,} clicks,"
+                f" {fmt_si(n / self.duration, 'Hz')}, p = {n / self.slots:.3e}"
             )
         chs = list(self.clicks)
         for i in range(len(chs)):
             for j in range(i + 1, len(chs)):
                 lines.append(
-                    f"  coincidences {chs[i]}·{chs[j]}: {self.coincidences(chs[i], chs[j]):,}"
+                    f"  coincidences {chs[i]}·{chs[j]}:"
+                    f" {self.coincidences(chs[i], chs[j]):,}"
                 )
         return "\n".join(lines)
 
@@ -669,8 +692,9 @@ class CounterResult:
 class PhotonCounter(Component):
     """Time tagger / counting module: one time bin per laser pulse, records every click.
 
-    ``chN_delay`` is the input delay of channel N, added to its time stamps as in a tagger's
-    software: a detector whose light arrives Δ before the others' lines up with them at +Δ.
+    ``chN_delay`` is the input delay of channel N, added to its time stamps as in a
+    tagger's software: a detector whose light arrives Δ before the others' lines up with
+    them at +Δ.
     """
 
     category = "instrument"
@@ -693,16 +717,22 @@ class PhotonCounter(Component):
     compensate_delay = Param(
         True,
         label="Delay compensation",
-        doc="Shift the bins by the time of flight so bin k holds pulse k of the sync laser",
+        doc=(
+            "Shift the bins by the time of flight so bin k holds pulse k of the sync"
+            " laser"
+        ),
     )
     oversample = Param(
         1,
         label="Sub-bins per bin",
         min=1,
         max=256,
-        doc="Synthesize the light on this many sub-bins per time bin and sum their photons. With 1, "
-        "two pulses inside one bin interfere as if they overlapped; make a sub-bin a quarter of "
-        "the pulse width or less to resolve pulses that miss each other (an unbalanced DLI).",
+        doc=(
+            "Synthesize the light on this many sub-bins per time bin and sum their"
+            " photons. With 1, two pulses inside one bin interfere as if they"
+            " overlapped; make a sub-bin a quarter of the pulse width or less to"
+            " resolve pulses that miss each other (an unbalanced DLI)."
+        ),
     )
     chunk = Param(1_000_000, label="Bins per chunk", min=1000, max=100_000_000)
     ch1_delay = Param(
@@ -739,7 +769,8 @@ class PhotonCounter(Component):
         ]
 
     def __init__(self, name: str | None = None, **params):
-        self.position = 0  # next bin index: acquisitions run on from one another like a tagger's clock
+        # next bin index: acquisitions run on from one another like a tagger's clock
+        self.position = 0
         self._blind = (
             0,
             {},
@@ -749,7 +780,8 @@ class PhotonCounter(Component):
     def acquire(
         self, net: Network, rng: np.random.Generator, start: int | None = None
     ) -> CounterResult:
-        """Record ``slots`` bins. By default each call continues where the previous one ended."""
+        """Record ``slots`` bins. By default each call continues where the previous one
+        ended."""
         inputs = {}
         for i in range(1, 5):
             peer = self.ports[f"ch{i}"].peer
@@ -773,8 +805,9 @@ class PhotonCounter(Component):
             d: -tau for d, tau in delay.items()
         }  # bin k of a channel: stamps, less its delay
         clicks = {ch: np.zeros(self.slots, dtype=bool) for ch in inputs}
-        # a click near the end of a chunk (or of the previous record, when this one continues it)
-        # keeps its detector dead into the next: the dead time does not restart at the cut
+        # a click near the end of a chunk (or of the previous record, when this one
+        # continues it) keeps its detector dead into the next: the dead time does not
+        # restart at the cut
         end, carried = self._blind
         blind = {ch: carried.get(ch, 0) if first == end else 0 for ch in inputs}
         m = self.oversample
@@ -783,7 +816,7 @@ class PhotonCounter(Component):
             b = min(self.slots, a + step)
             t = (
                 shift + (first + np.arange(a, b)) * dt - dt / 2
-            )  # bins centred on the pulses
+            )  # bins centered on the pulses
             if m > 1:
                 t = (t[:, None] + np.arange(m) * (dt / m)).ravel()
             fields = synthesize(net, set(inputs.values()), t, dt / m, rng, offsets)
@@ -803,7 +836,7 @@ class PhotonCounter(Component):
         )
 
 
-# ---------------------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------------
 FREQS = seq125(1e3, 20e9)
 RBWS = seq125(1.0, 10e6)
 DECIMATE = (
@@ -815,7 +848,8 @@ MAX_SAMPLES = 4_000_000  # per sweep, after decimation
 
 @dataclass
 class SpectrumResult:
-    """One sweep of an RF spectrum analyzer: the displayed trace and the full-resolution bins."""
+    """One sweep of an RF spectrum analyzer: the displayed trace and the full-resolution
+    bins."""
 
     instrument: str
     source: str | None
@@ -845,14 +879,15 @@ class SpectrumResult:
 
     @property
     def median_level(self) -> float:
-        """Median of the displayed trace [dBm in the RBW]: the noise floor when signals cover
-        little of the span."""
+        """Median of the displayed trace [dBm in the RBW]: the noise floor when signals
+        cover little of the span."""
         return float(np.median(self.level))
 
     def width(self, drop_db: float = 3.0) -> tuple[float, float]:
-        """(lower, upper) frequencies where the trace has fallen ``drop_db`` below its peak, walking
-        out from the peak. A peak at the start of the span (a self-homodyne beat at 0 Hz) gives the
-        start frequency as the lower edge, so the upper edge alone is the one-sided width.
+        """(lower, upper) frequencies where the trace has fallen ``drop_db`` below its
+        peak, walking out from the peak. A peak at the start of the span
+        (a self-homodyne beat at 0 Hz) gives the start frequency as the lower edge, so
+        the upper edge alone is the one-sided width.
         """
         lv, f = self.level, self.freq
         k = int(np.argmax(lv))
@@ -884,9 +919,10 @@ class SpectrumResult:
         """Least-squares fit of S₀ / (1 + ((f − f₀)/γ)²) + S_floor to the PSD, in dB.
 
         ``center=0`` fits a self-homodyne beat (Lorentzian folded at DC: γ is the laser
-        linewidth); ``center=None`` also fits f₀, for a heterodyne beat (γ is then half the full
-        −3 dB width, i.e. again the laser linewidth). Bins within 3 RBW of DC are skipped: the
-        input is AC-coupled. Returns {"hwhm", "center", "peak_psd", "floor_psd"} [Hz, W/Hz].
+        linewidth); ``center=None`` also fits f₀, for a heterodyne beat (γ is then half
+        the full −3 dB width, i.e. again the laser linewidth). Bins within 3 RBW of DC
+        are skipped: the input is AC-coupled. Returns {"hwhm", "center", "peak_psd",
+        "floor_psd"} [Hz, W/Hz].
         """
         import warnings
 
@@ -906,9 +942,10 @@ class SpectrumResult:
             float(f[k + below[0]] - f0_guess) if below.size else f[-1] / 2, self.rbw
         )
 
-        # Fitted in log10 of S₀, γ and S_floor: well conditioned (they span ~17 decades) and positive.
-        # Bounded to the trace (levels within 3 decades of it, γ from a tenth of a bin to ten spans),
-        # so a trace that is no Lorentzian cannot drive them past 10³⁰⁸.
+        # Fitted in log10 of S₀, γ and S_floor: well conditioned (they span ~17 decades)
+        # and positive. Bounded to the trace (levels within 3 decades of it, γ from a
+        # tenth of a bin to ten spans), so a trace that is no Lorentzian cannot drive
+        # them past 10³⁰⁸.
         def model(fq, a, b, c, f0):
             return 10 * np.log10(10**a / (1 + ((fq - f0) / 10**b) ** 2) + 10**c)
 
@@ -953,18 +990,20 @@ class SpectrumResult:
         }
 
     def fit_self_homodyne(self, tau_d: float, center: float = 0.0) -> dict:
-        """Laser linewidth from a delayed self-homodyne (or, with ``center=f_AOM``, self-heterodyne)
-        beat for any delay ``tau_d`` [s], including delays shorter than the coherence time.
+        """Laser linewidth from a delayed self-homodyne (or, with ``center=f_AOM``,
+        self-heterodyne) beat for any delay ``tau_d`` [s], including delays shorter than
+        the coherence time.
 
-        Fits, in dB, A·Δν/(Δν² + u²)·S₂(u) + S_floor with u = f − f₀ and
-        S₂ = 1 − e^{−2πΔντd}[cos 2πuτd + (Δν/u) sin 2πuτd] (Chen et al., Sensors 24, 3656 (2024),
-        Eqs. (28)–(31)). The model is the average over the interferometer's bias phase θ: a
-        homodyne trace taken at one fixed θ is biased, so average spectra taken at θ and θ + π/2
-        first (:meth:`average`, :meth:`phoq.Runner.average_spectrum`). When τd ≪ 1/πΔν the
-        linewidth only sets the fringe depth e^{−2πΔντd}, so the span should cover several
-        fringes (period 1/τd). The fringes make the cost multimodal: the fit starts from a
-        ladder of linewidths and keeps the best. Bins within 3 RBW of f₀ are skipped.
-        Returns {"linewidth", "fringe_depth", "amplitude", "floor_psd", "rms_db", "tau_d", "center"}.
+        Fits, in dB, A·Δν/(Δν² + u²)·S₂(u) + S_floor with u = f − f₀ and S₂ = 1 −
+        e^{−2πΔντd}[cos 2πuτd + (Δν/u) sin 2πuτd] (Chen et al., Sensors 24, 3656 (2024),
+        Eqs. (28)–(31)). The model is the average over the interferometer's bias phase
+        θ: a homodyne trace taken at one fixed θ is biased, so average spectra taken at
+        θ and θ + π/2 first (:meth:`average`, :meth:`phoq.Runner.average_spectrum`).
+        When τd ≪ 1/πΔν the linewidth only sets the fringe depth e^{−2πΔντd}, so the
+        span should cover several fringes (period 1/τd). The fringes make the cost
+        multimodal: the fit starts from a ladder of linewidths and keeps the best. Bins
+        within 3 RBW of f₀ are skipped. Returns {"linewidth", "fringe_depth",
+        "amplitude", "floor_psd", "rms_db", "tau_d", "center"}.
         """
         import warnings
 
@@ -1034,8 +1073,9 @@ class SpectrumResult:
 
     @classmethod
     def average(cls, results) -> SpectrumResult:
-        """Power-average sweeps taken with the same analyzer settings into one result (e.g. at
-        several bias phases of an interferometer, for :meth:`fit_self_homodyne`)."""
+        """Power-average sweeps taken with the same analyzer settings into one result
+        (e.g. at several bias phases of an interferometer, for
+        :meth:`fit_self_homodyne`)."""
         results = list(results)
         if not results:
             raise ValueError("nothing to average")
@@ -1074,15 +1114,17 @@ class SpectrumResult:
         lo, hi = self.width(3.0)
         p = self.power()
         return (
-            f"{self.instrument}: {fmt_si(self.start, 'Hz')} … {fmt_si(self.stop, 'Hz')}, RBW {fmt_si(self.rbw, 'Hz')}, "
-            f"{self.averages} avg, {self.detector} detector\n"
-            f"  {self.source or 'no input'}: peak {l0:.1f} dBm at {fmt_si(f0, 'Hz')}, −3 dB {fmt_si(lo, 'Hz')} … {fmt_si(hi, 'Hz')}, "
-            f"median {self.median_level:.1f} dBm, {10 * math.log10(max(p, 1e-30) / 1e-3):.1f} dBm in the span"
+            f"{self.instrument}: {fmt_si(self.start, 'Hz')} …"
+            f" {fmt_si(self.stop, 'Hz')}, RBW {fmt_si(self.rbw, 'Hz')}, {self.averages}"
+            f" avg, {self.detector} detector\n  {self.source or 'no input'}: peak"
+            f" {l0:.1f} dBm at {fmt_si(f0, 'Hz')}, −3 dB {fmt_si(lo, 'Hz')} …"
+            f" {fmt_si(hi, 'Hz')}, median {self.median_level:.1f} dBm,"
+            f" {10 * math.log10(max(p, 1e-30) / 1e-3):.1f} dBm in the span"
         )
 
     def plot(self, ax=None):
-        """Matplotlib plot of the trace (dBm against frequency), on the analyzer's own scale, in the
-        dark_background style."""
+        """Matplotlib plot of the trace (dBm against frequency), on the analyzer's own
+        scale, in the dark_background style."""
         import matplotlib.pyplot as plt
 
         with plt.style.context("dark_background"):
@@ -1118,7 +1160,9 @@ class SpectrumResult:
             "span_dbm": 10 * math.log10(max(self.power(), 1e-30) / 1e-3),
         }
         if lo <= self.start + 1e-3 * (self.stop - self.start) and hi < self.stop:
-            try:  # a line folded at DC (self-homodyne): its Lorentzian half width is the linewidth
+            # a line folded at DC (self-homodyne): its Lorentzian half width is the
+            # linewidth
+            try:
                 hwhm = self.fit_lorentzian(0.0)["hwhm"]
                 if (
                     self.rbw <= hwhm <= self.stop
@@ -1139,20 +1183,21 @@ class SpectrumResult:
             "averages": self.averages,
             "sweeps": self.sweeps,
             "n": int(self.level.size),
-            "data": base64.b64encode(
-                np.asarray(self.level, dtype="<f4").tobytes()
-            ).decode(),
+            "data": (
+                base64.b64encode(np.asarray(self.level, dtype="<f4").tobytes()).decode()
+            ),
             "meas": meas,
         }
 
 
 class SpectrumAnalyzer(Component):
-    """RF (electrical) spectrum analyzer: the power in the resolution bandwidth against frequency,
-    in dBm into an AC-coupled input of ``input_impedance``.
+    """RF (electrical) spectrum analyzer: the power in the resolution bandwidth against
+    frequency, in dBm into an AC-coupled input of ``input_impedance``.
 
-    FFT method (README, "RF spectrum analyzer"): anti-alias filter and decimate to
-    f_s = 2.56 f_stop, Hann records of N = 1.5 f_s / RBW samples, ``averages`` of them
-    power-averaged with 50 % overlap, then ``points`` display points through the ``detector``.
+    FFT method (README, "RF spectrum analyzer"): anti-alias filter and decimate to f_s =
+    2.56 f_stop, Hann records of N = 1.5 f_s / RBW samples, ``averages`` of them
+    power-averaged with 50 % overlap, then ``points`` display points through the
+    ``detector``.
     """
 
     category = "instrument"
@@ -1200,12 +1245,18 @@ class SpectrumAnalyzer(Component):
     detector = Param(
         "peak",
         choices=("peak", "average", "sample"),
-        doc="How the bins in each display point's bucket become one value: peak for tones, average for noise",
+        doc=(
+            "How the bins in each display point's bucket become one value: peak for"
+            " tones, average for noise"
+        ),
     )
     trace = Param(
         "write",
         choices=("write", "average", "max hold"),
-        doc="write: each sweep replaces the trace; average: running mean of the sweeps; max hold: the largest seen",
+        doc=(
+            "write: each sweep replaces the trace; average: running mean of the sweeps;"
+            " max hold: the largest seen"
+        ),
     )
     ref_level = Param(0.0, unit="dBm", label="Reference level", min=-200.0, max=40.0)
     db_per_div = Param(
@@ -1230,7 +1281,10 @@ class SpectrumAnalyzer(Component):
         label="Noise floor (DANL)",
         min=-200.0,
         max=-60.0,
-        doc="Displayed average noise level, added at the input as white noise; a generic default (analyzers span about −140 … −165 dBm/Hz)",
+        doc=(
+            "Displayed average noise level, added at the input as white noise; a"
+            " generic default (analyzers span about −140 … −165 dBm/Hz)"
+        ),
     )
 
     def __init__(self, name: str | None = None, **params):
@@ -1254,8 +1308,9 @@ class SpectrumAnalyzer(Component):
 
     def ui_fields(self):
         return [
-            "running", "start_freq", "stop_freq", "rbw", "averages", "detector", "trace",
-            "ref_level", "db_per_div", "points", "input_impedance", "noise_floor",
+            "running", "start_freq", "stop_freq", "rbw", "averages", "detector",
+            "trace", "ref_level", "db_per_div", "points", "input_impedance",
+            "noise_floor",
         ]  # fmt: skip
 
     def _input(self):
@@ -1271,7 +1326,8 @@ class SpectrumAnalyzer(Component):
         return (src, peer.name) if isinstance(src, ok) else None
 
     def record(self) -> tuple[float, int, int, float]:
-        """(sample rate, samples per record, records per sweep, effective RBW) for the settings.
+        """(sample rate, samples per record, records per sweep, effective RBW) for the
+        settings.
 
         The sweep is capped at MAX_SAMPLES: fewer averages first, then a coarser RBW."""
         fs = 2.56 * self.stop_freq
@@ -1294,7 +1350,8 @@ class SpectrumAnalyzer(Component):
     def _signal(
         self, net: Network, rng: np.random.Generator, fs: float, total: int
     ) -> np.ndarray:
-        """``total`` samples at ``fs`` of the input voltage across the analyzer's input."""
+        """``total`` samples at ``fs`` of the input voltage across the analyzer's
+        input."""
         src = self._input()
         if src is None:
             return np.zeros(total)
@@ -1395,7 +1452,8 @@ class SpectrumAnalyzer(Component):
         )
 
     def _detect(self, f: np.ndarray, power: np.ndarray, fd: np.ndarray) -> np.ndarray:
-        """Power at each display frequency from the FFT bins in its bucket (detector mode)."""
+        """Power at each display frequency from the FFT bins in its bucket
+        (detector mode)."""
         out = np.interp(
             fd, f, power
         )  # sample detector, and buckets narrower than a bin

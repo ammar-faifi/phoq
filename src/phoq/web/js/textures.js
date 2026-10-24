@@ -112,7 +112,7 @@ export function getGlowTexture() {
 }
 
 let flowImg = null;
-/** Emissive stripe pattern scrolled along a fiber to show light travelling through it. */
+/** Emissive stripe pattern scrolled along a fiber to show light traveling through it. */
 export function makeFlowTexture() {
   if (!flowImg) {
     const [c, g] = canvas(256, 4);

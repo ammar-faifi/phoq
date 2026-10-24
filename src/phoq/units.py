@@ -13,14 +13,15 @@ K_B = 1.380649e-23  # Boltzmann constant [J/K]
 
 N_GROUP = 1.4682  # SMF-28 group index
 N_EFF = 1.4677  # SMF-28 effective (phase) index
-FIBER_DELAY = N_GROUP / C0  # [s/m], about 4.9 ns per metre
+FIBER_DELAY = N_GROUP / C0  # [s/m], about 4.9 ns per meter
 N_AIR = (
     1.00027  # refractive index of air near 1550 nm (phase and group differ by ~1e-6)
 )
 
-# ---- fiber connectors ---------------------------------------------------------------------------
-# End-face polish: PC and UPC are flat (domed, 0°) and mate with each other; APC is angled 8° and
-# mates only with APC. Colour code: UPC (and PC) blue, APC green.
+# ---- fiber connectors
+# --------------------------------------------------------------------------- End-face
+# polish: PC and UPC are flat (domed, 0°) and mate with each other; APC is angled 8° and
+# mates only with APC. Color code: UPC (and PC) blue, APC green.
 CONNECTORS = ("FC/UPC", "FC/APC", "FC/PC")
 DEFAULT_CONNECTOR = "FC/UPC"
 CONNECTOR_COLORS = {"FC/UPC": "#2563eb", "FC/PC": "#2563eb", "FC/APC": "#16a34a"}
@@ -33,7 +34,8 @@ RETURN_LOSS_DB = {
     "FC/APC": 60.0,
 }  # typical, per mated pair
 # An angled face against a flat one leaves an air gap, and the beam leaves the APC fiber
-# refracted by ≈ 3.8°: several dB lost depending on ferrule geometry. An assumed typical value.
+# refracted by ≈ 3.8°: several dB lost depending on ferrule geometry. An assumed typical
+# value.
 MISMATCH_LOSS_DB = 5.0
 FRESNEL = (
     (N_EFF - 1) / (N_EFF + 1)
@@ -98,13 +100,13 @@ def angled(connector: str) -> bool:
 
 
 def mating(a: str, b: str) -> tuple[float, float, float]:
-    """A mated pair of connectors ``a`` and ``b``: power transmission, and the power reflected
-    back into side a and into side b.
+    """A mated pair of connectors ``a`` and ``b``: power transmission, and the power
+    reflected back into side a and into side b.
 
-    Matching families lose CONNECTOR_LOSS_DB and reflect at the worse of the two return losses.
-    An APC against a PC/UPC loses MISMATCH_LOSS_DB; the flat face then sits against an air gap and
-    sends the Fresnel 3.6 % back into its own fiber, while the angled face's reflection leaves the
-    core as usual.
+    Matching families lose CONNECTOR_LOSS_DB and reflect at the worse of the two return
+    losses. An APC against a PC/UPC loses MISMATCH_LOSS_DB; the flat face then sits
+    against an air gap and sends the Fresnel 3.6 % back into its own fiber, while the
+    angled face's reflection leaves the core as usual.
     """
     if angled(a) == angled(b):
         r = db_to_t(min(RETURN_LOSS_DB[a], RETURN_LOSS_DB[b]))

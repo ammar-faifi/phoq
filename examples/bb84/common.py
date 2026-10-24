@@ -1,19 +1,20 @@
-"""What the BB84 parties share: public parameters, the hardware, the decoy-state maths.
+"""What the BB84 parties share: public parameters, the hardware, the decoy-state math.
 
-Phase-coding BB84 with weak coherent pulses (Bennett, PRL 68, 3121, 1992; Townsend, Rarity &
-Tapster, Electron. Lett. 29, 634, 1993) and decoy states (Lo, Ma & Chen, PRL 94, 230504, 2005;
-Ma, Qi, Zhao & Lo, PRA 72, 012326, 2005). Alice's unbalanced Mach–Zehnder interferometer splits
-every laser pulse into an early and a late time slot; her phase modulator in the long arm writes
-φ ∈ {0, π} (Z basis) or {π/2, 3π/2} (X basis) between them, and her intensity modulator picks
-μ, ν or (nearly) vacuum pulse by pulse. Bob's matching interferometer, with θ = 0 (Z) or π/2 (X)
-in its long arm, overlaps the late half of the early slot with the early half of the late slot:
-in the middle of the three output slots DET-0 clicks for φ − θ = 0 and DET-1 for φ − θ = π, and
-the two satellite slots carry no information. The time tagger runs three bins per pulse.
+Phase-coding BB84 with weak coherent pulses (Bennett, PRL 68, 3121, 1992; Townsend,
+Rarity & Tapster, Electron. Lett. 29, 634, 1993) and decoy states (Lo, Ma & Chen, PRL
+94, 230504, 2005; Ma, Qi, Zhao & Lo, PRA 72, 012326, 2005). Alice's unbalanced
+Mach–Zehnder interferometer splits every laser pulse into an early and a late time slot;
+her phase modulator in the long arm writes φ ∈ {0, π} (Z basis) or {π/2, 3π/2} (X basis)
+between them, and her intensity modulator picks μ, ν or (nearly) vacuum pulse by pulse.
+Bob's matching interferometer, with θ = 0 (Z) or π/2 (X) in its long arm, overlaps the
+late half of the early slot with the early half of the late slot: in the middle of the
+three output slots DET-0 clicks for φ − θ = 0 and DET-1 for φ − θ = π, and the two
+satellite slots carry no information. The time tagger runs three bins per pulse.
 
-Everything here is public: the parameters are agreed beforehand, and the estimates are the same
-deterministic functions both stations run on the same disclosed counts. Private data (Alice's
-intensities, bases and bits; Bob's bases and clicks) only ever passes through these functions
-inside its owner's own process.
+Everything here is public: the parameters are agreed beforehand, and the estimates are
+the same deterministic functions both stations run on the same disclosed counts. Private
+data (Alice's intensities, bases and bits; Bob's bases and clicks) only ever passes
+through these functions inside its owner's own process.
 """
 
 from __future__ import annotations
@@ -43,8 +44,11 @@ MIDDLE = 1
 class Topic:
     """Message topics on the classical channel."""
 
-    DETECT = "detect"  # Bob → Alice: pulses with a middle-slot click, and his basis for every pulse
-    SIFT = "sift"  # Alice → Bob: which detections match in basis, their intensity labels, her sent counts, her X bits, a Z sample
+    # Bob → Alice: pulses with a middle-slot click, and his basis for every pulse
+    DETECT = "detect"
+    # Alice → Bob: which detections match in basis, their intensity labels, her sent
+    # counts, her X bits, a Z sample
+    SIFT = "sift"
     ERRORS = "errors"  # Bob → Alice: his bits at the X detections and at the Z sample
 
 
@@ -68,9 +72,8 @@ class BB84Params:
     extinction_db: float = (
         30.0  # intensity-modulator extinction: how dark "vacuum" really is
     )
-    phase_error: float = (
-        0.2  # residual phase error of Bob's interferometer [rad]: sin²(0.1) ≈ 1 % optical QBER
-    )
+    # residual phase error of Bob's interferometer [rad]: sin²(0.1) ≈ 1 % optical QBER
+    phase_error: float = 0.2
     f_ec: float = 1.16  # error-correction inefficiency
     eve_position: float = (
         0.5  # where Eve's station cuts the fiber (fraction of the distance)
@@ -99,7 +102,7 @@ class BB84Params:
         return sum(p * k for p, k in zip(self.probabilities, self.intensities))
 
 
-# ---- encoding ----------------------------------------------------------------------------------------
+# ---- encoding ------------------------------------------------------------------------
 def phase_for(basis, bit) -> np.ndarray:
     """Alice's phase between the two time slots: Z = {0, π}, X = {π/2, 3π/2}."""
     return (
@@ -118,10 +121,11 @@ def middle_slot(clicks: np.ndarray) -> np.ndarray:
     return clicks[MIDDLE::BINS]
 
 
-# ---- the hardware (physical layer) ------------------------------------------------------------------
+# ---- the hardware (physical layer) ---------------------------------------------------
 def unbalanced_mzi(setup: Setup, tag: str, p: BB84Params, shifter: bool):
-    """Fiber Mach–Zehnder interferometer whose long arm is one time slot longer and holds a phase
-    modulator (and, for a receiver, the phase shifter that stabilises the interferometer).
+    """Fiber Mach–Zehnder interferometer whose long arm is one time slot longer and
+    holds a phase modulator (and, for a receiver, the phase shifter that stabilizes the
+    interferometer).
     """
     bs_in, bs_out = setup.add(Coupler(f"{tag}-BS1"), Coupler(f"{tag}-BS2"))
     pm = setup.add(PhaseModulator(f"{tag}-PM"))
@@ -140,8 +144,9 @@ def unbalanced_mzi(setup: Setup, tag: str, p: BB84Params, shifter: bool):
 def transmitter(
     setup: Setup, tag: str, p: BB84Params, shifter: bool = False
 ) -> Attenuator:
-    """Pulsed laser → intensity modulator → unbalanced MZI (phase modulator in the long arm) → VOA.
-    The AWG's CH1 drives the IM, CH2 the PM; the interferometer's second output feeds a monitor.
+    """Pulsed laser → intensity modulator → unbalanced MZI
+    (phase modulator in the long arm) → VOA. The AWG's CH1 drives the IM, CH2 the PM;
+    the interferometer's second output feeds a monitor.
     """
     laser = setup.add(
         Laser(
@@ -152,7 +157,8 @@ def transmitter(
             rep_rate=p.rep_rate,
             pulse_width=p.pulse_width,
             linewidth=p.linewidth,
-            phase_randomized=True,  # a weak-coherent-pulse source: fresh phase every pulse
+            # a weak-coherent-pulse source: fresh phase every pulse
+            phase_randomized=True,
         )
     )
     im = setup.add(IntensityModulator(f"{tag}-IM", extinction_db=p.extinction_db))
@@ -180,8 +186,9 @@ def receiver(
     detectors: tuple[str, str],
     tagger: str,
 ) -> Coupler:
-    """Unbalanced MZI (phase shifter + phase modulator in the long arm) → two SPDs → time tagger
-    with three bins per pulse, synchronised to Alice's laser. The AWG's CH1 drives the PM.
+    """Unbalanced MZI (phase shifter + phase modulator in the long arm) → two SPDs →
+    time tagger with three bins per pulse, synchronized to Alice's laser. The AWG's CH1
+    drives the PM.
     """
     bs_in, bs_out = unbalanced_mzi(setup, tag, p, shifter=True)
     det = [
@@ -221,11 +228,12 @@ def build(
 ) -> Setup:
     """The BB84 hardware, calibrated: Alice's transmitter → fiber → Bob's receiver.
 
-    With ``eve`` the fiber is cut at ``p.eve_position`` and Eve's station spliced in: a 2×2
-    optical switch (bar: Alice's pulse goes on to Bob; cross: it goes into Eve's receiver, a copy
-    of Bob's, while Eve's own transmitter's pulse takes its place), with her transmitter delayed
-    to arrive in the same time slot. By default the station is added when an Eve party has been
-    loaded (``--party examples/bb84/eve.py``) — a party file cannot add hardware itself.
+    With ``eve`` the fiber is cut at ``p.eve_position`` and Eve's station spliced in: a
+    2×2 optical switch (bar: Alice's pulse goes on to Bob; cross: it goes into Eve's
+    receiver, a copy of Bob's, while Eve's own transmitter's pulse takes its place),
+    with her transmitter delayed to arrive in the same time slot. By default the station
+    is added when an Eve party has been loaded (``--party examples/bb84/eve.py``) — a
+    party file cannot add hardware itself.
     """
     p = p or BB84Params()
     if eve is None:
@@ -261,14 +269,16 @@ def build(
         delay = setup.add(FiberSpool("EVE-DELAY", length=1.0, splice_loss_db=0.0))
         setup.connect(tx_voa.p2, delay.p1)
         setup.connect(delay.p2, sw.a2)
-    setup.terminate_spares()  # the interferometers' spare inputs: open, they reflect light back in
+    # the interferometers' spare inputs: open, they reflect light back in
+    setup.terminate_spares()
     calibrate(setup, p, eve)
     return setup
 
 
 def calibrate(setup: Setup, p: BB84Params, eve: bool) -> None:
-    """What a real bench needs before a run: μ at the fiber input, the interferometers' phases, and
-    (with Eve) her resend intensity, her delay line and her two interferometers."""
+    """What a real bench needs before a run: μ at the fiber input, the interferometers'
+    phases, and (with Eve) her resend intensity, her delay line and her two
+    interferometers."""
     calibrate_mu(setup, "ALICE", p.mu, "SPL-A.p1" if eve else "SPL.p1")
     calibrate_interferometer(setup, "ALICE-LD", "DET-0", "BOB-PS", p.slot)
     if eve:
@@ -283,11 +293,12 @@ def calibrate(setup: Setup, p: BB84Params, eve: bool) -> None:
         awg.ch2_offset = (
             0.0  # … then bar: Alice's pulses pass until Eve throws the switch
         )
-    setup["BOB-PS"].phase += p.phase_error  # what the stabilisation leaves behind
+    setup["BOB-PS"].phase += p.phase_error  # what the stabilization leaves behind
 
 
 def calibrate_mu(setup: Setup, tag: str, mu: float, port: str) -> float:
-    """Set a transmitter's VOA so that ``mu`` photons per pulse enter ``port`` (a power-meter check)."""
+    """Set a transmitter's VOA so that ``mu`` photons per pulse enter ``port``
+    (a power-meter check)."""
     laser, voa = setup[f"{tag}-LD"], setup[f"{tag}-VOA"]
     for _ in range(2):
         p_in = trace(setup).port_power[port]
@@ -299,7 +310,8 @@ def calibrate_mu(setup: Setup, tag: str, mu: float, port: str) -> float:
 
 
 def _static_amplitude(path) -> complex:
-    """A path's field amplitude with every modulator on it at its static (0 V) response."""
+    """A path's field amplitude with every modulator on it at its static (0 V)
+    response."""
     amp = complex(path.amp)
     for mod, _ in path.mods:
         amp *= complex(np.asarray(mod.response([mod.static_voltage()]))[0])
@@ -307,8 +319,8 @@ def _static_amplitude(path) -> complex:
 
 
 def middle_paths(net, source: Laser, detector, slot: float) -> list:
-    """The two strongest paths from ``source`` to ``detector`` that arrive one slot after the
-    earliest one: the pair that interferes in the middle time slot."""
+    """The two strongest paths from ``source`` to ``detector`` that arrive one slot
+    after the earliest one: the pair that interferes in the middle time slot."""
     paths = [q for q in net.paths.get(detector, []) if q.source is source]
     d0 = min(q.delay for q in paths)
     mid = [q for q in paths if abs(q.delay - d0 - slot) < 1e-13]
@@ -319,7 +331,8 @@ def calibrate_interferometer(
     setup: Setup, source: str, detector: str, shifter: str, slot: float
 ) -> float:
     """Set the phase shifter so that the two middle-slot paths from ``source`` interfere
-    constructively at ``detector`` — the interferometer stabilisation of a real receiver.
+    constructively at ``detector`` — the interferometer stabilization of a real
+    receiver.
     """
     src, det, ps = setup[source], setup[detector], setup[shifter]
     key = lambda q: tuple(id(m) for m, _ in q.mods)  # noqa: E731
@@ -339,8 +352,9 @@ def calibrate_interferometer(
 def match_delay(
     setup: Setup, source: str, reference: str, detector: str, spool: str
 ) -> float:
-    """Lengthen ``spool`` so that light from ``source`` reaches ``detector`` exactly when light from
-    ``reference`` does: pulse k of the one lands in the time bins of pulse k of the other.
+    """Lengthen ``spool`` so that light from ``source`` reaches ``detector`` exactly
+    when light from ``reference`` does: pulse k of the one lands in the time bins of
+    pulse k of the other.
     """
     net, det = trace(setup), setup[detector]
     d_ref = min(net.delays(det, setup[reference]))
@@ -354,15 +368,18 @@ def match_delay(
     return length
 
 
-# ---- post-processing: what both stations count and estimate ------------------------------------------
+# ---- post-processing: what both stations count and estimate --------------------------
 @dataclass
 class Tally:
-    """Public counts both stations accumulate — everything the decoy-state estimate needs."""
+    """Public counts both stations accumulate — everything the decoy-state estimate
+    needs."""
 
     pulses: int = 0
     sent: np.ndarray = field(
         default_factory=lambda: np.zeros((3, 2), dtype=np.int64)
-    )  # [intensity, basis]: pulses with that intensity and basis for which Bob chose the same basis
+        # [intensity, basis]: pulses with that intensity and basis for which Bob chose
+        # the same basis
+    )
     detected: np.ndarray = field(
         default_factory=lambda: np.zeros((3, 2), dtype=np.int64)
     )  # … of which Bob had a middle-slot click
@@ -398,9 +415,10 @@ def h2(x: float) -> float:
 def estimate(t: Tally, p: BB84Params) -> dict:
     """QBER, decoy-state bounds and the asymptotic key rate from the public counts.
 
-    Z-basis gains give the single-photon yield Y₁ (Ma et al. 2005, Eqs. 34–37, with the vacuum
-    decoy's true leak ω) and hence Q₁ = Y₁ μ e^{−μ}; the X-basis error gains give the
-    single-photon phase-error bound e₁; GLLP then gives, in secret bits per laser pulse,
+    Z-basis gains give the single-photon yield Y₁ (Ma et al. 2005, Eqs. 34–37, with the
+    vacuum decoy's true leak ω) and hence Q₁ = Y₁ μ e^{−μ}; the X-basis error gains give
+    the single-photon phase-error bound e₁; GLLP then gives, in secret bits per laser
+    pulse,
 
         R = (N_{μ,Z} / N) · [ Q₁ (1 − H₂(e₁)) − Q_μ f H₂(E_μ) ].
     """
@@ -464,9 +482,9 @@ def estimate(t: Tally, p: BB84Params) -> dict:
 def account(st: dict, mine: dict, theirs: dict) -> Tally:
     """One block's public counts, once both stations hold each other's disclosed bits.
 
-    ``st`` holds the sifting state (``sent``, ``label``, ``basis``, ``keep``, ``x``, ``zmu``,
-    ``sample``, ``n``, ``doubles``); ``mine``/``theirs`` the two stations' ``xbits`` and
-    ``sample_bits``. The disclosed Z-μ sample leaves the key.
+    ``st`` holds the sifting state (``sent``, ``label``, ``basis``, ``keep``, ``x``,
+    ``zmu``, ``sample``, ``n``, ``doubles``); ``mine``/``theirs`` the two stations'
+    ``xbits`` and ``sample_bits``. The disclosed Z-μ sample leaves the key.
     """
     t = Tally(pulses=int(st["n"]), doubles=int(st["doubles"]))
     t.sent = np.asarray(st["sent"], dtype=np.int64).copy()
@@ -485,7 +503,8 @@ def account(st: dict, mine: dict, theirs: dict) -> Tally:
 
 
 def key_from(st: dict, bits: np.ndarray) -> np.ndarray:
-    """A station's raw key bits of one block: its bits at the kept Z-μ detections, sample removed."""
+    """A station's raw key bits of one block: its bits at the kept Z-μ detections,
+    sample removed."""
     keep = st["zmu"].copy()
     keep[st["sample"]] = False
     return bits[keep].astype(np.int8)
@@ -498,8 +517,9 @@ def fmt(x, digits: int = 3) -> str:
 def describe(est: dict) -> str:
     """One line with the figures of merit, for the consoles."""
     return (
-        f"QBER Z {fmt(est['qber_z'])} X {fmt(est['qber_x'][I_MU])} · Y₁ ≥ {fmt(est['y1'])} "
-        f"e₁ ≤ {fmt(est['e1'])} Q₁ {fmt(est['q1'])} · R {fmt(est['rate'])} bit/pulse"
+        f"QBER Z {fmt(est['qber_z'])} X {fmt(est['qber_x'][I_MU])} · Y₁ ≥"
+        f" {fmt(est['y1'])} e₁ ≤ {fmt(est['e1'])} Q₁ {fmt(est['q1'])} · R"
+        f" {fmt(est['rate'])} bit/pulse"
     )
 
 

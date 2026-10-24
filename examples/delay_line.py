@@ -1,4 +1,5 @@
-"""A coupler splits a pulse train; one arm runs through a 1 km spool (4.9 µs late on CH2)."""
+"""A coupler splits a pulse train; one arm runs through a 1 km spool
+(4.9 µs late on CH2)."""
 
 import numpy as np
 
@@ -21,7 +22,8 @@ def build() -> Setup:
     setup.connect(spool.p2, pd2.inp)
     setup.connect(pd1.rf, scope.ch1)
     setup.connect(pd2.rf, scope.ch2)
-    setup.terminate_spares()  # BS-1's spare input: no cord, the terminator plugs straight in
+    # BS-1's spare input: no cord, the terminator plugs straight in
+    setup.terminate_spares()
     return setup
 
 
@@ -35,5 +37,6 @@ if __name__ == "__main__":
         np.flatnonzero(trace[ch].data > 0.5 * trace[ch].data.max())[0]
     ]  # first rising edge
     print(
-        f"\npulse on CH2 arrives {(rise('ch2') - rise('ch1')) * 1e6:.2f} µs after CH1 (spool delay {setup['SPL-1'].delay * 1e6:.2f} µs)"
+        f"\npulse on CH2 arrives {(rise('ch2') - rise('ch1')) * 1e6:.2f} µs after CH1"
+        f" (spool delay {setup['SPL-1'].delay * 1e6:.2f} µs)"
     )

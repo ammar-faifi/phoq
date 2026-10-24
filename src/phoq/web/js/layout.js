@@ -1,6 +1,6 @@
 // Automatic placement. Python owns the experiment; the layout is purely a visual choice made here:
 // parts flow left → right along the light path (BFS layers from the lasers), each column is
-// aligned with its upstream neighbours, instruments sit on the shelf and loose cords in front.
+// aligned with its upstream neighbors, instruments sit on the shelf and loose cords in front.
 import * as THREE from 'three';
 import { TABLE, SHELF, TABLE_PRESETS, clamp } from './util.js';
 
@@ -15,7 +15,7 @@ const roomier = () => Math.max(1, TABLE.width / 150);   // spread parts out on b
 
 const split = (path) => { const i = path.lastIndexOf('.'); return [path.slice(0, i), path.slice(i + 1)]; };
 
-/** Optical neighbours of every table part, following chains of patch cords. */
+/** Optical neighbors of every table part, following chains of patch cords. */
 function opticalGraph(lab) {
   const comps = new Map(lab.state.components.map((c) => [c.name, c]));
   const peer = new Map();
@@ -87,7 +87,7 @@ export function autoLayout(lab) {
   columns.forEach((col, i) => {
     const cx = x + widths[i] / 2;
     x += widths[i] + gap;
-    // z: aim for the mean z of already-placed neighbours, then resolve overlaps
+    // z: aim for the mean z of already-placed neighbors, then resolve overlaps
     const items = col.map((p) => {
       const placed = [...adj.get(p.name)].filter((n) => z.has(n)).map((n) => z.get(n));
       return { p, want: placed.length ? placed.reduce((a, b) => a + b, 0) / placed.length : -TABLE.depth / 15, d: p.footprint.d };
@@ -149,7 +149,7 @@ export function restFibers(lab, all = false) {
   }
 }
 
-/** Find a free table spot for a newly added part, near `at` or near its optical neighbours. */
+/** Find a free table spot for a newly added part, near `at` or near its optical neighbors. */
 export function placeNew(lab, part, at = null) {
   if (part.onShelf) { layoutShelf(lab); return; }
   const adj = opticalGraph(lab);

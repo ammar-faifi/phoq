@@ -1,5 +1,5 @@
-"""Part presets: the files, the registry and search path, what applying one does to a component,
-the model additions they needed, and the API and command line."""
+"""Part presets: the files, the registry and search path, what applying one does to a
+component, the model additions they needed, and the API and command line."""
 
 import json
 import math
@@ -304,15 +304,15 @@ def test_user_preset_directories_and_overrides(tmp_path, monkeypatch):
     mine = tmp_path / "mylab"
     (mine / "acme").mkdir(parents=True)
     (mine / "acme" / "spd-1.toml").write_text(
-        'component = "SinglePhotonDetector"\ntitle = "Acme SPD-1"\nvendor = "Acme Photonics"\n'
-        "[params]\n"
-        'efficiency = { value = 0.8, from = "measured", spec = "our unit at 1550 nm" }\n'
-        "dead_time = 50e-9\n"
+        'component = "SinglePhotonDetector"\ntitle = "Acme SPD-1"\nvendor = "Acme'
+        ' Photonics"\n[params]\nefficiency = { value = 0.8, from = "measured", spec ='
+        ' "our unit at 1550 nm" }\ndead_time = 50e-9\n'
     )
     (mine / "pdm-ir.toml").write_text(  # a lab's measured override of a shipped id
-        'id = "mpd/pdm-ir"\ncomponent = "SinglePhotonDetector"\ntitle = "MPD PDM-IR, our unit"\n'
-        'vendor = "Micro Photon Devices"\ntier = "validated"\n'
-        '[params]\nefficiency = { value = 0.21, from = "measured", spec = "V_EX 5 V" }\n'
+        'id = "mpd/pdm-ir"\ncomponent = "SinglePhotonDetector"\ntitle = "MPD PDM-IR,'
+        ' our unit"\nvendor = "Micro Photon Devices"\ntier ='
+        ' "validated"\n[params]\nefficiency = { value = 0.21, from = "measured", spec ='
+        ' "V_EX 5 V" }\n'
     )
     monkeypatch.setenv(presets.ENV_VAR, str(mine))
     presets.reload()
@@ -327,7 +327,8 @@ def test_user_preset_directories_and_overrides(tmp_path, monkeypatch):
         bad = tmp_path / "bad"
         bad.mkdir()
         (bad / "x.toml").write_text(
-            'component = "Laser"\ntitle = "x"\n[params]\npower_dbm = { from = "assumed" }\n'
+            'component = "Laser"\ntitle = "x"\n[params]\npower_dbm = { from ='
+            ' "assumed" }\n'
         )
         with pytest.raises(PresetError, match="needs a 'value'"):
             presets.add_path(bad)

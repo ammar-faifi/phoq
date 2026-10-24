@@ -1,18 +1,20 @@
-"""Eve: intercept-resend on a fraction of the pulses, from a station spliced into the fiber.
+"""Eve: intercept-resend on a fraction of the pulses, from a station spliced into the
+fiber.
 
-Load her with ``--party examples/bb84/eve.py`` (``build()`` then puts her station on the line,
-see ``common.build``). Her 2×2 optical switch diverts the pulses she picks into her own receiver —
-a copy of Bob's — and puts her own transmitter's pulse into the line instead; every other pulse
-passes through the bar state untouched. She measures in a random basis and, for every click,
-re-sends the state she found. Because her detection is lossy she re-sends brighter pulses, so
-that Bob's gain looks the same on average (``resend_mu``); the decoy statistics still see it.
+Load her with ``--party examples/bb84/eve.py`` (``build()`` then puts her station on the
+line, see ``common.build``). Her 2×2 optical switch diverts the pulses she picks into
+her own receiver — a copy of Bob's — and puts her own transmitter's pulse into the line
+instead; every other pulse passes through the bar state untouched. She measures in a
+random basis and, for every click, re-sends the state she found. Because her detection
+is lossy she re-sends brighter pulses, so that Bob's gain looks the same on average
+(``resend_mu``); the decoy statistics still see it.
 
-She is a ``stage = 1`` party: the lab records her tagger before Bob's and lets her program her
-transmitter from the clicks (``measure``) before the light goes on — the feed-forward a real
-station does with some latency, absorbed by Bob's clock calibration.
+She is a ``stage = 1`` party: the lab records her tagger before Bob's and lets her
+program her transmitter from the clicks (``measure``) before the light goes on — the
+feed-forward a real station does with some latency, absorbed by Bob's clock calibration.
 
-Environment: ``PHOQ_EVE_FRACTION`` (default 1.0) and ``PHOQ_EVE_MU`` (default: as bright as
-needed to match Bob's expected gain) set her strategy without editing this file.
+Environment: ``PHOQ_EVE_FRACTION`` (default 1.0) and ``PHOQ_EVE_MU`` (default: as bright
+as needed to match Bob's expected gain) set her strategy without editing this file.
 """
 
 from __future__ import annotations
@@ -55,7 +57,9 @@ class Eve(Party):
     fraction = float(
         os.environ.get("PHOQ_EVE_FRACTION", "1.0")
     )  # share of pulses intercepted
-    resend_mu = (  # photons per re-sent pulse at the switch; None: match Alice's mean intensity / her click probability
+    # photons per re-sent pulse at the switch; None: match Alice's mean intensity / her
+    # click probability
+    resend_mu = (
         float(os.environ["PHOQ_EVE_MU"]) if "PHOQ_EVE_MU" in os.environ else None
     )
 
@@ -66,11 +70,12 @@ class Eve(Party):
             "EVE-TX-VOA", "attenuation_db"
         )  # calibrated: μ photons per pulse at the switch
         print(
-            f"eavesdropper up · intercept-resend on {self.fraction:.0%} of the pulses · "
-            f"re-sends with μ_E = {'gain-matched' if self.resend_mu is None else self.resend_mu}"
+            f"eavesdropper up · intercept-resend on {self.fraction:.0%} of the pulses ·"
+            " re-sends with μ_E ="
+            f" {'gain-matched' if self.resend_mu is None else self.resend_mu}"
         )
 
-    # ---- physical layer -----------------------------------------------------------------------------
+    # ---- physical layer --------------------------------------------------------------
     def prepare(self, block: int, n: int) -> None:
         m = n // common.BINS
         attack = self.rng.random(m) < self.fraction
@@ -96,7 +101,8 @@ class Eve(Party):
         both = c0[idx] & c1[idx]
         bits = np.where(c1[idx] & ~c0[idx], 1, 0).astype(np.int8)
         bits[both] = self.rng.integers(0, 2, size=int(both.sum()), dtype=np.int8)
-        # re-send what she found, in the basis she guessed; nothing where she saw nothing
+        # re-send what she found, in the basis she guessed; nothing where she saw
+        # nothing
         transmission = np.zeros(attack.size)
         transmission[idx] = 1.0
         phase = np.zeros(attack.size)
@@ -126,8 +132,8 @@ class Eve(Party):
         t["clicks"] += idx.size
         t["resent"] += idx.size
         print(
-            f"block {batch.seq}: intercepted {intercepted:,} of {attack.size:,} pulses, "
-            f"{idx.size:,} clicks (p {p_click:.3e}) → re-sent with μ_E = {mu_e:.2f}"
+            f"block {batch.seq}: intercepted {intercepted:,} of {attack.size:,} pulses,"
+            f" {idx.size:,} clicks (p {p_click:.3e}) → re-sent with μ_E = {mu_e:.2f}"
         )
         self.report(
             **{

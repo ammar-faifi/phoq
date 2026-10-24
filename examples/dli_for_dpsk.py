@@ -1,19 +1,23 @@
 """A delay-line interferometer as a DPSK demodulator, the receiver of DPS-QKD.
 
-    uv run python examples/dli_for_dpsk.py                  # decode a 2 µs sweep at three linewidths
-    uv run python examples/dli_for_dpsk.py --plot dpsk.png  # also save the scope view
-    uv run phoq serve examples/dli_for_dpsk.py              # the bench in 3D
+    # decode a 2 µs sweep at three linewidths
+    uv run python examples/dli_for_dpsk.py
+    # also save the scope view
+    uv run python examples/dli_for_dpsk.py --plot dpsk.png
+    # the bench in 3D
+    uv run phoq serve examples/dli_for_dpsk.py
 
-A phase modulator writes φ_k = φ_{k−1} + π·b_k on a 100 MHz pulse train (differential encoding).
-The DLI (examples/dli.py) overlaps pulse k with pulse k−1, so equal neighbours (b_k = 0) leave by
-the constructive port and a π step (b_k = 1) by the destructive one: the bit comes out without
-any phase reference at the receiver. How cleanly depends on the coherence between neighbouring
-pulses, e^{−πΔν·T}: the decoded contrast follows the laser's linewidth.
+A phase modulator writes φ_k = φ_{k−1} + π·b_k on a 100 MHz pulse train
+(differential encoding). The DLI (examples/dli.py) overlaps pulse k with pulse k−1, so
+equal neighbors (b_k = 0) leave by the constructive port and a π step (b_k = 1) by the
+destructive one: the bit comes out without any phase reference at the receiver. How
+cleanly depends on the coherence between neighboring pulses, e^{−πΔν·T}: the decoded
+contrast follows the laser's linewidth.
 
-Scope CH1 is the constructive port (PD-C), CH2 the destructive port (PD-D), CH3 the bits (the
-generator's second channel, delayed into the slot that decodes them). In the lab, turn DLI-PS's
-phase to swap the outputs, raise LD-1's linewidth to 10 MHz to watch the neighbouring pulses lose
-their phase relation, or tick "Random phase per pulse".
+Scope CH1 is the constructive port (PD-C), CH2 the destructive port (PD-D), CH3 the bits
+(the generator's second channel, delayed into the slot that decodes them). In the lab,
+turn DLI-PS's phase to swap the outputs, raise LD-1's linewidth to 10 MHz to watch the
+neighboring pulses lose their phase relation, or tick "Random phase per pulse".
 """
 
 import argparse
@@ -56,7 +60,8 @@ def dpsk_bits(n: int = N_BITS, seed: int = 11) -> np.ndarray:
 
 
 def build(linewidth: float = 100e3, bits: np.ndarray | None = None) -> Setup:
-    """Pulsed laser → phase modulator (FG-1 CH1) → DLI → PD-C, PD-D → scope; FG-1 CH2 → scope CH3."""
+    """Pulsed laser → phase modulator (FG-1 CH1) → DLI → PD-C, PD-D → scope; FG-1 CH2 →
+    scope CH3."""
     setup = Setup("Delay-line interferometer: DPSK demodulator", seed=5)
     laser = setup.add(
         Laser(
@@ -113,8 +118,9 @@ def build(linewidth: float = 100e3, bits: np.ndarray | None = None) -> Setup:
 
 
 def decode(setup: Setup, seed: int = 1, timebase: float | None = None) -> dict:
-    """One scope sweep: the energy each port gets in each slot, the decoded bits, the errors.
-    ``timebase`` widens the sweep (200 ns/div: about 200 slots) without changing the lab's view.
+    """One scope sweep: the energy each port gets in each slot, the decoded bits, the
+    errors. ``timebase`` widens the sweep (200 ns/div: about 200 slots) without changing
+    the lab's view.
     """
     osc = setup["OSC-1"]
     keep = osc.timebase
@@ -130,9 +136,9 @@ def decode(setup: Setup, seed: int = 1, timebase: float | None = None) -> dict:
     c, dd = res["ch1"].data, res["ch2"].data
     out = []
     for k in range(-2, int((t[-1] - t[0]) * RATE) + 2):
-        centre = k / RATE + d  # slot k after the trigger pulse, through the short arm
-        sel = np.abs(t - centre) < 0.4 / RATE
-        if not sel.any() or t[0] > centre - 0.4 / RATE or t[-1] < centre + 0.4 / RATE:
+        center = k / RATE + d  # slot k after the trigger pulse, through the short arm
+        sel = np.abs(t - center) < 0.4 / RATE
+        if not sel.any() or t[0] > center - 0.4 / RATE or t[-1] < center + 0.4 / RATE:
             continue
         out.append(
             (
@@ -159,22 +165,24 @@ def decode(setup: Setup, seed: int = 1, timebase: float | None = None) -> dict:
 
 
 if __name__ == "__main__":
-    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--plot", metavar="PNG", help="save the scope view")
     args = ap.parse_args()
 
     T = 1 / RATE
     odl = build()["DLI-ODL"]
     print(
-        f"DLI: cords 3 m (long arm) − 1 m (short arm) = {fmt_si(2 * FIBER_DELAY, 's')}; delay line "
-        f"{fmt_si(odl.insertion_delay, 's')} + {fmt_si(odl.delay, 's')} on the dial → one slot T = {fmt_si(T, 's')}\n"
+        f"DLI: cords 3 m (long arm) − 1 m (short arm) = {fmt_si(2 * FIBER_DELAY, 's')};"
+        f" delay line {fmt_si(odl.insertion_delay, 's')} + {fmt_si(odl.delay, 's')} on"
+        f" the dial → one slot T = {fmt_si(T, 's')}\n"
     )
     print("DPSK demodulation (photodiodes, one 2 µs scope sweep)")
     for lw in (100e3, 10e6, 100e6):
         r = decode(build(linewidth=lw), timebase=200e-9)
         print(
-            f"   linewidth {fmt_si(lw, 'Hz'):>8}: {r['slots']} slots decoded, {r['errors']} errors, "
-            f"mean contrast {r['contrast']:+.3f}  (e^(−πΔνT) = {math.exp(-math.pi * lw * T):.3f})"
+            f"   linewidth {fmt_si(lw, 'Hz'):>8}: {r['slots']} slots decoded,"
+            f" {r['errors']} errors, mean contrast {r['contrast']:+.3f}  (e^(−πΔνT) ="
+            f" {math.exp(-math.pi * lw * T):.3f})"
         )
 
     if args.plot:
@@ -203,7 +211,8 @@ if __name__ == "__main__":
             ax.set_ylabel(label, fontsize=8)
             ax.grid(alpha=0.3)
         axes[0].set_title(
-            "DPSK through a delay-line interferometer: the bit leaves by the destructive port"
+            "DPSK through a delay-line interferometer: the bit leaves by the"
+            " destructive port"
         )
         axes[-1].set_xlabel("time from trigger [ns]")
         fig.tight_layout()

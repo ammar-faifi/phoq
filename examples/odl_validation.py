@@ -1,21 +1,24 @@
 """Optical delay line (ODL): the model checked against its theory.
 
-    uv run python examples/odl_validation.py      # every check: theory against phoq
-    uv run phoq serve examples/odl_validation.py  # a DLI for 100 ps pulses: turn DLI-ODL's dial in 3D
+    # every check: theory against phoq
+    uv run python examples/odl_validation.py
+    # a DLI for 100 ps pulses: turn DLI-ODL's dial in 3D
+    uv run phoq serve examples/odl_validation.py
 
 The README section "Optical delay line" derives the expected values:
 
 1. group delay    τ_g = τ₀ + τ, stopped at the end of travel and on the step grid
 2. carrier phase  one fringe per optical period λ/c (5.17 fs at 1550 nm)
 3. coherence      balanced MZI, CW laser of linewidth Δν: V(δ) = V₀·e^{−πΔν|δ|}
-4. pulse overlap  DLI, Gaussian pulses of FWHM w: V(δ) = V₀·e^{−πΔν(T+δ)}·exp(−ln2·δ²/w²)
+4. pulse overlap  DLI, Gaussian pulses, FWHM w: V(δ) = V₀·e^{−πΔν(T+δ)}·exp(−ln2·δ²/w²)
 5. coupling loss  IL + 10·log10[1 + (d/2z_R)²], d the air gap away from mid-travel
 
-V₀ = 2|a₁a₂|/(|a₁|² + |a₂|²) is the ceiling that unequal arm losses leave (the delay line loses 0.9–1.2 dB
-more than the phase shifter, depending on the dial). Checks 3 and 4 measure V twice: in the steady state (`report`)
-and from synthesized fields (one phase walk per record, energies integrated over it), by four-step
-phase shifting with the phase shifter. Check 4 also runs the photon counter, whose bins average the
-light unless `oversample` splits them finer than the pulses.
+V₀ = 2|a₁a₂|/(|a₁|² + |a₂|²) is the ceiling that unequal arm losses leave (the delay
+line loses 0.9–1.2 dB more than the phase shifter, depending on the dial). Checks 3 and
+4 measure V twice: in the steady state (`report`) and from synthesized fields (one phase
+walk per record, energies integrated over it), by four-step phase shifting with the
+phase shifter. Check 4 also runs the photon counter, whose bins average the light unless
+`oversample` splits them finer than the pulses.
 """
 
 import math
@@ -54,10 +57,11 @@ WIDTH = (
 T = 1 / RATE
 
 
-# ---- benches ------------------------------------------------------------------------------------
+# ---- benches -------------------------------------------------------------------------
 def mzi(linewidth: float = 0.0, wavelength: float = 1550e-9) -> Setup:
-    """CW laser → coupler → (0.5 m, PS-1, 0.5 m) and (0.5 m, ODL-1, 0.5 m) → coupler → PD-1, PD-2.
-    The cords match, so the arms differ by the delay line alone: δ = τ₀ + τ."""
+    """CW laser → coupler → (0.5 m, PS-1, 0.5 m) and (0.5 m, ODL-1, 0.5 m) → coupler →
+    PD-1, PD-2. The cords match, so the arms differ by the delay line alone: δ = τ₀ +
+    τ."""
     setup = Setup("Balanced MZI with a delay line", seed=1)
     laser = setup.add(
         Laser(
@@ -79,9 +83,10 @@ def mzi(linewidth: float = 0.0, wavelength: float = 1550e-9) -> Setup:
 
 
 def build(width: float = WIDTH, linewidth: float = 100e3) -> Setup:
-    """Pulsed laser → DLI (examples/dli.py) → 20 GHz photodiodes → scope at 1 ns/div. With the
-    delay line balanced, one slot's pulse leaves PD-C alone; turn DLI-ODL's dial and the two arms'
-    pulses walk apart, both ports showing two half pulses that no longer interfere."""
+    """Pulsed laser → DLI (examples/dli.py) → 20 GHz photodiodes → scope at 1 ns/div.
+    With the delay line balanced, one slot's pulse leaves PD-C alone; turn DLI-ODL's
+    dial and the two arms' pulses walk apart, both ports showing two half pulses that no
+    longer interfere."""
     setup = Setup("Delay-line interferometer, 100 ps pulses", seed=3)
     # −20 dBm average is ≈ 1 mW peak in 100 ps pulses: the photodiodes stay linear.
     laser = setup.add(
@@ -125,7 +130,8 @@ def build(width: float = WIDTH, linewidth: float = 100e3) -> Setup:
 
 
 def counting(width: float = WIDTH, oversample: int = 1) -> Setup:
-    """The DLI with single-photon detectors and a time tagger in 1 ns bins (10 per pulse)."""
+    """The DLI with single-photon detectors and a time tagger in 1 ns bins
+    (10 per pulse)."""
     setup = Setup("DLI, photon counting", seed=4)
     laser = setup.add(
         Laser(
@@ -155,9 +161,10 @@ def counting(width: float = WIDTH, oversample: int = 1) -> Setup:
     return setup
 
 
-# ---- measurements -------------------------------------------------------------------------------
+# ---- measurements --------------------------------------------------------------------
 def visibility(setup: Setup, shifter: str, measure) -> float:
-    """Four-step phase shifting: P(θ) = A + B·cos(θ + θ₀) at θ = 0, π/2, π, 3π/2 gives V = B/A."""
+    """Four-step phase shifting: P(θ) = A + B·cos(θ + θ₀) at θ = 0, π/2, π, 3π/2 gives V
+    = B/A."""
     ps = setup[shifter]
     keep, p = ps.phase, []
     for k in range(4):
@@ -172,8 +179,8 @@ def steady(setup: Setup, detector: str):
 
 
 def synthesized(setup: Setup, detector: str, dt: float, n: int, seed: int = 7):
-    """Energy reaching ``detector`` over one synthesized record of n bins of dt (a new phase walk
-    per call)."""
+    """Energy reaching ``detector`` over one synthesized record of n bins of dt
+    (a new phase walk per call)."""
     rng = np.random.default_rng(seed)
     t = np.arange(n) * dt
 
@@ -192,7 +199,8 @@ def ceiling(setup: Setup, laser: str, detector: str) -> float:
 
 
 def counted(setup: Setup, batches: int = 2, seed: int = 5) -> float:
-    """V = (n₁ − n₂)/(n₁ + n₂) from the tagger, the DLI locked so equal phases go to DM1."""
+    """V = (n₁ − n₂)/(n₁ + n₂) from the tagger, the DLI locked so equal phases go to
+    DM1."""
     lock(setup, "LD-1", "DM1", "DLI-PS")
     runner, n1, n2 = Runner(setup, seed=seed), 0, 0
     for _ in range(batches):
@@ -202,13 +210,14 @@ def counted(setup: Setup, batches: int = 2, seed: int = 5) -> float:
 
 
 def overlap(delta: float, width: float, linewidth: float = 100e3) -> float:
-    """Theory without V₀: coherence of neighbouring pulses times their Gaussian field overlap."""
+    """Theory without V₀: coherence of neighboring pulses times their Gaussian field
+    overlap."""
     return math.exp(-math.pi * linewidth * (T + delta)) * math.exp(
         -math.log(2) * delta**2 / width**2
     )
 
 
-# ---- the checks ---------------------------------------------------------------------------------
+# ---- the checks ----------------------------------------------------------------------
 def check_delay() -> list[tuple]:
     """Trace delay through the line against τ₀ + τ (the cords' share subtracted)."""
     setup = mzi()
@@ -235,7 +244,8 @@ def check_delay() -> list[tuple]:
 def check_fringe(
     wavelength: float = 1550e-9, span: float = 30e-15, step: float = 0.02e-15
 ) -> tuple[float, float]:
-    """Fringe period of P(τ) at PD-1 from zero crossings over ``span`` of dial, against λ/c."""
+    """Fringe period of P(τ) at PD-1 from zero crossings over ``span`` of dial, against
+    λ/c."""
     setup = mzi(wavelength=wavelength)
     odl = setup["ODL-1"]
     taus = 50e-12 + np.arange(0, span, step)
@@ -273,7 +283,8 @@ def check_coherence(linewidth: float = 1e9) -> list[tuple]:
 def check_overlap(
     width: float = WIDTH, dials=(0.0, 55e-12, 105e-12, 155e-12, 205e-12, 330e-12)
 ) -> list[tuple]:
-    """DLI visibility against δ = arm difference − T, scanning the dial across the travel."""
+    """DLI visibility against δ = arm difference − T, scanning the dial across the
+    travel."""
     setup = build(width=width)
     odl = setup["DLI-ODL"]
     best = odl.delay
@@ -297,7 +308,8 @@ def check_overlap(
 
 
 def check_cords_alone(width: float) -> tuple[float, float, float]:
-    """The arms' 3 m − 1 m of cords without the delay line's 205 ps (τ₀ and the dial at 0)."""
+    """The arms' 3 m − 1 m of cords without the delay line's 205 ps
+    (τ₀ and the dial at 0)."""
     setup = build(width=width)
     odl = setup["DLI-ODL"]
     short, long_ = arms(setup, "LD-1", "PD-C")
@@ -324,7 +336,8 @@ def check_counter(delta: float = 100e-12) -> list[tuple]:
 
 
 def check_loss() -> list[tuple]:
-    """Loss of the line against the dial, relative to mid-travel, at 1550 and 1310 nm."""
+    """Loss of the line against the dial, relative to mid-travel, at 1550 and 1310
+    nm."""
     rows = []
     for wl in (1550e-9, 1310e-9):
         setup = mzi(wavelength=wl)
@@ -360,14 +373,16 @@ if __name__ == "__main__":
             else ("end stop, warned" if warned else "")
         )
         print(
-            f"   dial {fmt_si(dial, 's'):>9}: {fmt_si(got, 's', 7):>13}  expected {fmt_si(want, 's', 7):>13}  {note}"
+            f"   dial {fmt_si(dial, 's'):>9}: {fmt_si(got, 's', 7):>13}  expected"
+            f" {fmt_si(want, 's', 7):>13}  {note}"
         )
 
     print("\n2. Carrier phase: fringe period while scanning the dial")
     for wl in (1550e-9, 1310e-9):
         got, want = check_fringe(wl)
         print(
-            f"   {wl * 1e9:.0f} nm: {fmt_si(got, 's', 6)}  expected λ/c = {fmt_si(want, 's', 6)}"
+            f"   {wl * 1e9:.0f} nm: {fmt_si(got, 's', 6)}  expected λ/c ="
+            f" {fmt_si(want, 's', 6)}"
         )
 
     print("\n3. Coherence: balanced MZI, CW laser of 1 GHz linewidth (τ_c = 318 ps)")
@@ -376,25 +391,30 @@ if __name__ == "__main__":
         print(f"   {fmt_si(delta, 's'):>8} {want:8.3f} {rep:8.3f} {syn:8.3f}")
 
     print(
-        f"\n4. Pulse overlap: DLI, {fmt_si(WIDTH, 's')} pulses, 100 kHz laser (dial balanced at 105 ps)"
+        f"\n4. Pulse overlap: DLI, {fmt_si(WIDTH, 's')} pulses, 100 kHz laser (dial"
+        " balanced at 105 ps)"
     )
     print(f"   {'dial':>8} {'δ':>8} {'theory':>8} {'report':>8} {'fields':>8}")
     for dial, delta, want, rep, syn in check_overlap():
         print(
-            f"   {fmt_si(dial, 's'):>8} {fmt_si(delta, 's'):>8} {want:8.3f} {rep:8.3f} {syn:8.3f}"
+            f"   {fmt_si(dial, 's'):>8} {fmt_si(delta, 's'):>8} {want:8.3f} {rep:8.3f}"
+            f" {syn:8.3f}"
         )
     for w in (1e-9, WIDTH):
         delta, want, rep = check_cords_alone(w)
         print(
-            f"   standard cords alone (δ = {fmt_si(delta, 's')}), {fmt_si(w, 's')} pulses: theory {want:.3f}, report {rep:.3f}"
+            f"   standard cords alone (δ = {fmt_si(delta, 's')}), {fmt_si(w, 's')}"
+            f" pulses: theory {want:.3f}, report {rep:.3f}"
         )
     for m, want, got in check_counter():
         print(
-            f"   time tagger at δ = +100 ps, oversample {m:>2}: counted V = {got:.3f}  (theory {want:.3f})"
+            f"   time tagger at δ = +100 ps, oversample {m:>2}: counted V = {got:.3f} "
+            f" (theory {want:.3f})"
         )
 
     print("\n5. Coupling loss against the dial, relative to mid-travel (w₀ = 250 µm)")
     for wl, dial, want, got in check_loss():
         print(
-            f"   {wl * 1e9:.0f} nm, dial {fmt_si(dial, 's'):>9}: {got:6.3f} dB  expected {want:6.3f} dB"
+            f"   {wl * 1e9:.0f} nm, dial {fmt_si(dial, 's'):>9}: {got:6.3f} dB "
+            f" expected {want:6.3f} dB"
         )

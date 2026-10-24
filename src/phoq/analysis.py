@@ -5,29 +5,32 @@ Write a separate script, decorate a function, and point the lab at the file::
     # my_analysis.py
     from phoq.analysis import task
 
-    @task("TAGGER")                      # the counter(s) feeding it; omit the name for every counter
+    @task("TAGGER")  # the counter(s) feeding it; omit the name for every counter
     def rates(batch):
-        t = batch.timestamps("ch1")      # absolute click times [s], continuous across batches
-        print(f"batch {batch.seq}: {t.size} clicks on ch1, {batch.rates['ch1']:.3g} cps")
-        return {"ch1 rate [cps]": batch.rates["ch1"]}     # a dict becomes a live read-out
+        # absolute click times [s], continuous across batches
+        t = batch.timestamps("ch1")
+        rate = batch.rates["ch1"]
+        print(f"batch {batch.seq}: {t.size} clicks on ch1, {rate:.3g} cps")
+        return {"ch1 rate [cps]": rate}  # a dict becomes a live read-out
 
-    $ uv run phoq serve examples/mpqkd --analysis my_analysis.py   # live, with a console
+    $ uv run phoq serve examples/mpqkd --analysis my_analysis.py  # live, with a console
     $ uv run phoq run   examples/mpqkd --analysis my_analysis.py --batches 10
 
-or, from the script itself, ``analysis.main("examples/mpqkd")`` under ``if __name__ == "__main__":``.
-``@task("TAGGER", party="CHARLIE")`` puts the task's console on that party's laptop in the lab.
+or, from the script itself, ``analysis.main("examples/mpqkd")`` under ``if __name__ ==
+"__main__":``. ``@task("TAGGER", party="CHARLIE")`` puts the task's console on that
+party's laptop in the lab.
 
-Why a process per task
-----------------------
-Each task runs in its own worker process (``multiprocessing``, *spawn*). A thread would share the
-interpreter lock with the simulation, could not be stopped if the user's code looped forever, and
-``print`` output cannot be captured per thread. Python 3.14's sub-interpreters
-(``concurrent.interpreters``) would give parallelism in one process, but NumPy's support for them is
-still immature and nearly every analysis uses NumPy. A process gives full isolation (a crash or hang
-never touches the lab), its own interpreter lock, a plain pipe for stdout/stderr that feeds the
-console, and a clean kill/restart that also reloads the edited script. A batch of 100 000 click flags
-per second is a trivial amount of data for a pipe. State kept in the function's globals or closure
-persists between batches, since the worker process lives for the whole experiment.
+Why a process per task ---------------------- Each task runs in its own worker process
+(``multiprocessing``, *spawn*). A thread would share the interpreter lock with the
+simulation, could not be stopped if the user's code looped forever, and ``print`` output
+cannot be captured per thread. Python 3.14's sub-interpreters
+(``concurrent.interpreters``) would give parallelism in one process, but NumPy's support
+for them is still immature and nearly every analysis uses NumPy. A process gives full
+isolation (a crash or hang never touches the lab), its own interpreter lock, a plain
+pipe for stdout/stderr that feeds the console, and a clean kill/restart that also
+reloads the edited script. A batch of 100 000 click flags per second is a trivial amount
+of data for a pipe. State kept in the function's globals or closure persists between
+batches, since the worker process lives for the whole experiment.
 """
 
 from __future__ import annotations
@@ -57,9 +60,10 @@ REGISTRY: list[Task] = []
 MAX_BACKLOG = 2  # batches a slow worker may fall behind before new ones are dropped
 
 
-# ---- registration -------------------------------------------------------------------------------
+# ---- registration --------------------------------------------------------------------
 class Task:
-    """A registered post-processing function: ``fn(batch)`` for every batch of its sources."""
+    """A registered post-processing function: ``fn(batch)`` for every batch of its
+    sources."""
 
     def __init__(
         self, fn, sources=(), name: str | None = None, party: str | None = None
@@ -85,7 +89,8 @@ class Task:
 
 
 def task(*sources, name: str | None = None, party: str | None = None):
-    """Register a function to run on every click batch: ``@task`` or ``@task("TAGGER", party="CHARLIE")``."""
+    """Register a function to run on every click batch: ``@task`` or
+    ``@task("TAGGER", party="CHARLIE")``."""
     if (
         sources and callable(sources[0]) and not isinstance(sources[0], str)
     ):  # bare @task
@@ -114,7 +119,7 @@ def load_tasks(path: str | Path) -> list[Task]:
     return found
 
 
-# ---- worker processes ------------------------------------------------------------------------------
+# ---- worker processes ----------------------------------------------------------------
 class QueueWriter:
     """A file-like stdout/stderr replacement that ships whole lines to the parent."""
 
@@ -176,7 +181,8 @@ def _task_main(path: str, name: str, in_q, out_q) -> None:
 class ProcessWorker:
     """A child process whose console output, status and read-outs the lab collects.
 
-    Subclasses say what to run (``target``) and may handle extra messages from the child.
+    Subclasses say what to run (``target``) and may handle extra messages from the
+    child.
     """
 
     kind = "process"
@@ -196,7 +202,7 @@ class ProcessWorker:
         self.lock = threading.Lock()
         self._announced = None
 
-    # ---- what runs ---------------------------------------------------------------------------
+    # ---- what runs -------------------------------------------------------------------
     def target(self):
         """(function, args) run in the child; the args end with (in_q, out_q)."""
         raise NotImplementedError
@@ -212,7 +218,7 @@ class ProcessWorker:
     def alive(self) -> bool:
         return self.proc is not None and self.proc.is_alive()
 
-    # ---- lifecycle ---------------------------------------------------------------------------
+    # ---- lifecycle -------------------------------------------------------------------
     def start(self) -> None:
         if self.alive:
             return
@@ -261,15 +267,17 @@ class ProcessWorker:
             self.lines.clear()
             self.new = []
 
-    # ---- data -----------------------------------------------------------------------------------
+    # ---- data ------------------------------------------------------------------------
     def send(self, batch: CounterResult) -> bool:
-        """Queue a batch; a worker more than MAX_BACKLOG batches behind drops it (buffer overflow)."""
+        """Queue a batch; a worker more than MAX_BACKLOG batches behind drops it
+        (buffer overflow)."""
         if not self.alive:
             return False
         if self.sent - self.done > MAX_BACKLOG:
             self.dropped += 1
             self._log(
-                f"⚠ dropped batch {batch.seq} ({self.name} is {self.sent - self.done} batches behind)"
+                f"⚠ dropped batch {batch.seq} ({self.name} is {self.sent - self.done}"
+                " batches behind)"
             )
             return False
         self.in_q.put(("batch", batch))
@@ -322,7 +330,7 @@ class ProcessWorker:
             self.lines.append(line)
             self.new.append(line)
 
-    # ---- views ----------------------------------------------------------------------------------
+    # ---- views -----------------------------------------------------------------------
     def has_news(self) -> bool:
         return bool(self.new) or self.status != self._announced
 
@@ -381,12 +389,12 @@ def jsonable(d):
     return out
 
 
-# ---- running headless ---------------------------------------------------------------------------
+# ---- running headless ----------------------------------------------------------------
 class Session:
     """Acquire the setup's counters batch after batch and feed the batches to the tasks.
 
-    ``with Session(setup) as s: s.run(batches=10)`` — uses every registered task unless ``tasks``
-    is given. Time stamps continue from one batch to the next.
+    ``with Session(setup) as s: s.run(batches=10)`` — uses every registered task unless
+    ``tasks`` is given. Time stamps continue from one batch to the next.
     """
 
     def __init__(
@@ -442,7 +450,8 @@ class Session:
     def run(
         self, batches: int = 10, echo: bool = True, timeout: float = 60.0
     ) -> list[TaskWorker]:
-        """Start the workers, acquire ``batches`` batches, wait for the tasks to finish, stop."""
+        """Start the workers, acquire ``batches`` batches, wait for the tasks to finish,
+        stop."""
         self.start()
         try:
             for _ in range(batches):
@@ -468,14 +477,16 @@ def echo_lines(workers, stream=None) -> None:
 def main(
     setup_path: str | Path, batches: int = 10, serve: bool = False, port: int = 8000
 ) -> None:
-    """Run the tasks registered in the calling script against a setup file (headless or served)."""
+    """Run the tasks registered in the calling script against a setup file
+    (headless or served)."""
     setup = Setup.load(setup_path)
     tasks = list(REGISTRY)
     if serve:
         from .server import serve as _serve
 
         print(
-            f"virtual lab: http://127.0.0.1:{port}   tasks: {', '.join(t.name for t in tasks)}"
+            f"virtual lab: http://127.0.0.1:{port}   tasks:"
+            f" {', '.join(t.name for t in tasks)}"
         )
         _serve(setup, port=port, tasks=tasks)
     else:

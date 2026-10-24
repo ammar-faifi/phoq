@@ -1,6 +1,7 @@
-"""Clock and frame synchronization from time stamps (examples/clock_sync.py): Bob recovers Alice's
-clock and the delay from a free-running tagger, against the traced truth. Alice's CW laser is carved
-by her intensity modulator; how much of a symbol the pulse fills sets the clock line."""
+"""Clock and frame synchronization from time stamps (examples/clock_sync.py): Bob
+recovers Alice's clock and the delay from a free-running tagger, against the traced
+truth. Alice's CW laser is carved by her intensity modulator; how much of a symbol the
+pulse fills sets the clock line."""
 
 import math
 from pathlib import Path
@@ -36,7 +37,8 @@ def test_bob_recovers_clock_and_delay(bench):
 
 
 def test_nrz_carving_leaves_no_clock_line():
-    """Half-symbol pulses keep a line of depth 2/π; NRZ has its null exactly at the symbol rate."""
+    """Half-symbol pulses keep a line of depth 2/π; NRZ has its null exactly at the
+    symbol rate."""
     half = EX["report"](carve=2)
     assert half["depth"] == pytest.approx(2 / math.pi, abs=0.04)
     assert abs(half["f error ppm"]) < 0.3 and half["assigned"] > 0.999
@@ -45,7 +47,8 @@ def test_nrz_carving_leaves_no_clock_line():
 
 
 def test_analysis_on_synthetic_time_stamps():
-    """The same chain on hand-made clicks: spread over a quarter-symbol pulse, plus 1 % dark counts."""
+    """The same chain on hand-made clicks: spread over a quarter-symbol pulse, plus 1 %
+    dark counts."""
     rng = np.random.default_rng(4)
     string = rng.integers(0, 2, 640).astype(np.int8)
     f, delay = 80e6 * (1 + 41e-6), 1.2345e-6
@@ -62,7 +65,8 @@ def test_analysis_on_synthetic_time_stamps():
 
 
 def test_one_nanosecond_time_bins():
-    """1 GHz symbols, a 4 GS/s AWG carving 250 ps pulses, 20 ps tagger bins, a 50 ns detector."""
+    """1 GHz symbols, a 4 GS/s AWG carving 250 ps pulses, 20 ps tagger bins, a 50 ns
+    detector."""
     r = EX["report"](record=2e-4, dead_time=50e-9, **EX["GHZ"])
     s, true = r["sync"], r["truth"]
     assert s["clicks"] > 1500 and true["f"] == pytest.approx(
@@ -78,8 +82,9 @@ def test_one_nanosecond_time_bins():
 
 
 def test_saturated_detector_ticks_next_to_the_frame():
-    """A 1 µs dead time at 1 GHz: about one click per dead time plus a short wait. With so few clicks
-    the blind frame check cannot confirm L, but the clock and the delay (which use the agreed L) hold.
+    """A 1 µs dead time at 1 GHz: about one click per dead time plus a short wait. With
+    so few clicks the blind frame check cannot confirm L, but the clock and the delay
+    (which use the agreed L) hold.
     """
     r = EX["report"](record=2e-4, **EX["GHZ"])
     s = r["sync"]
@@ -94,8 +99,9 @@ def test_saturated_detector_ticks_next_to_the_frame():
 
 
 def test_dead_time_outlasts_the_tagger_chunks_and_records():
-    """A 40 µs dead time against 10 µs chunks: the detector stays dead across each cut, and across
-    the start of the next acquisition, so a bright input clicks exactly once per dead time.
+    """A 40 µs dead time against 10 µs chunks: the detector stays dead across each cut,
+    and across the start of the next acquisition, so a bright input clicks exactly once
+    per dead time.
     """
     from phoq import Laser, PhotonCounter, Runner, Setup, SinglePhotonDetector
 
@@ -116,8 +122,9 @@ def test_dead_time_outlasts_the_tagger_chunks_and_records():
 
 
 def test_long_dead_time_below_saturation_recovers_clock_and_delay():
-    """40 µs, attenuated until a live detector waits about τd/10: N ≈ T/(τd + W) clicks, the copies of
-    the clock line every 1/τd washed out, and 45 clicks enough for the clock and the delay.
+    """40 µs, attenuated until a live detector waits about τd/10: N ≈ T/(τd + W) clicks,
+    the copies of the clock line every 1/τd washed out, and 45 clicks enough for the
+    clock and the delay.
     """
     r = EX["report"](record=2e-3, dead_time=40e-6, mu=0.002, **EX["LONG"])
     s = r["sync"]
@@ -134,8 +141,9 @@ def test_long_dead_time_below_saturation_recovers_clock_and_delay():
 
 
 def test_saturated_long_dead_time_strobes_the_clock():
-    """Saturated (μ = 0.2), the clicks come every τd plus ~40 ns: copies of the clock line every
-    1/τd stand as tall as the line itself, which the runner-up ratio flags without the truth.
+    """Saturated (μ = 0.2), the clicks come every τd plus ~40 ns: copies of the clock
+    line every 1/τd stand as tall as the line itself, which the runner-up ratio flags
+    without the truth.
     """
     r = EX["report"](record=2e-3, dead_time=40e-6, **EX["LONG"])
     assert r["sync"]["clicks"] == pytest.approx(50, abs=1)
@@ -143,7 +151,8 @@ def test_saturated_long_dead_time_strobes_the_clock():
 
 
 def test_long_dead_time_frame_check_needs_hundreds_of_clicks():
-    """20 ms at 40 µs below saturation: ~450 clicks, enough for N/√(2L) to clear the noise."""
+    """20 ms at 40 µs below saturation: ~450 clicks, enough for N/√(2L) to clear the
+    noise."""
     r = EX["report"](record=20e-3, dead_time=40e-6, mu=0.002, **EX["LONG"])
     fr = r["sync"]["frame"]
     assert fr["L"] == EX["L"] and fr["significance"] > 2 * fr["noise"]

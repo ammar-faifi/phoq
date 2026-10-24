@@ -1,14 +1,17 @@
-"""Core building blocks: parameters, ports, components and the Setup that wires them together.
+"""Core building blocks: parameters, ports, components and the Setup that wires them
+together.
 
-A *component* is any piece of lab equipment (laser, fiber, detector, oscilloscope …). Its settings
-are declared as :class:`Param` class attributes, so they are ordinary instance attributes::
+A *component* is any piece of lab equipment (laser, fiber, detector, oscilloscope …).
+Its settings are declared as :class:`Param` class attributes, so they are ordinary
+instance attributes::
 
     laser = Laser(power_dbm=-3)
-    laser.wavelength = 1310e-9       # validated, and observers (e.g. the visualizer) are notified
+    laser.wavelength = 1310e-9  # validated; observers (the visualizer) are notified
 
-Components expose *ports* (``laser.out``, ``pd.inp``, ``pd.rf``). A :class:`Setup` owns the
-components and the connections between ports. Optical ports are always joined through a fiber
-patch cord; connecting two bulkhead ports directly inserts a 1 m :class:`~phoq.Fiber`.
+Components expose *ports* (``laser.out``, ``pd.inp``, ``pd.rf``). A :class:`Setup` owns
+the components and the connections between ports. Optical ports are always joined
+through a fiber patch cord; connecting two bulkhead ports directly inserts a 1 m
+:class:`~phoq.Fiber`.
 """
 
 from __future__ import annotations
@@ -28,8 +31,9 @@ _MISSING = object()
 class Param:
     """A validated, self-describing component setting.
 
-    ``choices`` are enforced (for string options); ``presets`` are only suggested values that the
-    visualizer offers in a drop-down. ``display=(unit, scale)`` shows e.g. metres as nanometres.
+    ``choices`` are enforced (for string options); ``presets`` are only suggested values
+    that the visualizer offers in a drop-down. ``display=(unit, scale)`` shows e.g.
+    meters as nanometers.
     """
 
     def __init__(
@@ -155,8 +159,9 @@ class Port:
 
     @property
     def connector(self) -> str | None:
-        """Connector type of an optical port (``"FC/UPC"``, ``"FC/APC"``, …); None if electrical,
-        and for a mating sleeve the type plugged into its other side (None while that is empty).
+        """Connector type of an optical port (``"FC/UPC"``, ``"FC/APC"``, …); None if
+        electrical, and for a mating sleeve the type plugged into its other side
+        (None while that is empty).
         """
         return (
             self.component.connector_of(self.name) if self.kind == "optical" else None
@@ -173,11 +178,15 @@ class Port:
         }
 
     def __repr__(self) -> str:
-        return f"<Port {self.path} {self.kind}{' → ' + self.peer.path if self.peer else ''}>"
+        return (
+            f"<Port {self.path}"
+            f" {self.kind}{' → ' + self.peer.path if self.peer else ''}>"
+        )
 
 
 class Transfer(NamedTuple):
-    """Light entering a component leaves through ``port`` with complex amplitude gain ``amp``."""
+    """Light entering a component leaves through ``port`` with complex amplitude gain
+    ``amp``."""
 
     port: Port
     amp: complex
@@ -200,9 +209,8 @@ class Component:
     is_adaptor: ClassVar[bool] = (
         False  # a mating sleeve: the connectors in its two sides mate
     )
-    is_plug: ClassVar[bool] = (
-        False  # plugs straight into a port or a sleeve, like a cord's end (a terminator)
-    )
+    # plugs straight into a port or a sleeve, like a cord's end (a terminator)
+    is_plug: ClassVar[bool] = False
     spectral_curves: ClassVar[dict[str, str]] = (
         {}
     )  # datasheet curves a preset may give: name → unit
@@ -221,8 +229,8 @@ class Component:
 
     @staticmethod
     def lookup(name: str) -> type[Component] | None:
-        """The registered class called ``name`` (or formerly called so), None if there is none.
-        Saved setups, presets and the API name classes this way."""
+        """The registered class called ``name`` (or formerly called so), None if there
+        is none. Saved setups, presets and the API name classes this way."""
         return Component.registry.get(Component.canonical(name))
 
     @classmethod
@@ -269,7 +277,8 @@ class Component:
         for key, value in params.items():
             if key not in specs:
                 raise TypeError(
-                    f"{type(self).__name__} has no parameter {key!r} (valid: {', '.join(specs)})"
+                    f"{type(self).__name__} has no parameter {key!r} (valid:"
+                    f" {', '.join(specs)})"
                 )
             setattr(self, key, value)
         return self
@@ -278,7 +287,7 @@ class Component:
     def params(self) -> dict[str, Any]:
         return dict(self._values)
 
-    # ---- part presets (see phoq.presets) ----------------------------------------------------
+    # ---- part presets (see phoq.presets) ---------------------------------------------
     @property
     def preset(self) -> str:
         """Id of the applied part preset, or ``"generic"`` for the class defaults."""
@@ -288,7 +297,8 @@ class Component:
 
     @property
     def preset_info(self):
-        """The applied :class:`~phoq.presets.Preset` (a synthesized generic one when none is)."""
+        """The applied :class:`~phoq.presets.Preset` (a synthesized generic one when
+        none is)."""
         from .presets import generic_for
 
         return self._preset if self._preset is not None else generic_for(type(self))
@@ -299,15 +309,17 @@ class Component:
         return dict(self._preset.limits) if self._preset is not None else {}
 
     def curve(self, name: str):
-        """The preset's datasheet curve ``name`` (a :class:`~phoq.presets.Curve`), or None."""
+        """The preset's datasheet curve ``name`` (a :class:`~phoq.presets.Curve`), or
+        None."""
         return self._preset.curves.get(name) if self._preset is not None else None
 
     def apply_preset(self, preset) -> Component:
         """Set this part up as a product: ``im.apply_preset("exail/mx-ln-10")``.
 
-        Only the parameters the preset lists are set, so operating settings (a laser's power, a
-        scope's timebase) stay as they are; the ones the previous preset had set go back to their
-        defaults first. ``"generic"`` returns to the class defaults.
+        Only the parameters the preset lists are set, so operating settings (a laser's
+        power, a scope's timebase) stay as they are; the ones the previous preset had
+        set go back to their defaults first. ``"generic"`` returns to the class
+        defaults.
         """
         from . import presets as _presets
 
@@ -323,7 +335,8 @@ class Component:
         return self
 
     def provenance(self) -> dict[str, dict]:
-        """Where each preset-set parameter comes from, and whether it was edited since."""
+        """Where each preset-set parameter comes from, and whether it was edited
+        since."""
         if self._preset is None:
             return {}
         return {
@@ -335,18 +348,21 @@ class Component:
         }
 
     def baseline(self) -> dict[str, Any]:
-        """Parameter values before any edit: the class defaults overlaid with the preset's."""
+        """Parameter values before any edit: the class defaults overlaid with the
+        preset's."""
         base = {k: p.default for k, p in self.param_specs().items()}
         if self._preset is not None:
             base.update(self._preset.params)
         return base
 
     def ui_fields(self) -> list[str]:
-        """Parameters worth showing for the current settings (the visualizer hides the rest)."""
+        """Parameters worth showing for the current settings
+        (the visualizer hides the rest)."""
         return [k for k in self.param_specs() if not k.startswith("connector")]
 
     def connector_of(self, port: str) -> str:
-        """Connector type on an optical port: the part's ``connector`` setting, else FC/UPC."""
+        """Connector type on an optical port: the part's ``connector`` setting, else
+        FC/UPC."""
         from .units import DEFAULT_CONNECTOR
 
         return self._values.get("connector", DEFAULT_CONNECTOR)
@@ -364,7 +380,8 @@ class Component:
             self.setup._notify("param", self, name)
 
     def to_dict(self, full: bool = False) -> dict:
-        """Name, type, preset id (if any) and the parameters that differ from the baseline."""
+        """Name, type, preset id (if any) and the parameters that differ from the
+        baseline."""
         base = self.baseline()
         params = {k: v for k, v in self._values.items() if full or v != base[k]}
         out: dict[str, Any] = {"name": self.name, "type": type(self).__name__}
@@ -389,8 +406,11 @@ class FiberConnectors:
         "FC/UPC",
         choices=("FC/UPC", "FC/APC", "FC/PC"),
         label="Connectors",
-        doc="End-face polish of this part's fiber connectors: FC/UPC (blue) and FC/PC are flat, "
-        "FC/APC (green) is angled 8°. An APC mated to a flat connector leaves an air gap.",
+        doc=(
+            "End-face polish of this part's fiber connectors: FC/UPC (blue) and FC/PC"
+            " are flat, FC/APC (green) is angled 8°. An APC mated to a flat connector"
+            " leaves an air gap."
+        ),
     )
 
 
@@ -403,7 +423,8 @@ def _free_port(comp: Component, names: tuple[str, ...], kind: str) -> Port | Non
 
 
 class Setup:
-    """An experiment: a set of named components and the connections between their ports."""
+    """An experiment: a set of named components and the connections between their
+    ports."""
 
     def __init__(self, name: str = "experiment", *, seed: int | None = None):
         self.name = name
@@ -411,9 +432,10 @@ class Setup:
         self.components: dict[str, Component] = {}
         self._listeners: list[Callable] = []
 
-    # ---- building ---------------------------------------------------------------------------
+    # ---- building --------------------------------------------------------------------
     def add(self, *components: Component):
-        """Add components (auto-naming unnamed ones). Returns the component, or a tuple."""
+        """Add components (auto-naming unnamed ones). Returns the component, or a
+        tuple."""
         for c in components:
             if c.setup is self:
                 continue
@@ -425,7 +447,8 @@ class Setup:
                 raise ValueError(f"duplicate component name {c.name!r}")
             elif not re.fullmatch(r"[A-Za-z0-9_\-]+", c.name):
                 raise ValueError(
-                    f"component names may only use letters, digits, '-' and '_': {c.name!r}"
+                    "component names may only use letters, digits, '-' and '_':"
+                    f" {c.name!r}"
                 )
             c.setup = self
             self.components[c.name] = c
@@ -456,7 +479,8 @@ class Setup:
             raise KeyError(f"no component named {name!r}")
         if port not in self.components[name].ports:
             raise KeyError(
-                f"{name} has no port {port!r} (ports: {', '.join(self.components[name].ports)})"
+                f"{name} has no port {port!r} (ports:"
+                f" {', '.join(self.components[name].ports)})"
             )
         return self.components[name].ports[port]
 
@@ -468,8 +492,8 @@ class Setup:
         *,
         length: float = 1.0,
     ):
-        """Connect two ports. Two bulkhead optical ports get a patch cord (returned) in between; a
-        plug (a terminator) mates straight onto the other port."""
+        """Connect two ports. Two bulkhead optical ports get a patch cord (returned) in
+        between; a plug (a terminator) mates straight onto the other port."""
         a, b = self.port(a), self.port(b)
         for p in (a, b):
             if p.component.setup is not self:
@@ -517,8 +541,9 @@ class Setup:
         return None
 
     def terminate(self, port: Port | str, connector: str | None = None) -> Component:
-        """Cap an unused optical port with a fiber terminator of its own connector type (or
-        ``connector``), as one caps a homodyne's vacuum input or a coupler's spare output.
+        """Cap an unused optical port with a fiber terminator of its own connector type
+        (or ``connector``), as one caps a homodyne's vacuum input or a coupler's spare
+        output.
         """
         from .passive import FiberTerminator
         from .units import DEFAULT_CONNECTOR
@@ -531,9 +556,9 @@ class Setup:
         return cap
 
     def spare_ports(self) -> list[Port]:
-        """Unused optical ports of the passive parts and modulators, such as a coupler's spare input
-        or output. A laser with nothing on it, a free detector input and an unplugged cord end are
-        not spares."""
+        """Unused optical ports of the passive parts and modulators, such as a coupler's
+        spare input or output. A laser with nothing on it, a free detector input and an
+        unplugged cord end are not spares."""
         from .detectors import _Detector
         from .sources import Laser
 
@@ -551,8 +576,8 @@ class Setup:
         ]
 
     def terminate_spares(self) -> list[Component]:
-        """Cap every spare port (:meth:`spare_ports`) with a terminator of its own connector type;
-        returns the terminators."""
+        """Cap every spare port (:meth:`spare_ports`) with a terminator of its own
+        connector type; returns the terminators."""
         return [self.terminate(p) for p in self.spare_ports()]
 
     def _mate(self, a: Port, b: Port) -> None:
@@ -568,7 +593,8 @@ class Setup:
         self._notify("disconnect", p.component)
 
     def chain(self, *items: Component) -> Setup:
-        """Wire components one after another, e.g. ``chain(laser, Fiber(2), pd, scope)``."""
+        """Wire components one after another, e.g.
+        ``chain(laser, Fiber(2), pd, scope)``."""
         prev = None
         for item in items:
             if item.setup is not self:
@@ -594,7 +620,7 @@ class Setup:
     ) -> Setup:
         return cls(name, seed=seed).chain(*items)
 
-    # ---- queries ----------------------------------------------------------------------------
+    # ---- queries ---------------------------------------------------------------------
     def __getitem__(self, name: str) -> Component:
         return self.components[name]
 
@@ -627,11 +653,15 @@ class Setup:
         return "\n".join(lines)
 
     def __repr__(self) -> str:
-        return f"<Setup {self.name!r}: {len(self)} components, {len(self.connections())} connections>"
+        return (
+            f"<Setup {self.name!r}: {len(self)} components, {len(self.connections())}"
+            " connections>"
+        )
 
-    # ---- running ----------------------------------------------------------------------------
+    # ---- running ---------------------------------------------------------------------
     def run(self, *instruments, seed: int | None = None):
-        """Acquire every instrument (or the given ones). Returns :class:`~phoq.Results`."""
+        """Acquire every instrument (or the given ones). Returns
+        :class:`~phoq.Results`."""
         from .runner import Runner
 
         return Runner(self, seed=seed if seed is not None else self.seed).run(
@@ -645,7 +675,8 @@ class Setup:
         port: int = 8000,
         save_path: str | Path | None = None,
     ) -> None:
-        """Start the API server and the 3D virtual lab for this setup (blocks until Ctrl-C)."""
+        """Start the API server and the 3D virtual lab for this setup
+        (blocks until Ctrl-C)."""
         from .server import serve
 
         print(
@@ -655,7 +686,7 @@ class Setup:
             self, host=host, port=port, save_path=Path(save_path) if save_path else None
         )
 
-    # ---- change notifications ---------------------------------------------------------------
+    # ---- change notifications --------------------------------------------------------
     def on_change(self, fn: Callable) -> Callable:
         """Register ``fn(event, component, param)``; called on every edit."""
         self._listeners.append(fn)
@@ -667,7 +698,7 @@ class Setup:
         for fn in list(self._listeners):
             fn(event, component, param)
 
-    # ---- persistence ------------------------------------------------------------------------
+    # ---- persistence -----------------------------------------------------------------
     def to_dict(self, full: bool = False) -> dict:
         return {
             "name": self.name,
@@ -701,8 +732,8 @@ class Setup:
 
     @classmethod
     def load(cls, path: str | Path) -> Setup:
-        """Load a setup from a ``.json`` file, a Python script, or a package directory that defines
-        ``setup`` or ``build()``."""
+        """Load a setup from a ``.json`` file, a Python script, or a package directory
+        that defines ``setup`` or ``build()``."""
         path = Path(path)
         if path.suffix == ".json":
             return cls.from_dict(json.loads(path.read_text()))
@@ -720,12 +751,14 @@ class Setup:
             )
         if not isinstance(setup, Setup):
             raise ValueError(
-                f"{path} defines no Setup (expected a `setup` variable or a `build()` function)"
+                f"{path} defines no Setup (expected a `setup` variable or a `build()`"
+                " function)"
             )
         return setup
 
     def to_python(self) -> str:
-        """Python source that rebuilds this setup (parameters that differ from defaults only)."""
+        """Python source that rebuilds this setup (parameters that differ from defaults
+        only)."""
         var: dict[str, str] = {}
         for c in self:
             v = re.sub(r"\W+", "_", c.name).strip("_").lower() or "part"
@@ -735,12 +768,13 @@ class Setup:
                 v += "_"
             var[c.name] = v
         types = sorted({type(c).__name__ for c in self})
+        seed = f", seed={self.seed!r}" if self.seed is not None else ""
         out = [
             f'"""{self.name} — generated by phoq."""',
             "",
             f"from phoq import {', '.join(['Setup'] + types)}",
             "",
-            f"setup = Setup({self.name!r}{f', seed={self.seed!r}' if self.seed is not None else ''})",
+            f"setup = Setup({self.name!r}{seed})",
         ]
         for c in self:
             d = c.to_dict()
@@ -754,7 +788,8 @@ class Setup:
         out.append("")
         for a, b in self.connections():
             out.append(
-                f"setup.connect({var[a.component.name]}.{a.name}, {var[b.component.name]}.{b.name})"
+                f"setup.connect({var[a.component.name]}.{a.name},"
+                f" {var[b.component.name]}.{b.name})"
             )
         out += [
             "",

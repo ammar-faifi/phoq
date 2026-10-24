@@ -1,4 +1,5 @@
-"""Importing user code: setup scripts, analysis scripts, party files and protocol packages."""
+"""Importing user code: setup scripts, analysis scripts, party files and protocol
+packages."""
 
 from __future__ import annotations
 
@@ -10,17 +11,18 @@ from pathlib import Path
 
 
 def module_name_for(path: Path) -> str:
-    """A private, deterministic module name for a user file or package (same in every process)."""
+    """A private, deterministic module name for a user file or package
+    (same in every process)."""
     return f"phoq_user_{path.stem}_{hashlib.md5(str(path).encode()).hexdigest()[:6]}"
 
 
 def import_source(source: str | Path):
     """Import user code and return the module.
 
-    ``source`` is a ``.py`` file (re-executed on every call, so edits are picked up), a directory
-    with an ``__init__.py`` (imported once as a package under a private name, so its relative
-    imports work), or a dotted module name. Scripts get a private module name, so an
-    ``if __name__ == "__main__":`` guard stays inert.
+    ``source`` is a ``.py`` file (re-executed on every call, so edits are picked up), a
+    directory with an ``__init__.py`` (imported once as a package under a private name,
+    so its relative imports work), or a dotted module name. Scripts get a private module
+    name, so an ``if __name__ == "__main__":`` guard stays inert.
     """
     text = str(source)
     path = Path(text)
@@ -54,10 +56,11 @@ def import_source(source: str | Path):
 
 
 def locate(name: str, search: tuple[str, ...] = ("examples",)) -> tuple[object, str]:
-    """Import a protocol or setup given as a path, a folder under ``search`` dirs, or a dotted name.
+    """Import a protocol or setup given as a path, a folder under ``search`` dirs, or a
+    dotted name.
 
-    Returns ``(module, locator)``; passing the locator to :func:`import_source` in another process
-    imports the same thing there.
+    Returns ``(module, locator)``; passing the locator to :func:`import_source` in
+    another process imports the same thing there.
     """
     text = str(name)
     candidates = [Path(text), *(Path(d) / text for d in search)]

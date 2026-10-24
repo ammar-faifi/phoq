@@ -1,12 +1,14 @@
-"""A CW laser and an intensity modulator biased at quadrature by a DC supply and driven by a
-function generator, with a scope watching the photocurrent next to the drive.
+"""A CW laser and an intensity modulator biased at quadrature by a DC supply and driven
+by a function generator, with a scope watching the photocurrent next to the drive.
 
-    uv run python examples/modulated_link.py                       # headless
-    uv run phoq serve examples/modulated_link.py    # live 3D visualizer
+    # headless
+    uv run python examples/modulated_link.py
+    # live 3D visualizer
+    uv run phoq serve examples/modulated_link.py
 
-The modulator has no settings of its own beyond Vπ: the supply's CH1 sits on its ``bias`` input
-and the generator's CH1 on its ``rf`` input. CH2 of the generator goes straight to the
-oscilloscope so the drive can be seen next to the photocurrent.
+The modulator has no settings of its own beyond Vπ: the supply's CH1 sits on its
+``bias`` input and the generator's CH1 on its ``rf`` input. CH2 of the generator goes
+straight to the oscilloscope so the drive can be seen next to the photocurrent.
 """
 
 import numpy as np
@@ -46,7 +48,8 @@ if __name__ == "__main__":
     print(setup.run().summary())
     print("IM:", im.info())
 
-    # Move the bias to the null and drive 0 → Vπ with a 30 % duty square wave: a pulse carver.
+    # Move the bias to the null and drive 0 → Vπ with a 30 % duty square wave: a pulse
+    # carver.
     psu.ch1_voltage = im.v_pi
     fg.set(
         ch1_shape="square",

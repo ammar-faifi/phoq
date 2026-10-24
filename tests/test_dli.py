@@ -1,6 +1,6 @@
 """Delay-line interferometer (examples/dli.py): one slot of delay, DPSK decoding
-(examples/dli_for_dpsk.py), and the COW monitoring visibility (examples/dli_for_cow.py) following
-the coherence between neighbouring pulses, e^{−πΔν·T}."""
+(examples/dli_for_dpsk.py), and the COW monitoring visibility (examples/dli_for_cow.py)
+following the coherence between neighboring pulses, e^{−πΔν·T}."""
 
 import math
 from pathlib import Path
@@ -34,7 +34,7 @@ def test_dpsk_contrast_follows_the_pulse_to_pulse_coherence():
 
 
 @pytest.mark.parametrize("linewidth", [100e3, 10e6])
-def test_cow_visibility_is_the_coherence_between_neighbouring_pulses(linewidth):
+def test_cow_visibility_is_the_coherence_between_neighboring_pulses(linewidth):
     m = COW["monitor"](COW["build"](linewidth=linewidth), batches=3)
     assert m["V"] == pytest.approx(math.exp(-math.pi * linewidth * T), abs=0.04)
     assert m["qber"] < 0.005  # the data line does not see coherence at all
@@ -46,7 +46,8 @@ def test_cow_visibility_vanishes_without_a_phase_relation():
 
 
 def test_tagger_channel_delay_aligns_like_a_matched_cord():
-    """DB behind 1 m with CH1 delayed 9.8 ns counts as DB behind 3 m (the DLI short arm's fiber)."""
+    """DB behind 1 m with CH1 delayed 9.8 ns counts as DB behind 3 m
+    (the DLI short arm's fiber)."""
     tagged = COW["monitor"](COW["build"](), batches=2)
     cord = COW["build"]()
     cord["CNT"].ch1_delay = 0.0

@@ -1,20 +1,24 @@
-"""Secret-key rate versus fiber length: the three-party showcase run headless at each distance,
-next to the theory curve of the MP-QKD paper evaluated on this lab's parameters.
+"""Secret-key rate versus fiber length: the three-party showcase run headless at each
+distance, next to the theory curve of the MP-QKD paper evaluated on this lab's
+parameters.
 
     uv run python examples/mpqkd/sweep.py
-    uv run python examples/mpqkd/sweep.py --distances 50 100 150 200 --blocks 40 --plot sweep.png
+    uv run python examples/mpqkd/sweep.py --distances 50 100 150 200 --blocks 40
+    uv run python examples/mpqkd/sweep.py --plot sweep.png
 
-Each point runs Alice, Bob and Charlie as processes (``phoq.parties.Experiment``) for ``--blocks``
-blocks of ``--rounds`` pulses and reads the stations' read-outs. Three rates are shown:
+Each point runs Alice, Bob and Charlie as processes (``phoq.parties.Experiment``) for
+``--blocks`` blocks of ``--rounds`` pulses and reads the stations' read-outs. Three
+rates are shown:
 
-* ``final``   — the key both stations actually distilled, final bits / pulses. It comes in chunks
-  (``chunk_bits`` sifted bits per privacy-amplification step), so with few blocks it is quantised
-  and at long distances a chunk may not fill before the run ends.
-* ``formula`` — the stations' asymptotic estimate on the same run: key pairs per pulse × secret
-  fraction (q_11 from the decoy bound on the run's own counts, e_11 from the model) minus the
-  measured Cascade leak.
-* ``theory``  — Eq. (D1) of the paper with the ideal single-photon-pair quantities, and in
-  brackets the same with q_11 replaced by the decoy bound the stations use (its asymptotic limit).
+* ``final``   — the key both stations actually distilled, final bits / pulses. It comes
+  in chunks (``chunk_bits`` sifted bits per privacy-amplification step), so with few
+  blocks it is quantized and at long distances a chunk may not fill before the run ends.
+* ``formula`` — the stations' asymptotic estimate on the same run: key pairs per pulse ×
+  secret fraction (q_11 from the decoy bound on the run's own counts, e_11 from the
+  model) minus the measured Cascade leak.
+* ``theory``  — Eq. (D1) of the paper with the ideal single-photon-pair quantities, and
+  in brackets the same with q_11 replaced by the decoy bound the stations use (its
+  asymptotic limit).
 
 Whatever disagrees is printed as a note, not tuned away.
 """
@@ -109,9 +113,11 @@ def main(argv=None) -> list[dict]:
     args = ap.parse_args(argv)
 
     print(
-        f"MP-QKD key rate versus fiber length — {args.blocks} blocks × {args.rounds:,} pulses per point, seed {args.seed}\n"
-        f"{'L [km]':>7} {'η_arm':>8} {'pairs/pulse':>18} {'q11 sim/th':>13} {'e11 sim/th':>13} {'E_X sim/th':>12} "
-        f"{'sifted':>7} {'final':>6} {'R final':>9} {'R formula':>10} {'R theory (bounds)':>22} {'formula/theory':>14}"
+        f"MP-QKD key rate versus fiber length — {args.blocks} blocks × {args.rounds:,}"
+        f" pulses per point, seed {args.seed}\n{'L [km]':>7} {'η_arm':>8}"
+        f" {'pairs/pulse':>18} {'q11 sim/th':>13} {'e11 sim/th':>13} {'E_X sim/th':>12}"
+        f" {'sifted':>7} {'final':>6} {'R final':>9} {'R formula':>10}"
+        f" {'R theory (bounds)':>22} {'formula/theory':>14}"
     )
     rows, notes = [], []
     for km in args.distances:
@@ -122,10 +128,13 @@ def main(argv=None) -> list[dict]:
             r["rate_formula"] / th.rate_bounds if th.rate_bounds > 0 else float("nan")
         )
         print(
-            f"{km:7.0f} {r['eta']:8.2e} {fmt(r['pairs_per_round'], '.3e'):>8}/{th.pairs_per_round:.3e} "
-            f"{fmt(r['q11'], '.3f'):>6}/{th.q11_lower:.3f} {fmt(r['e11'], '.4f'):>7}/{th.e11:.4f} "
-            f"{fmt(r['e_x'], '.3f'):>5}/{th.e_x:.3f} {r['sifted']:7d} {r['final']:6d} {r['rate_final']:9.2e} "
-            f"{r['rate_formula']:10.2e} {th.rate:10.2e} ({th.rate_bounds:.2e}) {fmt(ratio, '.2f'):>14}"
+            f"{km:7.0f} {r['eta']:8.2e}"
+            f" {fmt(r['pairs_per_round'], '.3e'):>8}/{th.pairs_per_round:.3e}"
+            f" {fmt(r['q11'], '.3f'):>6}/{th.q11_lower:.3f}"
+            f" {fmt(r['e11'], '.4f'):>7}/{th.e11:.4f}"
+            f" {fmt(r['e_x'], '.3f'):>5}/{th.e_x:.3f} {r['sifted']:7d} {r['final']:6d}"
+            f" {r['rate_final']:9.2e} {r['rate_formula']:10.2e} {th.rate:10.2e}"
+            f" ({th.rate_bounds:.2e}) {fmt(ratio, '.2f'):>14}"
             + ("" if r["keys_match"] or not r["final"] else "   KEYS DIFFER")
             + ("   TRACEBACK" if r["traceback"] else ""),
             flush=True,
@@ -136,13 +145,15 @@ def main(argv=None) -> list[dict]:
             notes.append(f"{km:.0f} km: a party raised an exception (see its console)")
         if r["final"] == 0 and r["rate_formula"] > 0:
             notes.append(
-                f"{km:.0f} km: positive asymptotic rate but no chunk of {MPQKDParams().chunk_bits} sifted bits "
-                f"completed in {args.blocks} blocks ({r['sifted']} sifted) — run more blocks"
+                f"{km:.0f} km: positive asymptotic rate but no chunk of"
+                f" {MPQKDParams().chunk_bits} sifted bits completed in {args.blocks}"
+                f" blocks ({r['sifted']} sifted) — run more blocks"
             )
         if th.rate_bounds > 0 and math.isfinite(ratio) and abs(ratio - 1) > 0.35:
             notes.append(
-                f"{km:.0f} km: the run's formula rate is {ratio:.2f}× the theory curve — the q₁₁ bound rests on "
-                f"{r['z_decoy']} (ν,ν) Z pairs (q₁₁ {fmt(r['q11'], '.3f')} vs {th.q11_lower:.3f} asymptotically)"
+                f"{km:.0f} km: the run's formula rate is {ratio:.2f}× the theory curve"
+                f" — the q₁₁ bound rests on {r['z_decoy']} (ν,ν) Z pairs (q₁₁"
+                f" {fmt(r['q11'], '.3f')} vs {th.q11_lower:.3f} asymptotically)"
             )
         if (
             r["e_x"] is not None
@@ -150,11 +161,13 @@ def main(argv=None) -> list[dict]:
             and abs(r["e_x"] - r["e_x_model"]) > 0.06
         ):
             notes.append(
-                f"{km:.0f} km: E_X measured {r['e_x']:.3f} vs model {r['e_x_model']:.3f}"
+                f"{km:.0f} km: E_X measured {r['e_x']:.3f} vs model"
+                f" {r['e_x_model']:.3f}"
             )
         if not isinstance(r["e11_decoy"], float) or not math.isfinite(r["e11_decoy"]):
             notes.append(
-                f"{km:.0f} km: the rigorous decoy bound on e_11 is unresolved at {r['pulses']:.1e} pulses (expected, see keyrate.py)"
+                f"{km:.0f} km: the rigorous decoy bound on e_11 is unresolved at"
+                f" {r['pulses']:.1e} pulses (expected, see keyrate.py)"
             )
     print("\nnotes:" if notes else "\nno discrepancies beyond the expected statistics")
     for n in notes:

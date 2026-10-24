@@ -34,13 +34,17 @@ def _curve_info(curve, label: str) -> dict[str, str]:
         return {}
     lo, hi = curve.span
     return {
-        label: f"{lo * 1e9:.0f}–{hi * 1e9:.0f} nm · {curve.provenance.kind.replace('-', ' ')}"
+        label: (
+            f"{lo * 1e9:.0f}–{hi * 1e9:.0f} nm ·"
+            f" {curve.provenance.kind.replace('-', ' ')}"
+        )
     }
 
 
 class _Responsive:
-    """Mixin for detectors built on PIN photodiodes: the material's typical responsivity curve, or a
-    preset's datasheet curve, scaled to a datasheet responsivity at a reference wavelength.
+    """Mixin for detectors built on PIN photodiodes: the material's typical responsivity
+    curve, or a preset's datasheet curve, scaled to a datasheet responsivity at a
+    reference wavelength.
     """
 
     spectral_curves = {"responsivity": "A/W"}
@@ -54,8 +58,11 @@ class _Responsive:
         label="Responsivity at λ_ref",
         min=0.0,
         max=2.0,
-        doc="Datasheet responsivity at the reference wavelength; scales the spectral curve (the preset's, "
-        "else the material's typical one) to it. 0 = the curve as is",
+        doc=(
+            "Datasheet responsivity at the reference wavelength; scales the spectral"
+            " curve (the preset's, else the material's typical one) to it. 0 = the"
+            " curve as is"
+        ),
     )
     ref_wavelength = Param(
         1550e-9,
@@ -69,7 +76,8 @@ class _Responsive:
     )
 
     def _shape(self, wavelength: float) -> float:
-        """Responsivity curve before scaling: the preset's datasheet curve, else the material's."""
+        """Responsivity curve before scaling: the preset's datasheet curve, else the
+        material's."""
         c = self.curve("responsivity")
         return (
             c(wavelength) if c is not None else responsivity(self.material, wavelength)
@@ -88,7 +96,8 @@ class _Responsive:
         return self._shape(wavelength) * self._scale()
 
     def peak_responsivity(self) -> float:
-        """The scaled curve's maximum [A/W]: where datasheets quote conversion gain and NEP."""
+        """The scaled curve's maximum [A/W]: where datasheets quote conversion gain and
+        NEP."""
         c = self.curve("responsivity")
         return (
             c.peak if c is not None else peak_responsivity(self.material)
@@ -98,9 +107,10 @@ class _Responsive:
 class Photodiode(_Responsive, _Detector):
     """Fiber-coupled PIN photodiode; its ``rf`` output carries the photocurrent [A].
 
-    I(t) = Σ R(λ)·P_λ(t) + I_dark plus white shot noise (density 2qI) and thermal noise (4kT/R_load),
-    all low-pass filtered by ``bandwidth`` (one pole): the noise then has the density 2qI·|H(f)|² and
-    the variance 2qI·B with B = (π/2)·f₃dB. A soft knee above ``saturation``.
+    I(t) = Σ R(λ)·P_λ(t) + I_dark plus white shot noise (density 2qI) and thermal noise
+    (4kT/R_load), all low-pass filtered by ``bandwidth`` (one pole): the noise then has
+    the density 2qI·|H(f)|² and the variance 2qI·B with B = (π/2)·f₃dB. A soft knee
+    above ``saturation``.
     """
 
     prefix = "PD"
@@ -163,15 +173,18 @@ class Photodiode(_Responsive, _Detector):
         current = np.full(n, self.dark_current)
         for wl, E in fields.items():
             current += self.responsivity(wl) * np.abs(E) ** 2
-        # Shot noise of the instantaneous photocurrent and thermal noise of the load: white, with
-        # one-sided densities 2qI and 4kT/R, sampled up to the Nyquist frequency 1/(2Δt) …
+        # Shot noise of the instantaneous photocurrent and thermal noise of the load:
+        # white, with one-sided densities 2qI and 4kT/R, sampled up to the Nyquist
+        # frequency 1/(2Δt) …
         density = (
             2 * Q_E * np.clip(current, 0, None) + 4 * K_B * self.temperature / self.load
         )
         out = current + np.sqrt(density / (2 * dt)) * rng.standard_normal(n)
         if (
             filtered
-        ):  # … then through the detector's pole with the signal: densities times |H(f)|²,
+            # … then through the detector's pole with the signal: densities times
+            # |H(f)|²,
+        ):
             # a variance of (2qI + 4kT/R)·(π/2)·f₃dB, the noise bandwidth of one pole
             alpha = -math.expm1(-dt * 2 * math.pi * self.bandwidth)
             out, _ = lfilter(
@@ -190,30 +203,38 @@ def _one_pole(x: np.ndarray, bandwidth: float, dt: float, start: float) -> np.nd
 
 
 def _soft_clip(v: np.ndarray, swing: float) -> np.ndarray:
-    """An amplifier output running into its rails at ±``swing``: linear to 0.03 % of its gain up to
-    60 % of the swing, 3 % compressed at 80 %, flat beyond (a 16th-power knee; the photodiode's own
-    4th-power one would already take 7 % off the gain at half the swing)."""
+    """An amplifier output running into its rails at ±``swing``: linear to 0.03 % of its
+    gain up to 60 % of the swing, 3 % compressed at 80 %, flat beyond (a 16th-power
+    knee; the photodiode's own 4th-power one would already take 7 % off the gain at half
+    the swing)."""
     return v / (1 + np.minimum(np.abs(v) / swing, 1e6) ** 16) ** (1 / 16)
 
 
-# Generic switch positions (assumed): gain [V/A] : −3 dB bandwidth [Hz] : NEP [W/√Hz] : RF swing [V]
-GENERIC_GAINS = "1e3:100e6:50e-12:4, 1e4:30e6:10e-12:4, 1e5:3e6:2e-12:4, 1e6:300e3:1e-12:4, 1e7:30e3:1e-12:4"
+# Generic switch positions (assumed): gain [V/A] : −3 dB bandwidth [Hz] : NEP [W/√Hz] :
+# RF swing [V]
+GENERIC_GAINS = (
+    "1e3:100e6:50e-12:4, 1e4:30e6:10e-12:4, 1e5:3e6:2e-12:4, 1e6:300e3:1e-12:4,"
+    " 1e7:30e3:1e-12:4"
+)
 
 
 class BalancedPhotodetector(_Responsive, _Detector):
-    """Balanced amplified photodetector: two matched PIN photodiodes and a transimpedance amplifier.
+    """Balanced amplified photodetector: two matched PIN photodiodes and a
+    transimpedance amplifier.
 
-    The diodes behind ``inp_plus`` (INPUT+) and ``inp_minus`` (INPUT−) are wired so that their
-    photocurrents subtract, and the TIA turns the difference into the ``rf`` voltage,
-    U = G·(i₊ − i₋) = G·ℜ(λ)·(P₊ − P₋) into a high-impedance load (half that into 50 Ω, the output
-    impedance): light common to both inputs, and with it the laser's intensity noise, cancels. The
-    two diodes' responsivities differ by 10^(−CMRR/20), which sets how much survives. ``mon_plus`` and
-    ``mon_minus`` give each diode's current alone, slower (MONITOR±).
+    The diodes behind ``inp_plus`` (INPUT+) and ``inp_minus`` (INPUT−) are wired so that
+    their photocurrents subtract, and the TIA turns the difference into the ``rf``
+    voltage, U = G·(i₊ − i₋) = G·ℜ(λ)·(P₊ − P₋) into a high-impedance load (half that
+    into 50 Ω, the output impedance): light common to both inputs, and with it the
+    laser's intensity noise, cancels. The two diodes' responsivities differ by
+    10^(−CMRR/20), which sets how much survives. ``mon_plus`` and ``mon_minus`` give
+    each diode's current alone, slower (MONITOR±).
 
-    ``gain`` picks a switch position from ``gain_settings``, each with its own bandwidth, noise
-    (NEP at peak responsivity) and output swing; a fixed-gain detector has a single position.
-    Noise: each diode's shot noise (density 2qi) and the amplifier's input noise (NEP·ℜ_peak)²,
-    white, then through the TIA's pole with the signal.
+    ``gain`` picks a switch position from ``gain_settings``, each with its own
+    bandwidth, noise (NEP at peak responsivity) and output swing; a fixed-gain detector
+    has a single position. Noise: each diode's shot noise (density 2qi) and the
+    amplifier's input noise (NEP·ℜ_peak)², white, then through the TIA's pole with the
+    signal.
     """
 
     prefix = "BPD"
@@ -233,14 +254,19 @@ class BalancedPhotodetector(_Responsive, _Detector):
         max=1e9,
         presets=(1e3, 1e4, 1e5, 1e6, 1e7),
         log=True,
-        doc="RF OUTPUT volts per ampere of i₊ − i₋ into a high-impedance load (half into 50 Ω): one of "
-        "the gain settings",
+        doc=(
+            "RF OUTPUT volts per ampere of i₊ − i₋ into a high-impedance load (half"
+            " into 50 Ω): one of the gain settings"
+        ),
     )
     gain_settings = Param(
         GENERIC_GAINS,
         label="Gain settings",
-        doc="The gain switch's positions, comma separated, each gain [V/A] : −3 dB bandwidth [Hz] : "
-        "NEP [W/√Hz, at peak responsivity] : RF swing [V, high-impedance load]",
+        doc=(
+            "The gain switch's positions, comma separated, each gain [V/A] : −3 dB"
+            " bandwidth [Hz] : NEP [W/√Hz, at peak responsivity] : RF swing [V,"
+            " high-impedance load]"
+        ),
     )
     cmrr_db = Param(
         30.0,
@@ -248,7 +274,10 @@ class BalancedPhotodetector(_Responsive, _Detector):
         label="CMRR",
         min=0.0,
         max=120.0,
-        doc="Common-mode rejection: the INPUT− diode's responsivity is 1 − 10^(−CMRR/20) of INPUT+'s",
+        doc=(
+            "Common-mode rejection: the INPUT− diode's responsivity is 1 −"
+            " 10^(−CMRR/20) of INPUT+'s"
+        ),
     )
     rf_impedance = Param(50.0, unit="Ω", label="RF output impedance", min=0.0, max=1e4)
     monitor_gain = Param(
@@ -257,7 +286,10 @@ class BalancedPhotodetector(_Responsive, _Detector):
         label="Monitor gain",
         min=0.0,
         max=1e9,
-        doc="Each MONITOR output's volts per ampere of its own diode's current (high-impedance load)",
+        doc=(
+            "Each MONITOR output's volts per ampere of its own diode's current"
+            " (high-impedance load)"
+        ),
     )
     monitor_bandwidth = Param(
         1e6, unit="Hz", label="Monitor bandwidth (−3 dB)", min=1.0, max=10e9, log=True
@@ -280,7 +312,7 @@ class BalancedPhotodetector(_Responsive, _Detector):
     def ui_fields(self):
         return ["material", "ref_responsivity", "ref_wavelength", "gain", "cmrr_db"]
 
-    # ---- the gain switch ----------------------------------------------------------------------------
+    # ---- the gain switch -------------------------------------------------------------
     def settings(self) -> dict[float, tuple[float, float, float]]:
         """Every switch position: gain → (bandwidth, NEP, RF swing)."""
         out = {}
@@ -290,7 +322,8 @@ class BalancedPhotodetector(_Responsive, _Detector):
                     g, bw, nep, swing = (float(x) for x in item.split(":"))
                 except ValueError:
                     raise ValueError(
-                        f"{self.name}: gain setting {item.strip()!r} is not gain:bandwidth:NEP:swing"
+                        f"{self.name}: gain setting {item.strip()!r} is not"
+                        " gain:bandwidth:NEP:swing"
                     ) from None
                 out[g] = (bw, nep, swing)
         return out
@@ -303,7 +336,8 @@ class BalancedPhotodetector(_Responsive, _Detector):
                 return v
         offered = ", ".join(fmt_si(g, "V/A") for g in table)
         raise ValueError(
-            f"{self.name} has no {fmt_si(self.gain, 'V/A')} gain setting (it offers {offered})"
+            f"{self.name} has no {fmt_si(self.gain, 'V/A')} gain setting (it offers"
+            f" {offered})"
         )
 
     @property
@@ -317,7 +351,7 @@ class BalancedPhotodetector(_Responsive, _Detector):
     def output_impedance(self, port: str) -> float:
         return self.rf_impedance if port == "rf" else self.monitor_impedance
 
-    # ---- physics ------------------------------------------------------------------------------------
+    # ---- physics ---------------------------------------------------------------------
     def responsivities(self, wavelength: float) -> tuple[float, float]:
         """(INPUT+, INPUT−) diode responsivities: the − diode short by 10^(−CMRR/20)."""
         r = self.responsivity(wavelength)
@@ -333,7 +367,8 @@ class BalancedPhotodetector(_Responsive, _Detector):
         )
 
     def cw_saturation_power(self, wavelength: float | None = None) -> float:
-        """Optical power on one input (or difference of the two) that drives RF OUTPUT to its swing."""
+        """Optical power on one input (or difference of the two) that drives RF OUTPUT
+        to its swing."""
         _, _, swing = self.setting()
         r = (
             self.peak_responsivity()
@@ -345,8 +380,9 @@ class BalancedPhotodetector(_Responsive, _Detector):
     def detect(
         self, fields: dict, dt: float, rng: np.random.Generator, n: int
     ) -> dict[str, np.ndarray]:
-        """Open-circuit voltages of RF OUTPUT and the two MONITOR outputs; ``fields`` is keyed by
-        (input port, wavelength). The three share one noise realisation, as on the real unit.
+        """Open-circuit voltages of RF OUTPUT and the two MONITOR outputs; ``fields`` is
+        keyed by (input port, wavelength). The three share one noise realization, as on
+        the real unit.
         """
         i = {"inp_plus": np.zeros(n), "inp_minus": np.zeros(n)}
         for (port, wl), E in fields.items():
@@ -390,21 +426,27 @@ class BalancedPhotodetector(_Responsive, _Detector):
         r = self.peak_responsivity()
         out |= {
             "RF bandwidth": fmt_si(bw, "Hz"),
-            "Conversion gain": f"{fmt_si(self.gain * r, 'V/W')} at peak ℜ (½ into 50 Ω)",
+            "Conversion gain": (
+                f"{fmt_si(self.gain * r, 'V/W')} at peak ℜ (½ into 50 Ω)"
+            ),
             "CW saturation": f"{fmt_si(self.cw_saturation_power(), 'W')} at peak ℜ",
             "NEP": fmt_si(nep, "W/√Hz"),
-            "Common-mode residue": f"{10 ** (-self.cmrr_db / 20):.2%} ({self.cmrr_db:g} dB)",
+            "Common-mode residue": (
+                f"{10 ** (-self.cmrr_db / 20):.2%} ({self.cmrr_db:g} dB)"
+            ),
         }
         return out
 
 
 class SinglePhotonDetector(_Detector):
-    """Threshold single-photon detector (SPAD / SNSPD). Its ``out`` port emits 1 V click pulses.
+    """Threshold single-photon detector (SPAD / SNSPD). Its ``out`` port emits 1 V click
+    pulses.
 
-    Click probability per time bin: 1 − (1 − p_dark)·exp(−Σ η(λ)·n̄_λ), where n̄_λ is the mean
-    photon number in the bin at each wavelength; after a click the detector is blind for
-    ``dead_time``. η(λ) = ``efficiency`` everywhere for a generic detector; a preset's datasheet
-    PDE curve makes it η(λ) = efficiency · PDE(λ)/PDE(λ_ref), zero outside the curve.
+    Click probability per time bin: 1 − (1 − p_dark)·exp(−Σ η(λ)·n̄_λ), where n̄_λ is
+    the mean photon number in the bin at each wavelength; after a click the detector is
+    blind for ``dead_time``. η(λ) = ``efficiency`` everywhere for a generic detector; a
+    preset's datasheet PDE curve makes it η(λ) = efficiency · PDE(λ)/PDE(λ_ref), zero
+    outside the curve.
     """
 
     prefix = "SPD"
@@ -423,8 +465,10 @@ class SinglePhotonDetector(_Detector):
         max=2500e-9,
         presets=COMMON_WAVELENGTHS,
         display=("nm", 1e9),
-        doc="Wavelength at which the efficiency is quoted; with a preset's spectral curve the "
-        "efficiency at other wavelengths follows the curve",
+        doc=(
+            "Wavelength at which the efficiency is quoted; with a preset's spectral"
+            " curve the efficiency at other wavelengths follows the curve"
+        ),
     )
     dark_count_rate = Param(
         100.0,
@@ -457,7 +501,8 @@ class SinglePhotonDetector(_Detector):
         return _curve_info(self.curve("efficiency"), "Spectral PDE")
 
     def spectral_factor(self, wavelength: float) -> float:
-        """η(λ)/efficiency: 1 for a generic detector, PDE(λ)/PDE(λ_ref) with a datasheet curve."""
+        """η(λ)/efficiency: 1 for a generic detector, PDE(λ)/PDE(λ_ref) with a datasheet
+        curve."""
         c = self.curve("efficiency")
         if c is None:
             return 1.0
@@ -473,8 +518,8 @@ class SinglePhotonDetector(_Detector):
     def photons(
         self, fields: dict[float, np.ndarray], dt: float, n: int, weighted: bool = False
     ) -> np.ndarray:
-        """Mean photon number per bin; ``weighted`` scales each wavelength by its spectral factor,
-        so that efficiency × the result is the detected mean."""
+        """Mean photon number per bin; ``weighted`` scales each wavelength by its
+        spectral factor, so that efficiency × the result is the detected mean."""
         nbar = np.zeros(n)
         for wl, E in fields.items():
             k = self.spectral_factor(wl) if weighted else 1.0
@@ -489,9 +534,10 @@ class SinglePhotonDetector(_Detector):
     def detect(
         self, fields, dt, rng, n: int, sub: int = 1, blind: int = 0
     ) -> np.ndarray:
-        """Boolean click record, one entry per time bin; ``fields`` may hold ``sub`` sub-bins per
-        bin, whose photons add up. ``blind`` bins at the start are still inside the dead time of a
-        click before this record (:meth:`blind_after` gives it for the next one)."""
+        """Boolean click record, one entry per time bin; ``fields`` may hold ``sub``
+        sub-bins per bin, whose photons add up. ``blind`` bins at the start are still
+        inside the dead time of a click before this record (:meth:`blind_after` gives it
+        for the next one)."""
         nbar = self.photons(fields, dt / sub, n * sub, weighted=True)
         if sub > 1:
             nbar = nbar.reshape(n, sub).sum(axis=1)
@@ -508,15 +554,16 @@ class SinglePhotonDetector(_Detector):
         return clicks
 
     def dead_bins(self, dt: float) -> int:
-        """The dead time in bins of ``dt`` (a click blinds this bin and the next dead_bins − 1)."""
+        """The dead time in bins of ``dt`` (a click blinds this bin and the next
+        dead_bins − 1)."""
         return (
             int(math.ceil(self.dead_time / dt - 1e-9)) if self.dead_time > 0 else 0
         )  # 40 µs / 10 ns is 4000
 
     def blind_after(self, clicks: np.ndarray, dt: float, blind: int = 0) -> int:
-        """Bins of the next record still inside the dead time, after ``clicks`` (which started
-        ``blind`` bins blind): what a record cut in pieces hands on, so that a dead time longer
-        than one piece is still a dead time."""
+        """Bins of the next record still inside the dead time, after ``clicks`` (which
+        started ``blind`` bins blind): what a record cut in pieces hands on, so that a
+        dead time longer than one piece is still a dead time."""
         hits = np.flatnonzero(clicks)
         if hits.size:
             return max(0, int(hits[-1]) + self.dead_bins(dt) - clicks.size)
@@ -553,7 +600,8 @@ class PowerMeter(_Detector):
         self.add_port("inp", "optical", "in", "in")
 
     def reading(self, powers: dict[float, float]) -> float:
-        """What the display shows: power weighted by the head's responsivity at each λ."""
+        """What the display shows: power weighted by the head's responsivity at each
+        λ."""
         r_cal = responsivity("InGaAs", self.cal_wavelength) or 1.0
         return sum(p * responsivity("InGaAs", wl) / r_cal for wl, p in powers.items())
 
@@ -569,7 +617,10 @@ class PowerReading:
     def summary(self) -> str:
         if self.power <= 0:
             return f"{self.instrument}: no light"
-        return f"{self.instrument}: {fmt_si(self.power, 'W')} ({w_to_dbm(self.power):.2f} dBm)"
+        return (
+            f"{self.instrument}: {fmt_si(self.power, 'W')} ({w_to_dbm(self.power):.2f}"
+            " dBm)"
+        )
 
     def to_json(self) -> dict:
         return {"instrument": self.instrument, "power": self.power}

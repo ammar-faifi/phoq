@@ -1,5 +1,6 @@
-"""Fiber connectors: FC/UPC (blue) and FC/APC (green) end faces, what a mated pair transmits and
-reflects, open ends, the mismatch warning, and the types carried by cords, parts and presets.
+"""Fiber connectors: FC/UPC (blue) and FC/APC (green) end faces, what a mated pair
+transmits and reflects, open ends, the mismatch warning, and the types carried by cords,
+parts and presets.
 """
 
 import json
@@ -70,7 +71,8 @@ def test_matching_connectors_lose_the_mated_pair_loss(kind):
         -2 * CONNECTOR_LOSS_DB, abs=0.01
     )
     assert not report(s)["warnings"]
-    # the laser sees its two matings; the far one's reflection crosses the near one twice
+    # the laser sees its two matings; the far one's reflection crosses the near one
+    # twice
     expected = 10 * math.log10(
         db_to_t(RETURN_LOSS_DB[kind]) * (1 + db_to_t(2 * CONNECTOR_LOSS_DB))
     )
@@ -102,7 +104,8 @@ def test_apc_mated_to_upc_loses_power_reflects_and_warns():
         "LD.out (FC/APC) is mated to FIB-1.a (FC/UPC)"
     )
     assert "3.6% reflected back into FIB-1.a" in texts[0]
-    # the angled laser side reflects little; the meter's −50 dB mating returns through the gap twice
+    # the angled laser side reflects little; the meter's −50 dB mating returns through
+    # the gap twice
     expected = db_to_t(60.0) + db_to_t(50.0 + 2 * MISMATCH_LOSS_DB)
     assert back_db(s) == pytest.approx(10 * math.log10(expected), abs=0.05)
 
@@ -135,9 +138,10 @@ def test_open_ends_reflect_by_polish():
 
 
 def test_a_reflection_reaches_a_detector_through_a_coupler():
-    """Reflectometry: the laser feeds a coupler, a cord hangs off one output, a meter sits on
-    the coupler's other input. Only reflected light can reach the meter. The coupler is angled
-    and its spare output capped, so the tail's flat end is the only strong reflector."""
+    """Reflectometry: the laser feeds a coupler, a cord hangs off one output, a meter
+    sits on the coupler's other input. Only reflected light can reach the meter. The
+    coupler is angled and its spare output capped, so the tail's flat end is the only
+    strong reflector."""
     s = Setup("reflectometer")
     ld, bs, opm = s.add(
         Laser("LD", mode="cw", power_dbm=0.0),
@@ -244,7 +248,7 @@ def test_presets_carry_the_datasheet_connector():
     assert (s["FIB-1"].connector_a, s["FIB-1"].connector_b) == ("FC/APC", "FC/PC")
 
 
-# ---- FC mating sleeves ----------------------------------------------------------------------
+# ---- FC mating sleeves ---------------------------------------------------------------
 def through_sleeves(kinds, plugged=True, laser="FC/UPC"):
     """LD → cords of the given polishes, joined by sleeves → OPM (FC/UPC)."""
     s = Setup("sleeves")
@@ -373,7 +377,8 @@ def w_dbm(w):
 
 
 def homodyne(vacuum_cap=None, ratio=0.5):
-    """Laser → coupler → a photodiode on b1, b2 capped (FC/UPC); a2 is left open, or capped."""
+    """Laser → coupler → a photodiode on b1, b2 capped (FC/UPC); a2 is left open, or
+    capped."""
     s = Setup("homodyne")
     ld, bs, pd = s.add(
         Laser("LD", mode="cw", power_dbm=0.0),
@@ -389,8 +394,8 @@ def homodyne(vacuum_cap=None, ratio=0.5):
 
 
 def test_an_open_part_port_is_an_open_end():
-    """A coupler output left unconnected emits into the air and reflects like an open cord end;
-    the reflection comes back out of the coupler's other input."""
+    """A coupler output left unconnected emits into the air and reflects like an open
+    cord end; the reflection comes back out of the coupler's other input."""
     s = Setup("open port")
     ld, bs, opm = s.add(
         Laser("LD", mode="cw", power_dbm=0.0), Coupler("BS"), PowerMeter("OPM")
@@ -460,10 +465,11 @@ def test_a_terminator_plugs_in_without_a_cord_and_reflects_as_its_mated_pair(cap
 
 
 def test_a_double_bounce_reaches_the_detector_at_the_product_of_its_gains():
-    """Light reflected at the mating on the coupler's output (−50 dB) leaves by the coupler's open
-    input, the flat end sends 3.6 % of it back in, and it goes on to the photodiode: the strongest
-    stray, r·F·(½)² of the direct light (the one off the photodiode's own mating passes two more
-    connectors). A matching cap drops these below the −90 dB floor, and the warning with them.
+    """Light reflected at the mating on the coupler's output (−50 dB) leaves by the
+    coupler's open input, the flat end sends 3.6 % of it back in, and it goes on to the
+    photodiode: the strongest stray, r·F·(½)² of the direct light (the one off the
+    photodiode's own mating passes two more connectors). A matching cap drops these
+    below the −90 dB floor, and the warning with them.
     """
     s = homodyne()
     pd = s["PD"]
@@ -495,8 +501,9 @@ def test_a_double_bounce_reaches_the_detector_at_the_product_of_its_gains():
 
 
 def test_terminate_spares_caps_the_unused_ports_of_parts_only():
-    """A coupler's spare port gets a cap of its own type; a laser with nothing on it, a free
-    detector input and an unplugged cord end are not spares. The lab's button does the same.
+    """A coupler's spare port gets a cap of its own type; a laser with nothing on it, a
+    free detector input and an unplugged cord end are not spares. The lab's button does
+    the same.
     """
 
     def bench():

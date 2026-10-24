@@ -10,7 +10,7 @@ tier = "datasheet"
 tags = ["patch cord", "OS2", "G.657.A1", "single mode", "hybrid", "FC/APC", "FC/UPC"]
 notes = """
 FS sells the FC/APC↔FC/APC, FC/UPC↔FC/UPC and FC/APC→FC/UPC cords under one part number, SMFCSX; the SKU fixes the
-connector pair and the length. Other lengths, a custom length and other jacket colours (lime green, aqua, orange) are
+connector pair and the length. Other lengths, a custom length and other jacket colors (lime green, aqua, orange) are
 ordering options. The connectors' insertion and return loss are the values phoq uses for every mated pair of
 matching connectors, so the cord needs no per-connector setting.
 """
@@ -37,7 +37,7 @@ insertion_loss_db = { max = 0.3, note = "per connector; phoq loses 0.3 dB on eve
 return_loss_db = { note = "UPC ≥ 50 dB, APC ≥ 60 dB; phoq's mating table uses 50 dB for UPC and 60 dB for APC pairs, the same values" }
 attenuation = "≤ 0.4 dB/km at 1310 nm, ≤ 0.3 dB/km at 1550 nm; the model uses its SMF-28 table (0.33 and 0.19 dB/km), negligible over a patch cord"
 fiber = "OS2 9/125 µm, G.657.A1 bend-insensitive (compatible with G.652.D), 1310/1550 nm"
-min_bend_radius_m = { min = 0.010, note = "optical fiber; cable 10 / 5 × OD dynamic / static. Bend loss is not modelled" }
+min_bend_radius_m = { min = 0.010, note = "optical fiber; cable 10 / 5 × OD dynamic / static. Bend loss is not modeled" }
 cable = "Riser (OFNR), 2.0 mm OD, tight-buffered, yellow jacket"
 connector_durability = "1000 matings"
 tensile_strength = "60 N long term, 100 N short term"

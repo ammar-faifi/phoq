@@ -1,5 +1,6 @@
-"""RF spectrum analyzer: levels against closed-form values (tones, noise floor, shot noise),
-anti-aliasing, detector and trace modes, the lab API, and the delayed self-homodyne linewidth.
+"""RF spectrum analyzer: levels against closed-form values
+(tones, noise floor, shot noise), anti-aliasing, detector and trace modes, the lab API,
+and the delayed self-homodyne linewidth.
 """
 
 import math
@@ -168,7 +169,8 @@ def test_delayed_self_homodyne_measures_the_linewidth():
     ex = run_path(str(EXAMPLES / "linewidth_homodyne.py"))
     r, fit, w3, w20 = ex["measure"](ex["build"](linewidth=100e3, averages=1000))
     assert fit == pytest.approx(100e3, rel=0.03)  # the fit uses the whole trace
-    # single crossings on a noise-like trace scatter more: the flat top hurts the −3 dB point most
+    # single crossings on a noise-like trace scatter more: the flat top hurts the −3 dB
+    # point most
     assert w3 == pytest.approx(100e3, rel=0.12) and w20 == pytest.approx(
         100e3, rel=0.06
     )
@@ -183,15 +185,17 @@ def test_delayed_self_homodyne_measures_the_linewidth():
     )
     peak = 4 * pd.responsivity(1550e-9) ** 2 * p1 * p2 / (math.pi * 100e3) * 50 * r.rbw
     assert r.peak[1] == pytest.approx(10 * math.log10(peak / 1e-3), abs=0.5)
-    # a delay shorter than the coherence time overestimates: the sinc² of the delay takes over
+    # a delay shorter than the coherence time overestimates: the sinc² of the delay
+    # takes over
     short = ex["measure"](ex["build"](linewidth=100e3, spool_m=300.0, averages=300))[2]
     assert short > 2 * 100e3
 
 
-# ---- checked against J.-Q. Chen et al., Sensors 24, 3656 (2024) --------------------------------
+# ---- checked against J.-Q. Chen et al., Sensors 24, 3656 (2024) ----------------------
 def test_sub_coherence_delay_matches_the_review_eq_28_to_31():
-    """0.3 km at 100 kHz (τd ≈ 0.46 τc): averaged over the bias phase, phoq's homodyne spectrum is
-    the Lorentzian times 1 − e^{−2πΔντd}[cos 2πfτd + (Δν/f) sin 2πfτd], in absolute level.
+    """0.3 km at 100 kHz (τd ≈ 0.46 τc): averaged over the bias phase, phoq's homodyne
+    spectrum is the Lorentzian times 1 − e^{−2πΔντd}[cos 2πfτd + (Δν/f) sin 2πfτd], in
+    absolute level.
     """
     from phoq import Attenuator, Coupler, FiberSpool, PhaseShifter
 
@@ -254,7 +258,8 @@ def test_sub_coherence_delay_matches_the_review_eq_28_to_31():
 
 @pytest.mark.parametrize("nu_t, nu_r", [(100e3, 100e3), (100e3, 1e3)])
 def test_two_laser_heterodyne_width_is_the_sum_of_the_linewidths(nu_t, nu_r):
-    """The review's Eq. (4) and Fig. 2: a beat of full width ν_t + ν_r at the frequency offset."""
+    """The review's Eq. (4) and Fig. 2: a beat of full width ν_t + ν_r at the frequency
+    offset."""
     from phoq import Coupler
 
     s = Setup("het", seed=3)
@@ -275,7 +280,7 @@ def test_two_laser_heterodyne_width_is_the_sum_of_the_linewidths(nu_t, nu_r):
     assert 2 * fit["hwhm"] == pytest.approx(nu_t + nu_r, rel=0.05)
 
 
-# ---- narrow lines: the short-delay fit (examples/linewidth_narrow.py) ----------------------------
+# ---- narrow lines: the short-delay fit (examples/linewidth_narrow.py) ----------------
 def narrow():
     return run_path(str(EXAMPLES / "linewidth_narrow.py"))
 

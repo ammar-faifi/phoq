@@ -1,48 +1,54 @@
-"""The MP-QKD secret-key rate: decoy bounds, the honest-channel model and the theory curve.
+"""The MP-QKD secret-key rate: decoy bounds, the honest-channel model and the theory
+curve.
 
-Everything here is public arithmetic on public numbers, so both stations run it on the same
-announcements and arrive at the same privacy-amplification size ([CLASSICAL #6] in
+Everything here is public arithmetic on public numbers, so both stations run it on the
+same announcements and arrive at the same privacy-amplification size ([CLASSICAL #6] in
 ``examples/mpqkd/reference.py``).
 
-The key rate of mode-pairing QKD (Zeng, Zhou, Wu & Ma, Nat. Commun. 13, 3903 (2022), Eq. (7),
-Methods Eq. (B23) and Appendix C–D) is
+The key rate of mode-pairing QKD (Zeng, Zhou, Wu & Ma, Nat. Commun. 13, 3903 (2022), Eq.
+(7), Methods Eq. (B23) and Appendix C–D) is
 
     R = r_p · r_s · { q_11 [1 − h(e_11^X)] − f h(E^Z_μμ) }            [bits per pulse]
 
 * ``r_p``  pairs per pulse (Eq. 4), ``r_s`` the share of pairs that are signal Z pairs,
-* ``q_11`` the fraction of those Z pairs in which Alice's pair and Bob's pair each carried exactly
-  one photon (the "single-photon pair" component), ``e_11^X`` its phase-error rate, ``E^Z_μμ`` the
-  bit-error rate of the Z key and ``f h(E^Z)`` the error-correction leak per key bit.
+* ``q_11`` the fraction of those Z pairs in which Alice's pair and Bob's pair each
+  carried exactly one photon (the "single-photon pair" component), ``e_11^X`` its
+  phase-error rate, ``E^Z_μμ`` the bit-error rate of the Z key and ``f h(E^Z)`` the
+  error-correction leak per key bit.
 
-Decoy bounds (Appendix C of the paper). A pair is a *total-intensity* object: Alice's pair
-(μ_i, μ_j) has total μ_i + μ_j and its photon number is Poissonian in that total (Lemma 4). The
-parties count, per block, how many pairs of every total-intensity class (A, B) Charlie reported
-and divide by the class's prior probability; the normalisation constant is arbitrary (the paper's
-N_p, Eq. (C18)–(C19)) because the standard MDI two-decoy bounds are homogeneous in the gains:
+Decoy bounds (Appendix C of the paper). A pair is a *total-intensity* object: Alice's
+pair (μ_i, μ_j) has total μ_i + μ_j and its photon number is Poissonian in that total
+(Lemma 4). The parties count, per block, how many pairs of every total-intensity class
+(A, B) Charlie reported and divide by the class's prior probability; the normalization
+constant is arbitrary (the paper's N_p, Eq. (C18)–(C19)) because the standard MDI
+two-decoy bounds are homogeneous in the gains:
 
-    Y_11 ≥ [μ³ G(ν,ν) − ν³ G(μ,μ)] / [μ² ν² (μ − ν)],   G(A,B) = F(A,B) − F(A,0) − F(0,B) + F(0,0),
-    F(A,B) = e^{A+B} Q_AB                                      (vacuum + weak decoy, Y_nm ≥ 0 only)
+    Y_11 ≥ [μ³ G(ν,ν) − ν³ G(μ,μ)] / [μ² ν² (μ − ν)]          vacuum + weak decoy,
+    G(A,B) = F(A,B) − F(A,0) − F(0,B) + F(0,0)                 assuming only Y_nm ≥ 0
+    F(A,B) = e^{A+B} Q_AB
 
     (e Y)_11 ≤ [H(ν,ν) − H(ν,0) − H(0,ν) + H(0,0)] / ν²,   H(A,B) = e^{A+B} E_AB Q_AB
 
-applied with totals {0, ν, μ} to the Z-type pairs (one vacuum pulse) and {0, 2ν, 2μ} to the X-type
-pairs (two equal pulses). A pair in which one party sent vacuum twice gives an X error of exactly
-1/2, so the vacuum error gains need no disclosed bits.
+applied with totals {0, ν, μ} to the Z-type pairs (one vacuum pulse) and {0, 2ν, 2μ} to
+the X-type pairs (two equal pulses). A pair in which one party sent vacuum twice gives
+an X error of exactly 1/2, so the vacuum error gains need no disclosed bits.
 
-Statistics. The phase-error bound is a *difference* of X-basis error gains of the weakest decoy
-class, which has to be known to ≈1 % — that takes ~10⁹–10¹² pulses, which is what the experiments
-use and why the paper's curves are asymptotic. Moreover the X-type pairs carry *twice* the pulse
-intensity (totals 2ν, 2μ) while their single-photon-pair yield is only η²/2 (the two photons
-bunch half of the time), so at this showcase's 2ν = 0.2 and 2μ = 0.8 the two-intensity lower
-bound on the X-type Y_11 does not close even asymptotically; a rigorous e_11^X needs a weaker
-pair of X intensities on top of the statistics. A 20-block showcase run has a few million pulses,
-so by default the parties size privacy amplification with ``estimator="model"``: q_11 from the
-decoy bound on the run's own Z-type counts (that one resolves at this scale: ~60 (ν,ν) Z pairs
-per 20 blocks) and e_11^X from the honest-channel model (laser linewidths and detuning, dark
-counts, the observed pairing intervals; Eq. (D15) of the paper — the same choice the paper's
-simulation appendix makes), checked against the measured X-basis error rate. The rigorous decoy
-bound is always computed and reported, as "unresolved" (NaN) while it cannot be formed;
-``estimator="decoy"`` sizes with it instead and then yields no key here.
+Statistics. The phase-error bound is a *difference* of X-basis error gains of the
+weakest decoy class, which has to be known to ≈1 % — that takes ~10⁹–10¹² pulses, which
+is what the experiments use and why the paper's curves are asymptotic. Moreover the
+X-type pairs carry *twice* the pulse intensity (totals 2ν, 2μ) while their
+single-photon-pair yield is only η²/2 (the two photons bunch half of the time), so at
+this showcase's 2ν = 0.2 and 2μ = 0.8 the two-intensity lower bound on the X-type Y_11
+does not close even asymptotically; a rigorous e_11^X needs a weaker pair of X
+intensities on top of the statistics. A 20-block showcase run has a few million pulses,
+so by default the parties size privacy amplification with ``estimator="model"``: q_11
+from the decoy bound on the run's own Z-type counts (that one resolves at this scale:
+~60 (ν,ν) Z pairs per 20 blocks) and e_11^X from the honest-channel model (laser
+linewidths and detuning, dark counts, the observed pairing intervals; Eq. (D15) of the
+paper — the same choice the paper's simulation appendix makes), checked against the
+measured X-basis error rate. The rigorous decoy bound is always computed and reported,
+as "unresolved" (NaN) while it cannot be formed; ``estimator="decoy"`` sizes with it
+instead and then yields no key here.
 """
 
 from __future__ import annotations
@@ -61,7 +67,7 @@ MIN_DECOY_X_PAIRS = (
 )
 
 
-# ---- small maths -----------------------------------------------------------------------------------
+# ---- small math ---------------------------------------------------------------------
 def h(x: float) -> float:
     """Binary entropy."""
     x = float(np.clip(x, 0.0, 1.0))
@@ -75,7 +81,8 @@ def poisson(n: int, mean: float) -> float:
 
 
 def intensities(p: MPQKDParams) -> np.ndarray:
-    """Photons per pulse for the levels vacuum / ν / μ, with the modulator's extinction leakage."""
+    """Photons per pulse for the levels vacuum / ν / μ, with the modulator's extinction
+    leakage."""
     leak = p.mu / 10 ** (p.extinction_db / 10)
     return np.array([leak, p.nu, p.mu])
 
@@ -84,16 +91,18 @@ def level_probabilities(p: MPQKDParams) -> np.ndarray:
     return np.array([1.0 - p.p_mu - p.p_nu, p.p_nu, p.p_mu])
 
 
-# ---- the counts both stations keep (public) -------------------------------------------------------
+# ---- the counts both stations keep (public) ------------------------------------------
 @dataclass
 class Counts:
-    """Pair counts per total-intensity class, accumulated over blocks from public announcements.
+    """Pair counts per total-intensity class, accumulated over blocks from public
+    announcements.
 
-    ``z[A, B]``: pairs where Alice's pair is Z-type with bright level A (A = 0: she sent vacuum
-    twice) and Bob's is Z-type with level B. ``x[A, B]``: X-type pairs (two equal pulses of level
-    A / B; level 0 is again vacuum twice), ``x_sifted`` those with matching alignment angles and
-    ``x_errors`` the disclosed-bit errors among the sifted (X, X) classes. The key comes from
-    ``z[LMU, LMU]``; ``z_sample`` / ``z_sample_errors`` are the disclosed Z sample.
+    ``z[A, B]``: pairs where Alice's pair is Z-type with bright level A
+    (A = 0: she sent vacuum twice) and Bob's is Z-type with level B. ``x[A, B]``: X-type
+    pairs (two equal pulses of level A / B; level 0 is again vacuum twice), ``x_sifted``
+    those with matching alignment angles and ``x_errors`` the disclosed-bit errors among
+    the sifted (X, X) classes. The key comes from ``z[LMU, LMU]``; ``z_sample`` /
+    ``z_sample_errors`` are the disclosed Z sample.
     """
 
     rounds: int = 0
@@ -127,8 +136,8 @@ class Counts:
         x_err_mask: np.ndarray | None,
         intervals: np.ndarray,
     ) -> None:
-        """Tally one block's pairs. ``x_err_mask`` marks errors among the (X, X) pairs that were
-        sifted and disclosed (same order as the sifted (X, X) pairs)."""
+        """Tally one block's pairs. ``x_err_mask`` marks errors among the (X, X) pairs
+        that were sifted and disclosed (same order as the sifted (X, X) pairs)."""
         self.rounds += int(n_rounds)
         self.clicks += int(n_clicks)
         self.pairs += int(basis_a.size)
@@ -158,13 +167,15 @@ class Counts:
         return self.interval_sum / self.key_pairs if self.key_pairs else 0.0
 
 
-# ---- decoy bounds ------------------------------------------------------------------------------------
+# ---- decoy bounds --------------------------------------------------------------------
 def decoy_y11_lower(gain: np.ndarray, total: np.ndarray) -> float:
-    """Vacuum + weak decoy lower bound on the single-photon-pair yield from the 3×3 gain table.
+    """Vacuum + weak decoy lower bound on the single-photon-pair yield from the 3×3 gain
+    table.
 
-    ``gain[A, B]`` are the pair gains per prior probability for totals ``total = (0, ν', μ')``
-    (ν' = ν, μ' = μ for Z-type pairs; 2ν, 2μ for X-type). Only Y_nm ≥ 0 is used, so no photon-number
-    cut-off and no absolute normalisation are needed. Clipped at 0 (statistical noise).
+    ``gain[A, B]`` are the pair gains per prior probability for totals ``total =
+    (0, ν', μ')`` (ν' = ν, μ' = μ for Z-type pairs; 2ν, 2μ for X-type). Only Y_nm ≥ 0 is
+    used, so no photon-number cut-off and no absolute normalization are needed. Clipped
+    at 0 (statistical noise).
     """
     t0, nu, mu = (float(v) for v in total)
     F = np.exp(total[:, None] + total[None, :]) * gain
@@ -174,7 +185,8 @@ def decoy_y11_lower(gain: np.ndarray, total: np.ndarray) -> float:
 
 
 def decoy_ey11_upper(error_gain: np.ndarray, total: np.ndarray) -> float:
-    """Upper bound on e_11·Y_11 from the error-gain table (same normalisation as the gains)."""
+    """Upper bound on e_11·Y_11 from the error-gain table
+    (same normalization as the gains)."""
     nu = float(total[1])
     H = np.exp(total[:, None] + total[None, :]) * error_gain
     ey = (H[1, 1] - H[1, 0] - H[0, 1] + H[0, 0]) / nu**2
@@ -182,26 +194,29 @@ def decoy_ey11_upper(error_gain: np.ndarray, total: np.ndarray) -> float:
 
 
 def z_priors(p: MPQKDParams) -> np.ndarray:
-    """Prior probability that one party's pair is Z-type with bright level A (A = 0: two vacua)."""
+    """Prior probability that one party's pair is Z-type with bright level A
+    (A = 0: two vacua)."""
     s = level_probabilities(p)
     return np.array([s[L0] ** 2, 2 * s[L0] * s[LNU], 2 * s[L0] * s[LMU]])
 
 
 def x_priors(p: MPQKDParams) -> np.ndarray:
-    """Prior probability that one party's pair is X-type with level A (two equal pulses)."""
+    """Prior probability that one party's pair is X-type with level A
+    (two equal pulses)."""
     s = level_probabilities(p)
     return s**2
 
 
 def gains(counts: np.ndarray, priors: np.ndarray) -> np.ndarray:
-    """Pair gains per prior probability (common normalisation constant dropped)."""
+    """Pair gains per prior probability (common normalization constant dropped)."""
     return counts / (priors[:, None] * priors[None, :])
 
 
-# ---- the honest-channel model --------------------------------------------------------------------------
+# ---- the honest-channel model --------------------------------------------------------
 def single_click(a: float, b: float, p_dark: float, n_phase: int = 64) -> float:
-    """Probability that exactly one of Charlie's detectors clicks in a bin where Alice's pulse
-    carries ``a`` and Bob's ``b`` *detected* photons on average, averaged over their relative phase.
+    """Probability that exactly one of Charlie's detectors clicks in a bin where Alice's
+    pulse carries ``a`` and Bob's ``b`` *detected* photons on average, averaged over
+    their relative phase.
     """
     psi = (np.arange(n_phase) + 0.5) * 2 * np.pi / n_phase
     cross = 2 * math.sqrt(a * b) * np.cos(psi)
@@ -223,8 +238,9 @@ def misalignment(
     intervals,
     weights=None,
 ) -> float:
-    """Phase-error rate of the single-photon pair from the lasers' phase walk between the two
-    paired rounds: e_d = ⟨sin²(ε/2)⟩ with ε ~ N(2πΔf τ, 2π(Δν_a + Δν_b) τ) over the intervals τ.
+    """Phase-error rate of the single-photon pair from the lasers' phase walk between
+    the two paired rounds: e_d = ⟨sin²(ε/2)⟩ with ε ~ N(2πΔf τ, 2π(Δν_a + Δν_b) τ) over
+    the intervals τ.
     """
     tau = np.asarray(intervals, dtype=float) / rep_rate
     var = 2 * np.pi * (linewidth[0] + linewidth[1]) * tau
@@ -235,7 +251,8 @@ def misalignment(
 def e11_model(
     e_d: float, eta_a: float, eta_b: float, p_dark: float
 ) -> tuple[float, float]:
-    """Single-photon-pair X yield and phase-error rate, Eq. (D15) of the paper (Ma–Fung–Razavi)."""
+    """Single-photon-pair X yield and phase-error rate, Eq. (D15) of the paper
+    (Ma–Fung–Razavi)."""
     y11 = (1 - p_dark) ** 2 * (
         eta_a * eta_b / 2
         + (2 * eta_a + 2 * eta_b - 3 * eta_a * eta_b) * p_dark
@@ -246,15 +263,17 @@ def e11_model(
 
 
 def interval_pmf(p_click: float, l: int) -> tuple[np.ndarray, np.ndarray]:
-    """Distribution of the gap between a front click and its paired rear click (geometric, cut at l)."""
+    """Distribution of the gap between a front click and its paired rear click
+    (geometric, cut at l)."""
     k = np.arange(1, l + 1)
     w = p_click * (1 - p_click) ** (k - 1)
     return k, w / w.sum()
 
 
 def fit_transmittance(p_click: float, p: MPQKDParams) -> float:
-    """Arm transmittance (fiber + connectors + detector) that reproduces Charlie's single-click
-    probability, assuming a symmetric link — the parties' only use of a channel model.
+    """Arm transmittance (fiber + connectors + detector) that reproduces Charlie's
+    single-click probability, assuming a symmetric link — the parties' only use of a
+    channel model.
     """
     s, I = level_probabilities(p), intensities(p)
     p_dark = -math.expm1(-p.dark_count_rate / p.rep_rate)
@@ -281,10 +300,11 @@ def fit_transmittance(p_click: float, p: MPQKDParams) -> float:
 def x_error_model(
     a: float, b: float, e_d: float, p_dark: float, n_phase: int = 48
 ) -> float:
-    """X-basis error rate of sifted (a,a)&(b,b) pairs (detected mean photon numbers) when the
-    relative phase walks by ε between the two rounds, with ⟨sin²(ε/2)⟩ = e_d. Coherent-state
-    interference on the 50:50 splitter; the alignment-angle match fixes the announced relative
-    phase to 0 or π, so the error is the fraction of click patterns that contradict it.
+    """X-basis error rate of sifted (a,a)&(b,b) pairs (detected mean photon numbers)
+    when the relative phase walks by ε between the two rounds, with ⟨sin²(ε/2)⟩ = e_d.
+    Coherent-state interference on the 50:50 splitter; the alignment-angle match fixes
+    the announced relative phase to 0 or π, so the error is the fraction of click
+    patterns that contradict it.
     """
     psi = (np.arange(n_phase) + 0.5) * 2 * np.pi / n_phase
     eps = np.arccos(np.clip(1 - 2 * e_d, -1, 1))  # a representative phase walk
@@ -302,7 +322,7 @@ def x_error_model(
     return float(wrong / total) if total > 0 else E0
 
 
-# ---- the estimate the parties agree on ------------------------------------------------------------------
+# ---- the estimate the parties agree on -----------------------------------------------
 @dataclass
 class Estimate:
     """What the accumulated counts say, as both stations compute it."""
@@ -332,7 +352,8 @@ class Estimate:
 
 
 def q11_lower_from_z(z: np.ndarray, p: MPQKDParams) -> float:
-    """Decoy lower bound on the single-photon-pair fraction of the (μ, μ) Z pairs from the Z-type table."""
+    """Decoy lower bound on the single-photon-pair fraction of the (μ, μ) Z pairs from
+    the Z-type table."""
     gz = gains(np.asarray(z, dtype=float), z_priors(p))
     if gz[LMU, LMU] <= 0:
         return 0.0
@@ -365,7 +386,8 @@ def estimate(c: Counts, p: MPQKDParams) -> Estimate:
     n_decoy = int(c.x_sifted[LNU, LNU])
     if y11_x > 0 and sift > 0 and n_decoy >= MIN_DECOY_X_PAIRS:
         e11_decoy = min(E0, ey / (sift * y11_x))
-    else:  # too few (ν,ν) X pairs for a difference of error gains: unresolved, not "zero"
+    # too few (ν,ν) X pairs for a difference of error gains: unresolved, not "zero"
+    else:
         e11_decoy = float("nan")
     # the honest-channel model
     p_click = c.clicks / c.rounds if c.rounds else 0.0
@@ -422,10 +444,10 @@ def final_length(n: int, est: Estimate, leak_ec: int, leak_verify: int) -> int:
 def finite_key_length(
     n: int, c: Counts, p: MPQKDParams, est: Estimate, leak_ec: int, leak_verify: int
 ) -> int:
-    """A *simplified* finite-key estimate — clearly not the paper's full analysis: Chernoff-style
-    fluctuations (ε = ``p.eps``) on the decoy counts behind q_11, a Hoeffding term on the
-    phase-error rate from the signal X sample, and the usual ε-terms for verification and
-    privacy amplification."""
+    """A *simplified* finite-key estimate — clearly not the paper's full analysis:
+    Chernoff-style fluctuations (ε = ``p.eps``) on the decoy counts behind q_11, a
+    Hoeffding term on the phase-error rate from the signal X sample, and the usual
+    ε-terms for verification and privacy amplification."""
     ln = math.log(1 / p.eps)
     dev = lambda m: math.sqrt(2 * m * ln) + ln
     z = c.z.astype(float)
@@ -449,7 +471,7 @@ def finite_key_length(
     return max(0, int(math.floor(bits)))
 
 
-# ---- theory -----------------------------------------------------------------------------------------------
+# ---- theory --------------------------------------------------------------------------
 @dataclass
 class Theory:
     distance: float
@@ -468,7 +490,8 @@ class Theory:
 
 
 def _class_tables(p: MPQKDParams, eta_arm: float):
-    """Per-round click probabilities and the expected Z- and X-type pair tables (per pair)."""
+    """Per-round click probabilities and the expected Z- and X-type pair tables
+    (per pair)."""
     s, I = level_probabilities(p), intensities(p)
     p_dark = -math.expm1(-p.dark_count_rate / p.rep_rate)
     click = np.array(
@@ -499,12 +522,14 @@ def _class_tables(p: MPQKDParams, eta_arm: float):
 def theory(
     p: MPQKDParams, eta_arm: float, distance: float | None = None, f_ec: float = 1.16
 ) -> Theory:
-    """Eq. (D1)–(D15) of the paper on this showcase's parameters: ``eta_arm`` is the transmittance
-    from a station's spool input to a click (fiber, connectors, detector efficiency).
+    """Eq. (D1)–(D15) of the paper on this showcase's parameters: ``eta_arm`` is the
+    transmittance from a station's spool input to a click (fiber, connectors, detector
+    efficiency).
 
-    ``rate`` uses the ideal single-photon-pair quantities (the paper's curves); ``rate_bounds``
-    replaces q_11 by the vacuum + weak decoy bound evaluated on the model's own gains, i.e. what the
-    parties' estimator converges to with infinite statistics."""
+    ``rate`` uses the ideal single-photon-pair quantities (the paper's curves);
+    ``rate_bounds`` replaces q_11 by the vacuum + weak decoy bound evaluated on the
+    model's own gains, i.e. what the parties' estimator converges to with infinite
+    statistics."""
     s, I = level_probabilities(p), intensities(p)
     p_dark, click, p_click, w, z_tab, x_tab = _class_tables(p, eta_arm)
     r_p = pairing_rate_theory(p_click, p.l)
@@ -541,8 +566,9 @@ def theory(
 
 
 def expected_counts(p: MPQKDParams, eta_arm: float, pairs: int = 10**9) -> Counts:
-    """The :class:`Counts` an infinitely patient run would accumulate (expectation values for
-    ``pairs`` pairs): the stations' estimator applied to them must reproduce :func:`theory`.
+    """The :class:`Counts` an infinitely patient run would accumulate (expectation
+    values for ``pairs`` pairs): the stations' estimator applied to them must reproduce
+    :func:`theory`.
     """
     p_dark, click, p_click, w, z_tab, x_tab = _class_tables(p, eta_arm)
     I = intensities(p)
@@ -566,8 +592,9 @@ def expected_counts(p: MPQKDParams, eta_arm: float, pairs: int = 10**9) -> Count
 
 
 def arm_transmittance(setup, tag: str, p: MPQKDParams | None = None) -> float:
-    """Transmittance from ``tag``'s spool input to a click, read off the lab's own components
-    (fiber loss at the laser's wavelength, splices, connectors, coupler excess loss, detector).
+    """Transmittance from ``tag``'s spool input to a click, read off the lab's own
+    components (fiber loss at the laser's wavelength, splices, connectors, coupler
+    excess loss, detector).
     """
     from phoq.units import CONNECTOR_LOSS_DB, db_to_t
 

@@ -1,12 +1,15 @@
 """Patch cords cascaded through FC mating sleeves: what every connection costs.
 
-    uv run python examples/connector_cascade.py       # compare polishes and cord counts
-    uv run phoq serve examples/connector_cascade.py   # the bench in 3D; change cords, unplug ends
+    # compare polishes and cord counts
+    uv run python examples/connector_cascade.py
+    # the bench in 3D; change cords, unplug ends
+    uv run phoq serve examples/connector_cascade.py
 
-A laser feeds patch cords joined end to end by FC–FC mating sleeves, then a photodiode. Every
-sleeve is one more mated pair: 0.3 dB less photocurrent, and one more reflection travelling back
-to the laser (−50 dB for FC/UPC, −60 dB for FC/APC). A single FC/APC cord among FC/UPC ones turns
-both sleeves it sits in into air gaps; an unplugged FC/UPC end sends 3.6 % straight back.
+A laser feeds patch cords joined end to end by FC–FC mating sleeves, then a photodiode.
+Every sleeve is one more mated pair: 0.3 dB less photocurrent, and one more reflection
+traveling back to the laser (−50 dB for FC/UPC, −60 dB for FC/APC). A single FC/APC
+cord among FC/UPC ones turns both sleeves it sits in into air gaps; an unplugged FC/UPC
+end sends 3.6 % straight back.
 """
 
 from phoq import Fiber, Laser, MatingSleeve, Photodiode, Setup
@@ -21,8 +24,9 @@ def build(
 ) -> Setup:
     """A laser, ``cords`` patch cords joined by mating sleeves, then a photodiode.
 
-    Each entry of ``cords`` is one cord: a connector type for both ends, or an (end A, end B)
-    pair for a hybrid cord. ``plugged=False`` leaves the last cord's end in the air.
+    Each entry of ``cords`` is one cord: a connector type for both ends, or an
+    (end A, end B) pair for a hybrid cord. ``plugged=False`` leaves the last cord's end
+    in the air.
     """
     setup = Setup(name, seed=1)
     ld = setup.add(Laser("LD-1", mode="cw", power_dbm=0.0, connector=laser))
@@ -54,7 +58,8 @@ CASES = [
 
 if __name__ == "__main__":
     print(
-        f"{'':38} {'matings':>7} {'at the PD':>11} {'current':>9} {'back to LD':>10}  strongest reflection"
+        f"{'':38} {'matings':>7} {'at the PD':>11} {'current':>9} {'back to LD':>10} "
+        " strongest reflection"
     )
     for title, kw in CASES:
         setup = build(**kw)
@@ -67,7 +72,8 @@ if __name__ == "__main__":
         back = src["readouts"]["Back-reflection"].split(" · ")[0]
         strongest = src["readouts"].get("Strongest reflection", "")
         print(
-            f"{title:38} {matings:7d} {power:>11} {fmt_si(pd['current'], 'A'):>9} {back:>10}  {strongest}"
+            f"{title:38} {matings:7d} {power:>11} {fmt_si(pd['current'], 'A'):>9}"
+            f" {back:>10}  {strongest}"
         )
         for w in r["warnings"]:
             print(f"{'':40}! {w['text'].split(': ')[0]}")

@@ -356,7 +356,7 @@ export class UI {
         <div><span>Autosave</span><b class="path">${esc(s.save_path ?? 'off')}</b></div>
         <div title="${esc((s.spares ?? []).join(', '))}"><span>Spare ports open</span><b class="${s.spares?.length ? 'warn' : ''}">${s.spares?.length ?? 0}</b></div></div>
       <div class="insp-actions"><button data-act="caps" ${s.spares?.length ? '' : 'disabled'} title="Cap every unused port of the couplers and other parts with a terminator of its own connector type">Cap spare ports</button></div>
-      <div class="legend"><div style="color:var(--text)">Light-flow colours (false colour for IR)</div>${legend}</div>`;
+      <div class="legend"><div style="color:var(--text)">Light-flow colors (false color for IR)</div>${legend}</div>`;
     const caps = this.body.querySelector('[data-act="caps"]');
     if (caps) caps.onclick = () => this.lab.capSpares();
   }

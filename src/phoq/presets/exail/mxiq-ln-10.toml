@@ -48,5 +48,5 @@ wavelength_range_m = { min = 1530e-9, typ = 1550e-9, max = 1580e-9, note = "the 
 rf_input_impedance = "50 Ω"
 dc_input_impedance_ohm = { min = 1e6 }
 rf_connector = "Female K (SMA compatible)"
-internal_photodiodes = "Option PD: two monitor photodiodes (pins 7–10) for a bias controller; not modelled"
+internal_photodiodes = "Option PD: two monitor photodiodes (pins 7–10) for a bias controller; not modeled"
 fiber = "Polarization-maintaining input (Corning PM 15-U25D, 1.5 m); the model has no polarization"

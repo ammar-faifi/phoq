@@ -1,26 +1,30 @@
 """Parties — the computers of Alice, Bob, Charlie … — each in its own process.
 
-A :class:`Party` has two links, which is how the lab separates the physical layer from the
-classical network:
+A :class:`Party` has two links, which is how the lab separates the physical layer from
+the classical network:
 
-* ``self.hw`` — the **hardware link** to the instruments its own station owns (``instruments``):
-  program its AWG, read its own parameters, call methods such as ``voltage_for``. This is the
-  local USB/PCIe-style connection of a real station, not a public channel, and a party cannot
-  reach another station's hardware through it. The light itself is simulated in the lab, because
-  the fields of several stations interfere at the same beam splitter.
-* ``self.net`` — the **classical channel** to the other parties: real TCP sockets on localhost
-  (``multiprocessing.connection``), one listening port per party, messages pickled, every
-  connection authenticated with a pre-shared key (HMAC challenge/response). That is what QKD
-  assumes: an *authenticated but public* channel — nothing is encrypted.
+* ``self.hw`` — the **hardware link** to the instruments its own station owns
+  (``instruments``): program its AWG, read its own parameters, call methods such as
+  ``voltage_for``. This is the local USB/PCIe-style connection of a real station, not a
+  public channel, and a party cannot reach another station's hardware through it. The
+  light itself is simulated in the lab, because the fields of several stations interfere
+  at the same beam splitter.
+* ``self.net`` — the **classical channel** to the other parties: real TCP sockets on
+  localhost (``multiprocessing.connection``), one listening port per party, messages
+  pickled, every connection authenticated with a pre-shared key
+  (HMAC challenge/response). That is what QKD assumes: an *authenticated but public*
+  channel — nothing is encrypted.
 
 The framework drives the parties block by block (:class:`Experiment`): every party's
-``prepare(block, n)`` programs its transmitter for the next ``n`` pulses, the lab then records the
-block, hands the time-tagger batch to the party owning the tagger (``measure(batch)``), and whatever
-the parties say to each other arrives through ``receive(message)``. Printed output goes to the
-party's laptop console in the virtual lab; ``report(**values)`` shows live read-outs.
+``prepare(block, n)`` programs its transmitter for the next ``n`` pulses, the lab then
+records the block, hands the time-tagger batch to the party owning the tagger
+(``measure(batch)``), and whatever the parties say to each other arrives through
+``receive(message)``. Printed output goes to the party's laptop console in the virtual
+lab; ``report(**values)`` shows live read-outs.
 
-Write each party in its own file and load them with ``--party alice.py``, or bundle a protocol as
-a package exposing ``PARTIES`` and ``build()`` and use ``--protocol examples/mpqkd``.
+Write each party in its own file and load them with ``--party alice.py``, or bundle a
+protocol as a package exposing ``PARTIES`` and ``build()`` and use ``--protocol
+examples/mpqkd``.
 """
 
 from __future__ import annotations
@@ -64,7 +68,7 @@ def free_port(preferred: int) -> int:
     raise OSError("no free TCP port on localhost")
 
 
-# ---- messages on the classical channel --------------------------------------------------------------
+# ---- messages on the classical channel -----------------------------------------------
 @dataclass
 class Message:
     sender: str
@@ -91,8 +95,9 @@ class Message:
 class ClassicalChannel:
     """Authenticated public channel between the parties: TCP sockets on localhost.
 
-    ``send(to, topic, **payload)`` / ``broadcast(topic, **payload)``; incoming messages are queued
-    and handed to the party's ``receive``. Everything is sent in clear and counted in ``stats``.
+    ``send(to, topic, **payload)`` / ``broadcast(topic, **payload)``; incoming messages
+    are queued and handed to the party's ``receive``. Everything is sent in clear and
+    counted in ``stats``.
     """
 
     def __init__(self, me: str, peers: dict[str, tuple[str, int]], authkey: bytes):
@@ -200,9 +205,10 @@ class ClassicalChannel:
             pass
 
 
-# ---- the hardware link ------------------------------------------------------------------------------
+# ---- the hardware link ---------------------------------------------------------------
 class Hardware:
-    """Proxy to this station's instruments in the lab (request/reply over the worker's pipe)."""
+    """Proxy to this station's instruments in the lab (request/reply over the worker's
+    pipe)."""
 
     def __init__(self, out_q, reply_q, allowed: tuple[str, ...]):
         self.out_q, self.reply_q, self.allowed = out_q, reply_q, tuple(allowed)
@@ -211,7 +217,8 @@ class Hardware:
     def _request(self, op: str, instrument: str, *args, **kw):
         if instrument not in self.allowed:
             raise PermissionError(
-                f"{instrument} is not part of this station (owns: {', '.join(self.allowed) or 'nothing'})"
+                f"{instrument} is not part of this station (owns:"
+                f" {', '.join(self.allowed) or 'nothing'})"
             )
         self._rid += 1
         self.out_q.put(("hw", self._rid, op, instrument, args, kw))
@@ -231,13 +238,15 @@ class Hardware:
         return self._request("set", instrument, **params)
 
     def call(self, instrument: str, method: str, *args, **kw):
-        """Call a method, e.g. ``hw.call("ALICE-AWG", "set_pattern", "ch1", volts, rate)``."""
+        """Call a method, e.g. ``hw.call("ALICE-AWG", "set_pattern", "ch1", volts,
+        rate)``."""
         return self._request("call", instrument, method, *args, **kw)
 
 
-# ---- the party ---------------------------------------------------------------------------------------
+# ---- the party -----------------------------------------------------------------------
 class Party:
-    """Base class for a participant. Subclass it in a file of its own and override the hooks."""
+    """Base class for a participant. Subclass it in a file of its own and override the
+    hooks."""
 
     name: ClassVar[str] = "PARTY"
     port: ClassVar[int] = 0  # classical-channel port (0: BASE_PORT + index)
@@ -247,12 +256,13 @@ class Party:
     stage: ClassVar[int] = 0
     """Where the station sits along the light path when it re-encodes what it detects.
 
-    A relay, a trusted node or an eavesdropper detects the block *before* the stations further
-    down the line see it and re-programs its own transmitter from the result — a feed-forward
-    with some latency that a real receiver's clock calibration absorbs. Give such a station
-    ``stage = 1`` (2 for a relay behind it, …): the lab records its counters first, hands it the
-    batch, waits for its ``measure`` to return (that is where it programs its transmitter) and
-    only then records the next stage and, last, the plain stations (stage 0).
+    A relay, a trusted node or an eavesdropper detects the block *before* the stations
+    further down the line see it and re-programs its own transmitter from the result — a
+    feed-forward with some latency that a real receiver's clock calibration absorbs.
+    Give such a station ``stage = 1`` (2 for a relay behind it, …): the lab records its
+    counters first, hands it the batch, waits for its ``measure`` to return (that is
+    where it programs its transmitter) and only then records the next stage and, last,
+    the plain stations (stage 0).
     """
 
     def __init_subclass__(cls, **kw):
@@ -268,15 +278,17 @@ class Party:
         self.rng = rng
         self._report = report
 
-    # ---- hooks --------------------------------------------------------------------------------
+    # ---- hooks -----------------------------------------------------------------------
     def setup(self) -> None:
         """Once, in the party's process, before the first block."""
 
     def prepare(self, block: int, n: int) -> None:
-        """Physical layer: program this station's transmitter for block ``block`` of ``n`` pulses."""
+        """Physical layer: program this station's transmitter for block ``block`` of
+        ``n`` pulses."""
 
     def measure(self, batch: CounterResult) -> None:
-        """Physical layer: a time-tagger batch recorded by this station's instruments."""
+        """Physical layer: a time-tagger batch recorded by this station's
+        instruments."""
 
     def receive(self, msg: Message) -> None:
         """Classical channel: a message from another party."""
@@ -284,7 +296,7 @@ class Party:
     def idle(self) -> None:
         """Called regularly when nothing else is pending."""
 
-    # ---- helpers ------------------------------------------------------------------------------
+    # ---- helpers ---------------------------------------------------------------------
     def report(self, **readouts) -> None:
         """Live read-outs shown on this party's laptop."""
         self._report(readouts)
@@ -324,8 +336,8 @@ def load_parties(source: str | Path) -> list[type[Party]]:
 def load_protocol(name: str):
     """A protocol package exposing ``PARTIES`` and ``build()``.
 
-    ``name`` is a directory or ``.py`` path, the name of a folder under ``./examples`` (so
-    ``--protocol mpqkd`` works from the repository root), or a dotted module name.
+    ``name`` is a directory or ``.py`` path, the name of a folder under ``./examples``
+    (so ``--protocol mpqkd`` works from the repository root), or a dotted module name.
     """
     module, locator = locate(name)
     if not hasattr(module, "PARTIES") or not callable(getattr(module, "build", None)):
@@ -335,7 +347,7 @@ def load_protocol(name: str):
     return module
 
 
-# ---- the party's process -----------------------------------------------------------------------------
+# ---- the party's process -------------------------------------------------------------
 def _party_main(
     source: str, clsname: str, peers: dict, authkey: bytes, seed, reply_q, in_q, out_q
 ) -> None:
@@ -357,7 +369,8 @@ def _party_main(
         out_q.put(("status", "error"))
         return
     print(
-        f"listening on {net.address[0]}:{net.address[1]} · peers: {', '.join(p for p in peers if p != cls.name)}"
+        f"listening on {net.address[0]}:{net.address[1]} · peers:"
+        f" {', '.join(p for p in peers if p != cls.name)}"
     )
     sys.stdout.flush()
     out_q.put(("ready", net.address[1]))
@@ -487,13 +500,14 @@ class PartyWorker(ProcessWorker):
             self.in_q.put(("prepare", block, n))
 
 
-# ---- the experiment: parties + tasks driven block by block ----------------------------------------
+# ---- the experiment: parties + tasks driven block by block ---------------------------
 class Experiment:
     """Runs parties (and analysis tasks) against a setup, one block of pulses at a time.
 
-    Per block: every party prepares, the lab records the block, the batch goes to the party
-    owning each counter and to the tasks. ``poll()`` advances at most one block and is safe to
-    call repeatedly (the server does so on its ticks); ``run(blocks)`` drives it headless.
+    Per block: every party prepares, the lab records the block, the batch goes to the
+    party owning each counter and to the tasks. ``poll()`` advances at most one block
+    and is safe to call repeatedly (the server does so on its ticks); ``run(blocks)``
+    drives it headless.
     """
 
     def __init__(
@@ -551,7 +565,7 @@ class Experiment:
             out.append({"name": "LAB", "kind": "lab"})
         return out
 
-    # ---- hardware requests from the parties (run in the readers' threads) --------------------
+    # ---- hardware requests from the parties (run in the readers' threads) ------------
     def _hw(self, op: str, instrument: str, args, kw):
         with self.lock:
             comp = self.setup[instrument]
@@ -572,11 +586,12 @@ class Experiment:
             pickle.dumps(value)
         except Exception as exc:
             raise TypeError(
-                f"result of {instrument}.{args[0] if args else op} cannot be sent to the party: {exc}"
+                f"result of {instrument}.{args[0] if args else op} cannot be sent to"
+                f" the party: {exc}"
             ) from None
         return value
 
-    # ---- lifecycle ----------------------------------------------------------------------------------
+    # ---- lifecycle -------------------------------------------------------------------
     def start(self, timeout: float = 60.0) -> None:
         for w in self.workers:
             w.start()
@@ -600,13 +615,14 @@ class Experiment:
     def block_size(self) -> int:
         return max([c.slots for c in self.counters()] + [0])
 
-    # ---- stepping ------------------------------------------------------------------------------------
+    # ---- stepping --------------------------------------------------------------------
     def poll(self) -> dict[str, CounterResult] | None:
-        """Advance by at most one block; returns the block's batches when one was recorded.
+        """Advance by at most one block; returns the block's batches when one was
+        recorded.
 
-        Relay stations (``Party.stage`` ≥ 1) have their counters recorded first, stage by stage,
-        and the block only goes on once their ``measure`` has returned; the remaining counters
-        are recorded last.
+        Relay stations (``Party.stage`` ≥ 1) have their counters recorded first, stage
+        by stage, and the block only goes on once their ``measure`` has returned; the
+        remaining counters are recorded last.
         """
         senders = [w for w in self.party_workers if w.alive]
         if self.phase == "prepare":
@@ -647,7 +663,8 @@ class Experiment:
                         ]
                     )
                 if any(w.done < w.sent for w in staged):
-                    return None  # their measure() — where they re-encode — must return first
+                    # their measure() — where they re-encode — must return first
+                    return None
                 self._stage += 1
             self.phase = "acquire"
         self._record([c for c in self.counters() if c.name not in self._results])
@@ -658,7 +675,8 @@ class Experiment:
         return results
 
     def _record(self, counters) -> None:
-        """Record this block on ``counters`` and hand the batches to their owners and the tasks."""
+        """Record this block on ``counters`` and hand the batches to their owners and
+        the tasks."""
         with self.lock:
             net = trace(self.setup)
             for cnt in counters:
@@ -676,8 +694,9 @@ class Experiment:
         echo_lines(self.workers, stream)
 
     def wait_quiet(self, quiet: float = 0.75, timeout: float = 30.0) -> bool:
-        """Block until no party has sent or received anything for ``quiet`` seconds (a dialogue such
-        as error correction keeps going after the last block); False if ``timeout`` ran out first.
+        """Block until no party has sent or received anything for ``quiet`` seconds (a
+        dialogue such as error correction keeps going after the last block); False if
+        ``timeout`` ran out first.
         """
         end = time.monotonic() + timeout
         last, since = None, time.monotonic()
@@ -698,7 +717,8 @@ class Experiment:
     def run(
         self, blocks: int = 10, echo: bool = True, timeout: float = 120.0
     ) -> list[ProcessWorker]:
-        """Start everything, run ``blocks`` blocks, let the parties finish talking, stop."""
+        """Start everything, run ``blocks`` blocks, let the parties finish talking,
+        stop."""
         self.start()
         try:
             end = time.monotonic() + timeout

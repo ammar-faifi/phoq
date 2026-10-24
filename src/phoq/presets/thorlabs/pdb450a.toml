@@ -38,7 +38,7 @@ monitor_noise = { value = 180e-6, from = "datasheet-max", spec = "5.1 MONITOR Vo
 [curves.responsivity]
 from = "datasheet-graph"
 spec = "5.1 Typical Si Detector responsivity (PDB440A, PDB450A)"
-note = "Traced by colour from the published plot (±0.005 A/W)."
+note = "Traced by color from the published plot (±0.005 A/W)."
 wavelength_nm = [320, 340, 360, 380, 400, 420, 440, 460, 480, 500, 520, 540, 560, 580, 600, 620, 640, 660, 680, 700, 720, 740, 760, 780, 800, 820, 840, 860, 880, 900, 920, 940, 960, 980, 1000]
 value = [0.171, 0.161, 0.135, 0.128, 0.144, 0.162, 0.182, 0.201, 0.22, 0.245, 0.267, 0.291, 0.314, 0.34, 0.363, 0.389, 0.413, 0.435, 0.454, 0.473, 0.491, 0.507, 0.52, 0.532, 0.536, 0.533, 0.524, 0.505, 0.475, 0.435, 0.383, 0.331, 0.271, 0.21, 0.156]
 
@@ -46,8 +46,8 @@ value = [0.171, 0.161, 0.135, 0.128, 0.144, 0.162, 0.182, 0.201, 0.22, 0.245, 0.
 optical_input_w = 20e-3
 
 [unsupported]
-rf_dc_offset_v = { max = 15e-3, note = "RF OUTPUT DC offset < ±15 mV; not modelled" }
-monitor_dc_offset_v = { max = 2e-3, note = "< ±2 mV; not modelled" }
+rf_dc_offset_v = { max = 15e-3, note = "RF OUTPUT DC offset < ±15 mV; not modeled" }
+monitor_dc_offset_v = { max = 2e-3, note = "< ±2 mV; not modeled" }
 cw_saturation_w = "9 mW @ 820 nm (10³ V/A) — the model derives it as swing/(G·ℜ) at the selected gain"
 ac_coupled_version = "-AC versions: lower cut-off ≤ 100 Hz (typ. < 5 Hz); the model is DC-coupled"
 active_area_diameter_m = { typ = 0.8e-3 }

@@ -45,14 +45,14 @@ supply_voltage_v = 5.5
 
 [unsupported]
 timing_resolution_s = { typ = 350e-12, note = "at 825 nm, 10 µm spot, 22 °C; the click model has no timing jitter" }
-afterpulsing_probability = { typ = 0.005, max = 0.01, note = "first 500 ns after a count (excluding the first 75 ns) at 100 kc/s; not modelled" }
-count_rate_before_saturation_hz = { min = 12e6, typ = 37e6, note = "the module's count rate falls again at very high flux (Figure 7); the model's dead time is non-paralysable, ceiling 1/t_d = 45 Mc/s" }
+afterpulsing_probability = { typ = 0.005, max = 0.01, note = "first 500 ns after a count (excluding the first 75 ns) at 100 kc/s; not modeled" }
+count_rate_before_saturation_hz = { min = 12e6, typ = 37e6, note = "the module's count rate falls again at very high flux (Figure 7); the model's dead time is non-paralyzable, ceiling 1/t_d = 45 Mc/s" }
 linearity_correction_factor = "typ 1.02 at 1 Mc/s, 1.16 at 5, 1.40 at 10, 2.35 at 20, 3.32 at 25 Mc/s; the model's dead time alone gives 1/(1 − t_d·CR) = 1.02, 1.12, 1.28, 1.79, 2.22"
 active_area_diameter_m = { min = 170e-6, typ = 180e-6 }
 output_pulse = "TTL into 50 Ω: 10 ns, 2.2 V (-1X; 4.4 V for -4X); the model emits 1 V, 5 ns pulses. Trigger counters at 1.0 V"
-gating = "TTL gate input (50 Ω): counting off in 40 ns typ, on in 60 ns typ; counts less than 2 µs before a gate change lose timing accuracy. Not modelled"
+gating = "TTL gate input (50 Ω): counting off in 40 ns typ, on in 60 ns typ; counts less than 2 µs before a gate change lose timing accuracy. Not modeled"
 fiber_adaptor = "FC/PC receptacle optimized for 550 nm and 100 µm core multimode fiber (SPCM-QC6); coupling of single-mode fiber is not specified"
-breakdown_flash = "An avalanche emits light with a broad spectrum; reflected back more than 20 ns later it is detected. Not modelled (matters for back-reflections and detector side channels)"
+breakdown_flash = "An avalanche emits light with a broad spectrum; reflected back more than 20 ns later it is detected. Not modeled (matters for back-reflections and detector side channels)"
 overexposure = "After over-exposure the dark count may stay raised for up to an hour"
 dark_count_bistability = "A small fraction of modules switch between two (or more) dark-count levels"
 pde_stability = "Detection probability varies ≤ 1 % below 1 Mc/s and ≤ 3 % below 5 Mc/s up to 40 °C (Figure 6)"

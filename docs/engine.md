@@ -65,7 +65,7 @@ one length, and over every pairing otherwise (README, "IQ modulator").
 1 m `Fiber` patch cord whose two connectors match the two ports, as a lab would. `chain(...)` wires
 parts one after another through their declared `inputs` and `outputs`. A `MatingSleeve` is an
 adaptor: the connectors plugged into its two sides mate with each other inside it. The setup
-serialises to JSON and to a runnable Python script; part presets (`presets.py`) set a component's
+serializes to JSON and to a runnable Python script; part presets (`presets.py`) set a component's
 parameters from a datasheet and are stored by id.
 
 ## 2. The pipeline
@@ -80,7 +80,7 @@ flowchart LR
 ```
 
 `trace()` runs once per snapshot of the setup and depends only on the setup. Everything random
-happens afterwards, in `synthesize()` and the detector and instrument models, so one `Network` can
+happens afterward, in `synthesize()` and the detector and instrument models, so one `Network` can
 feed many acquisitions. Three callers drive the pipeline:
 
 - **`Runner`** (headless): `run()` traces once and acquires every instrument on that snapshot,
@@ -200,7 +200,7 @@ computed in closed form:
 | `ook` | $\dfrac{P}{d}\cdot\dfrac{\mathrm{on}(t+\Delta t) - \mathrm{on}(t)}{\Delta t}$, with $\mathrm{on}(x)$ the cumulative on-time at duty $d$ |
 | `pulsed` | $\dfrac{P}{f}\cdot\dfrac{C(t+\Delta t) - C(t)}{\Delta t}$, with $C(x) = \sum_k \tfrac12\big[1 + \mathrm{erf}\big((x - k/f)/\sigma\sqrt2\big)\big]$ |
 
-Pulses are Gaussian, centred on $t = k/f$, with $\sigma = \min(\mathrm{FWHM}, 0.45/f)/2.355$. The
+Pulses are Gaussian, centered on $t = k/f$, with $\sigma = \min(\mathrm{FWHM}, 0.45/f)/2.355$. The
 energy is exact at any bin size: a 100 ps pulse train integrates to 1.000000 pulse energy per period
 with bins of 1 ps, 10 ps, 1 ns or 100 ns, while point-sampling it at 1 ns gives 9.4× the energy in
 the same test. Within a bin the field has no structure, so a detector sees the bin's energy.
@@ -210,8 +210,8 @@ increments with $`\mathrm{Var}[\varphi(t+\tau)-\varphi(t)] = 2\pi\Delta\nu\,\tau
 `linewidth`. That is white frequency noise and a Lorentzian line of full width $\Delta\nu$; the field
 correlation decays as $e^{-\pi\Delta\nu|\tau|}$, so the coherence time is $\tau_c = 1/\pi\Delta\nu$.
 (Measured on the code: 0.641 rad² at τ = 1 µs and 100 kHz, against 2πΔντ = 0.628.)
-`phase(t, rng)` evaluates **one** realisation at an arbitrary set of times, including repeated ones:
-it sorts them, draws the increments between neighbours and puts the result back in place. This is
+`phase(t, rng)` evaluates **one** realization at an arbitrary set of times, including repeated ones:
+it sorts them, draws the increments between neighbors and puts the result back in place. This is
 what makes interference physical: two paths with delays $\tau_1$ and $\tau_2$ read the same random
 walk at $t-\tau_1$ and $t-\tau_2$. `detuning` adds $`2\pi\,\delta f\,t`$, which is how two lasers beat at
 a chosen offset. `phase_randomized` adds a fresh uniform phase per pulse slot, for weak-coherent-
@@ -239,9 +239,9 @@ lasers' phase walks with the others:
    generator draws a random epoch here.
 2. **Group paths by laser.** For a laser with paths of delays $\tau_j$ to detectors with grid
    offsets $o_j$, the emission times are `emit = t + oⱼ − τⱼ` (bin starts) and `mid = emit + dt/2`
-   (bin centres).
+   (bin centers).
 3. **One envelope and one phase call per laser**, over all its paths at once:
-   `envelope(emit, dt) · exp(i·phase(mid, rng))`. Every path of that laser shares the realisation.
+   `envelope(emit, dt) · exp(i·phase(mid, rng))`. Every path of that laser shares the realization.
 4. **Per path**, multiply by `amp`, then by each modulator's factor at the moment the light passes
    it: `mod.factor(t_mod = mid + at, t_emit = mid)`. The emission time is passed too, because a
    generator on the *aligned* time base indexes its pattern by emission time, so pattern symbol $k$
@@ -250,8 +250,8 @@ lasers' phase walks with the others:
    add in power at the detector. Two lasers at the same wavelength interfere and beat at their
    `detuning` difference.
 
-**Why bin centres.** Phases and modulator voltages are evaluated at the bin centre. Pulses and
-pattern symbols are centred on $k/f$; evaluating at bin starts would put many samples exactly on a
+**Why bin centers.** Phases and modulator voltages are evaluated at the bin center. Pulses and
+pattern symbols are centered on $k/f$; evaluating at bin starts would put many samples exactly on a
 symbol boundary, where rounding decides the symbol.
 
 **Cost.** Memory and time scale as (number of samples) × (number of paths of each laser), because
@@ -280,7 +280,7 @@ a preset's datasheet curve, scaled to the responsivity at the reference waveleng
 start the record early by `settle_time` = $6/2\pi B$ so the filter has settled.
 
 **Balanced photodetector** (`detect` returns the open-circuit voltages of `rf`, `mon_plus` and
-`mon_minus`, from one noise realisation). Each photodiode's current is computed as above from the
+`mon_minus`, from one noise realization). Each photodiode's current is computed as above from the
 fields of its own input, with the INPUT− diode's responsivity short by $`10^{-\mathrm{CMRR}/20}`$
 (the model of the common-mode rejection), and carries its own shot noise $2qi_\pm$, uncorrelated
 with the other diode's: behind a 50:50 coupler each photon's path is random. The amplifier
@@ -309,7 +309,7 @@ p = 1 - (1 - p_\mathrm{dark})\,e^{-\eta\bar n}, \qquad p_\mathrm{dark} = 1 - e^{
 ```
 
 independently, which is exact for coherent light: its photon number is Poissonian. Dead time then
-removes every click within $\lceil t_d/\Delta t\rceil$ bins of the last kept one (non-paralysable).
+removes every click within $\lceil t_d/\Delta t\rceil$ bins of the last kept one (non-paralyzable).
 For an oscilloscope, `waveform()` turns clicks into 1 V, 5 ns pulses.
 
 **Power meter.** No time grid: it reads `Network.mean_powers` (section 8), weighted by its InGaAs
@@ -333,7 +333,7 @@ acquisitions are independent records, not consecutive pieces of one record.
 - **Record.** A window of 10 divisions, $`W = 10\,s_\mathrm{div}`$. The sample rate is capped by the
   record memory, $f_s = \min(f_\mathrm{set}, N_\max/W)$, so $N = f_sW$ points (at least 100). At
   1 µs/div with 5 GS/s and 20 000 points: 2 GS/s, 20 000 points, 0.5 ns apart.
-- **Analogue signal.** Simulated $`k = \lceil 6\,f_\mathrm{BW}\Delta t\rceil`$ times finer than the
+- **Analog signal.** Simulated $`k = \lceil 6\,f_\mathrm{BW}\Delta t\rceil`$ times finer than the
   sample interval (capped so the grid stays under 200 000 samples), starting early enough for the
   photodiode and front end to settle. Inputs are photodiode currents, single-photon-detector pulse
   trains, or generator voltages.
@@ -354,7 +354,7 @@ acquisitions are independent records, not consecutive pieces of one record.
 ### Photon counter (time tagger)
 
 - **Bins.** One bin per pulse: the bin rate is `bin_rate` or the repetition rate of the laser
-  feeding its detectors. Bin $k$ is centred on pulse $k$; with `compensate_delay` the bins shift by
+  feeding its detectors. Bin $k$ is centered on pulse $k$; with `compensate_delay` the bins shift by
   the shortest delay from that laser, so bin $k$ holds pulse $k$ after the fiber.
 - **Channel delays.** `chN_delay` is added to channel N's time stamps, like a tagger's input delay:
   a detector whose light arrives Δ before the others' lines up with them at +Δ. Channel N's bin $k$
@@ -425,7 +425,7 @@ summed over the paths of each laser (different lasers add in power), with the mu
 ```
 
 The overlap is $e^{-r^2/8\sigma^2}$ for Gaussian pulses, with $r$ the delay modulo the period, and the
-overlap of the on-windows for OOK. For phase-randomised pulses it is zero between different pulses.
+overlap of the on-windows for OOK. For phase-randomized pulses it is zero between different pulses.
 Modulators enter with their exact complex factor when static, and with the square root of their
 mean power factor when driven. Two paths that pass driven modulators interfere only if they pass the
 same ones and have equal delays; otherwise they add in power. On an unbalanced Mach–Zehnder the
@@ -456,8 +456,8 @@ with the time average of synthesized fields: 0.1085 mW against 0.1091 ± 0.0016 
 - One-sided power spectral densities (W/Hz into the analyzer's input impedance).
 - Beam splitter: real bar, $+i$ cross amplitude. Fiber: $e^{-i2\pi n_\mathrm{eff}L/\lambda}$ phase,
   $n_gL/c$ delay.
-- Time: a generator's pattern symbol $k$ and a laser's pulse $k$ are centred on $t = k/f$; the
-  photon counter's bin $k$ is centred on pulse $k$.
+- Time: a generator's pattern symbol $k$ and a laser's pulse $k$ are centered on $t = k/f$; the
+  photon counter's bin $k$ is centered on pulse $k$.
 - Randomness: one `numpy.random.Generator` per runner or session; `Setup(seed=…)` makes a run
   repeatable.
 
@@ -510,7 +510,7 @@ with the time average of synthesized fields: 0.1085 mW against 0.1091 ± 0.0016 
   spot size or power density on the diodes. Its steady-state report checks the swing on the mean
   output only: a beat or modulation that clips shows in the time domain.
 - Single-photon detector: no timing jitter (a click sits in its bin), no afterpulsing, no gating or
-  twilight events. Dead time is non-paralysable. It carries across the photon counter's chunks, and
+  twilight events. Dead time is non-paralyzable. It carries across the photon counter's chunks, and
   into the next acquisition when that continues the record, so it may be longer than a chunk.
 
 **Instruments**
@@ -522,7 +522,7 @@ with the time average of synthesized fields: 0.1085 mW against 0.1091 ± 0.0016 
   sub-bins shorter than the pulses (a quarter of the width: the overlap is right to 2 %). Channel
   delays are set by hand (`examples/dli_for_cow.py` computes its 9.8 ns from the traced paths); there
   is no arrival-time histogram to read them from.
-- Spectrum analyzer: FFT method only (no video bandwidth, swept-filter artefacts, spurs or local-
+- Spectrum analyzer: FFT method only (no video bandwidth, swept-filter artifacts, spurs or local-
   oscillator phase noise), a white noise floor, no input attenuator or compression. The lab window
   shows a plain Lorentzian half width, which assumes a delay much longer than the coherence time;
   the short-delay fit runs from Python.

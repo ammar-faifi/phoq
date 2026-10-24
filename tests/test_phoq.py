@@ -1,4 +1,5 @@
-"""Tests for phoq: parameters, wiring, physics, persistence, the API and the MP-QKD layer."""
+"""Tests for phoq: parameters, wiring, physics, persistence, the API and the MP-QKD
+layer."""
 
 import json
 import math
@@ -33,7 +34,7 @@ from phoq.units import CONNECTOR_LOSS_DB, FIBER_DELAY, db_to_t, photon_energy
 EXAMPLES = Path(__file__).resolve().parents[1] / "examples"
 
 
-# ---- parameters & wiring ------------------------------------------------------------------------
+# ---- parameters & wiring -------------------------------------------------------------
 def test_params_are_validated_attributes():
     laser = Laser(power_dbm="-3", mode="cw")
     assert laser.power_dbm == -3.0 and laser.mode == "cw"
@@ -78,7 +79,7 @@ def test_change_notifications():
     assert events == [("param", "LD-1", "power_dbm")]
 
 
-# ---- physics --------------------------------------------------------------------------------------
+# ---- physics -------------------------------------------------------------------------
 def test_power_budget_through_attenuator():
     s = Setup.from_chain(
         Laser(mode="cw", power_dbm=0.0), Attenuator(attenuation_db=10), PowerMeter()
@@ -174,7 +175,8 @@ def test_single_photon_detector_click_probability():
 
 
 def test_modulator_pattern_aligned_with_counter_bins():
-    """Every other pulse is blocked; after a 1 km spool the counter still sees only even bins."""
+    """Every other pulse is blocked; after a 1 km spool the counter still sees only even
+    bins."""
     s = Setup(seed=2)
     laser = s.add(Laser(power_dbm=-60, rep_rate=50e6, pulse_width=200e-12))
     im = s.add(IntensityModulator(extinction_db=80, insertion_loss_db=0))
@@ -193,7 +195,7 @@ def test_modulator_pattern_aligned_with_counter_bins():
     assert clicks[0::2].all() and not clicks[1::2].any()
 
 
-# ---- function generator & modulators ---------------------------------------------------------------
+# ---- function generator & modulators -------------------------------------------------
 def test_generator_shapes_and_pattern():
     fg = FunctionGenerator(
         ch1_shape="sine",
@@ -216,7 +218,7 @@ def test_generator_shapes_and_pattern():
     assert fg.ch1_shape == "pattern" and fg.ch1_vpp == 4.0 and fg.ch1_offset == 2.0
     assert fg.voltage("ch1", np.arange(8) / 10e6) == pytest.approx(
         np.tile(volts, 2)
-    )  # symbol k centred on k/f
+    )  # symbol k centered on k/f
     fg.ch1_enabled = False
     assert not fg.voltage("ch1", t).any() and fg.is_static("ch1")
     with pytest.raises(ValueError):
@@ -224,8 +226,9 @@ def test_generator_shapes_and_pattern():
 
 
 def test_generator_describes_pattern_levels():
-    """A pattern reads as the levels it takes, so one with no swing shows where it sits rather than
-    '0.00 Vpp' (an eavesdropper's switch held in cross: 2 V on its control input)."""
+    """A pattern reads as the levels it takes, so one with no swing shows where it sits
+    rather than '0.00 Vpp' (an eavesdropper's switch held in cross: 2 V on its control
+    input)."""
     s = Setup()
     fg = s.add(
         FunctionGenerator(
@@ -370,7 +373,8 @@ def test_optical_switch_routes_statically_and_pulse_by_pulse():
     assert r["M2"].power == pytest.approx(bar, rel=1e-9) and r[
         "M1"
     ].power == pytest.approx(leak, rel=1e-9)
-    # a pattern on ctrl throws it pulse by pulse: every third pulse goes to the second detector
+    # a pattern on ctrl throws it pulse by pulse: every third pulse goes to the second
+    # detector
     s = Setup(seed=1)
     laser = s.add(Laser(power_dbm=-60, rep_rate=50e6, pulse_width=200e-12))
     sw = s.add(OpticalSwitch("SW", crosstalk_db=80))
@@ -487,10 +491,12 @@ def test_scope_bandwidth_sample_rate_and_memory():
     s.add(fg)
     s.connect(fg.ch1, osc.ch1)
     s.connect(fg.ch2, osc.ch2)
-    # Record length and rate follow the timebase: 1 µs window at 5 GS/s = 5000 points, 200 ps apart.
+    # Record length and rate follow the timebase: 1 µs window at 5 GS/s = 5000 points,
+    # 200 ps apart.
     fs, n, dt = osc.record()
     assert (fs, n) == (5e9, 5000) and dt == pytest.approx(200e-12)
-    # Bandwidth: a 20 MHz front end rounds a 10 MHz square wave off; 4 GHz leaves it alone.
+    # Bandwidth: a 20 MHz front end rounds a 10 MHz square wave off; 4 GHz leaves it
+    # alone.
     osc.bandwidth = 4e9
     square_full = s.run()["OSC-1"]["ch1"].data
     osc.bandwidth = 20e6
@@ -501,7 +507,8 @@ def test_scope_bandwidth_sample_rate_and_memory():
     )  # edges rounded off
     assert square_slow.std() < 0.9 * square_full.std()  # harmonics removed
     osc.bandwidth = 1e9
-    # Record memory caps the rate at slow timebases: 10 ms window / 2000 points = 200 kS/s.
+    # Record memory caps the rate at slow timebases: 10 ms window / 2000 points = 200
+    # kS/s.
     osc.set(timebase=1e-3, max_points=2000)
     fs, n, dt = osc.record()
     assert (fs, n) == (200e3, 2000)
@@ -515,7 +522,7 @@ def test_scope_bandwidth_sample_rate_and_memory():
     assert s.run()["OSC-1"]["ch2"].meas["freq"] == pytest.approx(10e6, rel=0.02)
 
 
-# ---- time tagger batches & analysis tasks -------------------------------------------------------------
+# ---- time tagger batches & analysis tasks --------------------------------------------
 def _click_setup(slots=20_000):
     return Setup.from_chain(
         Laser(
@@ -528,7 +535,8 @@ def _click_setup(slots=20_000):
 
 
 def test_synthesize_offset_moves_one_detectors_bins():
-    """A channel delay's grid offset gives the fields of a shifted time grid, same phase walk."""
+    """A channel delay's grid offset gives the fields of a shifted time grid, same phase
+    walk."""
     s = Setup.from_chain(
         Laser(rep_rate=100e6, pulse_width=1e-9, linewidth=10e6), Photodiode(), seed=1
     )
@@ -565,16 +573,11 @@ def test_analysis_tasks_run_in_worker_processes(tmp_path):
 
     script = tmp_path / "my_analysis.py"
     script.write_text(
-        "from phoq.analysis import task\n"
-        "seen = []\n"
-        "@task('CNT-1')\n"
-        "def rates(batch):\n"
-        "    seen.append(batch.seq)\n"
-        "    print('batch', batch.seq, 'clicks', batch.counts['ch1'], 'seen', len(seen))\n"
-        "    return {'rate': batch.rates['ch1'], 'seq': batch.seq}\n"
-        "@task\n"
-        "def broken(batch):\n"
-        "    raise RuntimeError('boom %d' % batch.seq)\n"
+        "from phoq.analysis import task\nseen = []\n@task('CNT-1')\ndef rates(batch):\n"
+        "    seen.append(batch.seq)\n    print('batch', batch.seq, 'clicks',"
+        " batch.counts['ch1'], 'seen', len(seen))\n    return {'rate':"
+        " batch.rates['ch1'], 'seq': batch.seq}\n@task\ndef broken(batch):\n    raise"
+        " RuntimeError('boom %d' % batch.seq)\n"
     )
     tasks = load_tasks(script)
     assert (
@@ -607,7 +610,8 @@ def test_api_lists_and_controls_tasks(tmp_path):
 
     script = tmp_path / "t.py"
     script.write_text(
-        "from phoq.analysis import task\n@task\ndef echo(batch):\n    print('got', batch.seq)\n"
+        "from phoq.analysis import task\n@task\ndef echo(batch):\n    print('got',"
+        " batch.seq)\n"
     )
     with TestClient(
         create_app(_click_setup(2_000), web_dir=None, tasks=load_tasks(script))
@@ -638,30 +642,23 @@ def test_api_lists_and_controls_tasks(tmp_path):
         )
 
 
-# ---- parties: classical channel, hardware link, the MP-QKD dialogue ------------------------------------
+# ---- parties: classical channel, hardware link, the MP-QKD dialogue ------------------
 def test_classical_channel_between_party_processes(tmp_path):
     from phoq.parties import Experiment, load_parties
 
     script = tmp_path / "pingpong.py"
     script.write_text(
-        "from phoq.parties import Party\n"
-        "class Ping(Party):\n"
-        "    name = 'PING'; instruments = ('CNT-1',)\n"
-        "    def measure(self, batch):\n"
-        "        n = self.net.broadcast('hello', block=batch.seq, clicks=int(batch.counts['ch1']))\n"
-        "        print('sent', n, 'bytes for block', batch.seq)\n"
-        "    def receive(self, msg):\n"
-        "        print('reply from', msg.sender, msg.topic, msg.block, msg.echo)\n"
-        "        self.report(replies=msg.block + 1)\n"
-        "class Pong(Party):\n"
-        "    name = 'PONG'\n"
-        "    def setup(self):\n"
-        "        try:\n"
-        "            self.hw.get('CNT-1', 'slots')\n"
-        "        except PermissionError as e:\n"
-        "            print('hardware link refused:', e)\n"
-        "    def receive(self, msg):\n"
-        "        self.net.send(msg.sender, 'echo', block=msg.block, echo=msg.clicks * 2)\n"
+        "from phoq.parties import Party\nclass Ping(Party):\n    name = 'PING';"
+        " instruments = ('CNT-1',)\n    def measure(self, batch):\n        n ="
+        " self.net.broadcast('hello', block=batch.seq,"
+        " clicks=int(batch.counts['ch1']))\n        print('sent', n, 'bytes for block',"
+        " batch.seq)\n    def receive(self, msg):\n        print('reply from',"
+        " msg.sender, msg.topic, msg.block, msg.echo)\n       "
+        " self.report(replies=msg.block + 1)\nclass Pong(Party):\n    name = 'PONG'\n  "
+        "  def setup(self):\n        try:\n            self.hw.get('CNT-1', 'slots')\n "
+        "       except PermissionError as e:\n            print('hardware link"
+        " refused:', e)\n    def receive(self, msg):\n        self.net.send(msg.sender,"
+        " 'echo', block=msg.block, echo=msg.clicks * 2)\n"
     )
     ping, pong = load_parties(script)
     assert ping.name == "PING" and pong.source == str(script)
@@ -718,7 +715,8 @@ def test_mpqkd_parties_agree_on_a_key():
     assert (
         keys["ALICE"] and keys["ALICE"] == keys["BOB"]
     )  # the consoles print the same key
-    # leak accounting: every disclosed parity and tag bit is counted, the same on both sides
+    # leak accounting: every disclosed parity and tag bit is counted, the same on both
+    # sides
     assert a["leak EC [bits]"] == b["leak EC [bits]"] > 0
     chunks = sum(
         "bits reconciled" in l for l in bob.lines
@@ -735,7 +733,8 @@ def test_mpqkd_parties_agree_on_a_key():
     )  # every PA step: floor(n × secret fraction − leaked bits) = final bits
     for l in alice.lines:
         m = re.search(
-            r"PA: ([\d,]+) corrected bits × secret fraction ([\d.]+) .* − (\d+) leaked → (\d+) final",
+            r"PA: ([\d,]+) corrected bits × secret fraction ([\d.]+) .* − (\d+) leaked"
+            r" → (\d+) final",
             l,
         )
         if m:
@@ -846,24 +845,20 @@ def test_mpqkd_keyrate_estimate_reproduces_the_theory():
 
 
 def test_relay_stage_re_encodes_within_the_block(tmp_path):
-    """A stage-1 party's measure() runs before the stage-0 counters are recorded, so what it
-    programs from its clicks reaches the end station in the same block."""
+    """A stage-1 party's measure() runs before the stage-0 counters are recorded, so
+    what it programs from its clicks reaches the end station in the same block."""
     from phoq.parties import Experiment
 
     script = tmp_path / "relay.py"
     script.write_text(
-        "from phoq.parties import Party\n"
-        "class Relay(Party):\n"
-        "    name = 'RELAY'; stage = 1; instruments = ('CNT-R', 'VOA-1')\n"
-        "    def measure(self, batch):\n"
-        "        self.hw.set('VOA-1', attenuation_db=80.0 if batch.seq % 2 else 0.0)\n"
-        "        print('block', batch.seq, 'clicks', batch.counts['ch1'])\n"
-        "class End(Party):\n"
-        "    name = 'END'; instruments = ('CNT-E',)\n"
-        "    def measure(self, batch):\n"
-        "        self.report(**{str(batch.seq): batch.counts['ch1']})\n"
-        "        self.counts = getattr(self, 'counts', {}) | {batch.seq: batch.counts['ch1']}\n"
-        "        self.report(**{str(k): v for k, v in self.counts.items()})\n"
+        "from phoq.parties import Party\nclass Relay(Party):\n    name = 'RELAY'; stage"
+        " = 1; instruments = ('CNT-R', 'VOA-1')\n    def measure(self, batch):\n       "
+        " self.hw.set('VOA-1', attenuation_db=80.0 if batch.seq % 2 else 0.0)\n       "
+        " print('block', batch.seq, 'clicks', batch.counts['ch1'])\nclass End(Party):\n"
+        "    name = 'END'; instruments = ('CNT-E',)\n    def measure(self, batch):\n   "
+        "     self.report(**{str(batch.seq): batch.counts['ch1']})\n        self.counts"
+        " = getattr(self, 'counts', {}) | {batch.seq: batch.counts['ch1']}\n       "
+        " self.report(**{str(k): v for k, v in self.counts.items()})\n"
     )
     s = Setup(seed=1)
     laser = s.add(
@@ -891,7 +886,7 @@ def test_relay_stage_re_encodes_within_the_block(tmp_path):
     assert counts[0] > 1000 and counts[2] > 1000 and counts[1] == 0 and counts[3] == 0
 
 
-# ---- BB84 with decoy states: reference run, the two parties, and the eavesdropper --------------------
+# ---- BB84 with decoy states: reference run, the two parties, and the eavesdropper ----
 def test_bb84_hardware_is_calibrated():
     bb84 = load_protocol(EXAMPLES / "bb84")
     p = bb84.BB84Params(mu=0.4, phase_error=0.0)
@@ -901,7 +896,8 @@ def test_bb84_hardware_is_calibrated():
         laser = setup[f"{tag}-LD"]
         mu = net.port_power[port] / laser.rep_rate / photon_energy(laser.wavelength)
         assert mu == pytest.approx(0.4, rel=1e-6)
-    # Eve's re-sent pulses land in the same time bins as Alice's: equal flight time to DET-0
+    # Eve's re-sent pulses land in the same time bins as Alice's: equal flight time to
+    # DET-0
     d_alice = min(net.delays(setup["DET-0"], setup["ALICE-LD"]))
     d_eve = min(net.delays(setup["DET-0"], setup["EVE-TX-LD"]))
     assert d_eve == pytest.approx(d_alice, abs=1e-15)
@@ -942,8 +938,8 @@ def test_bb84_reference_run_has_positive_key_rate():
     assert e["q1"] < e["q_mu"] and e["rate"] > 5e-4
     g = e["gains"]
     assert g[bb84.I_MU, 0] > g[bb84.I_NU, 0] > g[bb84.I_VAC, 0] == 0
-    # with a perfectly stabilised interferometer only the lasers' phase diffusion over one time
-    # slot and the arms' unequal loss remain: a few 1e-3
+    # with a perfectly stabilized interferometer only the lasers' phase diffusion over
+    # one time slot and the arms' unequal loss remain: a few 1e-3
     perfect = bb84.run(bb84.BB84Params(phase_error=0.0), pulses=100_000, seed=3)
     assert perfect.qber < 0.01 and perfect.estimate["rate"] > 0
     assert "R " in res.summary() and "bit/pulse" in res.summary()
@@ -996,7 +992,7 @@ def test_bb84_intercept_resend_kills_the_key(monkeypatch):
     assert alice.result["key bits"] == bob.result["key bits"]
 
 
-# ---- persistence ----------------------------------------------------------------------------------
+# ---- persistence ---------------------------------------------------------------------
 def test_save_load_and_python_export_roundtrip(tmp_path):
     s = Setup.load(EXAMPLES / "delay_line.py")
     s["SPL-1"].length = 2e3
@@ -1010,7 +1006,8 @@ def test_save_load_and_python_export_roundtrip(tmp_path):
 
 
 def test_beamsplitter_is_the_old_name_of_coupler():
-    """Scripts and setups saved before the rename still work: the old name hands over a Coupler."""
+    """Scripts and setups saved before the rename still work: the old name hands over a
+    Coupler."""
     with pytest.warns(DeprecationWarning, match="now Coupler"):
         from phoq import BeamSplitter
     assert BeamSplitter is Coupler and Coupler().prefix == "CPL"
@@ -1032,7 +1029,7 @@ def test_beamsplitter_is_the_old_name_of_coupler():
     )
 
 
-# ---- API -----------------------------------------------------------------------------------------
+# ---- API -----------------------------------------------------------------------------
 def test_api_edits_the_python_objects():
     from fastapi.testclient import TestClient
     from phoq.server import create_app
@@ -1094,7 +1091,7 @@ def test_api_edits_the_python_objects():
         assert s["OSC-1"].armed and not s["OSC-1"].running
         assert client.post("/api/instruments/OSC-1/single").json() == {
             "armed": False
-        }  # pressed again: cancelled
+        }  # pressed again: canceled
         client.post("/api/instruments/OSC-1/single")
         with client.websocket_connect(
             "/ws"
@@ -1112,7 +1109,7 @@ def test_api_edits_the_python_objects():
         )
 
 
-# ---- protocol --------------------------------------------------------------------------------------
+# ---- protocol ------------------------------------------------------------------------
 def test_mpqkd_pairing_rate_matches_theory():
     mpqkd = load_protocol(EXAMPLES / "mpqkd")
     res = mpqkd.run(rounds=300_000, l_values=(1000,), seed=3)

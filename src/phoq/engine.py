@@ -1,12 +1,14 @@
 """Simulation engine.
 
-1. :func:`trace` follows light from every laser through connectors, fibers and components and
-   records, for each detector, the list of paths (complex amplitude gain, delay, modulators).
-2. :func:`synthesize` turns those paths into complex fields on a time grid. Each laser's phase
-   noise is drawn once per call and shared by all its paths, so interference (e.g. in a
-   Mach–Zehnder or at Charlie's beam splitter) and its loss of visibility are physical.
-3. :func:`report` gives the steady-state picture (mean powers, currents, open fiber ends,
-   warnings) that the visualizer shows without running an acquisition.
+1. :func:`trace` follows light from every laser through connectors, fibers and
+   components and records, for each detector, the list of paths (complex amplitude gain,
+   delay, modulators).
+2. :func:`synthesize` turns those paths into complex fields on a time grid. Each laser's
+   phase noise is drawn once per call and shared by all its paths, so interference (e.g.
+   in a Mach–Zehnder or at Charlie's beam splitter) and its loss of visibility are
+   physical.
+3. :func:`report` gives the steady-state picture (mean powers, currents, open fiber
+   ends, warnings) that the visualizer shows without running an acquisition.
 """
 
 from __future__ import annotations
@@ -44,9 +46,10 @@ from .units import (
 MAX_HOPS = 40
 MIN_GAIN = 1e-18
 MAX_REFLECTIONS = 2  # reflections followed per path
-# A path reflected twice is dropped below this power gain (−90 dB): a stray at power ratio r beats
-# with the light it meets at relative amplitude 2√r, and on the vacuum-noise QRNG −80 dB is already
-# invisible next to the shot noise. It drops every double bounce between matching connectors.
+# A path reflected twice is dropped below this power gain (−90 dB): a stray at power
+# ratio r beats with the light it meets at relative amplitude 2√r, and on the
+# vacuum-noise QRNG −80 dB is already invisible next to the shot noise. It drops every
+# double bounce between matching connectors.
 MIN_GAIN_TWICE_REFLECTED = 1e-9
 
 
@@ -71,14 +74,16 @@ class Network:
     port_power: dict = field(
         default_factory=lambda: defaultdict(float)
     )  # "NAME.port" → W arriving
-    # laser → {(own light?, reflection site or other laser's name) → W entering its output}
+    # laser → {(own light?, reflection site or other laser's name) → W entering its
+    # output}
     returned: dict = field(
         default_factory=lambda: defaultdict(lambda: defaultdict(float))
     )
 
     def delays(self, detector, source=None, reflected: bool = False) -> list[float]:
-        """Propagation delays of the routes reaching ``detector`` (optionally from one laser); with
-        ``reflected``, also of the stray paths that bounced off connectors on the way.
+        """Propagation delays of the routes reaching ``detector``
+        (optionally from one laser); with ``reflected``, also of the stray paths that
+        bounced off connectors on the way.
         """
         return [
             p.delay
@@ -90,9 +95,10 @@ class Network:
     def mean_powers(self, detector, port: str | None = None) -> dict[float, float]:
         """Time-averaged optical power per wavelength at a detector.
 
-        Paths from the same laser interfere with the mutual coherence γ(Δτ) (see :func:`coherence`);
-        different lasers add in power. Time-varying modulation is replaced by its average power
-        factor, and keeps two paths coherent only when both see the same modulators at Δτ = 0.
+        Paths from the same laser interfere with the mutual coherence γ(Δτ)
+        (see :func:`coherence`); different lasers add in power. Time-varying modulation
+        is replaced by its average power factor, and keeps two paths coherent only when
+        both see the same modulators at Δτ = 0.
         """
         by_source = defaultdict(list)
         for p in self.paths.get(detector, []):
@@ -124,7 +130,8 @@ class Network:
 def coherence(src: Laser, tau: float) -> float:
     """Degree of mutual coherence between a laser's light delayed by τ and itself.
 
-    Lorentzian line: exp(−π·Δν·|τ|), times the overlap of the delayed intensity envelope.
+    Lorentzian line: exp(−π·Δν·|τ|), times the overlap of the delayed intensity
+    envelope.
     """
     g = math.exp(-math.pi * src.linewidth * abs(tau))
     if src.mode in ("pulsed", "ook"):
@@ -143,21 +150,22 @@ def coherence(src: Laser, tau: float) -> float:
 def trace(setup: Setup) -> Network:
     """Follow every laser's light through the setup.
 
-    Each mated connector pair transmits and reflects according to its two connector types
-    (:func:`~phoq.units.mating`), and an open connector, a cord's or a part's, reflects back into
-    its fiber. Up to ``MAX_REFLECTIONS`` reflections are followed per path: one carries the light
-    returning to the lasers and reflectometry-like paths to detectors; two carry light that
-    travels on again after a double bounce (one Fabry–Pérot pass), such as LO light that leaves a
-    homodyne's open input and comes back in. A doubly reflected path is kept above
-    ``MIN_GAIN_TWICE_REFLECTED``: an open flat end or an APC↔UPC air gap against any pair, never two
-    matching pairs.
+    Each mated connector pair transmits and reflects according to its two connector
+    types (:func:`~phoq.units.mating`), and an open connector, a cord's or a part's,
+    reflects back into its fiber. Up to ``MAX_REFLECTIONS`` reflections are followed per
+    path: one carries the light returning to the lasers and reflectometry-like paths to
+    detectors; two carry light that travels on again after a double bounce
+    (one Fabry–Pérot pass), such as LO light that leaves a homodyne's open input and
+    comes back in. A doubly reflected path is kept above ``MIN_GAIN_TWICE_REFLECTED``:
+    an open flat end or an APC↔UPC air gap against any pair, never two matching pairs.
     """
     net = Network()
     for src in setup.of_type(Laser):
         if src.power <= 0:
             continue
         wl, P = src.wavelength, src.power
-        # (port the light leaves through, amplitude, delay, modulators, hops, reflections, site)
+        # (port the light leaves through, amplitude, delay, modulators, hops,
+        # reflections, site)
         stack = [(src.ports["out"], 1.0 + 0j, 0.0, (), 0, 0, None)]
         while stack:
             port, amp, delay, mods, hops, refl, site = stack.pop()
@@ -170,7 +178,8 @@ def trace(setup: Setup) -> Network:
                 continue
             peer, via = port.peer, ""
             if peer is not None and peer.component.is_adaptor:
-                # A mating sleeve: the connector here mates with the one in the sleeve's other side.
+                # A mating sleeve: the connector here mates with the one in the sleeve's
+                # other side.
                 sleeve = peer.component
                 peer, via = sleeve.other(peer.name), f" in {sleeve.name}"
                 if peer is not None and peer.component.is_adaptor:
@@ -210,7 +219,8 @@ def trace(setup: Setup) -> Network:
             if refl < MAX_REFLECTIONS and r_back > 0:
                 here = _sites(
                     site,
-                    f"{port.path} ({port.connector}) ↔ {peer.path} ({peer.connector}){via}",
+                    f"{port.path} ({port.connector}) ↔ {peer.path}"
+                    f" ({peer.connector}){via}",
                 )
                 _enter(
                     net,
@@ -231,7 +241,8 @@ def trace(setup: Setup) -> Network:
 
 
 def _sites(before: tuple | None, here: str, open_port: str | None = None) -> tuple:
-    """The reflection sites of a path, in order: (label, the open port's path or None)."""
+    """The reflection sites of a path, in order: (label, the open port's path or
+    None)."""
     return (before or ()) + ((here, open_port),)
 
 
@@ -273,11 +284,13 @@ def synthesize(
     rng: np.random.Generator,
     offsets: dict | None = None,
 ) -> dict:
-    """Complex fields [√W] per wavelength at each detector, bin-averaged over [t, t+dt); for a
-    detector with several optical inputs (a balanced detector) keyed by (input port, wavelength).
+    """Complex fields [√W] per wavelength at each detector, bin-averaged over [t, t+dt);
+    for a detector with several optical inputs (a balanced detector) keyed by
+    (input port, wavelength).
 
-    ``offsets`` shifts a detector's bins to [t + offset, t + offset + dt) (a time tagger's channel
-    delay). All detectors still share one phase walk per laser, so their fields stay correlated.
+    ``offsets`` shifts a detector's bins to [t + offset, t + offset + dt)
+    (a time tagger's channel delay). All detectors still share one phase walk per laser,
+    so their fields stay correlated.
     """
     out = {d: {} for d in detectors}
     by_source = defaultdict(list)
@@ -290,7 +303,7 @@ def synthesize(
     for src, items in by_source.items():
         delays = np.array([p.delay - offsets.get(d, 0.0) for d, p in items])
         emit = t[None, :] - delays[:, None]  # emission time at the start of each bin
-        mid = emit + dt / 2  # …and at its centre (pulse k sits at k/f)
+        mid = emit + dt / 2  # …and at its center (pulse k sits at k/f)
         field_ = src.envelope(emit, dt) * np.exp(1j * src.phase(mid, rng))
         noise = src.intensity_factor(
             emit, dt, rng
@@ -319,7 +332,8 @@ def driving_generators(net: Network, detectors) -> set:
 
 
 def report(setup: Setup, net: Network | None = None) -> dict:
-    """Steady-state read-outs and warnings for every detector, fiber and open connector."""
+    """Steady-state read-outs and warnings for every detector, fiber and open
+    connector."""
     net = net or trace(setup)
     detectors, warnings = {}, []
     for d in setup.of_type(_Detector):
@@ -344,7 +358,10 @@ def report(setup: Setup, net: Network | None = None) -> dict:
                 warnings.append(
                     {
                         "level": "warn",
-                        "text": f"{d.name} ({d.material}) does not respond at {_lams(powers)}.",
+                        "text": (
+                            f"{d.name} ({d.material}) does not respond at"
+                            f" {_lams(powers)}."
+                        ),
                     }
                 )
             elif I > d.saturation:
@@ -352,7 +369,10 @@ def report(setup: Setup, net: Network | None = None) -> dict:
                 warnings.append(
                     {
                         "level": "warn",
-                        "text": f"{d.name} is saturated ({fmt_si(I, 'A')} > {fmt_si(d.saturation, 'A')}). Add attenuation.",
+                        "text": (
+                            f"{d.name} is saturated ({fmt_si(I, 'A')} >"
+                            f" {fmt_si(d.saturation, 'A')}). Add attenuation."
+                        ),
                     }
                 )
             else:
@@ -365,7 +385,8 @@ def report(setup: Setup, net: Network | None = None) -> dict:
             rate = _pulse_rate(net, d)
             per = 1 / rate if rate else 1e-9
             nbar = sum(p * per / photon_energy(wl) for wl, p in powers.items())
-            seen = sum(  # weighted by the spectral PDE: efficiency × seen is the detected mean
+            # weighted by the spectral PDE: efficiency × seen is the detected mean
+            seen = sum(
                 p * per / photon_energy(wl) * d.spectral_factor(wl)
                 for wl, p in powers.items()
             )
@@ -381,7 +402,10 @@ def report(setup: Setup, net: Network | None = None) -> dict:
                     warnings.append(
                         {
                             "level": "warn",
-                            "text": f"{d.name} ({d.preset}) does not detect {_lams(powers)}: outside its spectral response.",
+                            "text": (
+                                f"{d.name} ({d.preset}) does not detect"
+                                f" {_lams(powers)}: outside its spectral response."
+                            ),
                         }
                     )
             if rate:
@@ -393,20 +417,28 @@ def report(setup: Setup, net: Network | None = None) -> dict:
                     warnings.append(
                         {
                             "level": "bad",
-                            "text": f"{d.name} receives {nbar:.3g} photons per pulse, above the absolute maximum of {float(cap):g} for {d.preset}.",
+                            "text": (
+                                f"{d.name} receives {nbar:.3g} photons per pulse, above"
+                                f" the absolute maximum of {float(cap):g} for"
+                                f" {d.preset}."
+                            ),
                         }
                     )
             if P > 1e-6:
                 warnings.append(
                     {
                         "level": "warn",
-                        "text": f"{d.name} receives {fmt_si(P, 'W')} — far too much for a single-photon detector.",
+                        "text": (
+                            f"{d.name} receives {fmt_si(P, 'W')} — far too much for a"
+                            " single-photon detector."
+                        ),
                     }
                 )
         elif isinstance(d, PowerMeter):
             entry["reading"] = d.reading(powers)
             entry["readouts"]["Display"] = (
-                f"{fmt_si(entry['reading'], 'W')}  ({w_to_dbm(entry['reading']):.2f} dBm)"
+                f"{fmt_si(entry['reading'], 'W')}  ({w_to_dbm(entry['reading']):.2f}"
+                " dBm)"
                 if entry["reading"] > 0
                 else "—"
             )
@@ -422,7 +454,10 @@ def report(setup: Setup, net: Network | None = None) -> dict:
             warnings.append(
                 {
                     "level": "bad",
-                    "text": f"{c.name} receives {fmt_si(P, 'W')}, above the absolute maximum optical input of {fmt_si(cap, 'W')} for {c.preset}.",
+                    "text": (
+                        f"{c.name} receives {fmt_si(P, 'W')}, above the absolute"
+                        f" maximum optical input of {fmt_si(cap, 'W')} for {c.preset}."
+                    ),
                 }
             )
         if not isinstance(c, _Modulator):
@@ -439,7 +474,10 @@ def report(setup: Setup, net: Network | None = None) -> dict:
                 warnings.append(
                     {
                         "level": "bad",
-                        "text": f"{c.name} {port} is {mean:g} V, outside the absolute maximum {lo:g} … {hi:g} V for {c.preset}.",
+                        "text": (
+                            f"{c.name} {port} is {mean:g} V, outside the absolute"
+                            f" maximum {lo:g} … {hi:g} V for {c.preset}."
+                        ),
                     }
                 )
         rf_dbm = lim.get("rf_input_dbm")
@@ -453,7 +491,11 @@ def report(setup: Setup, net: Network | None = None) -> dict:
                 warnings.append(
                     {
                         "level": "bad",
-                        "text": f"{c.name} {drive} peaks at {peak:.3g} V, above the absolute maximum RF input of {rf_dbm:g} dBm ({v_max:.3g} V peak into 50 Ω) for {c.preset}.",
+                        "text": (
+                            f"{c.name} {drive} peaks at {peak:.3g} V, above the"
+                            f" absolute maximum RF input of {rf_dbm:g} dBm ({v_max:.3g}"
+                            f" V peak into 50 Ω) for {c.preset}."
+                        ),
                     }
                 )
     for g in setup.of_type(FunctionGenerator):
@@ -462,7 +504,10 @@ def report(setup: Setup, net: Network | None = None) -> dict:
                 warnings.append(
                     {
                         "level": "warn",
-                        "text": f"{g.name} {ch.upper()} is set to 'pattern' but none is loaded (set_pattern).",
+                        "text": (
+                            f"{g.name} {ch.upper()} is set to 'pattern' but none is"
+                            " loaded (set_pattern)."
+                        ),
                     }
                 )
     for odl in setup.of_type(OpticalDelayLine):
@@ -470,8 +515,11 @@ def report(setup: Setup, net: Network | None = None) -> dict:
             warnings.append(
                 {
                     "level": "warn",
-                    "text": f"{odl.name} is set to {fmt_si(odl.delay, 's')} but travels only "
-                    f"{fmt_si(odl.max_delay, 's')}: the stage stops at the end of its travel.",
+                    "text": (
+                        f"{odl.name} is set to {fmt_si(odl.delay, 's')} but travels"
+                        f" only {fmt_si(odl.max_delay, 's')}: the stage stops at the"
+                        " end of its travel."
+                    ),
                 }
             )
     open_ends = _merge_open_ends(net.open_ends)
@@ -481,11 +529,15 @@ def report(setup: Setup, net: Network | None = None) -> dict:
             warnings.append(
                 {
                     "level": "bad",
-                    "text": f"Open connector {e['port']} emits {fmt_si(e['power'], 'W')} at {e['wavelength'] * 1e9:.0f} nm{vis}.",
+                    "text": (
+                        f"Open connector {e['port']} emits {fmt_si(e['power'], 'W')} at"
+                        f" {e['wavelength'] * 1e9:.0f} nm{vis}."
+                    ),
                 }
             )
     warnings += _open_port_strays(net)
-    pairs = [  # every mated pair of connectors: direct, or the two held in a mating sleeve
+    # every mated pair of connectors: direct, or the two held in a mating sleeve
+    pairs = [
         (a, b, "")
         for a, b in setup.connections()
         if a.kind == "optical"
@@ -508,10 +560,13 @@ def report(setup: Setup, net: Network | None = None) -> dict:
         warnings.append(
             {
                 "level": "bad",
-                "text": f"{a.path} ({a.connector}) is mated to {b.path} ({b.connector}){via}: an angled end face "
-                f"against a flat one leaves an air gap — about {MISMATCH_LOSS_DB:g} dB lost, "
-                f"{FRESNEL:.1%} reflected back into {flat.path}, and both end faces can be damaged. "
-                "Use matching connectors or a hybrid cord.",
+                "text": (
+                    f"{a.path} ({a.connector}) is mated to {b.path}"
+                    f" ({b.connector}){via}: an angled end face against a flat one"
+                    f" leaves an air gap — about {MISMATCH_LOSS_DB:g} dB lost,"
+                    f" {FRESNEL:.1%} reflected back into {flat.path}, and both end"
+                    " faces can be damaged. Use matching connectors or a hybrid cord."
+                ),
             }
         )
     return {
@@ -529,9 +584,10 @@ STRAY_WARN = (
 
 
 def _open_port_strays(net: Network) -> list:
-    """Open connectors whose reflections, all paths together, go on to a detector strongly enough
-    to beat with the light that reaches it directly: power ratio r beats at 2√r, so −70 dB is a
-    6·10⁻⁴ ripple, and a delayed copy turns the laser's phase noise into intensity noise.
+    """Open connectors whose reflections, all paths together, go on to a detector
+    strongly enough to beat with the light that reaches it directly: power ratio r beats
+    at 2√r, so −70 dB is a 6·10⁻⁴ ripple, and a delayed copy turns the laser's phase
+    noise into intensity noise.
     """
     stray: dict = {}
     for d, paths in net.paths.items():
@@ -549,9 +605,13 @@ def _open_port_strays(net: Network) -> list:
     return [
         {
             "level": "warn",
-            "text": f"Open connector {port} reflects light on to {det}, {10 * math.log10(r):.0f} dB under the "
-            "light that reaches it directly: enough to beat with it, and a delayed copy turns the laser's "
-            "phase noise into intensity noise. Cap the port with a terminator of its own connector type.",
+            "text": (
+                f"Open connector {port} reflects light on to {det},"
+                f" {10 * math.log10(r):.0f} dB under the light that reaches it"
+                " directly: enough to beat with it, and a delayed copy turns the"
+                " laser's phase noise into intensity noise. Cap the port with a"
+                " terminator of its own connector type."
+            ),
         }
         for (port, det), r in sorted(stray.items())
         if r > STRAY_WARN
@@ -559,7 +619,8 @@ def _open_port_strays(net: Network) -> list:
 
 
 def _merge_open_ends(ends: list) -> list:
-    """One entry per open connector and wavelength: the paths leaving it add in power."""
+    """One entry per open connector and wavelength: the paths leaving it add in
+    power."""
     merged: dict = {}
     for e in ends:
         key = (e["port"], e["wavelength"])
@@ -570,8 +631,9 @@ def _merge_open_ends(ends: list) -> list:
 
 
 def _sources(setup: Setup, net: Network) -> dict:
-    """Per laser: its own light reflected back into its output (the setup's return loss as the
-    laser sees it, with the strongest reflection named) and light injected by other lasers.
+    """Per laser: its own light reflected back into its output (the setup's return loss
+    as the laser sees it, with the strongest reflection named) and light injected by
+    other lasers.
     """
     out = {}
     for src in setup.of_type(Laser):
@@ -602,7 +664,8 @@ def _sources(setup: Setup, net: Network) -> dict:
 
 
 def _balanced(d: BalancedPhotodetector, net: Network, warnings: list) -> dict:
-    """Steady-state read-outs of a balanced detector: each input, RF OUTPUT and the monitors."""
+    """Steady-state read-outs of a balanced detector: each input, RF OUTPUT and the
+    monitors."""
     plus, minus = net.mean_powers(d, "inp_plus"), net.mean_powers(d, "inp_minus")
     p_plus, p_minus = sum(plus.values()), sum(minus.values())
     i_plus, i_minus = d.mean_currents(plus, minus)
@@ -629,9 +692,13 @@ def _balanced(d: BalancedPhotodetector, net: Network, warnings: list) -> dict:
         warnings.append(
             {
                 "level": "warn",
-                "text": f"{d.name} RF OUTPUT would reach {rf:+.3g} V, beyond its ±{swing:g} V swing at "
-                f"{fmt_si(d.gain, 'V/A')}: balance the inputs (their difference must stay below "
-                f"{fmt_si(d.cw_saturation_power(), 'W')} at peak responsivity) or lower the gain.",
+                "text": (
+                    f"{d.name} RF OUTPUT would reach {rf:+.3g} V, beyond its ±{swing:g}"
+                    f" V swing at {fmt_si(d.gain, 'V/A')}: balance the inputs (their"
+                    " difference must stay below"
+                    f" {fmt_si(d.cw_saturation_power(), 'W')} at peak responsivity) or"
+                    " lower the gain."
+                ),
             }
         )
     elif p_plus + p_minus <= 0:
@@ -641,11 +708,16 @@ def _balanced(d: BalancedPhotodetector, net: Network, warnings: list) -> dict:
     else:
         status = ("Balanced", "ok")
     if d.monitor_swing > 0 and max(mon) > d.monitor_swing:
+        limit = d.monitor_swing / d.monitor_gain / max(d.peak_responsivity(), 1e-12)
         warnings.append(
             {
                 "level": "warn",
-                "text": f"{d.name} MONITOR output would reach {max(mon):.3g} V, beyond its {d.monitor_swing:g} V swing: "
-                f"more than {fmt_si(d.monitor_swing / d.monitor_gain / max(d.peak_responsivity(), 1e-12), 'W')} on one input.",
+                "text": (
+                    f"{d.name} MONITOR output would reach {max(mon):.3g} V, beyond its"
+                    f" {d.monitor_swing:g} V swing: more than"
+                    f" {fmt_si(limit, 'W')}"
+                    " on one input."
+                ),
             }
         )
     readouts["Status"] = status[0]
@@ -658,8 +730,9 @@ def _balanced(d: BalancedPhotodetector, net: Network, warnings: list) -> dict:
 
 
 def _incident_power(net: Network, comp) -> float:
-    """Mean optical power entering a component through all its optical ports; for a detector with
-    several inputs (each its own photodiode) the most any one of them receives."""
+    """Mean optical power entering a component through all its optical ports; for a
+    detector with several inputs (each its own photodiode) the most any one of them
+    receives."""
     if isinstance(comp, _Detector):
         return max(sum(net.mean_powers(comp, port).values()) for port in comp.inputs)
     return sum(
@@ -670,7 +743,8 @@ def _incident_power(net: Network, comp) -> float:
 
 
 def _port_level(mod, port: str) -> tuple[float, float]:
-    """(mean, peak |V|) of what drives a modulator's rf or bias input, as volts at that port."""
+    """(mean, peak |V|) of what drives a modulator's rf or bias input, as volts at that
+    port."""
     src = mod._source(port)
     if src is None:
         return 0.0, 0.0

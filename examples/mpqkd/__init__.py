@@ -1,24 +1,28 @@
-"""Mode-pairing QKD (Zeng, Zhou, Wu & Ma, Nat. Commun. 13, 3903, 2022) on the simulated hardware.
+"""Mode-pairing QKD (Zeng, Zhou, Wu & Ma, Nat. Commun. 13, 3903, 2022) on the simulated
+hardware.
 
-Physical layer (one :class:`~phoq.Setup`, viewable in the virtual lab; see ``common.build``)::
+Physical layer (one :class:`~phoq.Setup`, viewable in the virtual lab; see
+``common.build``)::
 
     ALICE-AWG ch1 ─┐  ch2 ─┐
     ALICE-LD → ALICE-IM → ALICE-PM → ALICE-VOA → ALICE-SPL ─┐
-                                                           CHARLIE (2×2) → DET-L, DET-R → TAGGER
-    BOB-LD   → BOB-IM   → BOB-PM   → BOB-VOA   → BOB-SPL ───┘
+                                                           CHARLIE (2×2) → DET-L, DET-R
+    BOB-LD   → BOB-IM   → BOB-PM   → BOB-VOA   → BOB-SPL ───┘              → TAGGER
     BOB-AWG   ch1 ─┘  ch2 ─┘
 
-Parties, each in its own file and its own process, talking over an authenticated public channel
-(TCP sockets, see :mod:`phoq.parties`):
+Parties, each in its own file and its own process, talking over an authenticated public
+channel (TCP sockets, see :mod:`phoq.parties`):
 
-* :class:`Alice` / :class:`Bob` (:mod:`.station`) program their own AWG with random intensities
-  and phases, then pair, sift and estimate errors from Charlie's announcements, reconcile the
-  sifted key (Cascade), verify it and distil the secret key (Toeplitz hashing sized by the
-  MP-QKD key-rate formula, :mod:`.keyrate`).
-* :class:`Charlie` (:mod:`.charlie`) reads the time tagger and announces each round's outcome.
+* :class:`Alice` / :class:`Bob` (:mod:`.station`) program their own AWG with random
+  intensities and phases, then pair, sift and estimate errors from Charlie's
+  announcements, reconcile the sifted key (Cascade), verify it and distill the secret
+  key (Toeplitz hashing sized by the MP-QKD key-rate formula, :mod:`.keyrate`).
+* :class:`Charlie` (:mod:`.charlie`) reads the time tagger and announces each round's
+  outcome.
 
-``PARTIES`` and ``build()`` make this a protocol package: ``phoq serve --protocol mpqkd``.
-The single-process reference ``run()`` (one god's-eye view of both records) is kept for tests.
+``PARTIES`` and ``build()`` make this a protocol package: ``phoq serve --protocol
+mpqkd``. The single-process reference ``run()`` (one god's-eye view of both records) is
+kept for tests.
 """
 
 from __future__ import annotations
@@ -123,8 +127,8 @@ __all__ = [
 def prepare(
     setup: Setup, p: MPQKDParams, rounds: int, rng: np.random.Generator
 ) -> dict[str, tuple[np.ndarray, np.ndarray]]:
-    """God's-eye state preparation: random intensity levels (vacuum / ν / μ) and phases loaded
-    into both AWGs at once."""
+    """God's-eye state preparation: random intensity levels (vacuum / ν / μ) and phases
+    loaded into both AWGs at once."""
     states = {}
     for tag in STATIONS:
         level = draw_levels(rng, rounds, p)
@@ -152,13 +156,23 @@ class MPQKDResult:
 
     def summary(self) -> str:
         lines = [
-            f"MP-QKD over {self.params.distance / 1e3:.0f} km, μ = {self.params.mu}, {self.rounds:,} rounds",
-            f"single clicks {self.single_clicks:,} (p = {self.p_click:.3e}), double clicks {self.double_clicks:,}",
-            f"{'l':>8} | {'r_p sim':>10} | {'r_p Eq.4':>10} | {'#Z':>7} | {'E_Z':>7} | {'#X':>6} | {'E_X':>6}",
+            (
+                f"MP-QKD over {self.params.distance / 1e3:.0f} km, μ ="
+                f" {self.params.mu}, {self.rounds:,} rounds"
+            ),
+            (
+                f"single clicks {self.single_clicks:,} (p = {self.p_click:.3e}), double"
+                f" clicks {self.double_clicks:,}"
+            ),
+            (
+                f"{'l':>8} | {'r_p sim':>10} | {'r_p Eq.4':>10} | {'#Z':>7} |"
+                f" {'E_Z':>7} | {'#X':>6} | {'E_X':>6}"
+            ),
         ]
         for l, rs, rt, nz, ez, nx, ex in self.rows:
             lines.append(
-                f"{l:>8} | {rs:>10.3e} | {rt:>10.3e} | {nz:>7} | {ez:>7.4f} | {nx:>6} | {ex:>6.3f}"
+                f"{l:>8} | {rs:>10.3e} | {rt:>10.3e} | {nz:>7} | {ez:>7.4f} | {nx:>6} |"
+                f" {ex:>6.3f}"
             )
         return "\n".join(lines)
 
@@ -170,7 +184,8 @@ def run(
     seed: int | None = None,
     setup: Setup | None = None,
 ) -> MPQKDResult:
-    """Single-process reference: prepare, record, post-process with both records in one place."""
+    """Single-process reference: prepare, record, post-process with both records in one
+    place."""
     p = p or MPQKDParams()
     setup = setup or build(p, rounds)
     setup["TAGGER"].slots = rounds

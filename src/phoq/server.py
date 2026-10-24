@@ -1,11 +1,15 @@
-"""FastAPI server: exposes a live :class:`Setup` and serves the 3D virtual lab as its visualizer.
+"""FastAPI server: exposes a live :class:`Setup` and serves the 3D virtual lab as its
+visualizer.
 
-All physics runs here. The browser only renders what this server reports and sends edits back:
+All physics runs here. The browser only renders what this server reports and sends edits
+back:
 
 * REST (``/api/...``) for the catalog, the setup state and every edit (add/remove parts,
-  set parameters, connect/disconnect ports, autoset, save/export). Interactive docs at ``/docs``.
-* WebSocket ``/ws`` streams ``state`` (after any change), ``report`` (powers, currents, warnings),
-  ``frame`` (oscilloscope traces, ~15/s) and ``counter`` (photon-counter results, ~1/s).
+  set parameters, connect/disconnect ports, autoset, save/export). Interactive docs at
+  ``/docs``.
+* WebSocket ``/ws`` streams ``state`` (after any change), ``report``
+  (powers, currents, warnings), ``frame`` (oscilloscope traces, ~15/s) and ``counter``
+  (photon-counter results, ~1/s).
 """
 
 from __future__ import annotations
@@ -165,7 +169,7 @@ class LabSession:
             for w in self.task_workers:
                 w.start()
 
-    # ---- views ----------------------------------------------------------------------------
+    # ---- views -----------------------------------------------------------------------
     def state(self) -> dict:
         with self.lock:
             comps = []
@@ -175,15 +179,19 @@ class LabSession:
                         "name": c.name,
                         "type": type(c).__name__,
                         "category": c.category,
-                        "plug": c.is_plug,  # mates straight onto a port: the lab draws it there
+                        "plug": (
+                            c.is_plug
+                        ),  # mates straight onto a port: the lab draws it there
                         "label": c.label,
                         "params": c.params,
                         "preset": c.preset,
                         "preset_title": c.preset_info.title,
                         "provenance": c.provenance(),
                         "limits": c.limits,
-                        "fields": c.ui_fields()
-                        + [k for k in c.param_specs() if k.startswith("connector")],
+                        "fields": (
+                            c.ui_fields()
+                            + [k for k in c.param_specs() if k.startswith("connector")]
+                        ),
                         "info": c.info(),
                         "ports": [p.to_dict() for p in c.ports.values()],
                     }
@@ -279,7 +287,8 @@ class LabSession:
         raise KeyError(f"no process named {name!r}")
 
     def add_script(self, path: str) -> list[TaskWorker]:
-        """Load a script's tasks and start them (a task with the same name replaces the old one)."""
+        """Load a script's tasks and start them (a task with the same name replaces the
+        old one)."""
         pool = self.experiment.task_workers if self.experiment else self.task_workers
         added = []
         for t in load_tasks(path):
@@ -362,7 +371,8 @@ def create_app(
 
     @app.middleware("http")
     async def revalidate_assets(request, call_next):
-        # Browsers otherwise keep stale copies of the visualizer's JS modules after an update.
+        # Browsers otherwise keep stale copies of the visualizer's JS modules after an
+        # update.
         response = await call_next(request)
         if not request.url.path.startswith("/api"):
             response.headers.setdefault("Cache-Control", "no-cache")
@@ -462,7 +472,8 @@ def create_app(
 
     @app.post("/api/instruments/{name}/single")
     def single(name: str):
-        """Arm an oscilloscope (the first triggered sweep is captured, shown and held), or cancel a pending one."""
+        """Arm an oscilloscope (the first triggered sweep is captured, shown and held),
+        or cancel a pending one."""
 
         def run():
             inst = session.setup[name]

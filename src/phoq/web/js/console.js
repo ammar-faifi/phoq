@@ -49,7 +49,7 @@ export class ConsoleDrawer {
     this.renderTabs();
   }
 
-  /** A `console` message from the server (full buffer on connect, increments afterwards). */
+  /** A `console` message from the server (full buffer on connect, increments afterward). */
   onMessage(c) {
     let p = this.procs.get(c.task);
     if (!p) {

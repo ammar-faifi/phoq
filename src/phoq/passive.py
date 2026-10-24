@@ -29,8 +29,8 @@ def _span(
 
 
 class Fiber(Component):
-    """Single-mode patch cord. Its ends ``a`` and ``b`` each carry an FC/UPC (blue) or FC/APC
-    (green) connector; a cord with one of each is a hybrid cord."""
+    """Single-mode patch cord. Its ends ``a`` and ``b`` each carry an FC/UPC (blue) or
+    FC/APC (green) connector; a cord with one of each is a hybrid cord."""
 
     category = "cord"
     prefix = "FIB"
@@ -112,11 +112,12 @@ class FiberSpool(FiberConnectors, Component):
 class MatingSleeve(Component):
     """FC–FC mating sleeve (fiber adapter): joins two patch cords end to end.
 
-    It has no polish of its own: the connectors plugged into its sides ``p1`` and ``p2`` mate with
-    each other inside it, as one mated pair with the loss and reflection of their two types — a
-    FC/APC cord against a FC/UPC one leaves an air gap here like anywhere else. With one side
-    empty, the other cord's end is an open connector. Cascading cords through sleeves shows what
-    every extra connection costs in transmitted power and adds in back-reflection.
+    It has no polish of its own: the connectors plugged into its sides ``p1`` and ``p2``
+    mate with each other inside it, as one mated pair with the loss and reflection of
+    their two types — a FC/APC cord against a FC/UPC one leaves an air gap here like
+    anywhere else. With one side empty, the other cord's end is an open connector.
+    Cascading cords through sleeves shows what every extra connection costs in
+    transmitted power and adds in back-reflection.
     """
 
     category = "passive"
@@ -156,19 +157,23 @@ class MatingSleeve(Component):
         return {
             "Mating": f"{a.path} ({a.connector}) ↔ {b.path} ({b.connector})",
             "Insertion loss": f"{-10 * math.log10(t):.2f} dB",
-            "Reflected back": f"{10 * math.log10(ra):.1f} dB into {a.path} · {10 * math.log10(rb):.1f} dB into {b.path}",
+            "Reflected back": (
+                f"{10 * math.log10(ra):.1f} dB into {a.path} ·"
+                f" {10 * math.log10(rb):.1f} dB into {b.path}"
+            ),
         }
 
 
 class FiberTerminator(FiberConnectors, Component):
-    """Fiber terminator: a cap that plugs straight onto an unused port (or into a mating sleeve to
-    end a cord) and absorbs the light it takes in.
+    """Fiber terminator: a cap that plugs straight onto an unused port (or into a mating
+    sleeve to end a cord) and absorbs the light it takes in.
 
-    An open port is an unmated connector: a flat FC/UPC end sends 3.6 % back into the fiber. Plugged
-    in, the terminator's only reflection is that of the mated pair, by the two connector types
-    (:func:`~phoq.units.mating`): an FC/APC cap on an FC/APC port, −60 dB; on a flat port the angled
-    face leaves an air gap and the flat side gets its 3.6 % back, as with any APC↔UPC pair. Keep the
-    vacuum input of a homodyne or the unused output of a coupler capped with the matching type.
+    An open port is an unmated connector: a flat FC/UPC end sends 3.6 % back into the
+    fiber. Plugged in, the terminator's only reflection is that of the mated pair, by
+    the two connector types (:func:`~phoq.units.mating`): an FC/APC cap on an FC/APC
+    port, −60 dB; on a flat port the angled face leaves an air gap and the flat side
+    gets its 3.6 % back, as with any APC↔UPC pair. Keep the vacuum input of a homodyne
+    or the unused output of a coupler capped with the matching type.
     """
 
     category = "passive"
@@ -182,7 +187,10 @@ class FiberTerminator(FiberConnectors, Component):
         "FC/APC",
         choices=CONNECTORS,
         label="Connector",
-        doc="End-face polish of the cap: match it to the port it goes on (FC/APC green, FC/UPC blue).",
+        doc=(
+            "End-face polish of the cap: match it to the port it goes on (FC/APC green,"
+            " FC/UPC blue)."
+        ),
     )
 
     def _build(self):
@@ -236,8 +244,8 @@ class Coupler(FiberConnectors, Component):
     """2×2 fused fiber coupler. ``ratio`` is the bar-port power fraction (a1→b1).
 
     The cross port picks up i, as in any directional coupler. It used to be called
-    ``BeamSplitter``: that name still works, with a deprecation warning, and saved setups and
-    presets that use it load as a Coupler.
+    ``BeamSplitter``: that name still works, with a deprecation warning, and saved
+    setups and presets that use it load as a Coupler.
 
     Field transfer: b1 = √r·a1 + i√(1−r)·a2,  b2 = i√(1−r)·a1 + √r·a2 (and the reverse).
     """
@@ -313,15 +321,17 @@ class PhaseShifter(FiberConnectors, Component):
 
 
 class OpticalDelayLine(FiberConnectors, Component):
-    """Variable optical delay line: collimator → air gap set by a translation stage → collimator.
+    """Variable optical delay line: collimator → air gap set by a translation stage →
+    collimator.
 
-    The dial ``delay`` τ adds to the fixed ``insertion_delay`` τ₀ (internal fiber and the shortest
-    gap). Air is nearly dispersionless, so one τ sets both the group delay and the carrier phase
-    2πν·τ: a fringe per optical period, 5.17 fs at 1550 nm. The line sets *timing*; a phase shifter
-    sets the phase. The collimated Gaussian beam (1/e² radius ``beam_waist``, Rayleigh range
-    z_R = πw₀²/λ) couples into the output fiber best at mid-travel; a gap d away from that couples
-    1/[1 + (d/2z_R)²], so the loss grows toward both ends of the travel. A dial set beyond
-    ``max_delay`` stops at the end of the travel, and ``resolution`` (0: continuous) is the step.
+    The dial ``delay`` τ adds to the fixed ``insertion_delay`` τ₀ (internal fiber and
+    the shortest gap). Air is nearly dispersionless, so one τ sets both the group delay
+    and the carrier phase 2πν·τ: a fringe per optical period, 5.17 fs at 1550 nm. The
+    line sets *timing*; a phase shifter sets the phase. The collimated Gaussian beam
+    (1/e² radius ``beam_waist``, Rayleigh range z_R = πw₀²/λ) couples into the output
+    fiber best at mid-travel; a gap d away from that couples 1/[1 + (d/2z_R)²], so the
+    loss grows toward both ends of the travel. A dial set beyond ``max_delay`` stops at
+    the end of the travel, and ``resolution`` (0: continuous) is the step.
     """
 
     category = "passive"
@@ -356,7 +366,10 @@ class OpticalDelayLine(FiberConnectors, Component):
         min=0.0,
         max=100e-9,
         display=("ps", 1e12),
-        doc="Connector-to-connector delay at the zero setting (internal fiber and shortest gap)",
+        doc=(
+            "Connector-to-connector delay at the zero setting (internal fiber and"
+            " shortest gap)"
+        ),
     )
     resolution = Param(
         0.0,
@@ -391,7 +404,8 @@ class OpticalDelayLine(FiberConnectors, Component):
 
     @property
     def setting(self) -> float:
-        """The delay the stage reaches: the dial on the step grid, stopped at the end of travel."""
+        """The delay the stage reaches: the dial on the step grid, stopped at the end of
+        travel."""
         tau = self.delay
         if self.resolution > 0:
             tau = round(tau / self.resolution) * self.resolution
@@ -402,7 +416,8 @@ class OpticalDelayLine(FiberConnectors, Component):
         return self.insertion_delay + self.setting
 
     def coupling(self, wavelength: float, setting: float | None = None) -> float:
-        """Gaussian mode overlap with the output fiber (1 at mid-travel), now or at ``setting``."""
+        """Gaussian mode overlap with the output fiber (1 at mid-travel), now or at
+        ``setting``."""
         tau = self.setting if setting is None else setting
         z_r = math.pi * self.beam_waist**2 / wavelength
         d = C0 * (tau - self.max_delay / 2) / N_AIR  # air gap away from the best one
@@ -429,7 +444,10 @@ class OpticalDelayLine(FiberConnectors, Component):
         out = {
             "Total delay": fmt_si(self.total_delay, "s"),
             "Air path added": fmt_si(C0 * self.setting / N_AIR, "m"),
-            "Loss @1550 nm": f"{self.loss_db(wl):.2f} dB (ends of travel {self.loss_db(wl, 0.0):.2f} dB)",
+            "Loss @1550 nm": (
+                f"{self.loss_db(wl):.2f} dB (ends of travel"
+                f" {self.loss_db(wl, 0.0):.2f} dB)"
+            ),
             "Fringe period @1550 nm": fmt_si(wl / C0, "s"),
         }
         if self.delay > self.max_delay:

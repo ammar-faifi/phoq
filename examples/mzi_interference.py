@@ -1,4 +1,5 @@
-"""Fiber Mach–Zehnder interferometer: sweep the phase shifter and record both output ports."""
+"""Fiber Mach–Zehnder interferometer: sweep the phase shifter and record both output
+ports."""
 
 import numpy as np
 
@@ -27,7 +28,8 @@ if __name__ == "__main__":
         p1.measured.max() + p1.measured.min()
     )
     print(
-        f"fringe visibility {visibility:.3f}; total power {(p1.measured + p2.measured).mean() * 1e3:.3f} mW (constant)"
+        f"fringe visibility {visibility:.3f}; total power"
+        f" {(p1.measured + p2.measured).mean() * 1e3:.3f} mW (constant)"
     )
 
     import matplotlib

@@ -1,4 +1,5 @@
-"""Electrical signal sources. The function generator is the only thing that drives modulators."""
+"""Electrical signal sources. The function generator is the only thing that drives
+modulators."""
 
 from __future__ import annotations
 
@@ -15,19 +16,21 @@ TRIGGERS = ("aligned", "laser", "free")
 class FunctionGenerator(Component):
     """Two-channel arbitrary function generator (AWG).
 
-    Each output has a shape, a frequency (the symbol rate for a loaded pattern), a peak-to-peak
-    amplitude, an offset, and a delay. Connect an output to a modulator's ``rf`` port::
+    Each output has a shape, a frequency (the symbol rate for a loaded pattern), a
+    peak-to-peak amplitude, an offset, and a delay. Connect an output to a modulator's
+    ``rf`` port::
 
         fg = setup.add(FunctionGenerator())
         setup.connect(fg.ch1, pm.rf)
         fg.set(ch1_shape="sine", ch1_freq=1e9, ch1_vpp=2.0)
-        fg.set_pattern("ch2", im.voltage_for(np.where(bits, 1.0, 0.0)), rate=laser.rep_rate)
+        levels = im.voltage_for(np.where(bits, 1.0, 0.0))
+        fg.set_pattern("ch2", levels, rate=laser.rep_rate)
 
-    Time base (``trigger``): *aligned* locks the generator to the laser's pulse clock with its delay
-    already calibrated, so pattern symbol k meets pulse k inside whatever modulator the channel
-    drives; *laser* is locked to the laser clock as it leaves the laser, and you set ``chN_delay``
-    yourself; *free* runs free with a random start each acquisition. Symbol k of a pattern is
-    centred on t = k / rate.
+    Time base (``trigger``): *aligned* locks the generator to the laser's pulse clock
+    with its delay already calibrated, so pattern symbol k meets pulse k inside whatever
+    modulator the channel drives; *laser* is locked to the laser clock as it leaves the
+    laser, and you set ``chN_delay`` yourself; *free* runs free with a random start each
+    acquisition. Symbol k of a pattern is centered on t = k / rate.
     """
 
     category = "instrument"
@@ -41,7 +44,10 @@ class FunctionGenerator(Component):
         "aligned",
         choices=TRIGGERS,
         label="Time base",
-        doc="aligned: symbol k meets pulse k at the driven modulator; laser: locked to the laser clock, set delays by hand; free: free-running",
+        doc=(
+            "aligned: symbol k meets pulse k at the driven modulator; laser: locked to"
+            " the laser clock, set delays by hand; free: free-running"
+        ),
     )
     ch1_enabled = Param(True, label="CH1 output")
     ch1_shape = Param("sine", choices=SHAPES, label="CH1 shape")
@@ -105,7 +111,7 @@ class FunctionGenerator(Component):
                 fields.append(f"{ch}_delay")
         return fields
 
-    # ---- programming ---------------------------------------------------------------------------
+    # ---- programming -----------------------------------------------------------------
     def _check(self, channel: str) -> str:
         if channel not in CHANNELS:
             raise ValueError(
@@ -116,10 +122,12 @@ class FunctionGenerator(Component):
     def set_pattern(
         self, channel: str, volts, rate: float | None = None
     ) -> FunctionGenerator:
-        """Load an arbitrary waveform, one voltage per symbol, and switch the channel to it.
+        """Load an arbitrary waveform, one voltage per symbol, and switch the channel to
+        it.
 
-        The amplitude and offset are set from the pattern's extremes; the stored samples are
-        normalised, so changing ``chN_vpp`` later rescales the pattern like on a real AWG.
+        The amplitude and offset are set from the pattern's extremes; the stored samples
+        are normalized, so changing ``chN_vpp`` later rescales the pattern like on a
+        real AWG.
         """
         ch = self._check(channel)
         v = np.asarray(volts, dtype=float).ravel()
@@ -143,7 +151,7 @@ class FunctionGenerator(Component):
             return None
         return getattr(self, f"{ch}_offset") + 0.5 * getattr(self, f"{ch}_vpp") * pat
 
-    # ---- signal ----------------------------------------------------------------------------------
+    # ---- signal ----------------------------------------------------------------------
     def start(self, rng: np.random.Generator) -> None:
         """Begin an acquisition: a free-running generator starts at a random point."""
         self._epoch = float(rng.uniform(0, 1e-3)) if self.trigger == "free" else 0.0
@@ -164,8 +172,9 @@ class FunctionGenerator(Component):
     def voltage(self, channel: str, t_mod, t_emit=None) -> np.ndarray:
         """Output voltage [V] at the driven device.
 
-        ``t_mod`` is the time at that device; ``t_emit`` the time the light passing it left the
-        laser (used by the *aligned* time base). Pass only ``t_mod`` to look at the raw output.
+        ``t_mod`` is the time at that device; ``t_emit`` the time the light passing it
+        left the laser (used by the *aligned* time base). Pass only ``t_mod`` to look at
+        the raw output.
         """
         ch = self._check(channel)
         base = t_emit if (self.trigger == "aligned" and t_emit is not None) else t_mod
@@ -173,7 +182,8 @@ class FunctionGenerator(Component):
         return self._shape(ch, tau)
 
     def waveform(self, channel: str, n: int = 512) -> np.ndarray:
-        """One period of the output (or every symbol of a pattern), for averaging and display."""
+        """One period of the output (or every symbol of a pattern), for averaging and
+        display."""
         ch = self._check(channel)
         f = getattr(self, f"{ch}_freq")
         if getattr(self, f"{ch}_shape") == "pattern" and self.patterns[ch] is not None:
@@ -205,7 +215,7 @@ class FunctionGenerator(Component):
             return offset + amp * (1.0 - 4.0 * np.abs(frac - 0.5))
         return offset + amp * (2.0 * frac - 1.0)  # ramp
 
-    # ---- read-outs -----------------------------------------------------------------------------
+    # ---- read-outs -------------------------------------------------------------------
     def describe(self, channel: str) -> str:
         ch = self._check(channel)
         if not getattr(self, f"{ch}_enabled"):
@@ -217,10 +227,14 @@ class FunctionGenerator(Component):
         if shape != "pattern":
             return f"{shape} {freq} · {getattr(self, f'{ch}_vpp'):.2f} Vpp"
         if self.patterns[ch] is None:
-            return f"pattern {freq} · {getattr(self, f'{ch}_vpp'):.2f} Vpp · NO PATTERN LOADED"
-        # the levels the pattern really takes: a pattern with no swing sits at its offset, which
-        # "0.00 Vpp" alone would hide (a switch held in one state, a modulator held dark). The
-        # lab's front-panel screen reads them from this text (web/js/parts.js, patternLevels).
+            return (
+                f"pattern {freq} · {getattr(self, f'{ch}_vpp'):.2f} Vpp · NO PATTERN"
+                " LOADED"
+            )
+        # the levels the pattern really takes: a pattern with no swing sits at its
+        # offset, which "0.00 Vpp" alone would hide (a switch held in one state, a
+        # modulator held dark). The lab's front-panel screen reads them from this text
+        # (web/js/parts.js, patternLevels).
         v = self.pattern_volts(ch)
         lo, hi = float(v.min()), float(v.max())
         levels = f"constant {lo:+.2f} V" if lo == hi else f"{lo:+.2f} … {hi:+.2f} V"
@@ -267,7 +281,7 @@ class DCPowerSupply(Component):
         return channel
 
     def start(self, rng: np.random.Generator) -> None:
-        """A DC supply has nothing to synchronise."""
+        """A DC supply has nothing to synchronize."""
 
     def is_static(self, channel: str) -> bool:
         self._check(channel)

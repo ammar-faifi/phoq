@@ -1,26 +1,32 @@
-"""Part presets: a component set up as a specific off-the-shelf product, from its datasheet.
+"""Part presets: a component set up as a specific off-the-shelf product, from its
+datasheet.
 
-A preset is one TOML file. Its ``[params]`` are values for the component's :class:`~phoq.Param`
-settings, each with its provenance — which datasheet row it came from and whether that is the
-typical, minimum or maximum column, a number read off a plot, a derived figure or an assumption::
+A preset is one TOML file. Its ``[params]`` are values for the component's
+:class:`~phoq.Param` settings, each with its provenance — which datasheet row it came
+from and whether that is the typical, minimum or maximum column, a number read off a
+plot, a derived figure or an assumption::
 
     component = "IntensityModulator"
     title = "Exail MX-LN-10"
     vendor = "Exail"
 
-    [params]
-    v_pi = { value = 5.5, from = "datasheet-typ", spec = "Vπ RF electrodes @ 50 kHz", max = 6.0 }
+    [params.v_pi]
+    value = 5.5
+    from = "datasheet-typ"
+    spec = "Vπ RF electrodes @ 50 kHz"
+    max = 6.0
 
-``[curves]`` holds datasheet curves against wavelength that a class accepts (a detector's PDE or
-responsivity), ``[limits]`` absolute maximum ratings (the lab warns when a setup exceeds them)
-and ``[unsupported]`` the datasheet figures the model cannot represent, kept so that nothing is
-dropped silently. Every component also has a ``generic`` preset: the class defaults.
+``[curves]`` holds datasheet curves against wavelength that a class accepts (a
+detector's PDE or responsivity), ``[limits]`` absolute maximum ratings (the lab warns
+when a setup exceeds them) and ``[unsupported]`` the datasheet figures the model cannot
+represent, kept so that nothing is dropped silently. Every component also has a
+``generic`` preset: the class defaults.
 
-Presets are collected from a search path — the ones shipped in ``phoq/presets``, packages that
-register the ``phoq.presets`` entry point, ``~/.config/phoq/presets``, the directories in
-``$PHOQ_PRESETS`` and anything given to :func:`add_path` (``--presets DIR`` on the command
-line). A later directory overrides an earlier one with the same id, so a lab can correct a
-shipped value or replace it with a measured one.
+Presets are collected from a search path — the ones shipped in ``phoq/presets``,
+packages that register the ``phoq.presets`` entry point, ``~/.config/phoq/presets``, the
+directories in ``$PHOQ_PRESETS`` and anything given to :func:`add_path` (``--presets
+DIR`` on the command line). A later directory overrides an earlier one with the same id,
+so a lab can correct a shipped value or replace it with a measured one.
 """
 
 from __future__ import annotations
@@ -63,14 +69,17 @@ KIND_DOC = {
     "datasheet-min": "the minimum column of the datasheet",
     "datasheet-max": "the maximum column of the datasheet",
     "datasheet-graph": "read off a datasheet plot",
-    "datasheet-condition": "the test condition a datasheet figure is quoted at (e.g. its wavelength)",
+    "datasheet-condition": (
+        "the test condition a datasheet figure is quoted at (e.g. its wavelength)"
+    ),
     "derived": "computed from datasheet figures (see the note)",
     "measured": "measured on a real unit",
     "assumed": "a plausible value that is not in the datasheet",
     "unstated": "given without provenance",
 }
 TIERS = (GENERIC, "datasheet", "validated", "vendor")
-# [limits] keys the lab checks live (phoq.engine.report); other limits are kept for reference
+# [limits] keys the lab checks live (phoq.engine.report); other limits are kept for
+# reference
 CHECKED_LIMITS = frozenset(
     {
         "optical_input_w",
@@ -90,7 +99,8 @@ class PresetError(ValueError):
 
 
 def slug(text: str) -> str:
-    """``IntensityModulator`` → ``intensity-modulator``, ``Micro Photon Devices`` → ``micro-photon-devices``."""
+    """``IntensityModulator`` → ``intensity-modulator``, ``Micro Photon Devices`` →
+    ``micro-photon-devices``."""
     text = re.sub(r"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])", "-", text)
     return re.sub(r"[^a-z0-9.]+", "-", text.lower()).strip("-")
 
@@ -125,7 +135,8 @@ class Provenance:
 
 @dataclass(frozen=True)
 class Curve:
-    """A datasheet curve against wavelength (a detector's PDE or responsivity), zero outside it."""
+    """A datasheet curve against wavelength (a detector's PDE or responsivity), zero
+    outside it."""
 
     name: str
     wavelength: tuple[float, ...]  # [m], increasing
@@ -154,7 +165,10 @@ class Curve:
 
     def __str__(self) -> str:
         lo, hi = self.span
-        return f"{lo * 1e9:.0f}–{hi * 1e9:.0f} nm, {len(self.value)} points, peak {self.peak:.3g} · {self.provenance}"
+        return (
+            f"{lo * 1e9:.0f}–{hi * 1e9:.0f} nm, {len(self.value)} points, peak"
+            f" {self.peak:.3g} · {self.provenance}"
+        )
 
 
 @dataclass
@@ -214,7 +228,8 @@ class Preset:
         cls = Component.lookup(self.component)
         specs = cls.param_specs() if cls else {}
         out = [
-            f"{self.id} — {self.title}  [{self.component} · {self.tier} · {self.origin}]"
+            f"{self.id} — {self.title}  [{self.component} · {self.tier} ·"
+            f" {self.origin}]"
         ]
         if self.description:
             out.append(f"  {self.description}")
@@ -245,7 +260,7 @@ class Preset:
                 + " · ".join(f"{k} = {v}" for k, v in self.limits.items())
             )
         if self.unsupported:
-            out.append("  not modelled")
+            out.append("  not modeled")
             for key, value in self.unsupported.items():
                 out.append(f"    {key:<24} {_fmt_entry(value)}")
         if self.notes:
@@ -305,7 +320,8 @@ def _curve(name: str, entry: Any, where: str) -> Curve:
         or len(xs) < 2
     ):
         raise PresetError(
-            f"{at} needs 'wavelength_nm' and 'value' lists of the same length (at least 2 points)"
+            f"{at} needs 'wavelength_nm' and 'value' lists of the same length (at least"
+            " 2 points)"
         )
     xs = [_num(v, f"{at}.wavelength_nm") for v in xs]
     ys = [_num(v, f"{at}.value") for v in ys]
@@ -324,9 +340,10 @@ def _curve(name: str, entry: Any, where: str) -> Curve:
     return Curve(name, tuple(x * 1e-9 for x in xs), tuple(ys), prov)
 
 
-# ---- one file ----------------------------------------------------------------------------------
+# ---- one file ------------------------------------------------------------------------
 def parse(text: str, *, path: Path | None = None, origin: str = "user") -> Preset:
-    """Parse a preset's TOML text (``path`` is only used for messages and the default id)."""
+    """Parse a preset's TOML text (``path`` is only used for messages and the default
+    id)."""
     where = str(path) if path else "preset"
     try:
         data = tomllib.loads(text)
@@ -334,7 +351,8 @@ def parse(text: str, *, path: Path | None = None, origin: str = "user") -> Prese
         raise PresetError(f"{where}: not valid TOML: {e}") from None
     if data.get("schema", SCHEMA) != SCHEMA:
         raise PresetError(
-            f"{where}: schema {data.get('schema')!r} is not supported (this phoq reads schema {SCHEMA})"
+            f"{where}: schema {data.get('schema')!r} is not supported (this phoq reads"
+            f" schema {SCHEMA})"
         )
     for key in ("component", "title"):
         if not isinstance(data.get(key), str) or not data[key]:
@@ -345,7 +363,8 @@ def parse(text: str, *, path: Path | None = None, origin: str = "user") -> Prese
     )
     if not _ID.fullmatch(pid):
         raise PresetError(
-            f"{where}: id {pid!r} must look like 'vendor/part' (lower-case letters, digits, '-' and '.')"
+            f"{where}: id {pid!r} must look like 'vendor/part' (lower-case letters,"
+            " digits, '-' and '.')"
         )
     tier = str(data.get("tier", "datasheet"))
     if tier not in TIERS:
@@ -365,7 +384,8 @@ def parse(text: str, *, path: Path | None = None, origin: str = "user") -> Prese
             kind = str(entry.get("from", "unstated"))
             if kind not in KINDS:
                 raise PresetError(
-                    f"{where}: params.{key}: unknown provenance {kind!r}; use one of {', '.join(KINDS)}"
+                    f"{where}: params.{key}: unknown provenance {kind!r}; use one of"
+                    f" {', '.join(KINDS)}"
                 )
             unknown = set(entry) - _PARAM_KEYS
             if unknown:
@@ -415,7 +435,8 @@ def load_file(path: str | Path, origin: str = "user") -> Preset:
 
 
 def check(preset: Preset) -> list[str]:
-    """Problems that stop a preset from being applied: unknown class, unknown or invalid params."""
+    """Problems that stop a preset from being applied: unknown class, unknown or invalid
+    params."""
     _ensure_registry()
     cls = Component.lookup(preset.component)
     if cls is None:
@@ -428,7 +449,8 @@ def check(preset: Preset) -> list[str]:
         spec = specs.get(key)
         if spec is None:
             problems.append(
-                f"{preset.id}: {preset.component} has no parameter {key!r} (valid: {', '.join(specs)})"
+                f"{preset.id}: {preset.component} has no parameter {key!r} (valid:"
+                f" {', '.join(specs)})"
             )
             continue
         try:
@@ -449,7 +471,7 @@ def _curve_problems(preset: Preset, cls: type[Component]) -> list[str]:
     ]
 
 
-# ---- the search path ----------------------------------------------------------------------------
+# ---- the search path -----------------------------------------------------------------
 _extra_paths: list[Path] = []
 _cache: dict[str, Preset] | None = None
 
@@ -475,7 +497,8 @@ def user_dir() -> Path:
 
 
 def search_path() -> list[tuple[str, Path]]:
-    """``(origin, directory)`` pairs in precedence order: later entries override earlier ones."""
+    """``(origin, directory)`` pairs in precedence order: later entries override earlier
+    ones."""
     dirs: list[tuple[str, Path]] = [("phoq", BUILTIN_DIR)]
     try:
         eps = list(entry_points(group=ENTRY_POINT_GROUP))
@@ -496,7 +519,8 @@ def search_path() -> list[tuple[str, Path]]:
 
 
 def add_path(path: str | Path) -> Path:
-    """Register a directory of ``.toml`` presets (searched recursively); it overrides earlier ones."""
+    """Register a directory of ``.toml`` presets (searched recursively); it overrides
+    earlier ones."""
     p = Path(path).expanduser().resolve()
     if not p.is_dir():
         raise PresetError(f"{p} is not a directory")
@@ -532,7 +556,7 @@ def _files() -> dict[str, Preset]:
     return _cache
 
 
-# ---- lookup --------------------------------------------------------------------------------------
+# ---- lookup --------------------------------------------------------------------------
 def generic_id(cls: type[Component]) -> str:
     return f"{GENERIC}/{slug(cls.__name__)}"
 
@@ -582,7 +606,8 @@ def search(
     text: str | None = None,
     generic: bool = True,
 ) -> list[Preset]:
-    """Presets for a component class (a subclass sees its base classes' presets), vendor, tag or text."""
+    """Presets for a component class (a subclass sees its base classes' presets),
+    vendor, tag or text."""
     names = _class_names(component)
     own = (
         component.__name__
@@ -594,7 +619,8 @@ def search(
         if names is not None and p.component not in names:
             continue
         if p.generic and (not generic or (own and p.component != own)):
-            continue  # a subclass inherits its bases' parts, but has one generic of its own
+            # a subclass inherits its bases' parts, but has one generic of its own
+            continue
         if vendor and slug(vendor) != slug(p.vendor):
             continue
         if tag and tag.lower() not in {t.lower() for t in p.tags}:
@@ -610,7 +636,8 @@ def search(
 
 
 def resolve(ref: str | Preset, cls: type[Component]) -> Preset:
-    """The preset for ``ref`` (an id, ``"generic"`` or a Preset), checked against ``cls``."""
+    """The preset for ``ref`` (an id, ``"generic"`` or a Preset), checked against
+    ``cls``."""
     if isinstance(ref, Preset):
         p = ref
     elif ref in (GENERIC, generic_id(cls)):

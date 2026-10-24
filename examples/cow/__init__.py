@@ -1,37 +1,43 @@
-"""Coherent one-way QKD (COW) on the simulated hardware, up to the sifted key, its QBER and V.
+"""Coherent one-way QKD (COW) on the simulated hardware, up to the sifted key, its QBER
+and V.
 
-Stucki, Brunner, Gisin, Scarani & Zbinden, "Fast and simple one-way quantum key distribution",
-Appl. Phys. Lett. 87, 194108 (2005). Physical layer (one :class:`~phoq.Setup`; see
-``common.build``)::
+Stucki, Brunner, Gisin, Scarani & Zbinden, "Fast and simple one-way quantum key
+distribution", Appl. Phys. Lett. 87, 194108 (2005). Physical layer (one
+:class:`~phoq.Setup`; see ``common.build``)::
 
     ALICE-AWG ch1 ──────┐
-    ALICE-LD (CW) → ALICE-IM → ALICE-VOA → SPL ─→ BOB-TAP ─ t_B ─→ DB ───────────┐
-                                                     └─ 1−t_B → [BOB-BS1 ⇒ short: PS + ODL ⇒ BOB-BS2] → DM1, DM2 → TAGGER
-                                                                         long: VOA
+    ALICE-LD (CW) → ALICE-IM → ALICE-VOA → SPL ─→ BOB-TAP ─ t_B ─→ DB ────────┐
+                                                   └─ 1−t_B → DLI → DM1, DM2 ─┴→ TAGGER
 
-Alice's intensity modulator carves her CW laser into pulses of μ photons, or blocks a slot: bit 0
-is (μ, 0), bit 1 (0, μ), a decoy (μ, μ). Bob reads the bit from the time of arrival on DB; the
-delay-line interferometer, one slot unbalanced, checks that neighbouring non-empty pulses are still
-coherent. The tagger runs one bin per slot, its DB channel delayed to line up with DM1/DM2.
+    DLI = [BOB-BS1 ⇒ short: PS + ODL ⇒ BOB-BS2]
+                     long: VOA
 
-With an eavesdropper (``--party examples/cow/eve.py``) the spool is cut in two and Eve's station
-spliced in between (``common.eavesdropper``)::
+Alice's intensity modulator carves her CW laser into pulses of μ photons, or blocks a
+slot: bit 0 is (μ, 0), bit 1 (0, μ), a decoy (μ, μ). Bob reads the bit from the time of
+arrival on DB; the delay-line interferometer, one slot unbalanced, checks that
+neighboring non-empty pulses are still coherent. The tagger runs one bin per slot, its
+DB channel delayed to line up with DM1/DM2.
+
+With an eavesdropper (``--party examples/cow/eve.py``) the spool is cut in two and Eve's
+station spliced in between (``common.eavesdropper``)::
 
     SPL-A ─→ EVE-SW a1   b1 ─→ SPL-B ─→ BOB-TAP …
              EVE-SW a2   b2 ─→ EVE-D → EVE-TAGGER
     EVE-TX-LD (CW) → EVE-TX-IM → EVE-TX-VOA ─┘   (EVE-AWG: CH1 → IM, CH2 → switch)
 
-Parties, each in its own file and its own process, talking over an authenticated public channel:
+Parties, each in its own file and its own process, talking over an authenticated public
+channel:
 
-* :class:`Alice` (:mod:`.alice`) draws the sequence, removes the decoys from Bob's detections,
-  discloses a sample of her bits and computes the visibilities.
-* :class:`Bob` (:mod:`.bob`) announces which bits clicked and his monitoring clicks, and answers
-  with his bits at the sample.
-* Eve (``eve.py``, loaded with ``--party``) intercepts a fraction of the bits and re-sends them.
+* :class:`Alice` (:mod:`.alice`) draws the sequence, removes the decoys from Bob's
+  detections, discloses a sample of her bits and computes the visibilities.
+* :class:`Bob` (:mod:`.bob`) announces which bits clicked and his monitoring clicks, and
+  answers with his bits at the sample.
+* Eve (``eve.py``, loaded with ``--party``) intercepts a fraction of the bits and
+  re-sends them.
 
-``PARTIES`` and ``build()`` make this a protocol package: ``phoq run --protocol cow``. The
-single-process reference ``run()`` (one god's-eye view of every record, Eve's too) and
-``theory()`` / ``eve_theory()`` are kept for tests.
+``PARTIES`` and ``build()`` make this a protocol package: ``phoq run --protocol cow``.
+The single-process reference ``run()`` (one god's-eye view of every record, Eve's too)
+and ``theory()`` / ``eve_theory()`` are kept for tests.
 """
 
 from __future__ import annotations
@@ -132,7 +138,8 @@ class COWResult:
 
     @property
     def qber(self) -> float:
-        """Error rate of the whole sifted key (god's-eye: both keys are in one place)."""
+        """Error rate of the whole sifted key (god's-eye: both keys are in one
+        place)."""
         return (
             float(np.mean(self.alice_key != self.bob_key))
             if self.alice_key.size
@@ -142,26 +149,40 @@ class COWResult:
     def summary(self) -> str:
         p, t, e, v = self.params, self.tally, self.expected, self.eve
         lines = [
-            f"COW over {p.distance / 1e3:.0f} km, {p.source} source, μ = {p.mu}, f = {p.decoy}, t_B = {p.t_b}, "
-            f"{t.bits:,} bits ({2 * t.bits:,} slots at {p.rate / 1e6:.0f} MHz)",
-            f"detected {t.detected / t.bits:.3e} per bit (expected {e['detected / bit']:.3e}) · "
-            f"sifted {t.sifted:,} ({t.sifted / t.bits:.3e} per bit, expected {e['sifted / bit']:.3e})",
+            (
+                f"COW over {p.distance / 1e3:.0f} km, {p.source} source, μ = {p.mu}, f"
+                f" = {p.decoy}, t_B = {p.t_b}, {t.bits:,} bits ({2 * t.bits:,} slots at"
+                f" {p.rate / 1e6:.0f} MHz)"
+            ),
+            (
+                f"detected {t.detected / t.bits:.3e} per bit (expected"
+                f" {e['detected / bit']:.3e}) · sifted {t.sifted:,}"
+                f" ({t.sifted / t.bits:.3e} per bit, expected {e['sifted / bit']:.3e})"
+            ),
             f"QBER {self.qber:.4f} on the whole sifted key (expected {e['QBER']:.4f})",
         ]
         if not v:
             lines.append(
-                f"V raw {t.v(net=False):.4f} (expected {e['V raw']:.4f}) · net {t.v():.4f} (decoy "
-                f"{t.v('decoy'):.4f}, 1-0 {t.v('1-0'):.4f}; expected {e['V net']:.4f})"
+                f"V raw {t.v(net=False):.4f} (expected {e['V raw']:.4f}) · net"
+                f" {t.v():.4f} (decoy {t.v('decoy'):.4f}, 1-0 {t.v('1-0'):.4f};"
+                f" expected {e['V net']:.4f})"
             )
             return "\n".join(lines)
         return "\n".join(
             lines
             + [
-                f"V raw {t.v(net=False):.4f} · net {t.v():.4f} · decoy {t.v('decoy'):.4f} (expected {e['V decoy']:.4f}), "
-                f"1-0 {t.v('1-0'):.4f} (expected {e['V 1-0']:.4f}); {e['V net']:.4f} without Eve",
-                f"Eve intercepted {v['attacked'] / v['bits']:.0%} of the bits · clicks per pulse {v['q']:.3f} (expected "
-                f"{e['q (Eve)']:.3f}) · re-sent μ_E {v['mu_e']:.3f} (expected {e['mu_E']:.3f}) · paper: 1 − V = I·ξ "
-                f"= {e['1 - V (paper)']:.4f}",
+                (
+                    f"V raw {t.v(net=False):.4f} · net {t.v():.4f} · decoy"
+                    f" {t.v('decoy'):.4f} (expected {e['V decoy']:.4f}), 1-0"
+                    f" {t.v('1-0'):.4f} (expected {e['V 1-0']:.4f}); {e['V net']:.4f}"
+                    " without Eve"
+                ),
+                (
+                    f"Eve intercepted {v['attacked'] / v['bits']:.0%} of the bits ·"
+                    f" clicks per pulse {v['q']:.3f} (expected {e['q (Eve)']:.3f}) ·"
+                    f" re-sent μ_E {v['mu_e']:.3f} (expected {e['mu_E']:.3f}) · paper:"
+                    f" 1 − V = I·ξ = {e['1 - V (paper)']:.4f}"
+                ),
             ]
         )
 
@@ -174,8 +195,9 @@ def eavesdrop(
     att0: float,
     inconclusive: str = "empty",
 ) -> dict:
-    """One block of Eve's, as ``eve.py`` runs it: switch the attacked bits into her detector,
-    record her tagger, re-prepare what she saw and program her transmitter before Bob records.
+    """One block of Eve's, as ``eve.py`` runs it: switch the attacked bits into her
+    detector, record her tagger, re-prepare what she saw and program her transmitter
+    before Bob records.
     """
     sw, im, awg = setup["EVE-SW"], setup["EVE-TX-IM"], setup["EVE-AWG"]
     awg.set_pattern("ch2", sw.voltage_for(np.repeat(attack, 2)), p.rate)
@@ -203,11 +225,11 @@ def run(
     eve: float | None = None,
     inconclusive: str = "empty",
 ) -> COWResult:
-    """Single-process reference: prepare, record and sift ``blocks`` blocks with both records in
-    one place; the QBER is counted on the whole sifted key.
+    """Single-process reference: prepare, record and sift ``blocks`` blocks with both
+    records in one place; the QBER is counted on the whole sifted key.
 
-    ``eve`` splices Eve's station in and has her intercept that fraction of the bits (0: the
-    station on the line, idle), with ``inconclusive`` as in ``eve.py``.
+    ``eve`` splices Eve's station in and has her intercept that fraction of the bits (0:
+    the station on the line, idle), with ``inconclusive`` as in ``eve.py``.
     """
     p = p or COWParams()
     setup = setup or build(p, slots, eve=eve is not None)

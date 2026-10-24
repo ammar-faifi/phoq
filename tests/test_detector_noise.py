@@ -1,7 +1,8 @@
-"""Photodiode noise against the textbook receiver model: D. J. Blumenthal, ECE228B Lecture 2
-"Photodetection and Photodetectors" (shot noise 2q(I_p + I_d)Δf filling the detector bandwidth,
-the shot-noise-limited SNR, heterodyne detection, responsivity and band gaps), and I. S. Kolev,
-T. V. Karadzhov and E. N. Petkova, "Noises in Photodetectors", ICEST 2005 (thermal noise 4kTΔf/R).
+"""Photodiode noise against the textbook receiver model: D. J. Blumenthal, ECE228B
+Lecture 2 "Photodetection and Photodetectors" (shot noise 2q(I_p + I_d)Δf filling the
+detector bandwidth, the shot-noise-limited SNR, heterodyne detection, responsivity and
+band gaps), and I. S. Kolev, T. V. Karadzhov and E. N. Petkova, "Noises in
+Photodetectors", ICEST 2005 (thermal noise 4kTΔf/R).
 """
 
 import math
@@ -32,9 +33,10 @@ def quiet(**kw) -> Photodiode:
 
 
 def test_shot_noise_fills_the_bandwidth_with_density_2qI():
-    """Lecture 2, slides 6–7: σ² = 2q(I_p + I_d)Δf, a flat 2qI over the detector bandwidth B. phoq
-    used to spread the right variance flat up to the sampling Nyquist frequency, 15 dB too thin in
-    band at 50× oversampling; the noise now goes through the detector's pole with the signal.
+    """Lecture 2, slides 6–7: σ² = 2q(I_p + I_d)Δf, a flat 2qI over the detector
+    bandwidth B. phoq used to spread the right variance flat up to the sampling Nyquist
+    frequency, 15 dB too thin in band at 50× oversampling; the noise now goes through
+    the detector's pole with the signal.
     """
     pd = quiet()
     i = pd.detect({WL: np.full(N, math.sqrt(1e-3))}, DT, np.random.default_rng(1), N)
@@ -57,7 +59,8 @@ def test_shot_noise_limited_snr_is_eta_p_over_2_h_nu_b():
 
 
 def test_dark_and_thermal_noise_floor():
-    """Kolev et al., Eqs. (20)–(21) and (29): 2qI_dΔf + 4kTΔf/R in the dark (50 Ω at 300 K)."""
+    """Kolev et al., Eqs. (20)–(21) and (29): 2qI_dΔf + 4kTΔf/R in the dark
+    (50 Ω at 300 K)."""
     pd = Photodiode(bandwidth=1e9)
     i = pd.detect({WL: np.zeros(N)}, DT, np.random.default_rng(3), N)
     want = (
@@ -67,8 +70,9 @@ def test_dark_and_thermal_noise_floor():
 
 
 def test_heterodyne_beat_and_its_shot_noise_limited_snr():
-    """Lecture 2, slides 11–12: i = R[P_lo + P_s + 2√(P_lo P_s) cos(ω_IF t + φ)], and with a strong
-    local oscillator SNR_het = ηP_s/(hνB), P_s the signal power reaching the detector.
+    """Lecture 2, slides 11–12: i = R[P_lo + P_s + 2√(P_lo P_s) cos(ω_IF t + φ)], and
+    with a strong local oscillator SNR_het = ηP_s/(hνB), P_s the signal power reaching
+    the detector.
     """
     s = Setup("heterodyne")
     lo = s.add(Laser("LO", mode="cw", power_dbm=0.0, linewidth=0.0))
@@ -116,10 +120,11 @@ def test_heterodyne_beat_and_its_shot_noise_limited_snr():
 def test_responsivity_is_below_one_electron_per_photon_and_ends_at_the_band_gap(
     material, gap_nm
 ):
-    """Lecture 2, slides 17–18: R = ηq/hν with 0 ≤ η ≤ 1, and no response beyond λ = 1240 nm/E_g
-    (Si 1110, Ge 1850, GaAs 870 nm; InGaAs detectors are specified to 1700 nm). The tables' last
-    non-zero point may sit a little beyond the nominal gap: the datasheet curves have an
-    absorption tail (GaAs: 0.10 A/W at 890 nm on the DX25C plot)."""
+    """Lecture 2, slides 17–18: R = ηq/hν with 0 ≤ η ≤ 1, and no response beyond λ =
+    1240 nm/E_g (Si 1110, Ge 1850, GaAs 870 nm; InGaAs detectors are specified to 1700
+    nm). The tables' last non-zero point may sit a little beyond the nominal gap: the
+    datasheet curves have an absorption tail (GaAs: 0.10 A/W at 890 nm on the DX25C
+    plot)."""
     lams, rs = RESPONSIVITY[material]
     assert all(r * H * C0 / (lam * 1e-9) / Q_E <= 1.0 for lam, r in zip(lams, rs))
     lit = [lam for lam, r in zip(lams, rs) if r > 0]

@@ -29,11 +29,11 @@ export function setTableDims(w, d) {
   return { w: TABLE.width, d: TABLE.depth };
 }
 
-/** Table size as metres, e.g. "1.5 × 0.9 m". */
+/** Table size as meters, e.g. "1.5 × 0.9 m". */
 export const fmtTable = (w, d) => `${w / 100} × ${d / 100} m`;
 export const CH_COLORS = ['#facc15', '#22d3ee', '#f472b6', '#4ade80'];
 
-// Fiber connector colour code: flat polish (UPC, and PC) blue, angled polish (APC) green.
+// Fiber connector color code: flat polish (UPC, and PC) blue, angled polish (APC) green.
 export const CONNECTOR_COLORS = { 'FC/UPC': 0x2563eb, 'FC/PC': 0x2563eb, 'FC/APC': 0x16a34a };
 export const connectorColor = (type) => CONNECTOR_COLORS[type] ?? CONNECTOR_COLORS['FC/UPC'];
 export const connectorCss = (type) => `#${connectorColor(type).toString(16).padStart(6, '0')}`;
@@ -54,7 +54,7 @@ export function fmtSI(v, unit = '', digits = 3) {
 
 const PLAIN_UNITS = new Set(['dB', 'dBm', 'rad', 'deg', 'div', 'K', 'Ω', '']);
 
-/** Display a parameter value using its spec (unit, display scaling such as metres → nm). */
+/** Display a parameter value using its spec (unit, display scaling such as meters → nm). */
 export function fmtParam(value, spec) {
   if (spec.type === 'bool') return value ? 'on' : 'off';
   if (typeof value !== 'number') return String(value);
@@ -66,7 +66,7 @@ export function fmtParam(value, spec) {
   return fmtSI(value, spec.unit);
 }
 
-/** Wavelength → colour: true colour in the visible, false colour for the infrared bands. */
+/** Wavelength → color: true color in the visible, false color for the infrared bands. */
 export function wavelengthColor(m) {
   const nm = m * 1e9;
   if (nm >= 380 && nm <= 700) {
@@ -87,7 +87,7 @@ export function wavelengthColor(m) {
 
 export const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
-/** Snap a coordinate to the centre of the nearest breadboard hole. */
+/** Snap a coordinate to the center of the nearest breadboard hole. */
 export const snapToHole = (v) => Math.round((v - GRID / 2) / GRID) * GRID + GRID / 2;
 
 export const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));

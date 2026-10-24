@@ -1,7 +1,7 @@
-"""Bob: the receiver. He programs his measurement basis pulse by pulse, reads his time tagger,
-announces which pulses clicked ([#1]), and answers Alice's sifting with his bits at the disclosed
-positions ([#3]). Only the middle time slot of every pulse carries information; a double click
-there gets a random bit."""
+"""Bob: the receiver. He programs his measurement basis pulse by pulse, reads his time
+tagger, announces which pulses clicked ([#1]), and answers Alice's sifting with his bits
+at the disclosed positions ([#3]). Only the middle time slot of every pulse carries
+information; a double click there gets a random bit."""
 
 from __future__ import annotations
 
@@ -36,10 +36,10 @@ class Bob(Party):
         self.key: list[np.ndarray] = []
         print(
             f"receiver up · basis per pulse with p_Z={self.params.p_z} · "
-            f"DET-0 ↔ bit 0, DET-1 ↔ bit 1 in the middle time slot"
+            "DET-0 ↔ bit 0, DET-1 ↔ bit 1 in the middle time slot"
         )
 
-    # ---- physical layer -----------------------------------------------------------------------------
+    # ---- physical layer --------------------------------------------------------------
     def prepare(self, block: int, n: int) -> None:
         m = n // BINS
         basis = (self.rng.random(m) >= self.params.p_z).astype(np.int8)
@@ -47,7 +47,8 @@ class Bob(Party):
         self.hw.call("BOB-AWG", "set_pattern", "ch1", v, self.params.rep_rate)
         self.blocks[block] = dict(basis=basis)
         print(
-            f"block {block}: measuring {m:,} pulses, {int(np.count_nonzero(basis == B_X)):,} in X"
+            f"block {block}: measuring {m:,} pulses,"
+            f" {int(np.count_nonzero(basis == B_X)):,} in X"
         )
 
     def measure(self, batch) -> None:
@@ -73,11 +74,12 @@ class Bob(Party):
             doubles=int(both.sum()),
         )
         print(
-            f"block {batch.seq}: {idx.size:,} middle-slot detections (p {idx.size / c0.size:.3e}), "
-            f"{int(both.sum())} double, {satellites:,} satellite clicks ignored → announced in {size / 1e3:.1f} kB"
+            f"block {batch.seq}: {idx.size:,} middle-slot detections (p"
+            f" {idx.size / c0.size:.3e}), {int(both.sum())} double, {satellites:,}"
+            f" satellite clicks ignored → announced in {size / 1e3:.1f} kB"
         )
 
-    # ---- classical channel --------------------------------------------------------------------------
+    # ---- classical channel -----------------------------------------------------------
     def receive(self, msg: Message) -> None:
         block = msg.block
         if msg.sender != "ALICE" or msg.topic != Topic.SIFT or block not in self.blocks:

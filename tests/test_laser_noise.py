@@ -1,8 +1,9 @@
-"""Laser intensity noise (Laser.rin_db_hz) and shot noise, against the definitions in the RP Photonics
-encyclopedia ("Intensity noise", "Shot noise", "Balanced photodetection"): a photodiode reads
-S_I = 2qI + 4kT/R + RIN·I²; a balanced detector's difference current keeps 2q(I₊ + I₋) and only the
-CMRR residue of the RIN; the noise is one realisation per laser, shared by all its paths; and the
-bench of examples/laser_noise.py measures q and the RIN."""
+"""Laser intensity noise (Laser.rin_db_hz) and shot noise, against the definitions in
+the RP Photonics encyclopedia ("Intensity noise", "Shot noise", "Balanced
+photodetection"): a photodiode reads S_I = 2qI + 4kT/R + RIN·I²; a balanced detector's
+difference current keeps 2q(I₊ + I₋) and only the CMRR residue of the RIN; the noise is
+one realization per laser, shared by all its paths; and the bench of
+examples/laser_noise.py measures q and the RIN."""
 
 import math
 from pathlib import Path
@@ -50,7 +51,8 @@ def test_photodiode_reads_shot_thermal_and_intensity_noise(rin):
 
 
 def test_without_intensity_noise_nothing_is_drawn():
-    """The default draws no random numbers, so every seeded result from before stays the same."""
+    """The default draws no random numbers, so every seeded result from before stays the
+    same."""
     laser = Laser("LD")
     assert (
         laser.intensity_factor(np.arange(10) * 1e-9, 1e-9, np.random.default_rng(0))
@@ -62,8 +64,9 @@ def test_without_intensity_noise_nothing_is_drawn():
 
 
 def test_intensity_noise_per_bin_and_shared_by_every_path():
-    """δ averaged over a bin has variance S/(2Δt), and two paths that leave in the same bins carry
-    the same δ: the ratio of the powers at a coupler's two outputs does not fluctuate.
+    """δ averaged over a bin has variance S/(2Δt), and two paths that leave in the same
+    bins carry the same δ: the ratio of the powers at a coupler's two outputs does not
+    fluctuate.
     """
     s = Setup("shared")
     laser = s.add(
@@ -86,8 +89,8 @@ def test_intensity_noise_per_bin_and_shared_by_every_path():
 
 
 def test_balanced_difference_keeps_the_shot_noise_and_cancels_the_rin():
-    """Both inputs: excess noise = 2q(I₊ + I₋) at every power, and q from the slope to 2 %. One
-    input: RIN·I² above the crossover 2q/RIN, read back to 0.3 dB."""
+    """Both inputs: excess noise = 2q(I₊ + I₋) at every power, and q from the slope to 2
+    %. One input: RIN·I² above the crossover 2q/RIN, read back to 0.3 dB."""
     dark = EX["noise_density"](EX["build"](laser_on=False), sweeps=8)
     bpd = EX["build"]()["BPD-1"]
     assert dark == pytest.approx(

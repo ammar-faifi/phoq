@@ -38,7 +38,7 @@ monitor_noise = { value = 180e-6, from = "datasheet-max", spec = "5.1 MONITOR Vo
 [curves.responsivity]
 from = "datasheet-graph"
 spec = "5.1 Typical InGaAs Detector responsivity (PDA440C, PDB450C)"
-note = "Traced by colour from the published plot (±0.005 A/W)."
+note = "Traced by color from the published plot (±0.005 A/W)."
 wavelength_nm = [800, 825, 850, 875, 900, 925, 950, 975, 1000, 1025, 1050, 1075, 1100, 1125, 1150, 1175, 1200, 1225, 1250, 1275, 1300, 1325, 1350, 1375, 1400, 1425, 1450, 1475, 1500, 1525, 1550, 1575, 1600, 1625, 1650, 1675, 1700, 1725, 1750, 1775, 1800]
 value = [0.149, 0.174, 0.22, 0.284, 0.368, 0.523, 0.617, 0.659, 0.682, 0.699, 0.714, 0.731, 0.747, 0.766, 0.785, 0.804, 0.827, 0.861, 0.901, 0.928, 0.948, 0.961, 0.973, 0.984, 0.993, 1.002, 1.01, 1.018, 1.027, 1.033, 1.038, 1.036, 1.022, 0.993, 0.932, 0.493, 0.156, 0.048, 0.013, 0.007, 0.006]
 
@@ -46,8 +46,8 @@ value = [0.149, 0.174, 0.22, 0.284, 0.368, 0.523, 0.617, 0.659, 0.682, 0.699, 0.
 optical_input_w = 20e-3
 
 [unsupported]
-rf_dc_offset_v = { max = 15e-3, note = "RF OUTPUT DC offset < ±15 mV; not modelled" }
-monitor_dc_offset_v = { max = 2e-3, note = "< ±2 mV; not modelled" }
+rf_dc_offset_v = { max = 15e-3, note = "RF OUTPUT DC offset < ±15 mV; not modeled" }
+monitor_dc_offset_v = { max = 2e-3, note = "< ±2 mV; not modeled" }
 cw_saturation_w = "4.5 mW @ 1550 nm (10³ V/A) — the model derives it as swing/(G·ℜ) at the selected gain"
 ac_coupled_version = "-AC versions: lower cut-off ≤ 100 Hz (typ. < 5 Hz); the model is DC-coupled"
 active_area_diameter_m = { typ = 0.3e-3 }

@@ -16,7 +16,7 @@ const MAT = {
 export const LAPTOP = { w: 28, d: 19, h: 1.4, open: 100 };   // lid opened 100° from the base
 export const SWITCH = { w: 22, d: 12, h: 3.2, ports: 8 };
 const LANE = 23;                    // cm from the front edge: the cable lane behind the laptops
-export const FRONT_STRIP = 11;      // laptops' centre line, cm from the front edge
+export const FRONT_STRIP = 11;      // laptops' center line, cm from the front edge
 
 export class Laptop {
   constructor(lab, info, index) {
@@ -48,7 +48,7 @@ export class Laptop {
     const screen = new THREE.Mesh(new THREE.PlaneGeometry(LAPTOP.w - 2.4, 15.6), new THREE.MeshBasicMaterial({ map: this.tex, toneMapped: false }));
     screen.position.set(0, 8.5, 0.42);
     lid.add(panel, screen);
-    // RJ45 port on the back-left of the base; the cable leaves towards the lane.
+    // RJ45 port on the back-left of the base; the cable leaves toward the lane.
     const port = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.0, 0.6), MAT.port);
     port.position.set(-LAPTOP.w / 2 + 3, LAPTOP.h / 2, -LAPTOP.d / 2 - 0.2);
     for (const m of [base, keys, pad, panel, screen, port]) m.userData.laptop = this;
@@ -125,7 +125,7 @@ export class Switch {
     for (let i = 0; i < SWITCH.ports; i++) {
       const x = -SWITCH.w / 2 + 2.2 + i * 2.5;
       const port = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.1, 0.4), MAT.port);
-      port.position.set(x, 1.1, -SWITCH.d / 2 - 0.1);          // ports on the back face, towards the lane
+      port.position.set(x, 1.1, -SWITCH.d / 2 - 0.1);          // ports on the back face, toward the lane
       const led = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.3, 0.2), new THREE.MeshStandardMaterial({ color: 0x0a2016, emissive: 0x34d399, emissiveIntensity: 0 }));
       led.position.set(x, 2.2, -SWITCH.d / 2 - 0.1);
       g.add(port, led);

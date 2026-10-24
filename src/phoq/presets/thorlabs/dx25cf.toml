@@ -9,7 +9,7 @@ tier = "datasheet"
 tags = ["GaAs", "25 GHz", "780", "850"]
 notes = """
 DX25DF is the multimode (OM4) version: 0.45 A/W, conversion gain 11 V/W. The 10 Ω series bias resistor and
-the 4 V bias are not modelled; the module needs an external bias supply.
+the 4 V bias are not modeled; the module needs an external bias supply.
 """
 
 [source]

@@ -1,6 +1,6 @@
-"""Coherent one-way QKD (examples/cow): the calibrated hardware, the reference run against the
-expected rates, QBER and visibilities, the gain-switched source that has no coherence to show,
-and the two parties sifting over the classical channel."""
+"""Coherent one-way QKD (examples/cow): the calibrated hardware, the reference run
+against the expected rates, QBER and visibilities, the gain-switched source that has no
+coherence to show, and the two parties sifting over the classical channel."""
 
 import math
 from pathlib import Path
@@ -71,7 +71,8 @@ def test_reference_run_matches_theory():
 
 
 def test_gain_switched_source_shows_no_coherence():
-    """Same data line, but every pulse starts with a fresh phase: the monitoring line sees V = 0."""
+    """Same data line, but every pulse starts with a fresh phase: the monitoring line
+    sees V = 0."""
     res = cow.run(cow.COWParams(source="gain-switched"), blocks=6, seed=3)
     assert abs(res.tally.v(net=False)) < 0.1 and res.expected["V net"] == 0.0
     assert res.qber == pytest.approx(res.expected["QBER"], abs=0.006)
@@ -94,7 +95,7 @@ def test_parties_sift_the_same_key():
     )  # detect + errors per block; sift
 
 
-# ---- the eavesdropper ---------------------------------------------------------------------------
+# ---- the eavesdropper ----------------------------------------------------------------
 EVE = Path(__file__).resolve().parents[1] / "examples" / "cow" / "eve.py"
 
 
@@ -109,7 +110,8 @@ def test_eve_station_is_calibrated():
     )  # her loopback, through the bar state
     net, awg = trace(setup), setup["EVE-AWG"]
     alice, eve = setup["ALICE-LD"], setup["EVE-TX-LD"]
-    # symbol k of the switch pattern meets Alice's pulse k; Eve's pulse k reaches each of Bob's detectors with it
+    # symbol k of the switch pattern meets Alice's pulse k; Eve's pulse k reaches each
+    # of Bob's detectors with it
     assert awg.ch2_delay == pytest.approx(
         c.passing(net, setup["DB"], alice, setup["EVE-SW"]), abs=1e-15
     )
@@ -139,9 +141,10 @@ def test_eve_station_is_calibrated():
 
 
 def test_intercept_resend_breaks_coherence_not_the_qber():
-    """The paper's point: a time-of-arrival measurement leaves the data line alone, so with the
-    flux matched Bob's rate and QBER stay where they were, while V_d and V_1−0 fall with the
-    fraction of bits Eve intercepts — as ``eve_theory`` expects, within the counting statistics.
+    """The paper's point: a time-of-arrival measurement leaves the data line alone, so
+    with the flux matched Bob's rate and QBER stay where they were, while V_d and V_1−0
+    fall with the fraction of bits Eve intercepts — as ``eve_theory`` expects, within
+    the counting statistics.
     """
     p = cow.COWParams()
     setup = cow.build(p, eve=True)
@@ -211,8 +214,9 @@ def test_three_parties_with_an_eavesdropper(monkeypatch):
 
 
 def test_eve_stands_down_when_her_switch_drive_is_off(monkeypatch):
-    """With EVE-AWG's CH2 output off her switch rests in bar: she intercepts nothing, and the
-    running figures on Alice's laptop show a line as clean as with the station idle."""
+    """With EVE-AWG's CH2 output off her switch rests in bar: she intercepts nothing,
+    and the running figures on Alice's laptop show a line as clean as with the station
+    idle."""
     from phoq import parties
 
     monkeypatch.setattr(parties, "PARTY_REGISTRY", list(parties.PARTY_REGISTRY))

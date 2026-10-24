@@ -1,25 +1,30 @@
-"""What Alice and Bob have in common: a transmitter to program and the whole classical dialogue.
+"""What Alice and Bob have in common: a transmitter to program and the whole classical
+dialogue.
 
-Physical layer (``prepare``): draw a random intensity level (vacuum / ν / μ) and phase per pulse and
-program the station's own AWG through the hardware link. The draws stay in this process — they
-are the station's secret.
+Physical layer (``prepare``): draw a random intensity level (vacuum / ν / μ) and phase
+per pulse and program the station's own AWG through the hardware link. The draws stay in
+this process — they are the station's secret.
 
-Classical channel (``receive``), per block, in the order of ``examples/mpqkd/reference.py``'s
-annotations:
+Classical channel (``receive``), per block, in the order of
+``examples/mpqkd/reference.py``'s annotations:
 
-    [#1] Charlie's ``clicks`` arrive  →  [#2] pair them (same algorithm at both stations)
-    → [#3] send our basis labels and the pair's intensity level, wait for the partner's → sift
-    → [#4] send our alignment angles θ (every pair), wait for the partner's  →  keep matches
-    → [#5] disclose the X bits (E_X) and, led by one station, a random sample of the key bits
-           (E_Z); the disclosed bits leave the key. Both stations tally every pair's public class
-           (basis, level, θ match) — the decoy statistics behind the key rate.
+    [#1] Charlie's ``clicks`` arrive → [#2] pair them (same algorithm at both stations)
+    → [#3] send our basis labels and the pair's intensity level, wait for the partner's
+           → sift
+    → [#4] send our alignment angles θ (every pair), wait for the partner's → keep
+           matches
+    → [#5] disclose the X bits (E_X) and, led by one station, a random sample of the key
+           bits (E_Z); the disclosed bits leave the key. Both stations tally every
+           pair's public class (basis, level, θ match) — the decoy statistics behind the
+           key rate.
 
 and, once ``chunk_bits`` sifted key bits have accumulated, [#6] on that chunk:
 
-    leader ``ec-start`` (Cascade seed, first parities) ⇄ ``ec-query`` / ``ec-parity`` … until the
-    partner's ``ec-done`` carries a universal-hash tag of its corrected key → ``verified``; the
-    leader then sizes privacy amplification from the key-rate estimate (:mod:`.keyrate`) and
-    sends the Toeplitz seed and output length in ``pa``; both hash their verified chunks.
+    leader ``ec-start`` (Cascade seed, first parities) ⇄ ``ec-query`` / ``ec-parity`` …
+    until the partner's ``ec-done`` carries a universal-hash tag of its corrected key →
+    ``verified``; the leader then sizes privacy amplification from the key-rate estimate
+    (:mod:`.keyrate`) and sends the Toeplitz seed and output length in ``pa``; both hash
+    their verified chunks.
 
 Every parity the leader discloses and every tag bit is counted as leaked and subtracted.
 """
@@ -61,14 +66,14 @@ class Station(Party):
     )
     params = MPQKDParams()  # public parameters, agreed in advance
 
-    # ---- what differs between Alice and Bob ----------------------------------------------------
+    # ---- what differs between Alice and Bob ------------------------------------------
     def z_bit(self, level_front: np.ndarray) -> np.ndarray:
         raise NotImplementedError
 
     def x_bit(self, k: np.ndarray, flip: np.ndarray) -> np.ndarray:
         raise NotImplementedError
 
-    # ---- lifecycle ----------------------------------------------------------------------------------
+    # ---- lifecycle -------------------------------------------------------------------
     def setup(self) -> None:
         p = self.params
         self.blocks: dict[int, dict] = {}
@@ -103,13 +108,14 @@ class Station(Party):
             0.0,
         )  # my laser's linewidth and detuning, announced to the partner
         print(
-            f"station up · public parameters μ={p.mu} ν={p.nu} p_μ={p.p_mu} p_ν={p.p_nu} D={p.D} l={p.l} · "
-            f"chunks of {p.chunk_bits} bits, Cascade ×{p.cascade_passes}, {p.verify_bits}-bit tags, "
-            f"PA sized with the {p.estimator} estimator · partner {self.partner} · "
-            f"{'leads' if self.leader else 'follows'} the post-processing"
+            f"station up · public parameters μ={p.mu} ν={p.nu} p_μ={p.p_mu}"
+            f" p_ν={p.p_nu} D={p.D} l={p.l} · chunks of {p.chunk_bits} bits, Cascade"
+            f" ×{p.cascade_passes}, {p.verify_bits}-bit tags, PA sized with the"
+            f" {p.estimator} estimator · partner {self.partner} ·"
+            f" {'leads' if self.leader else 'follows'} the post-processing"
         )
 
-    # ---- physical layer -----------------------------------------------------------------------------
+    # ---- physical layer --------------------------------------------------------------
     def prepare(self, block: int, n: int) -> None:
         p, tag = self.params, self.tag
         level = draw_levels(self.rng, n, p)
@@ -125,11 +131,12 @@ class Station(Party):
         self.hw.call(f"{tag}-AWG", "set_pattern", "ch2", v_ph, rate)
         self.blocks.setdefault(block, {})["prep"] = (level, k.astype(np.int16))
         print(
-            f"block {block}: programmed {n:,} pulses, {int((level == LMU).sum()):,} with μ and "
-            f"{int((level == 1).sum()):,} with ν (levels and phases kept private)"
+            f"block {block}: programmed {n:,} pulses, {int((level == LMU).sum()):,}"
+            f" with μ and {int((level == 1).sum()):,} with ν (levels and phases kept"
+            " private)"
         )
 
-    # ---- classical channel ----------------------------------------------------------------------------
+    # ---- classical channel -----------------------------------------------------------
     def receive(self, msg: Message) -> None:
         if msg.sender == "CHARLIE" and msg.topic == Topic.CLICKS:
             st = self.blocks.get(msg.block)
@@ -177,7 +184,7 @@ class Station(Party):
                 st["sample_partner"] = msg.bits
                 self._finish(msg.block, st)
 
-    # ---- [#1]–[#5]: pairing, sifting, estimation --------------------------------------------------------
+    # ---- [#1]–[#5]: pairing, sifting, estimation -------------------------------------
     def _pair(self, block: int, st: dict) -> None:
         m = st["clicks"]
         F, R = simple_pairing(m.idx, self.params.l)  # [#2] identical at both stations
@@ -308,18 +315,21 @@ class Station(Party):
         e_x = c.x_errors[LMU, LMU] / n_xx if n_xx else float("nan")
         r_p = st["F"].size / n
         print(
-            f"block {block}: {st['F'].size:,} pairs (r_p {r_p:.2e}, Eq.4 {pairing_rate_theory(st['p_click'], p.l):.2e}) → "
-            f"{kz.size:,} key Z pairs ({pos.size} disclosed, E_Z {e_z:.3f}) · {st['kx'].size:,} X ({int(st['xx'].sum())} μμ, "
-            f"E_X(μμ) {e_x:.3f}) · sifted +{int(keep.sum()):,} = {t['sifted']:,} bits"
+            f"block {block}: {st['F'].size:,} pairs (r_p {r_p:.2e}, Eq.4"
+            f" {pairing_rate_theory(st['p_click'], p.l):.2e}) → {kz.size:,} key Z pairs"
+            f" ({pos.size} disclosed, E_Z {e_z:.3f}) · {st['kx'].size:,} X"
+            f" ({int(st['xx'].sum())} μμ, E_X(μμ) {e_x:.3f}) · sifted"
+            f" +{int(keep.sum()):,} = {t['sifted']:,} bits"
         )
         del self.blocks[block]
         if self.leader:
             self._maybe_start_ec()
         self._readouts()
 
-    # ---- [#6] error correction -------------------------------------------------------------------------
+    # ---- [#6] error correction -------------------------------------------------------
     def _maybe_start_ec(self) -> None:
-        """Leader: reconcile the pooled sifted bits once a chunk's worth is there (one chunk at a time)."""
+        """Leader: reconcile the pooled sifted bits once a chunk's worth is there
+        (one chunk at a time)."""
         p = self.params
         if (
             self.ec_active is not None
@@ -352,16 +362,18 @@ class Station(Party):
             parities=parities,
         )
         print(
-            f"chunk {chunk}: reconciling {raw.size:,} sifted bits of blocks {blocks[0]}–{blocks[-1]} "
-            f"(Cascade, k₁ = {ref.sizes[0]} from E_Z ≈ {qber:.4f}, {len(parities)} first parities)"
+            f"chunk {chunk}: reconciling {raw.size:,} sifted bits of blocks"
+            f" {blocks[0]}–{blocks[-1]} (Cascade, k₁ = {ref.sizes[0]} from E_Z ≈"
+            f" {qber:.4f}, {len(parities)} first parities)"
         )
 
     def _ec_start(self, msg: Message) -> None:
-        """Follower: start correcting our copy of the chunk towards the leader's."""
+        """Follower: start correcting our copy of the chunk toward the leader's."""
         missing = [b for b in msg.blocks if b not in self.pool]
         if missing:
             print(
-                f"⚠ chunk {msg.chunk}: blocks {missing} never finished here; chunk dropped"
+                f"⚠ chunk {msg.chunk}: blocks {missing} never finished here; chunk"
+                " dropped"
             )
             return
         raw = np.concatenate([self.pool.pop(b)["bits"] for b in msg.blocks])
@@ -371,7 +383,8 @@ class Station(Party):
         )
         self.ec_active = msg.chunk
         print(
-            f"chunk {msg.chunk}: reconciling {raw.size:,} sifted bits of blocks {msg.blocks[0]}–{msg.blocks[-1]}"
+            f"chunk {msg.chunk}: reconciling {raw.size:,} sifted bits of blocks"
+            f" {msg.blocks[0]}–{msg.blocks[-1]}"
         )
         self._ec_continue(
             msg.chunk, cor.receive(list(msg.parity_blocks), list(msg.parities))
@@ -411,12 +424,14 @@ class Station(Party):
         self._ec_continue(msg.chunk, cor.receive(list(msg.blocks), list(msg.parities)))
 
     def _ec_done(self, msg: Message) -> None:
-        """Leader: the partner finished Cascade; compare its tag with ours and tell it."""
+        """Leader: the partner finished Cascade; compare its tag with ours and tell
+        it."""
         ch = self.chunks[msg.chunk]
         ch["leak"], ch["errors"] = ch["ref"].leak, msg.errors
         if msg.leak != ch["leak"]:
             print(
-                f"⚠ chunk {msg.chunk}: leak accounting differs ({ch['leak']} sent, partner counted {msg.leak})"
+                f"⚠ chunk {msg.chunk}: leak accounting differs ({ch['leak']} sent,"
+                f" partner counted {msg.leak})"
             )
         ch["tag"] = verification_tag(ch["key"], msg.tag_seed, self.params.verify_bits)
         ok = ch["tag"] == msg.tag
@@ -445,16 +460,19 @@ class Station(Party):
             else float("nan")
         )
         print(
-            f"chunk {chunk}: {ch['n']:,} bits reconciled, {ch['errors']} errors corrected "
-            f"(E_Z {ch['errors'] / ch['n']:.2e}), {ch['leak']} parities leaked"
+            f"chunk {chunk}: {ch['n']:,} bits reconciled, {ch['errors']} errors"
+            f" corrected (E_Z {ch['errors'] / ch['n']:.2e}), {ch['leak']} parities"
+            " leaked"
             + (f" (f = {f_ec:.2f})" if ch["errors"] else "")
-            + f" · {p.verify_bits}-bit tag {'matches ✓' if ok else 'DIFFERS ✗ — chunk discarded'}"
+            + f" · {p.verify_bits}-bit tag"
+            f" {'matches ✓' if ok else 'DIFFERS ✗ — chunk discarded'}"
         )
         self._readouts()
 
-    # ---- [#6] privacy amplification -------------------------------------------------------------------
+    # ---- [#6] privacy amplification --------------------------------------------------
     def _maybe_pa(self) -> None:
-        """Leader: size the Toeplitz hash of all verified chunks from the key-rate estimate."""
+        """Leader: size the Toeplitz hash of all verified chunks from the key-rate
+        estimate."""
         if not self.verified:
             return
         p = self.params
@@ -465,8 +483,10 @@ class Station(Party):
         length = final_length(n, est, leak_ec, leak_v)
         if length <= 0:
             print(
-                f"PA: no secret key yet from {n:,} corrected bits — secret fraction {est.secret_fraction:.3f} "
-                f"(q₁₁ ≥ {est.q11_lower:.3f}, e₁₁ {est.e11_used:.4f}) against {leak_ec + leak_v} leaked bits; waiting for more"
+                f"PA: no secret key yet from {n:,} corrected bits — secret fraction"
+                f" {est.secret_fraction:.3f} (q₁₁ ≥ {est.q11_lower:.3f}, e₁₁"
+                f" {est.e11_used:.4f}) against {leak_ec + leak_v} leaked bits; waiting"
+                " for more"
             )
             return
         seed = int(self.rng.integers(2**31))
@@ -489,7 +509,8 @@ class Station(Party):
             8, 0.25 * msg.length
         ):  # our counts may lead by a block
             print(
-                f"⚠ PA: the leader sizes {msg.length} final bits, our own estimate says {mine}"
+                f"⚠ PA: the leader sizes {msg.length} final bits, our own estimate says"
+                f" {mine}"
             )
         self._amplify(list(msg.chunks), msg.seed, msg.length, est)
 
@@ -506,13 +527,14 @@ class Station(Party):
             del self.chunks[c]
         self.totals["chunks"] += len(chunks)
         print(
-            f"PA: {raw.size:,} corrected bits × secret fraction {est.secret_fraction:.3f} "
-            f"(q₁₁ ≥ {est.q11_lower:.3f}, e₁₁ {est.e11_used:.4f} [{est.estimator}]) − {leak} leaked "
-            f"→ {length} final bits · key {bits_to_hex(final)}"
+            f"PA: {raw.size:,} corrected bits × secret fraction"
+            f" {est.secret_fraction:.3f} (q₁₁ ≥ {est.q11_lower:.3f}, e₁₁"
+            f" {est.e11_used:.4f} [{est.estimator}]) − {leak} leaked → {length} final"
+            f" bits · key {bits_to_hex(final)}"
         )
         self._readouts()
 
-    # ---- read-outs ---------------------------------------------------------------------------------------
+    # ---- read-outs -------------------------------------------------------------------
     def _readouts(self) -> None:
         p, t, c = self.params, self.totals, self.counts
         est = estimate(c, p) if c.pairs else None
