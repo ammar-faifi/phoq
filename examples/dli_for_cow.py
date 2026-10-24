@@ -78,6 +78,7 @@ def build(linewidth: float = 100e3, randomized: bool = False, mu: float = 0.5, k
     setup.connect(fg.ch1, im.rf)
     for d, ch in ((db, cnt.ch1), (dm1, cnt.ch2), (dm2, cnt.ch3)):
         setup.connect(d.out, ch)
+    setup.terminate_spares()  # the tap's and the DLI's spare inputs
 
     kind, slots = cow_sequence(n_bits)
     setup.cow = {"kind": kind, "slots": slots}  # Alice's record, for the analysis below

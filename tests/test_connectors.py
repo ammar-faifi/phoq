@@ -12,6 +12,7 @@ from runpy import run_path
 from phoq import (
     Coupler,
     Fiber,
+    FiberTerminator,
     IntensityModulator,
     Laser,
     MatingSleeve,
@@ -20,7 +21,7 @@ from phoq import (
     Setup,
     SinglePhotonDetector,
 )
-from phoq.engine import report
+from phoq.engine import report, trace
 from phoq.units import CONNECTOR_LOSS_DB, FRESNEL, MISMATCH_LOSS_DB, RETURN_LOSS_DB, db_to_t, mating
 
 
@@ -94,12 +95,15 @@ def test_open_ends_reflect_by_polish():
 
 def test_a_reflection_reaches_a_detector_through_a_coupler():
     """Reflectometry: the laser feeds a coupler, a cord hangs off one output, a meter sits on
-    the coupler's other input. Only reflected light can reach the meter."""
+    the coupler's other input. Only reflected light can reach the meter. The coupler is angled
+    and its spare output capped, so the tail's flat end is the only strong reflector."""
     s = Setup("reflectometer")
-    ld, bs, opm, tail = s.add(Laser("LD", mode="cw", power_dbm=0.0), Coupler("BS"), PowerMeter("OPM"), Fiber("TAIL"))
+    ld, bs, opm = s.add(Laser("LD", mode="cw", power_dbm=0.0), Coupler("BS", connector="FC/APC"), PowerMeter("OPM"))
+    tail = s.add(Fiber("TAIL", connector_a="FC/APC"))
     s.connect(ld.out, bs.a1)
     s.connect(bs.a2, opm.inp)
     s.connect(bs.b1, tail.a)
+    s.terminate(bs.b2)  # left open, its flat 3.6 % would interfere with the tail's
     loss_db = 5 * CONNECTOR_LOSS_DB + 2 * (10 * math.log10(2) + bs.excess_loss_db) - 10 * math.log10(FRESNEL)
     assert reading(s) == pytest.approx(1e-3 * db_to_t(loss_db + CONNECTOR_LOSS_DB), rel=0.05)  # ± mating-reflection fringes
     s["TAIL"].connector_b = "FC/APC"  # the angled end hides it
@@ -253,3 +257,113 @@ def test_connector_cascade_example():
 
 def w_dbm(w):
     return 10 * math.log10(w / 1e-3)
+
+
+def homodyne(vacuum_cap=None, ratio=0.5):
+    """Laser → coupler → a photodiode on b1, b2 capped (FC/UPC); a2 is left open, or capped."""
+    s = Setup("homodyne")
+    ld, bs, pd = s.add(Laser("LD", mode="cw", power_dbm=0.0), Coupler("BS", ratio=ratio), Photodiode("PD"))
+    s.connect(ld.out, bs.a1)
+    s.connect(bs.b1, pd.inp)
+    s.terminate(bs.b2)
+    if vacuum_cap:
+        s.terminate(bs.a2, vacuum_cap)
+    return s
+
+
+def test_an_open_part_port_is_an_open_end():
+    """A coupler output left unconnected emits into the air and reflects like an open cord end;
+    the reflection comes back out of the coupler's other input."""
+    s = Setup("open port")
+    ld, bs, opm = s.add(Laser("LD", mode="cw", power_dbm=0.0), Coupler("BS"), PowerMeter("OPM"))
+    s.connect(ld.out, bs.a1)
+    s.connect(bs.a2, opm.inp)
+    s.terminate(bs.b1)
+    t, half = db_to_t(CONNECTOR_LOSS_DB), 0.5 * db_to_t(bs.excess_loss_db)
+    r = report(s)
+    out = {e["port"]: e["power"] for e in r["open_ends"]}
+    assert out["BS.b2"] == pytest.approx(1e-3 * t**2 * half * (1 - FRESNEL), rel=1e-3)
+    assert any(w["text"].startswith("Open connector BS.b2 emits") for w in r["warnings"])
+    assert reading(s) == pytest.approx(1e-3 * t**4 * half**2 * FRESNEL, rel=0.05)  # ± the −50 dB caps' fringes
+    s.terminate(bs.b2)
+    assert reading(s) < 1e-3 * t**4 * half**2 * db_to_t(RETURN_LOSS_DB["FC/UPC"]) * 4
+    angled = Setup("angled port")
+    ld, bs, opm = angled.add(Laser("LD", mode="cw", power_dbm=0.0), Coupler("BS", connector="FC/APC"), PowerMeter("OPM"))
+    angled.connect(ld.out, bs.a1)
+    angled.connect(bs.a2, opm.inp)
+    angled.terminate(bs.b1)
+    assert reading(angled) < 1e-3 * t**4 * half**2 * db_to_t(RETURN_LOSS_DB["FC/APC"]) * 4  # −60 dB, not 3.6 %
+
+
+@pytest.mark.parametrize("cap", ["FC/UPC", "FC/APC"])
+def test_a_terminator_plugs_in_without_a_cord_and_reflects_as_its_mated_pair(cap):
+    s = Setup("cap")
+    ld = s.add(Laser("LD", mode="cw", power_dbm=0.0))
+    trm = s.add(FiberTerminator("TRM", connector=cap))
+    assert s.connect(ld.out, trm.ports["p"]) is None  # no cord
+    r = report(s)
+    assert r["open_ends"] == [] and r["detectors"] == {}
+    _, back, _ = mating("FC/UPC", cap)
+    assert back_db(s) == pytest.approx(10 * math.log10(back), abs=0.01)
+    assert trm.info()["Reflected back"].startswith(f"{10 * math.log10(back):.1f} dB")
+    mismatch = [w for w in r["warnings"] if "air gap" in w["text"]]
+    assert bool(mismatch) == (cap == "FC/APC")  # a green cap on a blue port
+    again = Setup.from_dict(json.loads(json.dumps(s.to_dict())))
+    assert [(a.path, b.path) for a, b in again.connections()] == [("LD.out", "TRM.p")]
+    assert "setup.connect(ld.out, trm.p)" in s.to_python()
+    from fastapi.testclient import TestClient
+    from phoq.server import create_app
+
+    with TestClient(create_app(s, web_dir=None)) as c:  # the lab draws a plug on the port it is mated to
+        comps = {x["name"]: x for x in c.get("/api/state").json()["components"]}
+        assert comps["TRM"]["plug"] and not comps["LD"]["plug"] and comps["TRM"]["ports"][0]["peer"] == "LD.out"
+    with pytest.raises(ConnectionError, match="both are plugs"):
+        s.connect(s.add(FiberTerminator("TRM-2")).ports["p"], s.add(FiberTerminator("TRM-3")).ports["p"])
+
+
+def test_a_double_bounce_reaches_the_detector_at_the_product_of_its_gains():
+    """Light reflected at the mating on the coupler's output (−50 dB) leaves by the coupler's open
+    input, the flat end sends 3.6 % of it back in, and it goes on to the photodiode: the strongest
+    stray, r·F·(½)² of the direct light (the one off the photodiode's own mating passes two more
+    connectors). A matching cap drops these below the −90 dB floor, and the warning with them."""
+    s = homodyne()
+    pd = s["PD"]
+    paths = trace(s).paths[pd]
+    direct = max(abs(p.amp) ** 2 for p in paths if not p.reflections)
+    strays = [p for p in paths if p.reflections == 2 and any(port == "BS.a2" for _, port in p.sites)]
+    half = 0.5 * db_to_t(s["BS"].excess_loss_db)
+    want = db_to_t(RETURN_LOSS_DB["FC/UPC"]) * FRESNEL * half**2
+    assert max(abs(p.amp) ** 2 for p in strays) / direct == pytest.approx(want, rel=1e-3)
+    warned = [w["text"] for w in report(s)["warnings"] if w["text"].startswith("Open connector BS.a2 reflects")]
+    assert warned and "PD" in warned[0]
+    capped = homodyne(vacuum_cap="FC/UPC")
+    assert not [p for p in trace(capped).paths[capped["PD"]] if p.reflections == 2]  # r² ≈ −100 dB
+    assert not [w for w in report(capped)["warnings"] if "reflects light on" in w["text"]]
+
+
+def test_terminate_spares_caps_the_unused_ports_of_parts_only():
+    """A coupler's spare port gets a cap of its own type; a laser with nothing on it, a free
+    detector input and an unplugged cord end are not spares. The lab's button does the same."""
+    def bench():
+        s = Setup("spares")
+        ld, bs, pd = s.add(Laser("LD"), Coupler("BS", connector="FC/APC"), Photodiode("PD"))
+        s.add(Laser("LD-2"), Photodiode("PD-2"), Fiber("TAIL"))
+        s.connect(ld.out, bs.a1)
+        s.connect(bs.b1, pd.inp)
+        s.connect(bs.b2, s["TAIL"].ports["a"])
+        return s
+
+    s = bench()
+    caps = s.terminate_spares()
+    assert [(c.ports["p"].peer.path, c.connector) for c in caps] == [("BS.a2", "FC/APC")]
+    assert s.terminate_spares() == []  # nothing left to cap
+    from fastapi.testclient import TestClient
+    from phoq.server import create_app
+
+    assert [p.path for p in bench().spare_ports()] == ["BS.a2"]
+    with TestClient(create_app(bench(), web_dir=None)) as c:
+        assert c.get("/api/state").json()["spares"] == ["BS.a2"]  # the lab's count of open spare ports
+        assert c.post("/api/terminate-spares").json() == {"ok": True, "caps": ["TRM-1"]}
+        assert c.get("/api/state").json()["spares"] == []
+        comps = {x["name"]: x for x in c.get("/api/state").json()["components"]}
+        assert comps["TRM-1"]["plug"] and comps["TRM-1"]["ports"][0]["peer"] == "BS.a2"

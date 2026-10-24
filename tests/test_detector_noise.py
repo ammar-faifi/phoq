@@ -69,6 +69,7 @@ def test_heterodyne_beat_and_its_shot_noise_limited_snr():
     s.connect(lo.out, cp.a1)
     s.connect(sig.out, cp.a2)
     s.connect(cp.b1, pd.inp)
+    s.terminate(cp.b2)
     net, rng = trace(s), np.random.default_rng(4)
     p_lo, p_s = (sum(abs(p.amp) ** 2 for p in net.paths[pd] if p.source is x) * x.power for x in (lo, sig))
     t = np.arange(N) * DT

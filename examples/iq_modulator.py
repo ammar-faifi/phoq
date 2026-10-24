@@ -88,6 +88,7 @@ def build(*, arcsin: bool = True, dc1_error: float = 0.0, dc3_error_deg: float =
         setup.connect(out, port)
     setup.connect(fg.ch1, iqm.rf_i)
     setup.connect(fg.ch2, iqm.rf_q)
+    setup.terminate_spares()  # the tap's and both hybrids' spare inputs
 
     bias = iqm.operating_bias()
     psu1.set(ch1_voltage=bias["bias_i"] + dc1_error, ch2_voltage=bias["bias_q"])

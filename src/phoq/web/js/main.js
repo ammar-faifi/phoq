@@ -124,9 +124,23 @@ class Lab {
       }
     }
 
+    // A plug (a terminator) mated straight onto a part's port rides on it; unplugged, it goes back on the table.
+    for (const c of s.components) {
+      const p = c.plug && this.parts.get(c.name);
+      if (!p) continue;
+      const [hn, hp] = c.ports[0]?.peer ? split(c.ports[0].peer) : [];
+      const host = hn && this.parts.get(hn);
+      const was = p.mount;
+      p.mount = host ? { part: host, port: hp } : null;
+      p.setMounted?.(!!p.mount);
+      if (p.mount) p.placed = true;
+      else if (was) placeNew(this, p);
+    }
+
     if (first) { this.initialTable(); this.initialLayout(); }
     else {
       for (const p of added) {
+        if (p.mount) continue;
         if (p.onShelf) layoutShelf(this);
         else placeNew(this, p, this.pendingPos.get(p.name));
         p.placed = true;
@@ -182,7 +196,7 @@ class Lab {
     try { localStorage.setItem(this.tableKey(), JSON.stringify(dims)); } catch { /* storage unavailable */ }
     if (relayout) this.relayout();
     else {
-      for (const p of this.parts.values()) if (!p.onShelf) p.setPose(p.group.position.x, p.group.position.z);
+      for (const p of this.parts.values()) if (!p.onShelf && !p.mount) p.setPose(p.group.position.x, p.group.position.z);
       layoutShelf(this);
       for (const f of this.fibers.values()) {
         for (const e of f.ends) {
@@ -198,7 +212,7 @@ class Lab {
 
   initialLayout() {
     const saved = this.loadLayout();
-    const known = [...this.parts.values()].filter((p) => !p.onShelf && saved[p.name]);
+    const known = [...this.parts.values()].filter((p) => !p.onShelf && !p.mount && saved[p.name]);
     if (!known.length) { autoLayout(this); for (const p of this.parts.values()) p.placed = true; this.rememberLayout(); return; }
     for (const p of known) { const [x, z, rot] = saved[p.name]; p.setPose(x, z, rot); p.placed = true; }
     layoutShelf(this);
@@ -222,10 +236,12 @@ class Lab {
       f.flow = r.fibers[n] ?? { fwd: 0, bwd: 0, wavelength: 1550e-9 };
       for (const e of f.ends) e.emit = 0;
     }
+    for (const p of this.parts.values()) for (const n of p.glows.keys()) p.setPortGlow(n, 0);
     for (const o of r.open_ends) {
       const [fn, pn] = split(o.port);
       const e = this.fibers.get(fn)?.ends.find((x) => x.portName === pn);
       if (e) { e.emit = o.power; e.emitLambda = o.wavelength; }
+      else this.parts.get(fn)?.setPortGlow(pn, o.power, o.wavelength);   // an open bulkhead on a part
     }
     for (const [n, p] of this.parts) p.setReport(r.detectors[n]);
     this.ui.updateWarnings(r);
@@ -298,6 +314,11 @@ class Lab {
   single(name) { return this.call(this.api.single(name)); }
   clearTrace(name) { return this.call(this.api.clearTrace(name)); }
   connect(a, b) { return this.call(this.api.connect(a, b), `${a} → ${b}`); }
+  async capSpares() {
+    const r = await this.call(this.api.terminateSpares());
+    const n = r?.caps?.length ?? 0;
+    if (r) this.ui.toast(n ? `Capped ${n} spare port${n > 1 ? 's' : ''}` : 'No spare ports to cap');
+  }
   disconnect(port, quiet = false) { return this.call(this.api.disconnect(port), quiet ? null : `Unplugged ${port}`); }
 
   unplugEnd(end) {
@@ -341,7 +362,7 @@ class Lab {
   }
   rememberLayout() {
     const out = {};
-    for (const p of this.parts.values()) if (!p.onShelf) out[p.name] = [p.group.position.x, p.group.position.z, p.rot];
+    for (const p of this.parts.values()) if (!p.onShelf && !p.mount) out[p.name] = [p.group.position.x, p.group.position.z, p.rot];
     try { localStorage.setItem(this.layoutKey(), JSON.stringify(out)); } catch { /* storage unavailable */ }
   }
   relayout() {
@@ -377,6 +398,7 @@ class Lab {
     this.controls.update();
 
     for (const p of this.parts.values()) {
+      if (p.mount) p.followMount();
       p.update(dt, t);
       if (p.display?.dirty) { p.display.draw(); p.screenTex.needsUpdate = true; }
     }

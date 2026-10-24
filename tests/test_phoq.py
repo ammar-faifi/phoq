@@ -105,6 +105,7 @@ def _mzi(linewidth=0.0, long_arm=None):
     ps = s.add(PhaseShifter(insertion_loss_db=0))
     m1, m2 = s.add(PowerMeter("M1"), PowerMeter("M2"))
     s.connect(laser.out, b1.a1)
+    s.terminate(b1.a2)
     s.connect(b1.b1, ps.p1)
     s.connect(ps.p2, b2.a1)
     if long_arm:
@@ -393,6 +394,8 @@ def test_phase_modulator_driven_by_generator_shifts_fringe():
     s.connect(pm.p2, b2.a1)
     s.connect(b1.b2, b2.a2)
     s.connect(b2.b1, m1.inp)
+    s.terminate(b1.a2)
+    s.terminate(b2.b2)
     s.connect(fg.ch1, pm.rf)
     phases = np.linspace(0, 2 * np.pi, 16, endpoint=False)
     powers = []

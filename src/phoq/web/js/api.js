@@ -35,6 +35,7 @@ export class Api {
   remove(name) { return this.req('DELETE', `/api/components/${encodeURIComponent(name)}`); }
   connect(a, b) { return this.req('POST', '/api/connections', { a, b }); }
   disconnect(port) { return this.req('POST', '/api/disconnect', { port }); }
+  terminateSpares() { return this.req('POST', '/api/terminate-spares'); }
   autoset(name) { return this.req('POST', `/api/instruments/${encodeURIComponent(name)}/autoset`); }
   single(name) { return this.req('POST', `/api/instruments/${encodeURIComponent(name)}/single`); }
   clearTrace(name) { return this.req('POST', `/api/instruments/${encodeURIComponent(name)}/clear`); }

@@ -57,6 +57,7 @@ def build(linewidth: float = 100e3, bits: np.ndarray | None = None) -> Setup:
     setup.connect(pd_c.rf, osc.ch1)
     setup.connect(pd_d.rf, osc.ch2)
     setup.connect(fg.ch2, osc.ch3)
+    setup.terminate_spares()  # the DLI's spare input
 
     bits = dpsk_bits() if bits is None else np.asarray(bits)
     phase = math.pi * (np.cumsum(bits) % 2)  # differential encoding: φ_k = φ_{k−1} + π b_k

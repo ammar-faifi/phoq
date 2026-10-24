@@ -2,7 +2,7 @@
 // Each builder places the ports named exactly like the Python ports (laser.out, pd.inp, pd.rf …).
 import * as THREE from 'three';
 import { clamp, snapToHole, TABLE, SHELF, fmtSI, wavelengthColor, CH_COLORS, CONNECTOR_COLORS, connectorColor } from './util.js';
-import { makeLabel, makeBadge, makeWindingTexture } from './textures.js';
+import { makeLabel, makeBadge, makeWindingTexture, getGlowTexture } from './textures.js';
 import { ScopeDisplay, SpectrumDisplay } from './scope.js';
 import { AboveTable } from './fiber.js';
 
@@ -36,6 +36,7 @@ const GEO = {
 };
 
 const UP = new THREE.Vector3(0, 1, 0);
+const _pos = new THREE.Vector3(), _dir = new THREE.Vector3();
 export const PORT_TIP = 1.35;
 const badgeCache = {};
 
@@ -51,6 +52,8 @@ export class Part {
     this.footprint = { w: 10, d: 10 };
     this.rot = 0;
     this.onShelf = false;
+    this.mount = null;          // { part, port } for a plug mated straight onto another part's port
+    this.glows = new Map();     // open bulkheads that emit light: port name → sprite
     this.label = null;
     this.comp = comp;
     (BUILDERS[comp.type] ?? buildGeneric)(this, comp);
@@ -155,6 +158,37 @@ export class Part {
     this.ports.set(name, { name, kind: 'electrical', dir, tipLocal: new THREE.Vector3(x, y, z).addScaledVector(dir, 1.2) });
   }
 
+  /** A plug (a terminator) rides on the port it is mated to, pointing out along it. */
+  followMount() {
+    const m = this.mount;
+    if (!m || !m.part.portWorld(m.port, _pos, _dir)) return;
+    this.group.position.copy(_pos);
+    this.group.quaternion.setFromUnitVectors(UP, _dir);
+    this.group.updateMatrixWorld(true);
+  }
+
+  /** An open bulkhead that emits light glows, as an open fiber end does (0 W hides it). */
+  setPortGlow(name, watts, lambda = 1550e-9) {
+    let g = this.glows.get(name);
+    const p = this.ports.get(name);
+    if (!p) return;
+    if (!g && watts > 1e-12) {
+      g = new THREE.Sprite(new THREE.SpriteMaterial({ map: getGlowTexture(), transparent: true, depthWrite: false,
+        blending: THREE.AdditiveBlending, toneMapped: false }));
+      g.raycast = () => {};
+      g.position.copy(p.tipLocal);
+      this.group.add(g);
+      this.glows.set(name, g);
+    }
+    if (!g) return;
+    g.visible = watts > 1e-12;
+    if (g.visible) {
+      const s = 2.2 + 2.5 * Math.min(1, Math.max(0, (Math.log10(watts) + 8) / 6));
+      g.scale.set(s, s, 1);
+      g.material.color.setHex(wavelengthColor(lambda).hex);
+    }
+  }
+
   portWorld(name, pos, dir) {
     const p = this.ports.get(name);
     if (!p) return null;
@@ -219,6 +253,7 @@ export class Part {
   dispose() {
     this.group.removeFromParent();
     this.group.traverse((o) => { if (o.isMesh && o.material?.map?.isCanvasTexture && !o.material.map.shared) o.material.map.dispose(); });
+    for (const g of this.glows.values()) g.material.dispose();
   }
 }
 
@@ -362,6 +397,36 @@ const BUILDERS = {
     p.labelPlane(7.2, 3, 0, 3.1, 3.02);
     p._height = 7.2;
     p.onRefresh = (c) => { p.knob.rotation.y = -(c.params.attenuation_db / 80) * Math.PI * 1.5; };
+  },
+
+  /** Fiber terminator: a dark cap with a band in its polish's colour. Mated onto a port it rides
+   *  there over the receptacle (Part.followMount); loose, it lies on a small tray. */
+  FiberTerminator(p) {
+    p.footprint = { w: 4.4, d: 3 };
+    p.tray = p.box(4.4, 0.4, 3, MAT.plate, 0, 0.2, 0);
+    const body = new THREE.Group();
+    const piece = (r, len, mat, y) => {
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, len, 20), mat);
+      m.position.y = y;
+      m.castShadow = true;
+      m.userData.part = p;
+      body.add(m);
+      return m;
+    };
+    p.band = piece(0.6, 0.35, COLLAR['FC/APC'], 0.175);   // the polish: green FC/APC, blue FC/UPC
+    piece(0.56, 1.5, MAT.black, 1.1);                      // the cap, over the receptacle's barrel
+    piece(0.4, 0.3, MAT.steel, 2.0);                       // its closed end
+    p.group.add(body);
+    p.ports.set('p', { name: 'p', kind: 'optical', dir: new THREE.Vector3(-1, 0, 0), connector: 'FC/APC',
+      tipLocal: new THREE.Vector3(-1.3, 1.0, 0) });
+    p._height = 2;
+    p.onRefresh = (c) => { p.band.material = COLLAR[c.params.connector] ?? COLLAR['FC/UPC']; };
+    p.setMounted = (on) => {
+      p.tray.visible = !on;
+      if (on) { body.position.set(0, -0.9, 0); body.rotation.set(0, 0, 0); }
+      else { body.position.set(-1.0, 1.0, 0); body.rotation.set(0, 0, -Math.PI / 2); }   // lying, open end to −x
+    };
+    p.setMounted(false);
   },
 
   /** FC–FC mating sleeve on a small bracket: a receptacle on each side, no polish of its own. */
@@ -720,6 +785,7 @@ const LABELS = {
   Isolator: () => ({ lines: ['→'], accent: '#94a3b8' }),
   OpticalDelayLine: (c) => ({ lines: [`τ ${fmtSI(Math.min(c.params.delay, c.params.max_delay), 's')} of ${fmtSI(c.params.max_delay, 's')}`], accent: '#f59e0b' }),
   MatingSleeve: () => ({ lines: ['FC–FC'], accent: '#94a3b8' }),
+  FiberTerminator: (c) => ({ lines: [c.params.connector], accent: '#94a3b8' }),
   PhaseModulator: (c) => ({ lines: [`Vπ ${c.params.v_pi} V · ${driveText(c, 'rf')}`, driveText(c, 'bias')], accent: '#f472b6' }),
   IntensityModulator: (c) => ({ lines: [`Vπ ${c.params.v_pi} V · ${driveText(c, 'rf')}`, driveText(c, 'bias')], accent: '#fbbf24' }),
   IQModulator: (c) => ({ lines: [`IQ · Vπ ${c.params.v_pi} V`, `${driveText(c, 'rf_i')} · ${driveText(c, 'rf_q')}`], accent: '#a78bfa' }),

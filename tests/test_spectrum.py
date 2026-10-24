@@ -112,7 +112,7 @@ def test_delayed_self_homodyne_measures_the_linewidth():
     setup = ex["build"](linewidth=100e3)
     pd = setup["PD-1"]
     net = trace(setup)
-    p1, p2 = (abs(p.amp) ** 2 * setup["LD-1"].power for p in net.paths[pd])
+    p1, p2 = (abs(p.amp) ** 2 * setup["LD-1"].power for p in net.paths[pd] if not p.reflections)
     peak = 4 * pd.responsivity(1550e-9) ** 2 * p1 * p2 / (math.pi * 100e3) * 50 * r.rbw
     assert r.peak[1] == pytest.approx(10 * math.log10(peak / 1e-3), abs=0.5)
     # a delay shorter than the coherence time overestimates: the sinc² of the delay takes over
@@ -149,7 +149,7 @@ def test_sub_coherence_delay_matches_the_review_eq_28_to_31():
         psd = S if psd is None else psd + S
     psd /= n
     net = trace(s)
-    p1, p2 = (abs(p.amp) ** 2 * ld.power for p in net.paths[pd])
+    p1, p2 = (abs(p.amp) ** 2 * ld.power for p in net.paths[pd] if not p.reflections)
     tau = abs(net.delays(pd)[1] - net.delays(pd)[0])
     x = 2 * math.pi * dnu * tau
     for fq in (20e3, 100e3, 340e3, 680e3, 1e6, 1.5e6):  # flat top, fringe slope, near the 1/τd null

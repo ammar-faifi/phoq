@@ -37,7 +37,11 @@ from .units import (
 
 MAX_HOPS = 40
 MIN_GAIN = 1e-18
-MAX_REFLECTIONS = 1  # reflections followed per path
+MAX_REFLECTIONS = 2  # reflections followed per path
+# A path reflected twice is dropped below this power gain (−90 dB): a stray at power ratio r beats
+# with the light it meets at relative amplitude 2√r, and on the vacuum-noise QRNG −80 dB is already
+# invisible next to the shot noise. It drops every double bounce between matching connectors.
+MIN_GAIN_TWICE_REFLECTED = 1e-9
 
 
 @dataclass
@@ -47,6 +51,8 @@ class Path:
     delay: float
     mods: tuple = ()  # ((modulator, delay at which the light passes it), ...)
     port: str = "inp"  # the detector input it enters (a balanced detector has two)
+    reflections: int = 0  # connector reflections on the way: 0 for the route itself, 1–2 for a stray
+    sites: tuple = ()  # (where it reflected, the open port's path or None), in order
 
 
 @dataclass
@@ -60,12 +66,13 @@ class Network:
     # laser → {(own light?, reflection site or other laser's name) → W entering its output}
     returned: dict = field(default_factory=lambda: defaultdict(lambda: defaultdict(float)))
 
-    def delays(self, detector, source=None) -> list[float]:
-        """Propagation delays of every path reaching ``detector`` (optionally from one laser)."""
+    def delays(self, detector, source=None, reflected: bool = False) -> list[float]:
+        """Propagation delays of the routes reaching ``detector`` (optionally from one laser); with
+        ``reflected``, also of the stray paths that bounced off connectors on the way."""
         return [
             p.delay
             for p in self.paths.get(detector, [])
-            if source is None or p.source is source
+            if (source is None or p.source is source) and (reflected or not p.reflections)
         ]
 
     def mean_powers(self, detector, port: str | None = None) -> dict[float, float]:
@@ -125,10 +132,13 @@ def trace(setup: Setup) -> Network:
     """Follow every laser's light through the setup.
 
     Each mated connector pair transmits and reflects according to its two connector types
-    (:func:`~phoq.units.mating`), and an open connector reflects back into its fiber. Up to
-    ``MAX_REFLECTIONS`` reflections are followed per path: one is enough for the light returning
-    to the lasers and for reflectometry-like paths to detectors; a second (a Fabry–Pérot pass)
-    is ≤ −80 dB for matching connectors.
+    (:func:`~phoq.units.mating`), and an open connector, a cord's or a part's, reflects back into
+    its fiber. Up to ``MAX_REFLECTIONS`` reflections are followed per path: one carries the light
+    returning to the lasers and reflectometry-like paths to detectors; two carry light that
+    travels on again after a double bounce (one Fabry–Pérot pass), such as LO light that leaves a
+    homodyne's open input and comes back in. A doubly reflected path is kept above
+    ``MIN_GAIN_TWICE_REFLECTED``: an open flat end or an APC↔UPC air gap against any pair, never two
+    matching pairs.
     """
     net = Network()
     for src in setup.of_type(Laser):
@@ -139,7 +149,8 @@ def trace(setup: Setup) -> Network:
         stack = [(src.ports["out"], 1.0 + 0j, 0.0, (), 0, 0, None)]
         while stack:
             port, amp, delay, mods, hops, refl, site = stack.pop()
-            if hops > MAX_HOPS or abs(amp) ** 2 < MIN_GAIN:
+            gain = abs(amp) ** 2
+            if hops > MAX_HOPS or gain < MIN_GAIN or (refl > 1 and gain < MIN_GAIN_TWICE_REFLECTED):
                 continue
             peer, via = port.peer, ""
             if peer is not None and peer.component.is_adaptor:
@@ -149,7 +160,7 @@ def trace(setup: Setup) -> Network:
                 if peer is not None and peer.component.is_adaptor:
                     continue  # sleeve plugged into a sleeve: nothing to mate with
             if peer is None:
-                if port.component.is_cord:  # an open connector: light leaves, a flat end reflects 3.6 %
+                if port.connector is not None:  # an open cord or part: light leaves, a flat end reflects 3.6 %
                     r = open_end_reflection(port.connector)
                     net.open_ends.append(
                         {
@@ -159,15 +170,20 @@ def trace(setup: Setup) -> Network:
                         }
                     )
                     if refl < MAX_REFLECTIONS:
-                        here = f"open {port.connector} end {port.path}{via}"
+                        here = _sites(site, f"open {port.connector} end {port.path}{via}", port.path)
                         _enter(net, stack, src, port, amp * math.sqrt(r), delay, mods, hops, refl + 1, here)
                 continue
             t, r_back, _ = mating(port.connector, peer.connector)
             if refl < MAX_REFLECTIONS and r_back > 0:
-                here = f"{port.path} ({port.connector}) ↔ {peer.path} ({peer.connector}){via}"
+                here = _sites(site, f"{port.path} ({port.connector}) ↔ {peer.path} ({peer.connector}){via}")
                 _enter(net, stack, src, port, amp * math.sqrt(r_back), delay, mods, hops, refl + 1, here)
             _enter(net, stack, src, peer, amp * math.sqrt(t), delay, mods, hops, refl, site)
     return net
+
+
+def _sites(before: tuple | None, here: str, open_port: str | None = None) -> tuple:
+    """The reflection sites of a path, in order: (label, the open port's path or None)."""
+    return (before or ()) + ((here, open_port),)
 
 
 def _enter(net, stack, src, port, amp, delay, mods, hops, refl, site) -> None:
@@ -182,11 +198,12 @@ def _enter(net, stack, src, port, amp, delay, mods, hops, refl, site) -> None:
             flow["wavelength"] = wl
     if isinstance(comp, _Detector):
         if port.name in comp.inputs:
-            net.paths[comp].append(Path(src, amp, delay, mods, port.name))
+            net.paths[comp].append(Path(src, amp, delay, mods, port.name, refl, site or ()))
         return
     if isinstance(comp, Laser):
         own = comp is src
-        net.returned[comp][(own, (site or "a fiber loop") if own else src.name)] += w
+        where = ", then ".join(label for label, _ in site) if site else "a fiber loop"
+        net.returned[comp][(own, where if own else src.name)] += w
         return
     for tr in comp.scatter(port, wl):
         new_mods = mods + ((tr.mod, delay + tr.delay),) if tr.mod is not None else mods
@@ -396,7 +413,8 @@ def report(setup: Setup, net: Network | None = None) -> dict:
                     f"{fmt_si(odl.max_delay, 's')}: the stage stops at the end of its travel.",
                 }
             )
-    for e in net.open_ends:
+    open_ends = _merge_open_ends(net.open_ends)
+    for e in open_ends:
         if e["power"] > 1e-6:
             vis = "" if e["wavelength"] < 700e-9 else " (invisible infrared!)"
             warnings.append(
@@ -405,6 +423,7 @@ def report(setup: Setup, net: Network | None = None) -> dict:
                     "text": f"Open connector {e['port']} emits {fmt_si(e['power'], 'W')} at {e['wavelength'] * 1e9:.0f} nm{vis}.",
                 }
             )
+    warnings += _open_port_strays(net)
     pairs = [  # every mated pair of connectors: direct, or the two held in a mating sleeve
         (a, b, "")
         for a, b in setup.connections()
@@ -431,9 +450,45 @@ def report(setup: Setup, net: Network | None = None) -> dict:
         "detectors": detectors,
         "sources": _sources(setup, net),
         "fibers": net.fibers,
-        "open_ends": net.open_ends,
+        "open_ends": open_ends,
         "warnings": warnings,
     }
+
+
+STRAY_WARN = 1e-7  # an open port's reflection reaching a detector at −70 dB of its direct light
+
+
+def _open_port_strays(net: Network) -> list:
+    """Open connectors whose reflections, all paths together, go on to a detector strongly enough
+    to beat with the light that reaches it directly: power ratio r beats at 2√r, so −70 dB is a
+    6·10⁻⁴ ripple, and a delayed copy turns the laser's phase noise into intensity noise."""
+    stray: dict = {}
+    for d, paths in net.paths.items():
+        direct = sum(abs(p.amp) ** 2 * p.source.power for p in paths if not p.reflections)
+        if direct <= 0:
+            continue
+        for p in paths:
+            for port in {port for _, port in p.sites if port is not None}:
+                stray[(port, d.name)] = stray.get((port, d.name), 0.0) + abs(p.amp) ** 2 * p.source.power / direct
+    return [
+        {
+            "level": "warn",
+            "text": f"Open connector {port} reflects light on to {det}, {10 * math.log10(r):.0f} dB under the "
+            "light that reaches it directly: enough to beat with it, and a delayed copy turns the laser's "
+            "phase noise into intensity noise. Cap the port with a terminator of its own connector type.",
+        }
+        for (port, det), r in sorted(stray.items())
+        if r > STRAY_WARN
+    ]
+
+
+def _merge_open_ends(ends: list) -> list:
+    """One entry per open connector and wavelength: the paths leaving it add in power."""
+    merged: dict = {}
+    for e in ends:
+        key = (e["port"], e["wavelength"])
+        merged[key] = merged.get(key, 0.0) + e["power"]
+    return [{"port": port, "power": w, "wavelength": wl} for (port, wl), w in merged.items()]
 
 
 def _sources(setup: Setup, net: Network) -> dict:

@@ -107,17 +107,25 @@ class Path:
     amp: complex          # product of every transmission on the way, including fiber phase
     delay: float          # sum of every delay on the way [s]
     mods: tuple           # ((modulator, delay at which the light reaches it), ...)
+    port: str             # the detector input it arrives at
+    reflections: int      # 0 for the route itself, 1 or 2 for a stray that bounced off connectors
+    sites: tuple          # where it reflected, in order: (label, the open port's path or None)
 ```
 
 The tracer is a depth-first search with an explicit stack. Each entry is the port the light is
 about to leave through, the amplitude and delay so far, the modulators met, a hop count, a
-reflection count and the place of the last reflection. Popping an entry:
+reflection count and the places it reflected. Popping an entry:
 
 1. **Find the mating partner.** Normally the port's `peer`. If the peer is a `MatingSleeve`, the
    partner is whatever is plugged into the sleeve's other side.
-2. **Open connector.** With no partner, a cord end is open: its emitted power is recorded in
+2. **Open connector.** With no partner, the connector is open, a cord's end or a part's port alike
+   (a coupler's spare input, a laser with nothing plugged in): its emitted power is recorded in
    `Network.open_ends`, and the end reflects back into the fiber, 3.6 % (−14.4 dB, the glass–air
-   Fresnel reflection) for a flat end, −60 dB for an angled one.
+   Fresnel reflection) for a flat end, −60 dB for an angled one. A `FiberTerminator` is a plug
+   (`is_plug`): `Setup.connect` mates it straight onto a port, with no cord, or into a sleeve to end
+   a cord (`Setup.terminate(port)` adds one of the port's own type; `Setup.terminate_spares()` caps
+   every unused port of the parts other than lasers and detectors). It absorbs what the mated pair
+   transmits, so its only reflection is that pair's.
 3. **Mated pair.** Otherwise `mating(type_a, type_b)` gives the power transmission and the power
    reflected back into each side: 0.3 dB and −50 dB for FC/UPC pairs, −60 dB for FC/APC pairs,
    about 5 dB and a 3.6 % reflection into the flat side when an angled connector meets a flat one.
@@ -132,18 +140,32 @@ reflection count and the place of the last reflection. Popping an entry:
    reaches it).
 
 A path is abandoned after 40 hops (`MAX_HOPS`), below a power gain of 10⁻¹⁸ (`MIN_GAIN`, −180 dB),
-and after one reflection (`MAX_REFLECTIONS = 1`): a second reflection between two connectors is
-≤ −80 dB for matching types. A 1 m FC/UPC cord from a laser to a photodiode therefore gives one
-path to the detector, and the laser sees its two connector pairs at −50.0 dB and −50.6 dB (the far
-one has crossed the near one twice).
+and after two reflections (`MAX_REFLECTIONS = 2`). One reflection carries the light back to the
+lasers and reflectometry-like paths; light that goes on after reflecting needs a second, a double
+bounce (one Fabry–Pérot pass). A doubly reflected path is kept only above 10⁻⁹
+(`MIN_GAIN_TWICE_REFLECTED`, −90 dB): a stray at power ratio r beats with the light it meets at
+2√r, and on the vacuum-noise QRNG −80 dB is already invisible next to the shot noise. That drops
+every double bounce between two matching pairs (−100 dB for FC/UPC) and keeps the ones that matter:
+an open flat end (−14.4 dB) or an angled-against-flat air gap (3.6 %) against any pair. A 1 m
+FC/UPC cord from a laser to a photodiode therefore gives one path to the detector, and the laser
+sees its two connector pairs at −50.0 dB and −50.6 dB (the far one has crossed the near one twice).
+
+Left open, a coupler's spare input is such a reflector. In a balanced homodyne, LO light reflected
+at the mating on a coupler output (−50 dB) leaves by the open input, comes back 3.6 % of it, and
+reaches the detectors about 10 ns late, r·F·(½)² ≈ −71 dB of the direct light per path. It beats
+with the LO, so the DC balance moves, and the delay turns the laser's phase noise into intensity
+noise: on `examples/laser_noise.py` with a 100 kHz laser, 5.2 dB above the shot noise at
+I₊ + I₋ = 1.1 mA, against 0.0 dB with the input capped.
+`Network.delays()` returns the routes only (`reflected=True` adds the strays), so code that finds
+an interferometer's arms by delay is not misled by them.
 
 The resulting `Network` holds:
 
 | Field | Content |
 | --- | --- |
-| `paths` | detector → list of `Path` |
+| `paths` | detector → list of `Path`, routes and strays (`Path.reflections`) |
 | `fibers` | cord name → forward and backward power and the dominant wavelength (for the lab's light flow) |
-| `open_ends` | each open connector's emitted power and wavelength |
+| `open_ends` | each open connector's emitted power and wavelength (the report merges them per port) |
 | `port_power` | `"NAME.port"` → power arriving there (absolute maximum ratings) |
 | `returned` | laser → light coming back into it, by reflection site or by the other laser's name |
 
@@ -424,7 +446,8 @@ with the time average of synthesized fields: 0.1085 mW against 0.1091 ± 0.0016 
   monitor driven past its swing, or set to a gain it does not offer; absolute maximum ratings from
   presets (optical input, per photodiode for a balanced detector, bias voltage, RF drive, photons
   per pulse); a loaded pattern missing;
-  open connectors emitting more than 1 µW; angled connectors mated to flat ones.
+  open connectors emitting more than 1 µW; an open connector whose reflections reach a detector
+  within −70 dB of its direct light (`STRAY_WARN`); angled connectors mated to flat ones.
 
 ## 9. Conventions
 
@@ -450,8 +473,9 @@ with the time average of synthesized fields: 0.1085 mW against 0.1091 ± 0.0016 
   wanders (the delayed self-homodyne needs an explicit phase step for that reason).
 - Couplers, attenuators, isolators and modulators are wavelength-independent; only fiber loss,
   detector responsivity and single-photon-detector efficiency depend on λ.
-- At most one reflection per path, so no multi-reflection cavities; light returning into a laser is
-  reported but does not affect it (an internal isolator is assumed).
+- At most two reflections per path: one Fabry–Pérot pass, no third reflection and no resummed
+  cavity; doubly reflected paths below −90 dB are dropped. Light returning into a laser is reported
+  but does not affect it (an internal isolator is assumed).
 - Path enumeration: the number of paths grows with every interferometer in series, and loops (fiber
   rings, recirculating delay lines) are cut at 40 hops and −180 dB. That cut also drops paths
   weaker than −180 dB, e.g. a second 500 km spool.

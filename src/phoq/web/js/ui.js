@@ -15,6 +15,7 @@ export const ICONS = {
   Attenuator: svg('<rect x="6" y="12" width="20" height="12" rx="2" stroke="#7aa2d6"/><circle cx="16" cy="9" r="4.5" stroke="#fb923c"/><path d="M16 9l2.5-2.5" stroke="#fb923c"/><path d="M1 18h5M26 18h5" stroke="#e8c21a"/>'),
   FiberSpool: svg('<ellipse cx="16" cy="16" rx="12" ry="12" stroke="#7aa2d6"/><circle cx="16" cy="16" r="8.5" stroke="#e8c21a" stroke-dasharray="2 1.4"/><circle cx="16" cy="16" r="3" stroke="#cbd5e1"/>'),
   PhaseShifter: svg('<rect x="7" y="10" width="18" height="12" rx="2" stroke="#7aa2d6"/><path d="M16 12v8M12.5 16a3.5 3.5 0 1 0 7 0a3.5 3.5 0 1 0-7 0" stroke="#c084fc"/><path d="M1 16h6M25 16h6" stroke="#e8c21a"/>'),
+  FiberTerminator: svg('<path d="M1 16h7" stroke="#e8c21a"/><rect x="8" y="13" width="3" height="6" rx="0.8" fill="#16a34a" stroke="none"/><rect x="11" y="11.5" width="12" height="9" rx="2" stroke="#cbd5e1"/><path d="M23 13.5h2.5v5H23" stroke="#94a3b8"/>'),
   MatingSleeve: svg('<rect x="13" y="9" width="6" height="14" rx="1" stroke="#cbd5e1"/><path d="M6 13h7v6H6zM19 13h7v6h-7z" stroke="#94a3b8"/><path d="M1 16h5M26 16h5" stroke="#e8c21a"/><rect x="2" y="14" width="3" height="4" rx="0.8" fill="#2563eb" stroke="none"/><rect x="27" y="14" width="3" height="4" rx="0.8" fill="#16a34a" stroke="none"/>'),
   OpticalDelayLine: svg('<rect x="5" y="11" width="22" height="11" rx="2" stroke="#7aa2d6"/><path d="M8 19h16" stroke="#94a3b8"/><rect x="15" y="13.5" width="4.5" height="4" rx="1" stroke="#f59e0b"/><path d="M8 15.5h7" stroke="#ff3fb4" stroke-dasharray="1.6 1.2"/><path d="M11 7h10M11 7l2-2M11 7l2 2M21 7l-2-2M21 7l-2 2" stroke="#f59e0b"/><path d="M1 16h4M27 16h4" stroke="#e8c21a"/>'),
   Isolator: svg('<rect x="7" y="11" width="18" height="10" rx="5" stroke="#7aa2d6"/><path d="M11 16h9M17 13l3 3-3 3" stroke="#cbd5e1"/><path d="M1 16h6M25 16h6" stroke="#e8c21a"/>'),
@@ -220,13 +221,15 @@ export class UI {
     let html = `<div class="insp-head"><div class="ico">${ICONS[comp.type] ?? GENERIC}</div><div><b>${esc(comp.name)}</b><small>${esc(comp.label)} · <code>${esc(comp.type)}</code></small></div></div>`;
     html += this.presetHtml(comp);
     for (const key of comp.fields) html += this.fieldHtml(comp, key);
+    if (comp.plug) html += this.plugHtml(comp);
     const elec = comp.ports.filter((p) => p.kind === 'electrical');
     if (elec.length) {
       html += '<div class="sub">Electrical connections</div>';
       for (const port of elec) html += this.wireHtml(comp, port);
     }
     html += `<div class="readouts" id="readouts"></div><div class="insp-actions">`;
-    if (lab.parts.get(comp.name) && !lab.parts.get(comp.name).onShelf) html += `<button data-act="rotate" title="Rotate 90° (R)">⟳ Rotate</button>`;
+    const part = lab.parts.get(comp.name);
+    if (part && !part.onShelf && !part.mount) html += `<button data-act="rotate" title="Rotate 90° (R)">⟳ Rotate</button>`;
     if (comp.category === 'cord') html += `<button data-act="unplug" title="Unplug both connectors">Unplug</button>`;
     html += `<button data-act="delete" class="danger" title="Remove (Del)">Remove</button></div>
       <p class="hint-py">Python: <code>setup[${esc(JSON.stringify(comp.name))}]</code></p>`;
@@ -291,6 +294,15 @@ export class UI {
       <option value="">— not connected —</option>${cands.map((c) => `<option ${c === port.peer ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></div>`;
   }
 
+  /** A plug (a terminator) has no cord to drag: pick the free optical port it caps. */
+  plugHtml(comp) {
+    const port = comp.ports[0], state = this.lab.state;
+    const cands = state.components.filter((c) => !c.plug && c.name !== comp.name).flatMap((c) =>
+      c.ports.filter((p) => p.kind === 'optical' && (!p.peer || p.peer === `${comp.name}.${port.name}`)).map((p) => `${c.name}.${p.name}`));
+    return `<div class="field"><label>Plugged into <span class="unit">${esc(port.name)}</span></label><select data-wire="${esc(port.name)}" aria-label="Plugged into">
+      <option value="">— not plugged in —</option>${cands.map((c) => `<option ${c === port.peer ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></div>`;
+  }
+
   bind(comp) {
     const lab = this.lab;
     for (const el of this.body.querySelectorAll('[data-key]')) {
@@ -341,8 +353,12 @@ export class UI {
     this.body.innerHTML = `
       <div class="empty"><p>Select a part, fiber or connector to edit it. Every change is applied to the Python object on the server${s.save_path ? ' and autosaved' : ''}.</p></div>
       <div class="readouts">${Object.entries(counts).map(([k, n]) => `<div><span>${esc(k)}</span><b>${n}</b></div>`).join('') || '<div><span>The table is empty</span><b>—</b></div>'}
-        <div><span>Autosave</span><b class="path">${esc(s.save_path ?? 'off')}</b></div></div>
+        <div><span>Autosave</span><b class="path">${esc(s.save_path ?? 'off')}</b></div>
+        <div title="${esc((s.spares ?? []).join(', '))}"><span>Spare ports open</span><b class="${s.spares?.length ? 'warn' : ''}">${s.spares?.length ?? 0}</b></div></div>
+      <div class="insp-actions"><button data-act="caps" ${s.spares?.length ? '' : 'disabled'} title="Cap every unused port of the couplers and other parts with a terminator of its own connector type">Cap spare ports</button></div>
       <div class="legend"><div style="color:var(--text)">Light-flow colours (false colour for IR)</div>${legend}</div>`;
+    const caps = this.body.querySelector('[data-act="caps"]');
+    if (caps) caps.onclick = () => this.lab.capSpares();
   }
 
   /** Live values: server-side derived info + the latest network report. */

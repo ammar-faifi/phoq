@@ -175,6 +175,7 @@ class LabSession:
                         "name": c.name,
                         "type": type(c).__name__,
                         "category": c.category,
+                        "plug": c.is_plug,  # mates straight onto a port: the lab draws it there
                         "label": c.label,
                         "params": c.params,
                         "preset": c.preset,
@@ -187,6 +188,7 @@ class LabSession:
                         "ports": [p.to_dict() for p in c.ports.values()],
                     }
                 )
+            spares = [p.path for p in self.setup.spare_ports()]
             return _clean(
                 {
                     "name": self.setup.name,
@@ -197,6 +199,7 @@ class LabSession:
                     ],
                     "save_path": str(self.save_path) if self.save_path else None,
                     "laptops": self.laptops(),
+                    "spares": spares,  # unused optical ports a terminator could cap
                 }
             )
 
@@ -438,6 +441,11 @@ def create_app(
     def disconnect(body: PortBody):
         guarded(session.setup.disconnect, body.port)
         return {"ok": True}
+
+    @app.post("/api/terminate-spares")
+    def terminate_spares():
+        caps = guarded(session.setup.terminate_spares)
+        return {"ok": True, "caps": [c.name for c in caps]}
 
     @app.post("/api/instruments/{name}/autoset")
     def autoset(name: str):

@@ -2,13 +2,16 @@
 
     uv run python examples/vacuum_noise_qrng.py                 # noise check, correlations, min-entropy, extraction
     uv run python examples/vacuum_noise_qrng.py --plot qrng.png # PSDs, autocorrelation, histogram
+    uv run python examples/vacuum_noise_qrng.py --seed 2        # the same with other noise
     uv run phoq serve examples/vacuum_noise_qrng.py             # the bench in 3D
 
     laser (LO, 4 dBm) → BS-1 ─┬─ 1 m → INPUT+    BPD-1 (PDB450C, 10⁴ V/A, 45 MHz)
-       open input: vacuum ─────┘─ 1 m → INPUT−    RF OUTPUT → OSC-1 CH1, the ADC (8 bits)
+     FC/APC cap: vacuum ───────┘─ 1 m → INPUT−    RF OUTPUT → OSC-1 CH1, the ADC (8 bits)
 
 The laser is the local oscillator of a balanced homodyne detector. Nothing enters the coupler's
-second input: only the vacuum does. The difference current keeps the vacuum's quadrature
+second input: only the vacuum does. That input is capped with an angled terminator: left open, its
+flat end would send back LO light reflected off the detector's inputs, a delayed copy that turns the
+laser's phase noise into classical noise and moves RF OUTPUT off the ADC's range (step 6). The difference current keeps the vacuum's quadrature
 fluctuations, amplified by the LO, which is the shot noise 2q(I₊ + I₋) of examples/laser_noise.py.
 The laser's own noise reaches both diodes alike and cancels. The scope samples RF OUTPUT with 8 bits
 across its screen, and every sample is Gaussian (Gehring et al. 2021, Eq. 3):
@@ -37,6 +40,7 @@ rate, ADC resolution and range), not its randomness.
 """
 
 import argparse
+import itertools
 import math
 
 import numpy as np
@@ -49,6 +53,8 @@ from phoq.units import Q_E, fmt_si
 
 GAIN = 1e4  # V/A: 45 MHz, an amplifier noise of 2.2·10⁻²² A²/Hz, ~4 dB under the shot noise of 1.8 mA
 RIN = -140.0  # dB/Hz: the LO's own intensity noise, which balancing has to remove
+# The vacuum input: (BS-1's connectors, the cap on it or None for an open port)
+VACUUM_PORTS = {"capped": ("FC/APC", "FC/APC"), "open": ("FC/UPC", None), "apc-on-upc": ("FC/UPC", "FC/APC")}
 POINTS = 20_000  # samples per sweep
 SWEEPS = 10
 RANGE_SIGMA = 4.0  # the ADC's half range in standard deviations of the signal
@@ -57,42 +63,93 @@ EPS_HASH = 2.0**-64  # the extractor's distance from uniform
 
 # ---- the bench -------------------------------------------------------------------------------------
 def build(power_dbm: float = 4.0, sample_rate: float = 100e6, bits: int = 8, balanced: bool = True,
-          laser_on: bool = True, scale: float = 0.6e-3) -> Setup:
-    """LO → coupler (second input open) → balanced detector → scope as the ADC. ``balanced`` trims
-    the coupler so the two photocurrents match; otherwise it is 50:50."""
+          laser_on: bool = True, scale: float = 0.6e-3, vacuum_port: str = "capped") -> Setup:
+    """LO → coupler (second input: the vacuum) → balanced detector → scope as the ADC. ``balanced``
+    trims the coupler so the two photocurrents match; otherwise it is 50:50. ``vacuum_port`` is one
+    of VACUUM_PORTS: FC/APC capped with FC/APC, a flat FC/UPC port left open, or an FC/APC cap on it."""
     setup = Setup("Vacuum-noise QRNG", seed=2)
     lo = setup.add(Laser("LD-LO", mode="cw", power_dbm=power_dbm, rin_db_hz=RIN, enabled=laser_on))
     bpd = setup.add(BalancedPhotodetector("BPD-1", preset="thorlabs/pdb450c", gain=GAIN))
     short = 10 ** (-bpd.cmrr_db / 20)  # INPUT−'s responsivity is short by this much
-    bs = setup.add(Coupler("BS-1", ratio=(1 - short) / (2 - short) if balanced else 0.5))
+    connector, cap = VACUUM_PORTS[vacuum_port]
+    bs = setup.add(Coupler("BS-1", ratio=(1 - short) / (2 - short) if balanced else 0.5, connector=connector))
     window = POINTS / sample_rate
     osc = setup.add(Oscilloscope("OSC-1", timebase=window / 10, sample_rate=sample_rate, max_points=POINTS,
                                  bandwidth=200e6, adc_bits=bits, trigger="free", ch1_scale=scale, ch1_offset=0.0))
-    setup.connect(lo.out, bs.a1)  # bs.a2 stays open: the vacuum input
+    setup.connect(lo.out, bs.a1)
+    if cap is not None:  # bs.a2 is the vacuum input
+        setup.terminate(bs.a2, cap)
     setup.connect(bs.b1, bpd.inp_plus, length=1.0)
     setup.connect(bs.b2, bpd.inp_minus, length=1.0)
     setup.connect(bpd.rf, osc.ch1)
     return setup
 
 
-def record(setup: Setup, sweeps: int = SWEEPS, seed: int = 1) -> list[np.ndarray]:
+Seed = int | tuple[int, ...]
+
+
+def _rng(seed: Seed, k: int) -> np.random.Generator:
+    """Sweep k of a record: the stream (seed…, k) of numpy's SeedSequence, so two records with
+    different seeds never share a draw."""
+    return np.random.default_rng((*(seed if isinstance(seed, tuple) else (seed,)), k))
+
+
+def streams(seed: Seed = 1):
+    """Seeds for successive records, (seed, 0), (seed, 1), …: give every measurement its own, as
+    every acquisition on a bench sees fresh noise."""
+    base = seed if isinstance(seed, tuple) else (seed,)
+    return ((*base, j) for j in itertools.count())
+
+
+def record(setup: Setup, sweeps: int = SWEEPS, seed: Seed = 1) -> list[np.ndarray]:
     """ADC codes, one array per sweep (each sweep is an independent record)."""
     net, osc = trace(setup), setup["OSC-1"]
-    return [osc.acquire(net, np.random.default_rng(seed + k)).codes("ch1").astype(float) for k in range(sweeps)]
+    return [osc.acquire(net, _rng(seed, k)).codes("ch1").astype(float) for k in range(sweeps)]
 
 
-def fit_range(setup: Setup, k: float = RANGE_SIGMA) -> float:
+def fit_range(setup: Setup, k: float = RANGE_SIGMA, seed: Seed = 0) -> float:
     """Set CH1's scale so that the screen's ±4 divisions span ±k standard deviations, as one sets
     a QRNG's ADC range (Haw et al. 2015). Returns the scale [V/div]."""
     osc = setup["OSC-1"]
     bits = osc.adc_bits
     osc.adc_bits = 0
     try:
-        v = osc.acquire(trace(setup), np.random.default_rng(99))["ch1"].data
+        v = osc.acquire(trace(setup), _rng(seed, 0))["ch1"].data
     finally:
         osc.adc_bits = bits
     osc.ch1_scale = k * float(v.std()) / 4
     return osc.ch1_scale
+
+
+def ideal(setup: Setup, sweeps: int = SWEEPS, seed: Seed = 1) -> list[np.ndarray]:
+    """The scope's samples before its ADC [V], one array per sweep (the streams of ``record``)."""
+    net, osc = trace(setup), setup["OSC-1"]
+    bits, osc.adc_bits = osc.adc_bits, 0
+    try:
+        return [osc.acquire(net, _rng(seed, k))["ch1"].data for k in range(sweeps)]
+    finally:
+        osc.adc_bits = bits
+
+
+def vacuum_port_check(scale: float, sweeps: int = 4, seed: Seed = 1) -> list[dict]:
+    """Each VACUUM_PORTS variant against the capped one: the report's warnings, RF OUTPUT's DC level
+    on the screen, the share of samples at an end code, and the added noise (with the DC removed) as
+    a fraction of the shot noise."""
+    seeds = streams(seed)
+    dark = variance(ideal(build(scale=scale, laser_on=False), sweeps, next(seeds)))
+    shot = None
+    rows = []
+    for port in VACUUM_PORTS:
+        s = build(scale=scale, vacuum_port=port)
+        v = ideal(s, sweeps, next(seeds))
+        codes = np.concatenate(record(s, sweeps, next(seeds)))
+        if shot is None:  # the capped port comes first: its noise above the dark noise is the shot noise
+            shot = variance(v) - dark
+        rows.append({"port": port, "warnings": [w["text"] for w in report(s)["warnings"]],
+                     "dc": float(np.mean(np.concatenate(v))), "screen": 4 * scale,
+                     "ends": float(np.mean((codes == 0) | (codes == 2**s["OSC-1"].adc_bits - 1))),
+                     "excess": (variance(v) - dark - shot) / shot})
+    return rows
 
 
 # ---- statistics of the samples -------------------------------------------------------------------
@@ -175,21 +232,23 @@ def secure_length(samples: int, h: float, eps: float = EPS_HASH) -> int:
     return max(0, math.floor(samples * h - math.log2(1 / (2 * eps**2))))
 
 
-def toeplitz(bits_in: np.ndarray, m: int, seed: int = 7) -> np.ndarray:
+def toeplitz(bits_in: np.ndarray, m: int, seed: Seed = 7) -> np.ndarray:
     """m output bits: a random m × n Toeplitz matrix (m + n − 1 seed bits) times the input, mod 2."""
     n = bits_in.size
     t = np.random.default_rng(seed).integers(0, 2, m + n - 1)  # the extractor's seed
     return (np.convolve(t, bits_in[::-1].astype(np.int64))[n - 1:n - 1 + m] % 2).astype(np.uint8)
 
 
-def extract(runs: list[np.ndarray], bits: int, h: float, block: int = 512) -> np.ndarray:
-    """Hash the codes in blocks of ``block`` samples, each to its secure length."""
+def extract(runs: list[np.ndarray], bits: int, h: float, block: int = 512, seed: Seed = 7) -> np.ndarray:
+    """Hash the codes in blocks of ``block`` samples, each to its secure length, block i with the
+    Toeplitz matrix of seed (seed…, i)."""
+    base = seed if isinstance(seed, tuple) else (seed,)
     codes = np.concatenate(runs).astype(np.int64)
     m = secure_length(block, h)
     out = []
     for i in range(0, codes.size - block + 1, block):
         raw = ((codes[i:i + block, None] >> np.arange(bits)[::-1]) & 1).ravel()
-        out.append(toeplitz(raw, m, seed=i))
+        out.append(toeplitz(raw, m, seed=(*base, i)))
     return np.concatenate(out) if out else np.zeros(0, dtype=np.uint8)
 
 
@@ -211,7 +270,9 @@ def bit_tests(b: np.ndarray) -> dict:
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--plot", metavar="PNG", help="save the PSDs, the autocorrelation and the histogram")
+    ap.add_argument("--seed", type=int, default=1, help="base seed: every record draws its own streams from it")
     args = ap.parse_args()
+    seeds = streams(args.seed)
 
     bench = build()
     entry = report(bench)["detectors"]["BPD-1"]
@@ -220,15 +281,15 @@ if __name__ == "__main__":
     print(f"  {entry['readouts']['INPUT+']} and {entry['readouts']['INPUT−']}; RF OUTPUT {entry['readouts']['RF OUTPUT']}\n")
 
     # 1. the quantum signal: noise against LO power (Park §3.1)
-    scale = fit_range(bench)
-    dark = record(build(laser_on=False, scale=scale))
+    scale = fit_range(bench, seed=next(seeds))
+    dark = record(build(laser_on=False, scale=scale), seed=next(seeds))
     print(f"1. Shot noise against LO power (ADC at {fmt_si(scale, 'V')}/div; dark noise σ_E² = {variance(dark):.1f} codes²)")
     print(f"   {'LO':>6} {'I₊ + I₋':>9} {'σ²':>7} {'σ² − σ_E²':>9} {'per mA':>8} {'QCNR':>7}")
     rows = []
     for p in (-2.0, 0.0, 2.0, 4.0):
         s = build(power_dbm=p, scale=scale)
         cur = sum(s["BPD-1"].mean_currents(*(trace(s).mean_powers(s["BPD-1"], k) for k in ("inp_plus", "inp_minus"))))
-        v = variance(record(s))
+        v = variance(record(s, seed=next(seeds)))
         q = v - variance(dark)
         rows.append((cur, q))
         print(f"   {p:4.0f} dBm {fmt_si(cur, 'A'):>9} {v:7.1f} {q:9.1f} {q / cur / 1e3:8.1f} {10 * math.log10(q / variance(dark)):+6.1f} dB")
@@ -242,8 +303,8 @@ if __name__ == "__main__":
     print(f"   {'rate':>9} {'acf(1)':>7} {'⟨|acf|⟩ 1–20':>12} {'σ_X²/σ²':>8} {'H per sample':>12} {'rate × H':>10}")
     results = {}
     for fs in (20e6, 50e6, 100e6, 200e6):
-        on = record(build(sample_rate=fs, scale=scale))
-        off = record(build(sample_rate=fs, scale=scale, laser_on=False))
+        on = record(build(sample_rate=fs, scale=scale), seed=next(seeds))
+        off = record(build(sample_rate=fs, scale=scale, laser_on=False), seed=next(seeds))
         e = results[fs] = entropy(on, off, 8)
         a = autocorrelation(on)
         print(f"   {fmt_si(fs, 'S/s'):>9} {a[0]:+7.3f} {np.mean(np.abs(a)):12.4f} {e['correlation']:8.3f} "
@@ -256,8 +317,8 @@ if __name__ == "__main__":
     best = None
     for bits, k in ((8, 3.0), (8, 4.0), (8, 6.0), (8, 8.0), (12, 4.0), (12, 8.0), (16, 4.0), (16, 8.0)):
         sc = scale * k / RANGE_SIGMA
-        on = record(build(bits=bits, scale=sc))
-        off = record(build(bits=bits, scale=sc, laser_on=False))
+        on = record(build(bits=bits, scale=sc), seed=next(seeds))
+        off = record(build(bits=bits, scale=sc, laser_on=False), seed=next(seeds))
         e = entropy(on, off, bits)
         if (bits, k) == (8, RANGE_SIGMA):
             best = (on, e)
@@ -269,7 +330,7 @@ if __name__ == "__main__":
     # 4. what happens unbalanced: a 50:50 coupler (Park §3.2)
     s = build(balanced=False, scale=scale)
     entry = report(s)["detectors"]["BPD-1"]
-    codes = np.concatenate(record(s))
+    codes = np.concatenate(record(s, seed=next(seeds)))
     print(f"4. Unbalanced (BS-1 at 0.5000): RF OUTPUT {entry['readouts']['RF OUTPUT']}; the screen spans "
           f"±{fmt_si(4 * scale, 'V')}, so {np.mean((codes == 0) | (codes == 255)) * 100:.0f} % of the samples read an end code\n")
 
@@ -277,14 +338,25 @@ if __name__ == "__main__":
     on, e = best
     h = e["h_quantum"]
     m = secure_length(512, h)
-    out = extract(on, 8, h)
+    out = extract(on, 8, h, seed=next(seeds))
     t = bit_tests(out)
     print(f"5. Toeplitz extraction at 100 MS/s, 8 bits: blocks of 512 samples (4096 bits) → {m} bits "
           f"(ℓ = 512·{h:.2f} − log₂(1/2ε²), ε = 2⁻⁶⁴); {fmt_si(100e6 * m / 512, 'b/s')}")
     print(f"   {t['bits']:,} bits out: ones {t['ones']:.4f}, frequency p = {t['frequency p']:.2f}, runs p = {t['runs p']:.2f}, "
           f"byte χ² p = {t['byte chi2 p']:.2f}")
     print("   (NIST SP 800-22 passes a test at p ≥ 0.01. phoq's noise is pseudo-random: these tests check the\n"
-          "    pipeline, not quantum randomness.)")
+          "    pipeline, not quantum randomness.)\n")
+
+    # 6. the vacuum input: capped, left open, or capped with the wrong polish
+    print("6. The vacuum input (BS-1.a2): LO light reflected off the detector's inputs comes back in through an open")
+    print("   flat end, ~10 ns late. It beats with the LO, so RF OUTPUT moves, and the delay turns the laser's phase noise")
+    print("   into intensity noise")
+    print(f"   {'vacuum input':>14} {'RF OUTPUT DC':>13} {'screen':>8} {'at an end code':>14} {'added noise':>12}")
+    for row in vacuum_port_check(scale, seed=next(seeds)):
+        print(f"   {row['port']:>14} {fmt_si(row['dc'], 'V'):>13} ±{fmt_si(row['screen'], 'V'):>7} {row['ends']:13.0%} "
+              f"{row['excess']:+11.0%}  of the shot noise")
+        for w in row["warnings"]:
+            print(f"      {w[:110]}…")
 
     if args.plot:
         import matplotlib
@@ -294,14 +366,14 @@ if __name__ == "__main__":
 
         plt.style.use("dark_background")
         fig, ax = plt.subplots(1, 3, figsize=(13, 3.8))
-        for runs, color, label in ((on, "#22d3ee", "LO on"), (record(build(scale=scale, laser_on=False)), "#9ca3af", "dark")):
+        for runs, color, label in ((on, "#22d3ee", "LO on"), (record(build(scale=scale, laser_on=False), seed=next(seeds)), "#9ca3af", "dark")):
             segs = [r[i:i + 2000] - r[i:i + 2000].mean() for r in runs for i in range(0, r.size - 1999, 2000)]
             psd = np.mean([np.abs(np.fft.rfft(x)) ** 2 / 2000 for x in segs], axis=0)
             ax[0].semilogy(np.fft.rfftfreq(2000, 1e-8)[1:] / 1e6, psd[1:], lw=0.8, color=color, label=label)
         ax[0].set(xlabel="frequency [MHz]", ylabel="PSD [codes²/bin]", title="spectrum of the ADC samples")
         ax[0].legend(fontsize=8)
         for fs, color in zip(results, ("#facc15", "#4ade80", "#22d3ee", "#f472b6")):
-            a = autocorrelation(record(build(sample_rate=fs, scale=scale), sweeps=3))
+            a = autocorrelation(record(build(sample_rate=fs, scale=scale), sweeps=3, seed=next(seeds)))
             ax[1].plot(range(1, 21), a, "o-", ms=3, lw=0.8, color=color, label=fmt_si(fs, "S/s"))
         ax[1].set(xlabel="lag [samples]", ylabel="autocorrelation", title="correlation against sample rate")
         ax[1].legend(fontsize=8)

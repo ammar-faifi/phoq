@@ -195,6 +195,7 @@ class Component:
     outputs: ClassVar[tuple[str, ...]] = ()
     is_cord: ClassVar[bool] = False  # fiber patch cords join optical ports
     is_adaptor: ClassVar[bool] = False  # a mating sleeve: the connectors in its two sides mate
+    is_plug: ClassVar[bool] = False  # plugs straight into a port or a sleeve, like a cord's end (a terminator)
     spectral_curves: ClassVar[dict[str, str]] = {}  # datasheet curves a preset may give: name → unit
     registry: ClassVar[dict[str, type[Component]]] = {}
     aliases: ClassVar[dict[str, str]] = {}  # a renamed class's old name → its name now
@@ -458,7 +459,8 @@ class Setup:
         *,
         length: float = 1.0,
     ):
-        """Connect two ports. Two bulkhead optical ports get a patch cord (returned) in between."""
+        """Connect two ports. Two bulkhead optical ports get a patch cord (returned) in between; a
+        plug (a terminator) mates straight onto the other port."""
         a, b = self.port(a), self.port(b)
         for p in (a, b):
             if p.component.setup is not self:
@@ -480,7 +482,9 @@ class Setup:
             raise ConnectionError(
                 f"cannot connect two electrical {a.direction}puts ({a.path}, {b.path})"
             )
-        if a.kind == "optical" and not a.component.is_cord and not b.component.is_cord:
+        if a.kind == "optical" and a.component.is_plug and b.component.is_plug:
+            raise ConnectionError(f"cannot plug {a.path} into {b.path}: both are plugs")
+        if a.kind == "optical" and not any(p.component.is_cord or p.component.is_plug for p in (a, b)):
             from .passive import Fiber
 
             if fiber is None:  # the patch cord a lab would take: its ends match the two ports
@@ -497,6 +501,37 @@ class Setup:
             return fiber
         self._mate(a, b)
         return None
+
+    def terminate(self, port: Port | str, connector: str | None = None) -> Component:
+        """Cap an unused optical port with a fiber terminator of its own connector type (or
+        ``connector``), as one caps a homodyne's vacuum input or a coupler's spare output."""
+        from .passive import FiberTerminator
+        from .units import DEFAULT_CONNECTOR
+
+        p = self.port(port)
+        cap = self.add(FiberTerminator(connector=connector or p.connector or DEFAULT_CONNECTOR))
+        self.connect(p, cap.ports["p"])
+        return cap
+
+    def spare_ports(self) -> list[Port]:
+        """Unused optical ports of the passive parts and modulators, such as a coupler's spare input
+        or output. A laser with nothing on it, a free detector input and an unplugged cord end are
+        not spares."""
+        from .detectors import _Detector
+        from .sources import Laser
+
+        return [
+            p
+            for c in self
+            if not (c.is_cord or c.is_adaptor or c.is_plug or isinstance(c, (Laser, _Detector)))
+            for p in c.ports.values()
+            if p.kind == "optical" and p.peer is None
+        ]
+
+    def terminate_spares(self) -> list[Component]:
+        """Cap every spare port (:meth:`spare_ports`) with a terminator of its own connector type;
+        returns the terminators."""
+        return [self.terminate(p) for p in self.spare_ports()]
 
     def _mate(self, a: Port, b: Port) -> None:
         a.peer, b.peer = b, a

@@ -50,6 +50,7 @@ def build(linewidth: float = LINEWIDTH, spool_m: float = 10e3, averages: int = 2
     setup.connect(split.b2, voa.p1)  # short arm
     setup.connect(voa.p2, merge.a2)
     setup.connect(merge.b1, pd.inp)
+    setup.terminate_spares()  # every unused coupler port capped: open, a flat port reflects 3.6 %
     setup.connect(pd.rf, esa.inp)
     return setup
 

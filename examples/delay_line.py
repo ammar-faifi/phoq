@@ -21,6 +21,7 @@ def build() -> Setup:
     setup.connect(spool.p2, pd2.inp)
     setup.connect(pd1.rf, scope.ch1)
     setup.connect(pd2.rf, scope.ch2)
+    setup.terminate_spares()  # BS-1's spare input: no cord, the terminator plugs straight in
     return setup
 
 

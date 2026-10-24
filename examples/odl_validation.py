@@ -62,6 +62,7 @@ def mzi(linewidth: float = 0.0, wavelength: float = 1550e-9) -> Setup:
     setup.connect(odl.p2, bs2.a2, length=0.5)
     setup.connect(bs2.b1, pd1.inp)
     setup.connect(bs2.b2, pd2.inp)
+    setup.terminate_spares()
     return setup
 
 
@@ -81,6 +82,7 @@ def build(width: float = WIDTH, linewidth: float = 100e3) -> Setup:
     setup.connect(bs_out.b2, pd_d.inp)
     setup.connect(pd_c.rf, osc.ch1)
     setup.connect(pd_d.rf, osc.ch2)
+    setup.terminate_spares()
     balance(setup, "LD-1", "PD-C", "DLI-ODL")
     lock(setup, "LD-1", "PD-C", "DLI-PS")
     osc.h_position = min(trace(setup).delays(pd_c, laser)) % T - 4 * osc.timebase  # pulse mid-screen
@@ -100,6 +102,7 @@ def counting(width: float = WIDTH, oversample: int = 1) -> Setup:
     setup.connect(bs_out.b2, dm2.inp)
     setup.connect(dm1.out, cnt.ch1)
     setup.connect(dm2.out, cnt.ch2)
+    setup.terminate_spares()
     balance(setup, "LD-1", "DM1", "DLI-ODL")
     return setup
 

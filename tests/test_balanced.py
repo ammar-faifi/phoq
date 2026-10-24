@@ -46,6 +46,9 @@ def bench(*, preset="thorlabs/pdb450c", wavelength=1550e-9, ratio=0.5, cords=(1.
     s.connect(bs.b1, bpd.inp_plus, length=cords[0])
     if minus:
         s.connect(bs.b2, bpd.inp_minus, length=cords[1])
+    else:
+        s.terminate(bs.b2)  # the blocked arm, capped
+    s.terminate(bs.a2)  # capped: an open flat port would send LO light back in
     q = float(im.voltage_for(0.5))
     if freq:
         fg.set(ch1_shape="sine", ch1_freq=freq, ch1_vpp=2.0, ch1_offset=q)  # T swings ½(1 ± 0.7)
@@ -98,6 +101,7 @@ def test_single_detector_mode_signs():
     assert report(s)["detectors"]["BPD"]["rf"] > 0
     assert report(s)["detectors"]["BPD"]["status"] == "Single input"
     s.disconnect(s["BPD"].inp_plus)
+    s.disconnect(s["BS"].b2)  # the cap off, INPUT− plugged in
     s.connect(s["BS"].b2, s["BPD"].inp_minus)
     assert report(s)["detectors"]["BPD"]["rf"] < 0
 
@@ -197,6 +201,7 @@ def test_report_warns_of_saturation_damage_and_a_missing_gain():
     s["LD"].power_dbm = 15.0  # 2 mW on INPUT+: the monitor (1 mW), not yet the diode (20 mW)
     w = [w["text"] for w in report(s)["warnings"]]
     assert any("MONITOR output would reach" in t for t in w) and not any("absolute maximum" in t for t in w)
+    s.disconnect(s["BS"].b2)  # the cap off, INPUT− plugged in
     s.connect(s["BS"].b2, s["BPD"].inp_minus)
     s["FG"].ch1_offset = float(s["IM"].voltage_for(1.0))  # the IM fully open
     s["BS"].ratio, s["LD"].power_dbm = 0.95, 20.0  # 30 mW on INPUT+, 1.6 mW on INPUT−

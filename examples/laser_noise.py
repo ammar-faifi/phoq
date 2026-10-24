@@ -42,8 +42,9 @@ BOTH_INPUTS = (0.0, 4.0, 8.0, 12.0, 16.0, 20.0, 24.0)  # VOA [dB]: 1.2 mA down t
 
 
 def build(attenuation_db: float = 10.0, inputs: int = 2, rin: float = RIN, laser_on: bool = True) -> Setup:
-    """Laser → VOA → 50:50 coupler → balanced detector → spectrum analyzer. ``inputs=1`` leaves
-    INPUT− unplugged, as when one arm is blocked."""
+    """Laser → VOA → 50:50 coupler → balanced detector → spectrum analyzer, the coupler's spare
+    input capped. ``inputs=1`` caps the second output and leaves INPUT− unplugged, as when one arm
+    is blocked."""
     setup = Setup("Laser intensity noise and shot noise", seed=3)
     laser = setup.add(Laser("LD-1", mode="cw", power_dbm=3.0, rin_db_hz=rin, enabled=laser_on))
     voa = setup.add(Attenuator("VOA-1", attenuation_db=attenuation_db))
@@ -57,6 +58,7 @@ def build(attenuation_db: float = 10.0, inputs: int = 2, rin: float = RIN, laser
     if inputs == 2:
         setup.connect(bs.b2, bpd.inp_minus, length=1.0)
     setup.connect(bpd.rf, esa.inp)
+    setup.terminate_spares()  # the spare input (and the blocked arm): open, they send light back in
     return setup
 
 

@@ -91,7 +91,7 @@ export class Interaction {
       this.drag = { kind: 'end', end: hit.end, snap: null, pending: true };
     } else if (hit.kind === 'part') {
       this.lab.select(hit.part.name);
-      if (hit.part.onShelf) { this.drag = { kind: 'none', pending: true }; return; }
+      if (hit.part.onShelf || hit.part.mount) { this.drag = { kind: 'none', pending: true }; return; }
       const p = this.planePoint(e, 0) ?? hit.part.group.position.clone();
       this.drag = { kind: 'part', part: hit.part, offset: hit.part.group.position.clone().sub(p), pending: true };
     } else {

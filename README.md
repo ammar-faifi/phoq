@@ -71,7 +71,7 @@ Units are SI throughout: metres, seconds, hertz and watts. Powers use `power_dbm
 | --- | --- |
 | Sources | `Laser` (CW / pulsed / sine / OOK, linewidth, detuning, relative intensity noise, per-pulse phase randomisation) |
 | Fiber | `Fiber` (patch cord), `FiberSpool` |
-| Passive | `Attenuator`, `Coupler` (2×2 fused fiber coupler; `BeamSplitter` is its deprecated old name), `PhaseShifter`, `Isolator`, `MatingSleeve` (FC–FC adapter joining two cords), `OpticalDelayLine` (variable free-space delay: dial, carrier phase, Gaussian-beam coupling loss) |
+| Passive | `Attenuator`, `Coupler` (2×2 fused fiber coupler; `BeamSplitter` is its deprecated old name), `PhaseShifter`, `Isolator`, `MatingSleeve` (FC–FC adapter joining two cords), `FiberTerminator` (cap for an unused port: plugs straight in, absorbs), `OpticalDelayLine` (variable free-space delay: dial, carrier phase, Gaussian-beam coupling loss) |
 | Modulators | `PhaseModulator` (φ = π·V/Vπ), `IntensityModulator` (Mach–Zehnder, extinction) — voltage comes only through their `rf` and `bias` inputs; `IQModulator` (dual-parallel MZM: `rf_i`, `rf_q` and three DC biases, `bias_i`, `bias_q`, `bias_p`); `OpticalSwitch` (2×2, bar below the threshold voltage on `ctrl`, cross above: a pattern routes pulse by pulse) |
 | Detectors | `Photodiode`, `BalancedPhotodetector` (two FC inputs whose photocurrents subtract before a switchable-gain amplifier: RF OUTPUT, and a MONITOR output per diode), `SinglePhotonDetector`, `PowerMeter` |
 | Instruments | `Oscilloscope` (with an optional ADC resolution, `adc_bits`), `SpectrumAnalyzer` (RF spectrum in dBm: RBW, averaging, detectors, trace average and max hold, Lorentzian and short-delay linewidth fits), `PhotonCounter` (time tagger: per-channel input delays, sub-bins for pulses shorter than a bin), `FunctionGenerator` (2 outputs: dc / sine / square / triangle / ramp / loaded pattern), `DCPowerSupply` (2 outputs, ±30 V) |
@@ -94,7 +94,7 @@ it would make an angled-to-flat mating light up amber instead of cyan.
 | FC/APC ↔ FC/APC | 0.3 dB | −60 dB |
 | FC/PC ↔ FC/PC or FC/UPC | 0.3 dB | −40 dB (the worse face) |
 | FC/APC ↔ FC/PC or FC/UPC | ≈ 5 dB, assumed | 3.6 % (−14.4 dB) into the flat side, −60 dB into the angled side |
-| open FC/UPC or FC/PC end | — | 3.6 % back into the fiber |
+| open FC/UPC or FC/PC end (a cord's or a part's) | — | 3.6 % back into the fiber |
 | open FC/APC end | — | −60 dB |
 
 The matching-pair values are typical specifications (`phoq.units.RETURN_LOSS_DB`,
@@ -103,10 +103,25 @@ leaves an air gap. The flat face then reflects the full glass–air Fresnel 3.6 
 and the loss (`MISMATCH_LOSS_DB`) depends on the ferrule geometry. The 5 dB is an assumed value
 to replace with your own measurement; the lab warns about any such mating whatever the number.
 
-Reflections are traced (one per path): the inspector of every laser shows the setup's return
+Reflections are traced, up to two per path: the inspector of every laser shows the setup's return
 loss as the laser sees it and names the strongest reflection, e.g. `open FC/UPC end FIB-3.b
 (−15.0 dB)`. Light reflected into a detector through a coupler, as in a reflectometer, is counted
-like any other path, and interferes with it.
+like any other path, and interferes with it. A second reflection sends light on again, a double
+bounce. These are kept above −90 dB, so two matching pairs (−100 dB) never count, but an open flat
+end or an air gap does. Any unmated connector is open, a part's port as much as a cord's end: a
+coupler's spare input left open reflects 3.6 %, and the report warns when what it reflects reaches
+a detector within −70 dB of the direct light.
+
+**Terminators.** A `FiberTerminator` caps an unused port. It plugs straight in, with no cord
+(`setup.terminate(port)` adds one of the port's own type; `setup.terminate_spares()`, or **Cap spare
+ports** in the lab's setup overview, caps every unused port of the couplers and other parts at once), and absorbs
+the light it takes, so its only reflection is that of the mated pair: −60 dB for an FC/APC cap on
+an FC/APC port. A green cap
+on a blue port is an air gap, with the 3.6 % and the warning of any APC↔UPC pair. Cap the vacuum
+input of a homodyne and the spare outputs of couplers. Left open, the vacuum input of
+`examples/laser_noise.py` adds 5.2 dB of noise above the shot noise at 1.1 mA: LO light reflected
+at a coupler-output mating leaves by it, comes back 10 ns late, and turns the laser's 100 kHz of
+phase noise into intensity noise.
 
 **Mating sleeves.** A `MatingSleeve` is an FC–FC adapter: plug a cord into each side and the two
 cords' connectors mate inside it as one pair, with the loss and reflection of their two types. It
@@ -126,7 +141,7 @@ python examples/connector_cascade.py
 4 cords, 3 sleeves                           5   -1.50 dBm    672 µA   -44.1 dB  LD-1.out (FC/UPC) ↔ FIB-1.a (FC/UPC) (-50.0 dB)
 8 cords, 7 sleeves                           9   -2.70 dBm    510 µA   -42.6 dB  LD-1.out (FC/UPC) ↔ FIB-1.a (FC/UPC) (-50.0 dB)
 4 FC/APC cords, APC laser and PD             5   -1.50 dBm    672 µA   -54.1 dB  LD-1.out (FC/APC) ↔ FIB-1.a (FC/APC) (-60.0 dB)
-4 cords, one FC/APC among FC/UPC             5  -10.90 dBm   77.2 µA   -15.6 dB  FIB-2.b (FC/UPC) ↔ FIB-3.a (FC/APC) in SLV-2 (-15.6 dB)
+4 cords, one FC/APC among FC/UPC             5  -10.91 dBm   77.1 µA   -15.6 dB  FIB-2.b (FC/UPC) ↔ FIB-3.a (FC/APC) in SLV-2 (-15.6 dB)
 APC laser → UPC PD, last cord hybrid         4   -1.20 dBm    721 µA   -50.3 dB  FIB-3.b (FC/UPC) ↔ PD-1.inp (FC/UPC) (-51.8 dB)
 4 cords, last end unplugged                  4           —      1 nA   -16.8 dB  open FC/UPC end FIB-4.b (-16.8 dB)
 ```
@@ -1269,10 +1284,10 @@ and Park et al. (2025), with the oscilloscope as its ADC:
 
 ```
 laser (LO, 4 dBm) → BS-1 ─┬─ 1 m → INPUT+    BPD-1 (PDB450C, 10⁴ V/A, 45 MHz)
-   open input: vacuum ─────┘─ 1 m → INPUT−    RF OUTPUT → OSC-1 CH1 (adc_bits=8)
+ FC/APC cap: vacuum ───────┘─ 1 m → INPUT−    RF OUTPUT → OSC-1 CH1 (adc_bits=8)
 ```
 
-Only the vacuum enters the coupler's second input. The balanced detector's difference current
+Only the vacuum enters the coupler's second input, which is capped with an angled terminator. The balanced detector's difference current
 keeps the vacuum's quadrature noise amplified by the LO, which is the shot noise of the previous
 section, while the LO's own noise cancels. Each 8-bit sample is Gaussian, with variance
 $`\sigma^2 = \sigma_Q^2 + \sigma_E^2`$: the vacuum's share plus the classical excess (the amplifier,
@@ -1299,17 +1314,31 @@ every sample on an end code of the ±9 mV screen.
 
 | Check | Result |
 | --- | --- |
-| Shot noise: σ² − σ_E² against LO power, −2 to 4 dBm | ∝ I: 407 codes² per mA throughout, R² = 1.0000 (Park: 0.9957) |
-| Quantum-to-classical noise ratio at 1.8 mA | +4.2 dB = 2q(I₊ + I₋) over the NEP noise |
-| Sample rate against the 45 MHz detector | acf(1) 0.002, 0.007, 0.07, 0.30 at 20, 50, 100, 200 MS/s; H per sample 5.56, 5.63, 5.58, 5.41 bits; rate 0.11, 0.28, 0.56, 1.08 Gb/s |
-| 8-bit min-entropy against the ADC range, ±3σ, ±4σ, ±6σ, ±8σ | classical 1.56, 4.14, 5.50, 5.09 bits; quantum 5.78, 5.58, 4.99, 4.58 bits (best range 5.80) |
-| 12 and 16 bits at ±8σ | classical 9.09 and 13.09 bits; quantum 8.58 and 12.58 bits |
-| Extraction at 100 MS/s, 8 bits | 512 samples → 2727 bits, 533 Mb/s; output passes the frequency, runs and byte-χ² checks |
+| Shot noise: σ² − σ_E² against LO power, −2 to 4 dBm | ∝ I: 401–406 codes² per mA, against 404 from 2q·I through the detector's and the scope's filters; R² = 1.0000 (Park: 0.9957) |
+| Dark noise σ_E² | 279 codes², against 280 from the NEP through the same filters (and 1/12 of quantization) |
+| Quantum-to-classical noise ratio at 1.8 mA | +4.2 dB = 2q(I₊ + I₋) over the NEP noise (+4.17 dB) |
+| Sample rate against the 45 MHz detector | acf(1) 0.002, 0.005, 0.072, 0.290 at 20, 50, 100, 200 MS/s, against 0.000, 0.004, 0.069, 0.292 from the filters' impulse response; H per sample 5.57, 5.63, 5.57, 5.43 bits; rate 0.11, 0.28, 0.56, 1.09 Gb/s |
+| 8-bit min-entropy against the ADC range, ±3σ, ±4σ, ±6σ, ±8σ | classical 1.56, 4.14, 5.50, 5.08 bits; quantum 5.78, 5.57, 4.98, 4.57 bits (best range 5.80) |
+| 12 and 16 bits at ±8σ | classical 9.08 and 13.09 bits; quantum 8.57 and 12.57 bits |
+| Extraction at 100 MS/s, 8 bits | 512 samples → 2726 bits, 532 Mb/s; output passes the frequency, runs and byte-χ² checks |
+| Vacuum input left open (flat FC/UPC), or an FC/APC cap on that flat port | RF OUTPUT at 37.9 mV, past the ±8.9 mV screen: every sample an end code; +36 to +41 % classical noise on top of the shot noise; capped FC/APC on FC/APC: none |
+
+Every record draws its own noise: sweep k of record j comes from numpy's stream (seed, j, k), and
+`--seed` changes them all. With seeds 1, 2 and 3 the shot noise per mA stays within 401–410
+codes², acf(1) within 0.006 of the filters' values, the min-entropies within ±0.05 bit (±0.02 at the best range), and
+every extraction passes.
 
 The two side-information models want different ADC ranges. The classical worst case lets the
 adversary push a sample toward an end bin, so it needs a wide range. The quantum bound takes the
 excess noise as Gaussian and is best near ±4σ at 8 bits. Sampling faster than the detector's
 bandwidth still adds bits per second, but each sample carries fewer.
+
+The vacuum input must stay dark and must not reflect. Left open, its flat end sends back the LO
+light that the matings at the coupler's outputs reflect (−50 dB each), about 10 ns late. That
+copy beats with the LO, so RF OUTPUT leaves the screen, and the delay turns the laser's phase
+noise into intensity noise. The LO-off calibration cannot see that noise, so it would count it
+as quantum. The report names the port: `Open connector BS-1.a2 reflects light on to BPD-1, -58 dB
+under the light that reaches it directly`.
 
 The bounds reproduce the papers' own numbers (`tests/test_qrng.py`):
 
@@ -1453,8 +1482,8 @@ The models above were compared with twelve references (October 2026):
 - *S. Park et al., "Precision-balanced homodyne quantum random number generator with uncorrelated
   IID raw data and NIST-compliant full-entropy extraction", Phys. Scr. 100, 095117 (2025),
   [doi:10.1088/1402-4896/ae052e](https://doi.org/10.1088/1402-4896/ae052e).*
-  - §3.1: quantum noise linear in LO power above the electronic noise. phoq: R² = 1.0000, against
-    their 0.9957.
+  - §3.1: quantum noise linear in LO power above the electronic noise. phoq: R² = 1.0000 (seeds
+    1–3: 0.9999–1.0000), against their 0.9957.
   - §3.2: balancing the two photocurrents to keep the LO's noise out. phoq trims the coupler, as
     they trim the split with a half-wave plate.
   - §3.3: correlations falling as the bandwidth exceeds the ADC's Nyquist frequency.

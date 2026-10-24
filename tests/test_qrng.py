@@ -2,7 +2,8 @@
 the papers' own numbers (Park et al. 2025, Eq. 8; Gehring et al. 2021, Table 1 and Eq. 1), the
 bounds' limits, and the bench: shot noise linear in LO power, the quantum-to-classical noise ratio
 from shot noise against the amplifier's NEP, correlations against sample rate, the vacuum's share of
-each sample by ablating the shot-noise draw, and extraction."""
+each sample by ablating the shot-noise draw, the vacuum input left open or capped, and
+extraction."""
 
 import itertools
 import math
@@ -84,7 +85,7 @@ def test_bench_shot_noise_qcnr_and_correlations():
 
 
 def _volts(setup, sweeps, monkeypatch, shot=True):
-    """The scope's unquantized samples over ``sweeps`` records (the seeds of ``record``). ``shot=False``
+    """The scope's unquantized samples over ``sweeps`` records (``record``'s streams). ``shot=False``
     zeroes the BPD's shot-noise draw but still makes it, so every other random number (trigger, RIN,
     TIA noise) is the same: what is left is each sample's classical part."""
     osc = setup["OSC-1"]
@@ -93,7 +94,7 @@ def _volts(setup, sweeps, monkeypatch, shot=True):
         with monkeypatch.context() as m:
             if not shot:
                 m.setattr("phoq.detectors.Q_E", 0.0)
-            return np.concatenate([osc.acquire(trace(setup), np.random.default_rng(1 + k))["ch1"].data
+            return np.concatenate([osc.acquire(trace(setup), np.random.default_rng((1, k)))["ch1"].data
                                    for k in range(sweeps)])
     finally:
         osc.adc_bits = bits
@@ -136,6 +137,26 @@ def test_eve_with_classical_side_information_guesses_the_centre_code(monkeypatch
     sigma_q = (v - e).std() / osc.ch1_scale / 8 * top
     h = -math.log2(np.mean(code_v == code_e))
     assert h == pytest.approx(-math.log2(erf(1 / (2 * math.sqrt(2) * sigma_q))), abs=0.08)
+
+
+def test_an_open_or_wrongly_capped_vacuum_port_is_classical_noise(monkeypatch):
+    """Left open (a flat FC/UPC end), or capped with an angled cap on a flat port, the vacuum input
+    sends LO light reflected off the detector's inputs back in. It beats with the LO: RF OUTPUT
+    leaves the ADC's range, and the added noise is classical (the ablation leaves the shot-noise
+    part as it was). The report says why; the matching FC/APC cap removes all of it."""
+    scale = EX["fit_range"](EX["build"]())
+    rows = {r["port"]: r for r in EX["vacuum_port_check"](scale)}
+    capped, opened, wrong = rows["capped"], rows["open"], rows["apc-on-upc"]
+    assert abs(capped["dc"]) < 0.01 * capped["screen"] and not capped["warnings"]
+    assert capped["ends"] < 1e-3  # the Gaussian's own tails beyond ±4σ: 6·10⁻⁵
+    for r in (opened, wrong):
+        assert abs(r["dc"]) > r["screen"] and r["ends"] > 0.99 and r["excess"] > 0.2
+    assert any(w.startswith("Open connector BS-1.a2 reflects light on to BPD-1") for w in opened["warnings"])
+    assert any("air gap" in w for w in wrong["warnings"])
+    v_c, e_c = (_volts(EX["build"](scale=scale), 4, monkeypatch, shot=on) for on in (True, False))
+    v_o, e_o = (_volts(EX["build"](scale=scale, vacuum_port="open"), 4, monkeypatch, shot=on) for on in (True, False))
+    assert (v_o - e_o).var() == pytest.approx((v_c - e_c).var(), rel=0.03)
+    assert e_o.var() - e_c.var() == pytest.approx(v_o.var() - v_c.var(), rel=0.1)
 
 
 def test_unbalanced_detector_leaves_the_adc_range():

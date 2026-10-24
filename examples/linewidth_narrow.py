@@ -66,6 +66,7 @@ def build(
     setup.connect(split.b2, shifter.p1)  # short arm: sets the bias phase θ
     setup.connect(shifter.p2, merge.a2)
     setup.connect(merge.b1, pd.inp)
+    setup.terminate_spares()  # every unused coupler port capped: open, a flat port reflects 3.6 %
     setup.connect(pd.rf, esa.inp)
     return setup
 

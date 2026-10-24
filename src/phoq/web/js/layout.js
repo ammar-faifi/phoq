@@ -21,7 +21,7 @@ function opticalGraph(lab) {
   const peer = new Map();
   for (const [a, b] of lab.state.connections) { peer.set(a, b); peer.set(b, a); }
   const adj = new Map();
-  for (const part of lab.parts.values()) if (!part.onShelf) adj.set(part.name, new Set());
+  for (const part of lab.parts.values()) if (!part.onShelf && !part.mount) adj.set(part.name, new Set());
   for (const name of adj.keys()) {
     for (const port of comps.get(name)?.ports ?? []) {
       if (port.kind !== 'optical' || !port.peer) continue;
@@ -45,7 +45,7 @@ function opticalGraph(lab) {
 /** Columns of table parts along the light path (BFS layers from the lasers). */
 function columnsOf(lab) {
   const adj = opticalGraph(lab);
-  const parts = [...lab.parts.values()].filter((p) => !p.onShelf);
+  const parts = [...lab.parts.values()].filter((p) => !p.onShelf && !p.mount);   // a mounted plug rides on its port
   const layer = new Map();
   const bfs = (start) => {
     const q = [...start];
@@ -161,7 +161,7 @@ export function placeNew(lab, part, at = null) {
   const free = (x, z) => {
     if (Math.abs(x) + hw > TABLE.width / 2 || Math.abs(z) + hd > TABLE.depth / 2) return false;
     for (const q of lab.parts.values()) {
-      if (q === part || q.onShelf || !q.placed) continue;
+      if (q === part || q.onShelf || q.mount || !q.placed) continue;
       const [qw, qd] = q.halfExtents();
       const p = q.group.position;
       if (Math.abs(p.x - x) < qw + hw + 1.5 && Math.abs(p.z - z) < qd + hd + 1.5) return false;

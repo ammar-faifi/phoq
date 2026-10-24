@@ -145,6 +145,49 @@ class MatingSleeve(Component):
         }
 
 
+class FiberTerminator(FiberConnectors, Component):
+    """Fiber terminator: a cap that plugs straight onto an unused port (or into a mating sleeve to
+    end a cord) and absorbs the light it takes in.
+
+    An open port is an unmated connector: a flat FC/UPC end sends 3.6 % back into the fiber. Plugged
+    in, the terminator's only reflection is that of the mated pair, by the two connector types
+    (:func:`~phoq.units.mating`): an FC/APC cap on an FC/APC port, −60 dB; on a flat port the angled
+    face leaves an air gap and the flat side gets its 3.6 % back, as with any APC↔UPC pair. Keep the
+    vacuum input of a homodyne or the unused output of a coupler capped with the matching type.
+    """
+
+    category = "passive"
+    prefix = "TRM"
+    label = "Fiber terminator"
+    description = "Absorbing cap for an unused port: FC/APC or FC/UPC"
+    inputs = ("p",)
+    is_plug = True
+
+    connector = Param(
+        "FC/APC",
+        choices=CONNECTORS,
+        label="Connector",
+        doc="End-face polish of the cap: match it to the port it goes on (FC/APC green, FC/UPC blue).",
+    )
+
+    def _build(self):
+        self.add_port("p", "optical", "in", "cap")
+
+    def info(self):
+        from .units import mating
+
+        host = self.ports["p"].peer
+        if host is not None and host.component.is_adaptor:
+            host = host.component.other(host.name)
+        if host is None:
+            return {"Plugged into": "nothing"}
+        _, back, _ = mating(host.connector, self.connector)
+        return {
+            "Plugged into": f"{host.path} ({host.connector})",
+            "Reflected back": f"{10 * math.log10(back):.1f} dB into {host.path}",
+        }
+
+
 class Attenuator(FiberConnectors, Component):
     """Variable optical attenuator."""
 

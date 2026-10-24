@@ -261,6 +261,7 @@ def build(
         delay = setup.add(FiberSpool("EVE-DELAY", length=1.0, splice_loss_db=0.0))
         setup.connect(tx_voa.p2, delay.p1)
         setup.connect(delay.p2, sw.a2)
+    setup.terminate_spares()  # the interferometers' spare inputs: open, they reflect light back in
     calibrate(setup, p, eve)
     return setup
 

@@ -220,6 +220,7 @@ button.run:not(.on) { color: var(--bad); border-color: rgba(248, 113, 113, .5); 
 .readouts b.bad { color: var(--bad); }
 .insp-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .insp-actions button { flex: 1; }
+.insp-actions button:disabled { opacity: .45; cursor: default; }
 .legend { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 12px; color: var(--muted); font-size: 11.5px; }
 .legend div { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
 .legend i { width: 18px; height: 4px; border-radius: 2px; display: inline-block; }

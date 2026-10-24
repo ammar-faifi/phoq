@@ -37,9 +37,9 @@ def dli(setup: Setup, tag: str):
 
 
 def arms(setup: Setup, laser: str, detector: str) -> tuple:
-    """The short- and long-arm paths of ``laser``'s light to ``detector`` (any reflected paths are
-    far weaker and later)."""
-    paths = sorted((p for p in trace(setup).paths[setup[detector]] if p.source is setup[laser]),
+    """The short- and long-arm paths of ``laser``'s light to ``detector`` (the routes: stray
+    paths reflected off connectors are left out)."""
+    paths = sorted((p for p in trace(setup).paths[setup[detector]] if p.source is setup[laser] and not p.reflections),
                    key=lambda p: p.delay)
     return paths[0], paths[1]
 

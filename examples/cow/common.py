@@ -233,6 +233,7 @@ def build(p: COWParams | None = None, slots: int = 400_000, eve: bool | EveParam
         setup.connect(spl_a.p2, sw.a1)
         setup.connect(sw.b1, spl_b.p1)
         setup.connect(spl_b.p2, tap.a1)
+    setup.terminate_spares()  # the tap's and the DLI's spare inputs
     calibrate(setup, p)
     return setup
 
@@ -283,7 +284,8 @@ def calibrate_mu(setup: Setup, p: COWParams) -> float:
 def arms(setup: Setup, detector: str = "DM1") -> tuple:
     """The short- and long-arm paths of Alice's light to a monitoring detector."""
     src = setup["ALICE-LD"]
-    paths = sorted((q for q in trace(setup).paths[setup[detector]] if q.source is src), key=lambda q: q.delay)
+    paths = sorted((q for q in trace(setup).paths[setup[detector]] if q.source is src and not q.reflections),
+                   key=lambda q: q.delay)
     return paths[0], paths[1]
 
 

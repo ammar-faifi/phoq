@@ -53,6 +53,7 @@ def test_intensity_noise_per_bin_and_shared_by_every_path():
     s.connect(laser.out, bs.a1)
     s.connect(bs.b1, pd1.inp, length=1.0)
     s.connect(bs.b2, pd2.inp, length=1.0)
+    s.terminate(bs.a2)
     dt, n = 1e-9, 200_000
     fields = synthesize(trace(s), [pd1, pd2], np.arange(n) * dt, dt, np.random.default_rng(2))
     p1, p2 = (sum(np.abs(e) ** 2 for e in fields[d].values()) for d in (pd1, pd2))

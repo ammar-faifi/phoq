@@ -16,6 +16,7 @@ setup.connect(shifter.p2, bs_out.a1)
 setup.connect(bs_in.b2, bs_out.a2)
 setup.connect(bs_out.b1, meters[0].inp)
 setup.connect(bs_out.b2, meters[1].inp)
+setup.terminate_spares()  # BS-IN's spare input, capped
 
 if __name__ == "__main__":
     runner = Runner(setup)
