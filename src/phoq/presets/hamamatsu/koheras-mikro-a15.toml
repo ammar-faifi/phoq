@@ -1,0 +1,54 @@
+# Hamamatsu (formerly NKT Photonics) Koheras MIKRO A15 — 1550.12 nm single-frequency DFB fiber
+# laser, 10 mW, reduced optical specifications (Koheras MIKRO datasheet).
+schema = 1
+id = "hamamatsu/koheras-mikro-a15"
+component = "Laser"
+title = "Koheras MIKRO A15"
+vendor = "Hamamatsu Photonics"
+part_number = "Koheras MIKRO A15"
+description = "Compact 1550.12 nm OEM single-frequency fiber laser, 10 mW, linewidth < 100 Hz, for telecom and short perimeter sensing"
+tier = "datasheet"
+tags = ["fiber laser", "DFB", "single-frequency", "narrow linewidth", "1550", "CW", "sensing"]
+notes = """
+Koheras lasers move from NKT Photonics to Hamamatsu Photonics; the datasheet says some documents
+still carry the NKT name. The A15 comes at 10 mW (adjustable) and 1550.12 nm only, with reduced
+optical specifications against the E15 (hamamatsu/koheras-mikro-e15): 15 dB more RIN at 10 MHz,
+10 dB more at the relaxation peak, and 10 dB more phase noise at 1 kHz.
+As for the E15: phoq's 100 Hz Lorentzian is the datasheet linewidth measured with 120 µs
+integration, and rin_db_hz is the white level at 10 MHz, above the relaxation peak at about
+0.7 MHz (< −90 dBc/Hz there). Class 3B laser product.
+"""
+
+[source]
+title = "Koheras MIKRO — Compact low-noise 1.5 µm OEM fiber laser"
+vendor_url = "https://www.hamamatsu.com"
+document = "Koheras MIKRO Datasheet.pdf"
+revision = "Koheras MIKRO 20260529"
+accessed = 2026-10-25
+conditions = "free-running, 1550.12 nm"
+
+[params]
+wavelength = { value = 1550.12e-9, from = "datasheet-typ", spec = "Standard wavelengths: 1550.12 nm", note = "No other wavelengths for the A15" }
+power_dbm = { value = 10.0, from = "datasheet-typ", spec = "Output power: 10 mW (adjustable)" }
+mode = { value = "cw", from = "datasheet-typ", spec = "Laser emission: continuous wave, inherently single frequency" }
+linewidth = { value = 100.0, from = "datasheet-max", spec = "Linewidth [kHz] < 0.1, 120 µs integration time", note = "phoq's linewidth is a Lorentzian (white frequency noise); the real frequency noise is not white (see [unsupported])" }
+rin_db_hz = { value = -120.0, from = "datasheet-max", spec = "RIN level < −120 dBc/Hz @ 10 MHz", note = "phoq's RIN is white; the relaxation peak at about 0.7 MHz (< −90 dBc/Hz) is not modeled" }
+connector = { value = "FC/APC", from = "datasheet-typ", spec = "Optical output, standard: FC/APC pigtail, 0.5 m" }
+
+[limits]
+operating_temperature_c = [15.0, 60.0]
+humidity_rh_percent = [0.0, 70.0]
+
+[unsupported]
+rin_peak_frequency_hz = { typ = 0.7e6, note = "RIN peak (relaxation oscillation) at approximately 0.7 MHz" }
+rin_at_peak_dbc_hz = { max = -90.0, note = "RIN level < −90 dBc/Hz at the peak; phoq's RIN is white at the 10 MHz level" }
+phase_noise_db_rad_rthz_per_m = { note = "Max. phase noise, per meter of interferometer imbalance: −90 @ 10 Hz, −110 @ 100 Hz, −110 @ 1 kHz, −130 @ 20 kHz [dB((rad/√Hz)/m)]" }
+frequency_noise_hz_rthz = { note = "Max. frequency noise: 1027.7 @ 10 Hz, 102.8 @ 100 Hz, 102.8 @ 1 kHz, 10.3 @ 20 kHz [Hz/√Hz]; phoq's phase walk has white frequency noise only" }
+optical_snr_db = { min = 48.0, note = "Optical S/N at 50 pm resolution; phoq's laser has no ASE background" }
+m2 = { max = 1.05, note = "Beam quality M² < 1.05; phoq propagates one fiber mode" }
+thermal_tuning_m = { min = 350e-12, note = "Min. thermal wavelength tuning ±350 pm (about ±44 GHz at 1550 nm), relative to the center at room temperature; total range 1000 pm. phoq's detuning sets a fixed offset" }
+fast_wavelength_modulation = { note = "Option: > 8 GHz range, up to 20 kHz" }
+pm_output_per_db = { min = 20.0, note = "Option: polarization-maintaining output, PER > 20 dB; phoq has no polarization" }
+pigtail_length_m = { typ = 0.5, note = "The 0.5 m output pigtail's delay is not part of the laser model; connect a 0.5 m cord to include it" }
+supply = "12 VDC; power consumption typ. 4 W, max. 10 W; RS-485 interface"
+dimensions_mm = "70 × 20 × 150, 0.35 kg"

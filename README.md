@@ -186,6 +186,7 @@ Shipped presets, each citing the datasheet document and revision it was read fro
 | --- | --- | --- | --- |
 | `exail/mx-ln-0.1`, `-05`, `-10`, `-20`, `-40` | Exail MX-LN series LiNbO₃ intensity modulators, 400 MHz – 40 GHz | `IntensityModulator` | Vπ of the RF and of the DC electrodes, insertion loss, extinction ratio; maximum optical, RF and bias inputs |
 | `exail/mxiq-ln-10`, `mxiq-ln-30` | Exail MXIQ-LN-10 and -30 LiNbO₃ IQ modulators, 12 and 25 GHz | `IQModulator` | Vπ of the RF electrodes, of DC1/DC2 and of DC3, insertion loss; maximum optical, RF and bias inputs |
+| `hamamatsu/koheras-mikro-e15`, `-a15` | Hamamatsu (formerly NKT Photonics) Koheras MIKRO E15 and A15 single-frequency DFB fiber lasers, 40 and 10 mW at 1550.12 nm | `Laser` | wavelength, power, CW, the 100 Hz linewidth (120 µs), RIN at 10 MHz (−135 and −120 dB/Hz), FC/APC; the 0.7 MHz RIN peak and the 1/f-like frequency noise kept as unsupported |
 | `mpd/pdm-ir` | MPD PDM-IR InGaAs/InP SPAD module | `SinglePhotonDetector` | PDE at 1550 nm with the PDE-vs-wavelength curve, dark-count rate, hold-off |
 | `excelitas/spcm-aqrh-10-fc` … `-16-fc` | Excelitas SPCM-AQRH Si SPAD modules with FC adaptor, one per dark-count grade (< 1500 … < 25 c/s) | `SinglePhotonDetector` | PDE at 650 nm with the 400–1060 nm curve, dark counts, 22 ns dead time; maximum 10⁴ photons per pulse |
 | `thorlabs/det08cfc` | Thorlabs DET08CFC 5 GHz InGaAs detector | `Photodiode` | bandwidth, responsivity at 1550 nm with the spectral curve, load, saturation from the 2 V output limit |
@@ -1274,6 +1275,9 @@ difference current stays at the shot noise, because the RIN reaches both diodes 
 to the CMRR residue. The two diodes' shot noises are uncorrelated and do not cancel.
 [examples/laser_noise.md](examples/laser_noise.md) explains where each noise enters phoq's code,
 checks the terms against the RP Photonics articles, and has the full tables and plot.
+[docs/tutorial-laser-noise.md](docs/tutorial-laser-noise.md) does the same measurements by hand in
+the 3D lab, with no Python: the floor, shot noise, RIN read in dBc/Hz, balanced detection and its
+CMRR limit, the analyzer's RBW, and an open spare port.
 `tests/test_laser_noise.py` checks the photodiode against $`2qI + 4k_BT/R + \mathrm{RIN}\,I^2`$
 to 0.1 dB, the variance of δ per bin, and that the noise is shared by every path.
 

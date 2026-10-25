@@ -25,6 +25,8 @@ from phoq.presets import PresetError
 SHIPPED = {
     "exail/mx-ln-10",
     "excelitas/spcm-aqrh-13-fc",
+    "hamamatsu/koheras-mikro-a15",
+    "hamamatsu/koheras-mikro-e15",
     "mpd/pdm-ir",
     "thorlabs/det08cfc",
     "thorlabs/dx25cf",
