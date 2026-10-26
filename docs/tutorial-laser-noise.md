@@ -35,7 +35,7 @@ Open <http://localhost:8000>. The table is empty. Add `--no-save` if you don't w
 autosaved to `lab_setup.json`.
 
 To skip the building in section 2, open the finished bench instead. It's built by a script, but
-from then on you only use the lab. Set the laser's RIN to −130 dB/Hz, the attenuation to 0 dB and
+from then on you only use the lab. Set the laser's RIN to −130 dBc/Hz, the attenuation to 0 dB and
 the analyzer as in step 4 of section 2, then go on from section 3:
 
 ```bash
@@ -54,7 +54,7 @@ part by clicking it or dragging it onto the table:
 
 | Part | Then set, in the inspector |
 |---|---|
-| **Laser module** | Modulation **cw** (it starts as pulsed); Average power **3 dBm**; Wavelength **1550 nm**; Intensity noise (RIN) **−130 dB/Hz** |
+| **Laser module** | Modulation **cw** (it starts as pulsed); Average power **3 dBm**; Wavelength **1550 nm**; Intensity noise (RIN) **−130 dBc/Hz** |
 | **Variable attenuator** | Attenuation **0 dB** |
 | **2×2 fiber coupler** | Split ratio (bar) **0.5** |
 | **Balanced photodetector** | Part preset **Thorlabs PDB450C**; Transimpedance gain **100 kV/A** (the preset starts at 10 kV/A) |
@@ -88,19 +88,19 @@ running average starts afresh. It takes about ten seconds to settle.
 
 Select the laser. Its readouts include:
 
-> RIN: −130 dB/Hz; shot noise at this power: −158.9 dB/Hz
+> RIN: −130 dBc/Hz; shot-noise RIN at this power: −158.9 dBc/Hz
 
 These are the two parts of the beam's RIN, both "noise power over mean power²" per Hz:
 
-- **−130 dB/Hz** is the **excess RIN**, the laser's classical fluctuation above Poisson
+- **−130 dBc/Hz** is the **excess RIN**, the laser's classical fluctuation above Poisson
   statistics. Losses leave it unchanged: a laser has it no matter how you attenuate or detect the
   light.
-- **−158.9 dB/Hz** is the **shot-noise RIN** of a beam of this power, 2hν/P, the standard
+- **−158.9 dBc/Hz** is the **shot-noise RIN** of a beam of this power, 2hν/P, the standard
   quantum limit. It belongs to the light (coherent light arrives Poissonian), not to the laser's
   quality.
 
-Set Average power to **0 dBm**. The shot-noise RIN becomes −155.9 dB/Hz: it falls as power
-rises, ∝ 1/P. The excess RIN stays −130 dB/Hz. Set the power back to **3 dBm**.
+Set Average power to **0 dBm**. The shot-noise RIN becomes −155.9 dBc/Hz: it falls as power
+rises, ∝ 1/P. The excess RIN stays −130 dBc/Hz. Set the power back to **3 dBm**.
 
 ## 4. The floor: switch the laser off
 
@@ -159,7 +159,7 @@ The third stays: RF OUTPUT now carries the whole DC, and G·I₊ must stay under
 4.6 V swing. At **10 dB** it still reads "RF OUTPUT would reach +5.55 V, beyond its ±4.6 V
 swing…". Work at **13 dB** and above.
 
-Read the noise with the laser's RIN at −130 dB/Hz, then again with it off (**−200 dB/Hz**):
+Read the noise with the laser's RIN at −130 dBc/Hz, then again with it off (**−200 dBc/Hz**):
 
 | Attenuation | INPUT+ | RIN −130 | RIN off |
 |---|---|---|---|
@@ -192,15 +192,19 @@ detection system's frequency response C(f). At **20 dB**:
 5. Measured RIN: −126.1 − 1.9 = **−128.0 dBc/Hz**.
 
 The measured RIN is the laser's excess RIN plus the detected shot-noise RIN 2q/I. With
-I = 5.55 µA, 2q/I = −132.4 dB/Hz, and taking it away (again in powers) leaves **−130.0 dB/Hz**:
-the laser's setting, its excess RIN. Skip step 3 and you get −130.4 dB/Hz instead. Noise and
+I = 5.55 µA, 2q/I = −132.4 dBc/Hz, and taking it away (again in powers) leaves **−130.0 dBc/Hz**:
+the laser's setting, its excess RIN. Skip step 3 and you get −130.4 dBc/Hz instead. Noise and
 carrier pass through the same 50 Ω divider and the same gain, so neither the gain nor the
 responsivity needs calibrating, only the shape of the response. That is the use of a relative
 measure.
 
 Only the excess RIN is a property of the laser. The measured RIN depends on the attenuation,
-through 2q/I: at 25 dB, I = 1.75 µA and the shot-noise part, 2q/I = −127.4 dB/Hz, is already
-larger than the laser's −130 dB/Hz. Attenuate enough and any laser looks shot-noise limited.
+through 2q/I: at 25 dB, I = 1.75 µA and the shot-noise part, 2q/I = −127.4 dBc/Hz, is already
+larger than the laser's −130 dBc/Hz. Attenuate enough and any laser looks shot-noise limited.
+Attenuation adds that noise because it removes photons at random, and the randomness is itself
+noise ([RP Photonics][rp-rin]). In quantum terms, vacuum enters through the attenuator's loss
+port: the same vacuum that [`vacuum_noise_qrng.py`](../examples/vacuum_noise_qrng.py) digitizes
+from the coupler's unlit input.
 
 ## 7. Balanced detection and its limit
 
@@ -210,7 +214,7 @@ loose cord's two connectors back onto `b2` and INPUT−. Set the attenuation to 
 reading returns to **−67.4 dBm**, as in section 5, even though each diode now carries 100× the
 light of section 6's 20 dB reading.
 
-Now make the laser noisier: RIN **−120 dB/Hz**.
+Now make the laser noisier: RIN **−120 dBc/Hz**.
 
 | | RF OUTPUT (DC, high-Z) | Median level |
 |---|---|---|
@@ -222,8 +226,8 @@ coupler the two photocurrents differ by that much, so the residue RIN·ΔI² get
 non-zero DC on RF OUTPUT is the giveaway. Set the coupler's split ratio to **0.492** to give
 INPUT− the extra light: drag the slider, or click it and step with the arrow keys (0.001 per
 press). The DC drops to millivolts and the RIN cancels again. The reading even lands 0.4 dB below
-section 5's, which still carried a trace of the −130 dB/Hz RIN. That is Park's precision
-balancing. Set the RIN back to −130 dB/Hz and the split to 0.5.
+section 5's, which still carried a trace of the −130 dBc/Hz RIN. That is Park's precision
+balancing. Set the RIN back to −130 dBc/Hz and the split to 0.5.
 
 ## 8. What the analyzer shows
 
@@ -258,15 +262,17 @@ FC/UPC end, and a warning appears:
 The reading rises from −67.4 to **−62.8 dBm**. Light reflected at the coupler's outputs leaves by
 `a2`, its flat end sends 3.6 % back, and it reaches the detector about 10 ns late. Set the laser's
 **Linewidth** to **0 Hz**: the reading falls back to about −67.4 dBm. The extra noise was the
-laser's phase noise, turned into intensity noise by that delayed copy. Light needs two
-reflections to come back forward to the detectors, so it is this double bounce that matters.
-Restore the linewidth to 100 kHz and set the terminator's **Plugged into** back to `BS-1.a2`.
+laser's phase noise, turned into intensity noise by that delayed copy. The open port has built,
+by accident, the optical frequency discriminator that [RP Photonics][rp-laser] lists for
+measuring phase noise: an unbalanced interferometer. Light needs two reflections to come back
+forward to the detectors, so it is this double bounce that matters. Restore the linewidth to
+100 kHz and set the terminator's **Plugged into** back to `BS-1.a2`.
 
 ## 10. A real laser
 
 Select the laser and set **Part preset** to **Koheras MIKRO E15**, a 1550 nm fiber laser: RIN
 < −135 dBc/Hz at 10 MHz and a 100 Hz linewidth, from its datasheet. The RIN selector now shows
-−135 dB/Hz, the preset's value. The preset sets 40 mW, which overdrives the detector (two swing
+−135 dBc/Hz, the preset's value. The preset sets 40 mW, which overdrives the detector (two swing
 warnings); set the Average power back to **3 dBm** and they clear (the real laser's output is
 adjustable).
 
@@ -300,3 +306,5 @@ preset lists the peak and the laser's frequency-noise spectrum under *unsupporte
 - **Cap every spare port.** An open flat end turns phase noise into intensity noise.
 
 [oh-rin]: https://www.laserfocusworld.com/detectors-imaging/article/16548496/how-to-measure-relative-intensity-noise-in-lasers
+[rp-rin]: https://www.rp-photonics.com/relative_intensity_noise.html
+[rp-laser]: https://www.rp-photonics.com/laser_noise.html

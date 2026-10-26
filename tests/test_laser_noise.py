@@ -1,9 +1,9 @@
 """Laser intensity noise (Laser.rin_db_hz) and shot noise, against the definitions in
-the RP Photonics encyclopedia ("Intensity noise", "Shot noise", "Balanced
-photodetection"): a photodiode reads S_I = 2qI + 4kT/R + RIN·I²; a balanced detector's
-difference current keeps 2q(I₊ + I₋) and only the CMRR residue of the RIN; the noise is
-one realization per laser, shared by all its paths; and the bench of
-examples/laser_noise.py measures q and the RIN."""
+the RP Photonics encyclopedia ("Intensity noise", "Relative intensity noise", "Shot
+noise", "Balanced photodetection"): a photodiode reads S_I = 2qI + 4kT/R + RIN·I²; a
+balanced detector's difference current keeps 2q(I₊ + I₋) and only the CMRR residue of
+the RIN; the noise is one realization per laser, shared by all its paths; and the bench
+of examples/laser_noise.py measures q and the RIN."""
 
 import math
 from pathlib import Path
@@ -118,6 +118,18 @@ def test_laser_reports_its_rin_against_the_shot_noise_level():
     shot = 10 * math.log10(
         2 * 6.62607015e-34 * 299792458 / laser.wavelength / 1e-3
     )  # 2hν/P
-    assert (
-        laser.info()["RIN"] == f"-150 dB/Hz; shot noise at this power: {shot:.1f} dB/Hz"
+    assert laser.info()["RIN"] == (
+        f"-150 dBc/Hz; shot-noise RIN at this power: {shot:.1f} dBc/Hz"
     )
+
+
+@pytest.mark.parametrize(
+    "power_dbm, rp", [(0.0, 10 * math.log10(3.73e-16)), (20.0, -174.0)]
+)
+def test_shot_noise_rin_matches_rp_photonics(power_dbm, rp):
+    """RP Photonics, "Relative intensity noise": a 1 mW beam at 1064 nm has a
+    shot-noise RIN 2hν/P of 3.73·10⁻¹⁶ Hz⁻¹ (−154 dBc/Hz), and the 100 mW Nd:YAG of
+    its Fig. 1 reaches −174 dBc/Hz."""
+    laser = Laser("LD", wavelength=1064e-9, power_dbm=power_dbm, rin_db_hz=-150.0)
+    shot = float(laser.info()["RIN"].split("at this power: ")[1].split(" ")[0])
+    assert shot == pytest.approx(rp, abs=0.5 if power_dbm else 0.05)

@@ -1,7 +1,8 @@
 # Laser noise in phoq: phase noise, intensity noise, shot noise
 
-This note maps four RP Photonics encyclopedia articles onto phoq's code: [phase noise][rp-phase],
-[intensity noise][rp-int], [shot noise][rp-shot] and [balanced photodetection][rp-bal]. For the
+This note maps six RP Photonics encyclopedia articles onto phoq's code: [laser noise][rp-laser],
+[phase noise][rp-phase], [intensity noise][rp-int], [relative intensity noise][rp-rin],
+[shot noise][rp-shot] and [balanced photodetection][rp-bal]. For the
 parts of RIN and how they are measured, it follows Obarski and Hale's NIST article
 [*How to measure relative intensity noise in lasers*][oh-rin].
 
@@ -57,6 +58,12 @@ delayed copy of the same laser. phoq has both:
 - Phase noise also sets the visibility of the delay-line interferometers in
   [`dli_for_dpsk.py`](dli_for_dpsk.py) and [`dli_for_cow.py`](dli_for_cow.py).
 
+[Laser noise][rp-laser] adds a third method: an optical frequency discriminator, such as an
+unbalanced interferometer, which turns frequency noise into intensity noise. The delay-line
+interferometers are such discriminators. So, by accident, is an open spare port, whose
+twice-reflected copy beats with the direct light on the detector: section 9 of
+[the tutorial](../docs/tutorial-laser-noise.md) shows it.
+
 **Not modeled:** 1/f (flicker) frequency noise, technical drift, and the coupling of intensity to
 phase noise (the linewidth enhancement factor).
 
@@ -64,7 +71,7 @@ phase noise (the linewidth enhancement factor).
 
 **The definition.** Intensity noise is the fluctuation of the optical power, strictly speaking.
 Relative intensity noise (RIN) divides it by the mean power, and is specified either as a PSD in
-dB/Hz or as an rms value *over a stated bandwidth*. A bare "±0.1 %" means nothing
+dBc/Hz or as an rms value *over a stated bandwidth*. A bare "±0.1 %" means nothing
 ([intensity noise][rp-int]). Two powers must not be confused:
 
 - the *optical* power that fluctuates;
@@ -73,12 +80,15 @@ dB/Hz or as an rms value *over a stated bandwidth*. A bare "±0.1 %" means nothi
 Doubling the light raises the electrical noise power by 6 dB.
 
 **In phoq.** `Laser.rin_db_hz` is the laser's classical RIN: the one-sided PSD $S$ of
-$\delta P/\bar P$, white. It is the "simple approach" of Seimetz (2009), Eq. (2.8): Gaussian
-statistics with a white spectrum. `Laser.intensity_factor` multiplies the field by
-$\sqrt{1+\delta}$. δ is averaged over each time bin of width Δt, so its variance is $S/2\Delta t$,
-which is $S$ over the bin's bandwidth $1/2\Delta t$. δ is drawn on one absolute grid of bins, so
-two paths leaving in the same bin carry the same δ. The noise is therefore common to everything the
-laser lights, and a balanced detector can cancel it. The default, −200 dB/Hz, draws nothing at all.
+$\delta P/\bar P$, white, in dBc/Hz. One-sided means the factor 2 in [RP][rp-rin]'s definition,
+$`S(f) = (2/\bar P^2)\int\langle\delta P(t)\,\delta P(t+\tau)\rangle e^{i2\pi f\tau}\,d\tau`$, and an
+rms value over a band is $`\sqrt{\int S\,df}`$. It is the "simple approach" of Seimetz (2009),
+Eq. (2.8): Gaussian statistics with a white spectrum. `Laser.intensity_factor` multiplies the
+field by $\sqrt{1+\delta}$. δ is averaged over each time bin of width Δt, so its variance is
+$S/2\Delta t$, which is $S$ over the bin's bandwidth $1/2\Delta t$. δ is drawn on one absolute
+grid of bins, so two paths leaving in the same bin carry the same δ. The noise is therefore common
+to everything the laser lights, and a balanced detector can cancel it. The default,
+−200 dBc/Hz, draws nothing at all.
 
 A photodiode then reads
 
@@ -94,13 +104,17 @@ RIN*, the deviation from Poisson statistics, which losses leave unchanged. $2q/\
 above the floor by the detection system's frequency response, $`R(f) = P_E(f)/(P\,C(f))`$, as
 `laser_noise.py` does with the detector's pole. Attenuation lowers $\bar I$ and so lifts the
 measured RIN toward the shot-noise level: the effect [RP][rp-shot] warns of when a beam is
-attenuated for a measurement.
+attenuated for a measurement. [RP][rp-rin] gives the reason: attenuation removes photons at
+random, and that randomness is added noise.
+
 The laser's inspector shows both numbers. For example, at 3 dBm and 1550 nm the shot-noise RIN is
-−158.9 dB/Hz, so a −135 dB/Hz laser lies 24 dB above it.
+−158.9 dBc/Hz, so a −135 dBc/Hz laser lies 24 dB above it. [RP][rp-rin]'s worked example, 1 mW at
+1064 nm, is 3.73·10⁻¹⁶ Hz⁻¹ = −154 dBc/Hz; `tests/test_laser_noise.py` checks phoq against it.
 
 **Not modeled:** the relaxation-oscillation peak, excess low-frequency (pump) noise, and mode
-hopping. The `balanced_detection.py` demo's 5 % rms noise below 30 kHz is technical wander
-emulated with an intensity modulator, not `rin_db_hz`.
+hopping. [RP][rp-rin]'s simulated Nd:YAG spectrum shows the first two. The
+`balanced_detection.py` demo's 5 % rms noise below 30 kHz is technical wander emulated with an
+intensity modulator, not `rin_db_hz`.
 
 ## Shot noise
 
@@ -144,8 +158,8 @@ the rest: the gain switch, the path-length CMRR and the monitors.
 ## The measurement: `laser_noise.py`
 
 ```
-laser (RIN −135 dB/Hz) → VOA → 50:50 ─┬─ 1 m → INPUT+    BPD-1 (PDB450C, 10⁵ V/A)
-                                      └─ 1 m → INPUT−    RF OUTPUT → spectrum analyzer
+laser (RIN −135 dBc/Hz) → VOA → 50:50 ─┬─ 1 m → INPUT+    BPD-1 (PDB450C, 10⁵ V/A)
+                                       └─ 1 m → INPUT−    RF OUTPUT → spectrum analyzer
 ```
 
 ```mermaid
@@ -176,7 +190,7 @@ python examples/laser_noise.py
      17    11.1 µA  -231.2    -234.5  -234.1    -134.8
      21     4.4 µA  -236.9    -238.5  -242.1    -135.0
      25    1.75 µA  -242.2    -242.5  -250.1    -139.2
-   fit: q = 1.544e-19 C (-3.6 %), RIN = -134.95 dB/Hz (set -135); crossover 2q/RIN = 10.1 µA
+   fit: q = 1.544e-19 C (-3.6 %), RIN = -134.95 dBc/Hz (set -135); crossover 2q/RIN = 10.1 µA
 
 3. Both inputs: the difference current
      VOA   I₊ + I₋ S_I − dark 2q(I₊+I₋) difference one input would read
@@ -206,7 +220,7 @@ What the three measurements show:
 *`--plot`: the noise above dark against photocurrent, log–log.*
 
 **What to try.**
-- Set `rin_db_hz` to −150 dB/Hz. The one-input crossover moves to 2q/RIN = 320 µA, beyond the
+- Set `rin_db_hz` to −150 dBc/Hz. The one-input crossover moves to 2q/RIN = 320 µA, beyond the
   46 µA this gain allows, and one input then sees only shot noise.
 - Put a bare photodiode into the analyzer's 50 Ω in place of the balanced detector. The shot noise
   of 1 mA, 2qI·50 Ω = −168 dBm/Hz, lands 18 dB under the analyzer's default floor of −150 dBm/Hz.
@@ -238,7 +252,7 @@ README's *Quantum random numbers from vacuum fluctuations* section.
 | phase noise | fluctuation of the optical phase; sets the linewidth | `Laser.phase`: a Wiener walk, white frequency noise, `linewidth` |
 | linewidth, coherence time | FWHM of the line; 1/(πΔν) for a Lorentzian | `linewidth`; the laser's inspector shows the coherence time |
 | intensity noise | noise of the optical power | `Laser.rin_db_hz` (classical part) plus shot noise at detection |
-| RIN | δP/P̄ as a PSD (dB/Hz) or as an rms over a bandwidth | `rin_db_hz`, a one-sided PSD; demo rms values state their band |
+| RIN | δP/P̄ as a one-sided PSD (dBc/Hz) or as an rms √∫S df over a stated band ([RIN][rp-rin]) | `rin_db_hz`, a one-sided PSD in dBc/Hz; demo rms values state their band |
 | excess RIN / shot-noise RIN | RIN above Poisson statistics / the shot-noise part 2hν/ηP, which [Obarski and Hale][oh-rin] call Poisson RIN | `rin_db_hz` / drawn at detection; a detector measures their sum |
 | shot noise | quantum noise of the light, $2q\bar I$ in a photocurrent | drawn at detection: $2qi$ for photodiodes, Poisson for clicks |
 | dark noise | detector noise without light | amplifier NEP, thermal 4kT/R, dark current, dark counts |
@@ -250,8 +264,10 @@ README's *Quantum random numbers from vacuum fluctuations* section.
 ## References
 
 - R. Paschotta, RP Photonics Encyclopedia:
+  - [Laser noise][rp-laser]
   - [Phase noise][rp-phase]
   - [Intensity noise][rp-int]
+  - [Relative intensity noise][rp-rin]
   - [Shot noise][rp-shot]
   - [Balanced photodetection][rp-bal]
 - G. E. Obarski and P. D. Hale (NIST), [*How to measure relative intensity noise in
@@ -265,6 +281,8 @@ README's *Quantum random numbers from vacuum fluctuations* section.
 
 [rp-phase]: https://www.rp-photonics.com/phase_noise.html
 [rp-int]: https://www.rp-photonics.com/intensity_noise.html
+[rp-rin]: https://www.rp-photonics.com/relative_intensity_noise.html
+[rp-laser]: https://www.rp-photonics.com/laser_noise.html
 [rp-shot]: https://www.rp-photonics.com/shot_noise.html
 [rp-bal]: https://www.rp-photonics.com/balanced_photodetection.html
 [oh-rin]: https://www.laserfocusworld.com/detectors-imaging/article/16548496/how-to-measure-relative-intensity-noise-in-lasers

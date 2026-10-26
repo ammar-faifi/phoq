@@ -8,8 +8,8 @@ spectrum analyzer.
     # the bench in 3D
     uv run phoq serve examples/laser_noise.py
 
-    laser (RIN −135 dB/Hz) → VOA → 50:50 ─┬─ 1 m → INPUT+  BPD-1 (PDB450C, 10⁵ V/A)
-                                          └─ 1 m → INPUT−  RF OUTPUT → spectrum analyzer
+    laser (RIN −135 dBc/Hz) → VOA → 50:50 ─┬─ 1 m → INPUT+ BPD-1 (PDB450C, 10⁵ V/A)
+                                           └─ 1 m → INPUT− RF OUTPUT → spectrum analyzer
 
 The analyzer reads the noise PSD of RF OUTPUT. Divided by the gain and the detector's
 pole, that is the noise S_I of the photocurrent the amplifier sees, in A²/Hz, which this
@@ -19,7 +19,7 @@ script averages over 0.2–1 MHz. Three measurements, as on a bench:
 2. One input (INPUT− unplugged): the balanced detector as a low-noise amplified
    photodetector. Above the dark noise, S_I = 2qI + RIN·I². The shot noise grows like I
    and the laser's intensity noise like I², so they cross at I = 2q/RIN, 10 µA for −135
-   dB/Hz. A fit of the two terms gives the electron charge and the RIN. (One input must
+   dBc/Hz. A fit of the two terms gives the electron charge and the RIN. (One input must
    stay under the CW saturation, 46 µA at this gain.)
 3. Both inputs: the difference of two equal photocurrents. The laser's intensity noise
    reaches both diodes alike and cancels, down to the CMRR residue. The shot noises of
@@ -28,8 +28,10 @@ script averages over 0.2–1 MHz. Three measurements, as on a bench:
    currents where one input sees mostly laser noise. That is the "shot-noise reference"
    of a balanced homodyne detector.
 
-Phase noise plays no part: the detectors measure intensity. The laser's linewidth can be
-anything.
+Phase noise plays no part as long as no stray interferometer turns it into intensity
+noise: the detectors measure intensity, and the spare ports are capped, so the laser's
+linewidth can be anything. An open spare port would make such an interferometer (the
+laser-noise tutorial, section 9).
 """
 
 import argparse
@@ -50,7 +52,7 @@ from phoq.units import Q_E, fmt_si, photon_energy
 
 RIN = (
     -135.0
-)  # dB/Hz: the laser's classical relative intensity noise (white), a noisy diode laser
+)  # dBc/Hz: the laser's classical relative intensity noise (white), a noisy diode laser
 # V/A: 4 MHz of bandwidth, and an amplifier noise 21 dB under the shot noise of 1.4 mA
 GAIN = 1e5
 BAND = (0.2e6, 1.0e6)  # where the noise is read: flat, and well inside the 4 MHz pole
@@ -102,7 +104,7 @@ def build(
             detector="average",
             ref_level=-80.0,
         )
-    )  # 40 sweeps × 80 bins: ±1 % a point
+    )  # 40 records × 80 RBWs in BAND: ±1.8 % a reading in theory, ±2.2 % measured
     setup.connect(laser.out, voa.p1)
     setup.connect(voa.p2, bs.a1)
     setup.connect(bs.b1, bpd.inp_plus, length=1.0)
@@ -131,14 +133,11 @@ def noise_density(setup: Setup, seed: int = 1, sweeps: int = 1) -> float:
     """
     bpd, esa = setup["BPD-1"], setup["ESA-1"]
     net = trace(setup)
-    f, _ = esa.acquire(net, np.random.default_rng(seed)).psd()
-    psd = np.mean(
-        [
-            esa.acquire(net, np.random.default_rng(seed + k)).psd()[1]
-            for k in range(sweeps)
-        ],
-        axis=0,
-    )
+    spectra = [
+        esa.acquire(net, np.random.default_rng(seed + k)).psd() for k in range(sweeps)
+    ]
+    f = spectra[0][0]
+    psd = np.mean([p for _, p in spectra], axis=0)
     band = (f > BAND[0]) & (f < BAND[1])
     h2 = 1 / (1 + (f[band] / bpd.bandwidth) ** 2)
     volts2 = (
@@ -195,8 +194,8 @@ if __name__ == "__main__":
     bw, nep, _ = bpd.setting()
     shot_rin = 2 * photon_energy(laser.wavelength) / laser.power
     print(
-        f"{laser.name}: {laser.power_dbm:g} dBm, RIN {laser.rin_db_hz:g} dB/Hz; its"
-        f" shot-noise RIN 2hν/P is {10 * math.log10(shot_rin):.1f} dB/Hz, so the laser"
+        f"{laser.name}: {laser.power_dbm:g} dBm, RIN {laser.rin_db_hz:g} dBc/Hz; its"
+        f" shot-noise RIN 2hν/P is {10 * math.log10(shot_rin):.1f} dBc/Hz, so the laser"
         f" is {laser.rin_db_hz - 10 * math.log10(shot_rin):.0f} dB above the shot-noise"
         " limit"
     )
@@ -231,7 +230,7 @@ if __name__ == "__main__":
     print(
         f"   fit a·I + b·I²: a = {a1:.3e} A → q = a/2 = {a1 / 2:.4g} C"
         f" ({100 * (a1 / 2 / Q_E - 1):+.1f} %), b = RIN = {10 * math.log10(b1):.2f}"
-        f" dB/Hz (set {RIN:g}); they cross at 2q/RIN ="
+        f" dBc/Hz (set {RIN:g}); they cross at 2q/RIN ="
         f" {fmt_si(2 * Q_E / 10 ** (RIN / 10), 'A')}\n"
     )
 
@@ -284,7 +283,7 @@ if __name__ == "__main__":
             ":",
             color="#f472b6",
             lw=1.2,
-            label=f"laser RIN·I², {RIN:g} dB/Hz",
+            label=f"laser RIN·I², {RIN:g} dBc/Hz",
         )
         ax.loglog(
             i,

@@ -228,7 +228,7 @@ terms of Obarski and Hale
 ([*How to measure relative intensity noise in lasers*](https://www.laserfocusworld.com/detectors-imaging/article/16548496/how-to-measure-relative-intensity-noise-in-lasers),
 Laser Focus World, 1999), which losses leave unchanged. $`2h\nu/\eta P`$ is the *shot-noise RIN*
 (their "Poisson RIN"), which every loss raises as 1/η. A detector measures their sum. At the
-default, −200 dB/Hz, nothing is drawn.
+default, −200 dBc/Hz, nothing is drawn.
 See [examples/laser_noise.md](../examples/laser_noise.md).
 
 ## 5. `synthesize()`: paths on a time grid

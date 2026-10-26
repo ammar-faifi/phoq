@@ -66,7 +66,7 @@ from phoq.units import Q_E, fmt_si
 # V/A: 45 MHz, an amplifier noise of 2.2·10⁻²² A²/Hz, ~4 dB under the shot noise of 1.8
 # mA
 GAIN = 1e4
-RIN = -140.0  # dB/Hz: the LO's own intensity noise, which balancing has to remove
+RIN = -140.0  # dBc/Hz: the LO's own intensity noise, which balancing has to remove
 # The vacuum input: (BS-1's connectors, the cap on it or None for an open port)
 VACUUM_PORTS = {
     "capped": ("FC/APC", "FC/APC"),
@@ -402,7 +402,7 @@ if __name__ == "__main__":
     bench = build()
     entry = report(bench)["detectors"]["BPD-1"]
     print(
-        f"LO 4 dBm, RIN {RIN:g} dB/Hz → BS-1 at {bench['BS-1'].ratio:.4f} (balanced) →"
+        f"LO 4 dBm, RIN {RIN:g} dBc/Hz → BS-1 at {bench['BS-1'].ratio:.4f} (balanced) →"
         f" {bench['BPD-1'].preset} at {fmt_si(GAIN, 'V/A')} → OSC-1, 8-bit ADC over"
         " ±4 div"
     )

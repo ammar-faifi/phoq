@@ -13,7 +13,7 @@ from .units import COMMON_WAVELENGTHS, dbm_to_w, fmt_si, photon_energy, seq125
 MODES = ("cw", "pulsed", "sine", "ook")
 RIN_OFF = (
     -200.0
-)  # dB/Hz: a laser without classical intensity noise (no random draws at all)
+)  # dBc/Hz: a laser without classical intensity noise (no random draws at all)
 _FWHM = 2.0 * np.sqrt(2.0 * np.log(2.0))  # Gaussian FWHM / sigma
 
 
@@ -83,14 +83,14 @@ class Laser(FiberConnectors, Component):
     detuning = Param(0.0, unit="Hz", label="Frequency offset", min=-100e9, max=100e9)
     rin_db_hz = Param(
         RIN_OFF,
-        unit="dB/Hz",
+        unit="dBc/Hz",
         label="Intensity noise (RIN)",
         min=RIN_OFF,
         max=-80.0,
         presets=(RIN_OFF, -160.0, -150.0, -140.0, -130.0, -120.0),
         doc=(
             "One-sided PSD of the classical relative intensity noise δP/P̄, white; the"
-            " shot noise comes on top at detection. −200 dB/Hz = none"
+            " shot noise comes on top at detection. −200 dBc/Hz = none"
         ),
     )
     phase_randomized = Param(
@@ -156,7 +156,8 @@ class Laser(FiberConnectors, Component):
         if self.rin_db_hz > RIN_OFF and self.power > 0:
             shot = 10 * math.log10(2 * photon_energy(self.wavelength) / self.power)
             out["RIN"] = (
-                f"{self.rin_db_hz:g} dB/Hz; shot noise at this power: {shot:.1f} dB/Hz"
+                f"{self.rin_db_hz:g} dBc/Hz; shot-noise RIN at this power:"
+                f" {shot:.1f} dBc/Hz"
             )
         return out
 

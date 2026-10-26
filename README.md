@@ -186,7 +186,7 @@ Shipped presets, each citing the datasheet document and revision it was read fro
 | --- | --- | --- | --- |
 | `exail/mx-ln-0.1`, `-05`, `-10`, `-20`, `-40` | Exail MX-LN series LiNbO₃ intensity modulators, 400 MHz – 40 GHz | `IntensityModulator` | Vπ of the RF and of the DC electrodes, insertion loss, extinction ratio; maximum optical, RF and bias inputs |
 | `exail/mxiq-ln-10`, `mxiq-ln-30` | Exail MXIQ-LN-10 and -30 LiNbO₃ IQ modulators, 12 and 25 GHz | `IQModulator` | Vπ of the RF electrodes, of DC1/DC2 and of DC3, insertion loss; maximum optical, RF and bias inputs |
-| `hamamatsu/koheras-mikro-e15`, `-a15` | Hamamatsu (formerly NKT Photonics) Koheras MIKRO E15 and A15 single-frequency DFB fiber lasers, 40 and 10 mW at 1550.12 nm | `Laser` | wavelength, power, CW, the 100 Hz linewidth (120 µs), RIN at 10 MHz (−135 and −120 dB/Hz), FC/APC; the 0.7 MHz RIN peak and the 1/f-like frequency noise kept as unsupported |
+| `hamamatsu/koheras-mikro-e15`, `-a15` | Hamamatsu (formerly NKT Photonics) Koheras MIKRO E15 and A15 single-frequency DFB fiber lasers, 40 and 10 mW at 1550.12 nm | `Laser` | wavelength, power, CW, the 100 Hz linewidth (120 µs), RIN at 10 MHz (−135 and −120 dBc/Hz), FC/APC; the 0.7 MHz RIN peak and the 1/f-like frequency noise kept as unsupported |
 | `mpd/pdm-ir` | MPD PDM-IR InGaAs/InP SPAD module | `SinglePhotonDetector` | PDE at 1550 nm with the PDE-vs-wavelength curve, dark-count rate, hold-off |
 | `excelitas/spcm-aqrh-10-fc` … `-16-fc` | Excelitas SPCM-AQRH Si SPAD modules with FC adaptor, one per dark-count grade (< 1500 … < 25 c/s) | `SinglePhotonDetector` | PDE at 650 nm with the 400–1060 nm curve, dark counts, 22 ns dead time; maximum 10⁴ photons per pulse |
 | `thorlabs/det08cfc` | Thorlabs DET08CFC 5 GHz InGaAs detector | `Photodiode` | bandwidth, responsivity at 1550 nm with the spectral curve, load, saturation from the 2 V output limit |
@@ -1253,19 +1253,19 @@ backscattering in the spool (§5 notes double Rayleigh scattering distorts the l
 ### Laser intensity noise and shot noise
 
 `Laser(rin_db_hz=…)` gives a laser classical relative intensity noise: a white one-sided PSD of
-δP/P̄ in dB/Hz, one realization per laser shared by all its paths. Shot noise is drawn at detection,
-so a photodiode reads $`S_I = \mathcal R^2\bar P^2\,\mathrm{RIN} + 2q\bar I + 4k_BT/R`$.
+δP/P̄ in dBc/Hz, one realization per laser shared by all its paths. Shot noise is drawn at
+detection, so a photodiode reads $`S_I = \mathcal R^2\bar P^2\,\mathrm{RIN} + 2q\bar I + 4k_BT/R`$.
 `examples/laser_noise.py` measures both with a PDB450C at 10⁵ V/A and the spectrum analyzer:
 
 ```
-laser (RIN −135 dB/Hz) → VOA → 50:50 ─┬─ 1 m → INPUT+    BPD-1 (PDB450C, 10⁵ V/A)
-                                      └─ 1 m → INPUT−    RF OUTPUT → spectrum analyzer
+laser (RIN −135 dBc/Hz) → VOA → 50:50 ─┬─ 1 m → INPUT+    BPD-1 (PDB450C, 10⁵ V/A)
+                                       └─ 1 m → INPUT−    RF OUTPUT → spectrum analyzer
 ```
 
 | Measurement | Expected | phoq |
 | --- | --- | --- |
 | Dark | (NEP·ℜ)² = −236.2 dB re 1 A²/Hz | −236.2 dB |
-| One input: fit of a·I + b·I², 1.8–28 µA | b = RIN = −135 dB/Hz, a = 2q | −134.95 dB/Hz; q to −3.6 % |
+| One input: fit of a·I + b·I², 1.8–28 µA | b = RIN = −135 dBc/Hz, a = 2q | −134.95 dBc/Hz; q to −3.6 % |
 | Both inputs, 4 µA to 1.1 mA | the difference at 2q(I₊ + I₋) | within ±0.4 dB; q to +0.2 % |
 | The same 1.1 mA on one diode | 20 dB above the shot noise | 20.1 dB |
 | Dark-noise clearance at 1.1 mA | shot over amplifier noise | 21.8 dB |
@@ -1313,7 +1313,7 @@ A Toeplitz hash then compresses N samples to $`\ell = N H - \log_2(1/2\varepsilo
 
 The detector's DC output matters. phoq's balanced detector is DC-coupled, with INPUT− 3.2 % less
 responsive, so `build()` trims the coupler to 0.4920 so that the photocurrents match. That is Park's
-precision balancing, and it also cancels the LO's −140 dB/Hz RIN. At 0.5000 the 0.29 V of DC puts
+precision balancing, and it also cancels the LO's −140 dBc/Hz RIN. At 0.5000 the 0.29 V of DC puts
 every sample on an end code of the ±9 mV screen.
 
 | Check | Result |
@@ -1461,7 +1461,7 @@ The models above were compared with twelve references (October 2026):
   - Phase noise: white frequency noise means $`S_\varphi \propto 1/f^2`$, specified by a linewidth or
     a coherence time; phoq's laser has exactly that. The beat and delayed-beat measurements are
     `linewidth_homodyne.py` and the two-laser test.
-  - Intensity noise: RIN is a PSD in dB/Hz, or an rms value over a stated band. That led to the new
+  - Intensity noise: RIN is a PSD in dBc/Hz, or an rms value over a stated band. That led to the new
     `Laser.rin_db_hz`, and to giving the balanced demo's 5 % rms its 30 kHz band.
   - Shot noise: $2q\bar I$, white and Gaussian, unchanged by η < 1. It is a property of the light,
     which phoq draws at detection; that is exact for coherent light, but excludes squeezed light.
