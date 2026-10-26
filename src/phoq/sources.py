@@ -24,8 +24,9 @@ class Laser(FiberConnectors, Component):
     follows ``mode``, the phase performs a random walk set by ``linewidth`` (plus
     ``detuning`` and, for weak coherent pulse sources, an optional uniformly random
     phase per pulse), and δ is the laser's classical relative intensity noise, white at
-    ``rin_db_hz``. Shot noise is not part of δ: phoq draws it at detection, so a
-    detector measures RIN = rin + 2hν/(ηP).
+    ``rin_db_hz``: the excess RIN, in Obarski and Hale's terms (Laser Focus World,
+    1999). Shot noise is not part of δ: phoq draws it at detection, so a detector
+    measures RIN = rin + 2hν/(ηP), the excess RIN plus the shot-noise RIN.
     """
 
     category = "source"

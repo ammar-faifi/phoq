@@ -89,8 +89,8 @@ def test_intensity_noise_per_bin_and_shared_by_every_path():
 
 
 def test_balanced_difference_keeps_the_shot_noise_and_cancels_the_rin():
-    """Both inputs: excess noise = 2q(I₊ + I₋) at every power, and q from the slope to 2
-    %. One input: RIN·I² above the crossover 2q/RIN, read back to 0.3 dB."""
+    """Both inputs: noise above dark = 2q(I₊ + I₋) at every power, and q from the slope
+    to 2 %. One input: RIN·I² above the crossover 2q/RIN, read back to 0.3 dB."""
     dark = EX["noise_density"](EX["build"](laser_on=False), sweeps=8)
     bpd = EX["build"]()["BPD-1"]
     assert dark == pytest.approx(
@@ -98,7 +98,7 @@ def test_balanced_difference_keeps_the_shot_noise_and_cancels_the_rin():
     )
     both = EX["sweep"](2, EX["BOTH_INPUTS"], dark)
     for r in both:
-        assert 10 * math.log10(r["excess"] / (2 * Q_E * r["i"])) == pytest.approx(
+        assert 10 * math.log10(r["above_dark"] / (2 * Q_E * r["i"])) == pytest.approx(
             0.0, abs=0.5
         )
     assert EX["fit"](both)[0] / 2 == pytest.approx(Q_E, rel=0.02)
@@ -109,7 +109,7 @@ def test_balanced_difference_keeps_the_shot_noise_and_cancels_the_rin():
     top = max(both, key=lambda r: r["i"])
     single = 2 * Q_E * top["i"] + 10 ** (EX["RIN"] / 10) * top["i"] ** 2
     assert (
-        10 * math.log10(single / top["excess"]) > 15
+        10 * math.log10(single / top["above_dark"]) > 15
     )  # what one detector would see of this light
 
 

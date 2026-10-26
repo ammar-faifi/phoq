@@ -279,7 +279,7 @@ export class UI {
       return `<div class="field"${doc}><label for="${id}">${name}</label><select ${attrs} data-num="1">${opts.map((o) => `<option value="${o}" ${o === v ? 'selected' : ''}>${esc(fmtParam(o, spec))}</option>`).join('')}</select></div>`;
     }
     if (!spec.display && spec.min !== null && spec.max !== null && spec.max - spec.min <= 1000 && spec.type === 'float') {
-      const step = spec.max - spec.min <= 1 ? 0.01 : spec.max - spec.min <= 20 ? 0.05 : 0.5;
+      const step = spec.max - spec.min <= 1 ? 0.001 : spec.max - spec.min <= 20 ? 0.05 : 0.5;
       return `<div class="field"${doc}><label for="${id}">${name}<output data-out="${key}">${esc(fmtParam(v, spec))}</output></label><input type="range" ${attrs} min="${spec.min}" max="${spec.max}" step="${step}" value="${v}"/></div>`;
     }
     const scale = spec.display ? spec.display[1] : 1;

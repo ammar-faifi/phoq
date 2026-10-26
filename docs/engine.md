@@ -223,7 +223,12 @@ $\sqrt{1+\delta}$, where $\delta$ is drawn per bin of an absolute grid of `dt`, 
 $S/2\Delta t$ (the PSD over the bin's bandwidth $1/2\Delta t$). Every path that leaves in the same
 bin reads the same $\delta$, as with the phase walk, so the noise is common to all of them and a
 balanced detector can cancel it. Shot noise is not part of it: it is drawn at detection (section 6),
-so a detector reads $`\mathrm{RIN} + 2h\nu/\eta P`$. At the default, −200 dB/Hz, nothing is drawn.
+so a detector reads $`\mathrm{RIN} + 2h\nu/\eta P`$. `rin_db_hz` is the *excess RIN*, in the
+terms of Obarski and Hale
+([*How to measure relative intensity noise in lasers*](https://www.laserfocusworld.com/detectors-imaging/article/16548496/how-to-measure-relative-intensity-noise-in-lasers),
+Laser Focus World, 1999), which losses leave unchanged. $`2h\nu/\eta P`$ is the *shot-noise RIN*
+(their "Poisson RIN"), which every loss raises as 1/η. A detector measures their sum. At the
+default, −200 dB/Hz, nothing is drawn.
 See [examples/laser_noise.md](../examples/laser_noise.md).
 
 ## 5. `synthesize()`: paths on a time grid

@@ -162,21 +162,22 @@ def sweep(inputs: int, attenuations, dark: float) -> list[dict]:
                 "ip": ip,
                 "im": im,
                 "S": total,
-                "excess": total - dark,
+                "above_dark": total - dark,
             }
         )
     return rows
 
 
 def fit(rows: list[dict]) -> tuple[float, float]:
-    """Excess noise = a·I + b·I², by least squares: (a, b), a = 2q, b = RIN. Each
-    point's error is a fixed fraction of the total it was read from, dark included, so
-    each is weighted by 1/total.
+    """Noise above dark = a·I + b·I², by least squares: (a, b), a = 2q, b = RIN (the
+    excess RIN). Each point's error is a fixed fraction of the total it was read from,
+    dark included, so each is weighted by 1/total.
     """
     i = np.array([r["i"] for r in rows])
     w = 1 / np.array([r["S"] for r in rows])
     m = np.column_stack([i, i**2]) * w[:, None]
-    a, b = np.linalg.lstsq(m, np.array([r["excess"] for r in rows]) * w, rcond=None)[0]
+    y = np.array([r["above_dark"] for r in rows])
+    a, b = np.linalg.lstsq(m, y * w, rcond=None)[0]
     return float(a), float(b)
 
 
@@ -216,13 +217,13 @@ if __name__ == "__main__":
     print("2. One input (INPUT− unplugged): laser noise against shot noise")
     print(
         f"   {'VOA':>5} {'I':>9} {'S_I − dark':>10} {'2qI':>7} {'RIN·I²':>7}"
-        f" {'RIN read':>9}  (RIN read = excess/I² − 2q/I)"
+        f" {'RIN read':>9}  (RIN read = (S_I − dark)/I² − 2q/I, the excess RIN)"
     )
     one = sweep(1, ONE_INPUT, dark)
     for r in one:
-        read = r["excess"] / r["i"] ** 2 - 2 * Q_E / r["i"]
+        read = r["above_dark"] / r["i"] ** 2 - 2 * Q_E / r["i"]
         print(
-            f"   {r['att']:4.0f}  {fmt_si(r['i'], 'A'):>9} {db(r['excess'])}  "
+            f"   {r['att']:4.0f}  {fmt_si(r['i'], 'A'):>9} {db(r['above_dark'])}  "
             f" {db(2 * Q_E * r['i'])} {db(10 ** (RIN / 10) * r['i'] ** 2)}"
             f" {db(read):>9}"
         )
@@ -245,10 +246,10 @@ if __name__ == "__main__":
             2 * Q_E * r["i"] + 10 ** (RIN / 10) * r["i"] ** 2
         )  # all this light on one diode
         print(
-            f"   {r['att']:4.0f}  {fmt_si(r['i'], 'A'):>9} {db(r['excess'])}  "
+            f"   {r['att']:4.0f}  {fmt_si(r['i'], 'A'):>9} {db(r['above_dark'])}  "
             f" {db(2 * Q_E * r['i'])}  "
-            f" {10 * math.log10(r['excess'] / (2 * Q_E * r['i'])):+6.2f} dB"
-            f" {db(would):>14} ({10 * math.log10(would / r['excess']):+.1f} dB)"
+            f" {10 * math.log10(r['above_dark'] / (2 * Q_E * r['i'])):+6.2f} dB"
+            f" {db(would):>14} ({10 * math.log10(would / r['above_dark']):+.1f} dB)"
         )
     a2, b2 = fit(both)
     top = max(both, key=lambda r: r["i"])
@@ -264,7 +265,7 @@ if __name__ == "__main__":
     )
     print(
         f"   dark-noise clearance at {fmt_si(top['i'], 'A')}:"
-        f" {10 * math.log10(top['excess'] / dark):.1f} dB"
+        f" {10 * math.log10(top['above_dark'] / dark):.1f} dB"
     )
 
     if args.plot:
@@ -300,7 +301,7 @@ if __name__ == "__main__":
         ):
             ax.loglog(
                 [r["i"] for r in rows],
-                [r["excess"] for r in rows],
+                [r["above_dark"] for r in rows],
                 "o",
                 color=color,
                 label=label,
