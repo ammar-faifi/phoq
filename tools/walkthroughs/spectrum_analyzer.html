@@ -1,0 +1,774 @@
+<title>ESA Sweep, Line by Line</title>
+<meta name="viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: source listing on the left, the analyzer's screen and the step's story on the right;
+   one column on phones, screen first. Dark theme only, like an instrument's screen. */
+:root {
+  --bg: #0d1116;
+  --panel: #141a21;
+  --fg: #e4ebf1;
+  --muted: #93a1af;
+  --line: #26303b;
+  --accent: #facc15;
+  --hl: rgba(250, 204, 21, 0.13);
+  --m-record: #2dd4bf;
+  --m-acquire: #fbbf24;
+  --m-signal: #60a5fa;
+  --m-detect: #e879f9;
+  --tok-kw: #c4b5fd;
+  --tok-str: #6ee7b7;
+  --tok-num: #fdba74;
+  --tok-com: #6b7a89;
+  --tok-fn: #93c5fd;
+  --scr-bg: #05080a;
+  --scr-bezel: #1b2127;
+  --scr-grid: rgba(134, 178, 150, 0.15);
+  --scr-axis: rgba(134, 178, 150, 0.45);
+  --scr-text: #a9bdb0;
+  --scr-trace: #facc15;
+  --scr-2: #22d3ee;
+  --scr-3: #f472b6;
+  --scr-4: #94a3b8;
+  --font-display: "Chakra Petch", "Rajdhani", "Segoe UI", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 28px;
+}
+.wrap { max-width: 1440px; margin: 0 auto; display: grid; gap: 18px; }
+header.top { display: grid; gap: 6px; }
+.eyebrow { font-family: var(--font-mono); font-size: 12px; letter-spacing: .06em; color: var(--muted); text-transform: uppercase; }
+h1 { font-family: var(--font-display); font-weight: 600; font-size: clamp(26px, 3.4vw, 38px); line-height: 1.1; margin: 0; text-wrap: balance; letter-spacing: .01em; }
+.lede { margin: 0; max-width: 78ch; color: var(--muted); }
+.lede code, .caption code { font-family: var(--font-mono); font-size: .92em; color: var(--fg); }
+.bench { font-family: var(--font-mono); font-size: 12.5px; color: var(--muted); margin: 0; max-width: 100%; overflow-x: auto; }
+
+.main { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+@media (max-width: 900px) { .main { grid-template-columns: minmax(0, 1fr); } .right { order: -1; } }
+
+/* source listing */
+.code { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; min-width: 0; overflow: hidden; }
+.code-scroll { position: relative; max-height: min(78vh, 860px); overflow: auto; padding: 6px 0 14px; scroll-behavior: smooth; }
+@media (max-width: 900px) { .code-scroll { max-height: 46vh; } }
+.method { padding-top: 10px; }
+.method h2 {
+  margin: 0 0 4px; padding: 4px 16px; font-family: var(--font-mono); font-weight: 500; font-size: 13px;
+  display: flex; align-items: center; gap: 8px; color: var(--muted);
+}
+.method h2 .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--mc); flex: none; }
+.method h2 b { color: var(--fg); font-weight: 500; }
+.method[data-m="record"] { --mc: var(--m-record); }
+.method[data-m="acquire"] { --mc: var(--m-acquire); }
+.method[data-m="_signal"] { --mc: var(--m-signal); }
+.method[data-m="_detect"] { --mc: var(--m-detect); }
+pre { margin: 0; font-family: var(--font-mono); font-size: 12.5px; line-height: 1.6; width: max-content; min-width: 100%; }
+.ln { display: grid; grid-template-columns: 3.2em auto; padding-right: 14px; border-left: 3px solid transparent; transition: background .35s ease, border-color .35s ease, opacity .35s ease; }
+.ln .no { color: var(--tok-com); text-align: right; padding-right: 1em; user-select: none; }
+.ln .tx { white-space: pre; }
+.code.active .ln { opacity: .55; }
+.code.active .ln.on { opacity: 1; background: var(--hl); border-left-color: var(--mc); }
+.code.active .method.cur .ln { opacity: .8; }
+.code.active .method.cur .ln.on { opacity: 1; }
+.k { color: var(--tok-kw); } .s { color: var(--tok-str); } .n { color: var(--tok-num); } .c { color: var(--tok-com); font-style: italic; } .f { color: var(--tok-fn); } .sf { color: var(--m-acquire); }
+
+/* screen */
+.right { display: grid; gap: 12px; min-width: 0; }
+.instrument { background: var(--scr-bezel); border-radius: 12px; padding: 10px; box-shadow: 0 1px 0 rgba(255,255,255,.05) inset, 0 8px 24px rgba(0,0,0,.18); }
+.instrument .bar { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 0 4px 8px; font-family: var(--font-display); color: var(--scr-text); font-size: 13px; letter-spacing: .05em; }
+.instrument .bar .run { font-family: var(--font-mono); font-size: 11px; padding: 2px 8px; border-radius: 4px; background: rgba(52, 211, 153, .15); color: #34d399; }
+canvas { display: block; width: 100%; aspect-ratio: 16 / 10; max-width: 100%; background: var(--scr-bg); border-radius: 6px; }
+
+.caption { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px 16px; display: grid; gap: 8px; min-height: 9.5em; }
+.cap-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.cap-head .where { font-family: var(--font-mono); font-size: 12px; color: var(--mc, var(--muted)); }
+.cap-head h3 { margin: 0; font-family: var(--font-display); font-weight: 600; font-size: 19px; line-height: 1.25; text-wrap: balance; }
+.caption p { margin: 0; max-width: 68ch; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-family: var(--font-mono); font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); font-variant-numeric: tabular-nums; }
+.chip b { color: var(--fg); font-weight: 500; }
+
+.controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.controls button {
+  font: 500 14px var(--font-body); color: var(--fg); background: var(--panel); border: 1px solid var(--line);
+  border-radius: 8px; padding: 7px 14px; cursor: pointer; min-width: 44px;
+}
+.controls button:hover { border-color: var(--accent); }
+.controls button:focus-visible, .seg:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.controls button.primary { background: var(--fg); color: var(--bg); border-color: var(--fg); min-width: 88px; }
+.counter { font-family: var(--font-mono); font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; margin-left: auto; }
+.track { display: flex; gap: 3px; width: 100%; }
+.seg { flex: 1 1 0; height: 9px; border-radius: 3px; background: var(--mc); opacity: .28; border: 0; padding: 0; cursor: pointer; transition: opacity .25s, transform .25s; }
+.seg[data-m="record"] { --mc: var(--m-record); } .seg[data-m="acquire"] { --mc: var(--m-acquire); }
+.seg[data-m="_signal"] { --mc: var(--m-signal); } .seg[data-m="_detect"] { --mc: var(--m-detect); }
+.seg.done { opacity: .6; } .seg.cur { opacity: 1; transform: scaleY(1.45); }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+footer { color: var(--muted); font-size: 13px; max-width: 90ch; }
+@media (prefers-reduced-motion: reduce) { .ln, .seg { transition: none; } .code-scroll { scroll-behavior: auto; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="eyebrow">phoq · src/phoq/instruments.py · SpectrumAnalyzer</div>
+    <h1>ESA Sweep, Line by Line</h1>
+    <p class="lede">How phoq's RF spectrum analyzer turns a detector's voltage into the trace on its screen. The walk follows one sweep through <code>record()</code>, <code>acquire()</code>, <code>_signal()</code> and <code>_detect()</code> in the order they run. Every curve on the screen is the array that line produced on the bench below: the lines were replayed with the same random seed and checked against <code>acquire()</code> itself, to 10⁻¹³ dB.</p>
+    <pre class="bench">laser 3 dBm, RIN −135 dBc/Hz, 0.2 % intensity sine at 500 kHz → VOA 16 dB → 50:50 → PDB450C INPUT+ (100 kV/A, 4 MHz) → ESA-1
+ESA-1: Start 0, Stop 2 MHz, RBW 10 kHz, Avg 10, 201 display points, detector average, trace average, DANL −150 dBm/Hz</pre>
+  </header>
+
+  <div class="main">
+    <div class="code" id="code" aria-label="Source code of the four methods"><div class="code-scroll" id="codeScroll"></div></div>
+
+    <div class="right">
+      <div class="instrument">
+        <div class="bar"><span id="scrTitle">ESA-1 · BPD-1 RF OUTPUT</span><span class="run" id="scrState">RUN</span></div>
+        <canvas id="scr" width="960" height="600" role="img" aria-label="Analyzer screen showing the effect of the highlighted line"></canvas>
+      </div>
+      <div class="controls">
+        <button id="prev" type="button" aria-label="Previous step">◀</button>
+        <button id="play" type="button" class="primary">Pause</button>
+        <button id="next" type="button" aria-label="Next step">▶</button>
+        <span class="counter" id="counter">1 / 1</span>
+      </div>
+      <div class="track" id="track" role="tablist" aria-label="Steps"></div>
+      <div class="legend">
+        <span><i style="background:var(--m-record)"></i>record()</span>
+        <span><i style="background:var(--m-acquire)"></i>acquire()</span>
+        <span><i style="background:var(--m-signal)"></i>_signal()</span>
+        <span><i style="background:var(--m-detect)"></i>_detect()</span>
+      </div>
+      <div class="caption" id="caption" aria-live="polite">
+        <div class="cap-head"><span class="where" id="capWhere"></span><h3 id="capTitle"></h3></div>
+        <p id="capBody"></p>
+        <div class="chips" id="capChips"></div>
+      </div>
+    </div>
+  </div>
+  <footer>Keys: ← and → step, Space plays or pauses. Data: phoq's own <code>SpectrumAnalyzer</code> on the laser-noise bench from <code>examples/laser_noise.py</code> (one input, 16 dB), with the laser switched to a 500 kHz sine so a tone sits on the noise. The display uses 201 points instead of the default 1001, so each display point spans several bins and the detector modes differ visibly.</footer>
+</div>
+
+<script id="data" type="application/json">/*DATA*/</script>
+<script>
+(() => {
+"use strict";
+const D = JSON.parse(document.getElementById("data").textContent);
+const N = D.nums;
+const ORDER = ["record", "acquire", "_signal", "_detect"];
+const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/* ---------- number formatting ---------- */
+const fmt = (x, d = 3) => Number(x.toPrecision(d)).toLocaleString("en-US");
+const MHz = (x) => `${fmt(x / 1e6, 4)} MHz`;
+const kHz = (x) => `${fmt(x / 1e3, 4)} kHz`;
+const us = (x) => `${fmt(x * 1e6, 4)} µs`;
+const ns = (x) => `${fmt(x * 1e9, 3)} ns`;
+
+/* ---------- source listing with a small Python highlighter ---------- */
+const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const KW = new Set(["def", "return", "if", "elif", "else", "for", "in", "and", "or", "not", "is", "None", "True", "False", "import", "from", "as", "with", "while", "lambda"]);
+function hl(line, st) {
+  let out = "", i = 0;
+  if (st.doc) {
+    const j = line.indexOf('"""');
+    if (j < 0) return [`<span class="s">${esc(line)}</span>`, st];
+    out += `<span class="s">${esc(line.slice(0, j + 3))}</span>`; i = j + 3; st = { doc: false };
+  }
+  const re = /(#.*$)|("""|"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')|(\b\d[\d_]*(?:\.\d*)?(?:e[-+]?\d+)?\b)|([A-Za-z_]\w*)/g;
+  re.lastIndex = i;
+  let m, last = i;
+  while ((m = re.exec(line))) {
+    out += esc(line.slice(last, m.index));
+    if (m[1]) out += `<span class="c">${esc(m[1])}</span>`;
+    else if (m[2] === '"""') {
+      const j = line.indexOf('"""', m.index + 3);
+      if (j < 0) { out += `<span class="s">${esc(line.slice(m.index))}</span>`; return [out, { doc: true }]; }
+      out += `<span class="s">${esc(line.slice(m.index, j + 3))}</span>`; re.lastIndex = j + 3;
+      last = j + 3; continue;
+    } else if (m[2]) out += `<span class="s">${esc(m[2])}</span>`;
+    else if (m[3]) out += `<span class="n">${m[3]}</span>`;
+    else if (m[4]) {
+      const w = m[4], nxt = line[m.index + w.length];
+      if (KW.has(w)) out += `<span class="k">${w}</span>`;
+      else if (w === "self") out += `<span class="sf">${w}</span>`;
+      else if (nxt === "(") out += `<span class="f">${w}</span>`;
+      else out += w;
+    }
+    last = re.lastIndex;
+  }
+  out += esc(line.slice(last));
+  return [out, st];
+}
+const codeScroll = document.getElementById("codeScroll");
+const LINES = {};
+for (const m of ORDER) {
+  const sec = document.createElement("section");
+  sec.className = "method"; sec.dataset.m = m;
+  const label = m === "_signal" ? "_signal(self, net, rng, fs, total)" : m === "_detect" ? "_detect(self, f, power, fd)" : m === "record" ? "record(self)" : "acquire(self, net, rng)";
+  sec.innerHTML = `<h2><span class="dot"></span><b>${esc(label)}</b></h2>`;
+  const pre = document.createElement("pre");
+  let st = { doc: false };
+  const lines = D.src[m].replace(/\n+$/, "").split("\n");
+  LINES[m] = [];
+  lines.forEach((ln, i) => {
+    const [html, s2] = hl(ln.replace(/^    /, ""), st); st = s2;
+    const row = document.createElement("div");
+    row.className = "ln";
+    row.innerHTML = `<span class="no">${i + 1}</span><span class="tx">${html || " "}</span>`;
+    pre.appendChild(row); LINES[m].push(row);
+  });
+  sec.appendChild(pre); codeScroll.appendChild(sec);
+}
+
+/* ---------- the steps ---------- */
+const nf = N.nfine, dcV = N.dc;
+const S = [
+  { m: "record", a: 5, b: 5, sc: "axis", t: "Sample rate: 2.56 × Stop",
+    p: `The analyzer samples at 2.56 times the Stop frequency: 2.56 × 2 MHz = 5.12 MS/s. Its Nyquist frequency, 2.56 MHz, sits 28 % above Stop, which leaves room for the anti-alias filter to roll off before anything folds back into the span.`,
+    c: [["fs", "5.12 MS/s"], ["Nyquist", "2.56 MHz"], ["Stop", "2 MHz"]] },
+  { m: "record", a: 6, b: 6, sc: "enbw", t: "Record length from the RBW",
+    p: `A Hann window's equivalent noise bandwidth (ENBW) is 1.5 bins, 1.5·fs/n. Setting it equal to the RBW gives n = 1.5 × 5.12 MS/s / 10 kHz = 768 samples, one 150 µs record. On the screen: the window's power response and the rectangle of equal area, 10 kHz wide.`,
+    c: [["n", "768"], ["record", "150 µs"], ["bin fs/n", "6.67 kHz"], ["ENBW", "1.5 bins = 10 kHz"]] },
+  { m: "record", a: 7, b: 7, sc: "nums", t: "A cap on the record",
+    p: `No record may exceed MAX_SAMPLES = 4 000 000 samples. That limit only bites for very fine RBWs at wide spans; 768 stays.`,
+    vars: ["fs", "n"], neu: ["n"] },
+  { m: "record", a: 8, b: 9, sc: "records", t: "Records overlap by half",
+    p: `Consecutive records start hop = n // 2 = 384 samples apart, Welch's method with 50 % overlap. k is the Avg setting, 10, unless a 4 M-sample sweep would run out first. Each bar is one record of the sweep.`,
+    c: [["hop", "384"], ["k", "10 records"]] },
+  { m: "record", a: 10, b: 10, sc: "nums", t: "The RBW actually used",
+    p: `record() returns the RBW for the n it chose: 1.5 × 5.12 MS/s / 768 = 10.000 kHz exactly here. Rounding n can shift it slightly at other settings, so the result reports this value rather than the knob's.`,
+    vars: ["fs", "n", "hop", "k", "rbw"], neu: ["rbw"] },
+  { m: "acquire", a: 2, b: 4, sc: "records", t: "One sweep, 4224 samples",
+    p: `acquire() starts from those numbers. Ten records, each starting 384 samples after the previous one, need total = n + (k − 1)·hop = 768 + 9 × 384 = 4224 samples: 825 µs of signal.`,
+    c: [["total", "4224 samples"], ["duration", "825 µs"], ["R", "50 Ω"]], total: true },
+  { m: "acquire", a: 5, b: 5, sc: "bench", t: "Fetch the input voltage",
+    p: `The voltage across the analyzer's 50 Ω input comes from _signal(), which simulates the bench for exactly that many samples. The walk follows it there.`,
+    c: [["calls", "_signal(net, rng, fs, total)"]] },
+  { m: "_signal", a: 5, b: 8, sc: "bench", t: "What drives the input",
+    p: `The source wired to the analyzer: BPD-1's RF OUTPUT. With nothing connected the analyzer would see zeros. Here the detector has one input lit, so RF OUTPUT carries a large DC level as well as the noise.`,
+    c: [["d", "BPD-1"], ["port", "rf"]], hiBpd: true },
+  { m: "_signal", a: 9, b: 10, sc: "grid", t: "A grid 4× finer than fs",
+    p: `The bench is simulated at 4 × fs = 20.48 MS/s (Δt = 48.8 ns), so the signal can be low-passed before it is sampled at fs. pad = 64 output samples at each end will absorb the filter's edge transient.`,
+    c: [["dts", "48.8 ns"], ["fine rate", "20.48 MS/s"], ["pad", "64"]] },
+  { m: "_signal", a: 11, b: 14, sc: "warm", t: "Warm-up before t = 0",
+    p: `The detector's slowest pole sets a settling time: six time constants of its 1 MHz monitor pole, 0.95 µs. So warm = 20 fine samples are simulated before the record starts and then thrown away. The detector's filters start at their mean, so here the warm-up holds only noise; it matters when the input has just stepped.`,
+    c: [["settle", "0.955 µs"], ["warm", "20 samples"]] },
+  { m: "_signal", a: 15, b: 15, sc: "nums", t: "The time grid",
+    p: `The grid starts at a random instant in the first millisecond, 0.625 ms in this sweep, so every sweep sees a fresh stretch of the laser's noise and of the tone's phase. It holds warm + (total + 2·pad)·4 = 20 + 17 408 = 17 428 points.`,
+    vars: ["dts", "warm", "t0", "nfine"], neu: ["t0", "nfine"] },
+  { m: "_signal", a: 16, b: 17, sc: "optical", t: "Light at the detector",
+    p: `synthesize() traces every light path to the detector and builds the optical field on that grid. INPUT+ receives 13.9 µW, with the 0.2 % sine at 500 kHz (a 2 µs period) and the laser's RIN on top. Shown: the first 20 µs.`,
+    c: [["P(INPUT+)", "13.93 µW"], ["tone", "500 kHz, 0.2 %"]] },
+  { m: "_signal", a: 18, b: 26, sc: "fine", t: "Light becomes volts",
+    p: `The detector makes its RF voltage, G·i, with shot noise and amplifier noise, through its 4 MHz pole. That is the voltage of a source behind 50 Ω; with the analyzer's 50 Ω it forms a divider, so the input sees half: 0.696 V of DC, the 1.39 mV tone and 0.44 mV rms of noise.`,
+    c: [["G", "100 kV/A"], ["I₊", "13.9 µA"], ["divider", "50/(50+50)"], ["DC", "0.696 V"]] },
+  { m: "_signal", a: 36, b: 36, sc: "decimate", t: "Low-pass, then keep every 4th",
+    p: `resample_poly() low-passes with a polyphase FIR and keeps every 4th sample: 20.48 → 5.12 MS/s. Noise between 2.56 and 10.24 MHz is filtered away instead of folding back into the span. Thin line: the fine grid; dots: the samples kept.`,
+    c: [["in", "20.48 MS/s"], ["out", "5.12 MS/s"]] },
+  { m: "_signal", a: 37, b: 37, sc: "trim", t: "Drop the edges",
+    p: `The filter rings where the record starts and ends. Dropping 64 samples at each end leaves exactly total = 4224 clean samples, which go back to acquire().`,
+    c: [["dropped", "64 + 64"], ["kept", "4224"]] },
+  { m: "acquire", a: 6, b: 6, sc: "acdc", t: "AC coupling",
+    p: `Subtract the mean. The analyzer's input is AC-coupled, so the 0.696 V of DC is blocked, as a DC block would block it. What is left is the 1.39 mV tone and the noise, now centered on 0 V.`,
+    c: [["mean", "0.6964 V"], ["after", "0 V"]] },
+  { m: "acquire", a: 7, b: 10, sc: "levels", t: "The analyzer's own floor",
+    p: `The displayed average noise level, −150 dBm/Hz, becomes a voltage density: 10^((−150 − 30)/10) W/Hz × 50 Ω = 5·10⁻¹⁷ V²/Hz, added as white noise with σ = √(S·fs/2) = 11.3 µV per sample. The detector's noise reaches the analyzer at about −122.5 dBm/Hz, 27.5 dB above, so this floor barely shows.`,
+    c: [["DANL", "−150 dBm/Hz"], ["σ", "11.3 µV"], ["detector", "≈ −122.5 dBm/Hz"]] },
+  { m: "acquire", a: 12, b: 14, sc: "hann", t: "The window",
+    p: `A periodic Hann window of 768 points: zero at the record's ends, so a tone that does not fit a whole number of cycles leaks little into distant bins. Its equivalent noise bandwidth is 1.5 bins, which is why record() picked n from the RBW.`,
+    c: [["Σw", "384"], ["ENBW", "1.5 fs/n"]] },
+  { m: "acquire", a: 15, b: 15, sc: "segments", t: "Cut and window the records",
+    p: `One line builds all ten records at once: rows start hop = 384 samples apart, 768 samples each, and every row is multiplied by the window. Top: the sweep with the current record lit; bottom: that record after windowing.`,
+    c: [["segs", "10 × 768"]] },
+  { m: "acquire", a: 16, b: 21, sc: "fft1", t: "One record's power spectrum",
+    p: `Zero-pad each record to nfft = 4 × 768 = 3072 points and FFT it. |X|² × 2 / ((Σw)²·R) turns a bin into the power, in watts, of a sine at that frequency; for noise the same bin holds the power in one ENBW, that is in the RBW. One record alone: the noise scatters by several dB from bin to bin.`,
+    c: [["nfft", "3072"], ["bins", "1537"], ["tone", "−47.1 dBm"]] },
+  { m: "acquire", a: 18, b: 18, sc: "fftk", t: "Average the ten records",
+    p: `.mean(axis=0) averages the power of the ten records, Welch's method. The scatter of the noise shrinks roughly as 1/√k, while the tone stays where it was. The median bin rises from −84.0 to −82.6 dBm. One record's noise bins scatter exponentially, and their median sits 1.6 dB below their mean; averaging pulls the median up toward the mean.`,
+    c: [["k", "10"], ["noise median", "−82.6 dBm"]] },
+  { m: "acquire", a: 22, b: 22, sc: "dc", t: "The 0 Hz bin",
+    p: `The factor 2 made the spectrum one-sided: every positive frequency also carries its negative twin. The 0 Hz bin has no twin, so it is halved back, from −83.6 to −86.6 dBm.`,
+    c: [["bin 0", "−83.6 → −86.6 dBm"]] },
+  { m: "acquire", a: 23, b: 23, sc: "bins", t: "Bin frequencies",
+    p: `1537 bins, fs/nfft = 1.667 kHz apart, from 0 to 2.56 MHz. One 768-sample record resolves only fs/n = 6.67 kHz; zero padding draws the spectrum 4× finer, so a tone that falls between bins still shows its full level.`,
+    c: [["spacing", "1.667 kHz"], ["record resolution", "6.67 kHz"]] },
+  { m: "acquire", a: 25, b: 27, sc: "span", t: "The display grid",
+    p: `201 display points from Start to Stop, 0 to 2 MHz, 10 kHz apart. The bins above 2 MHz, up to Nyquist at 2.56 MHz, were computed but are not shown.`,
+    c: [["points", "201"], ["spacing", "10 kHz"]] },
+  { m: "acquire", a: 28, b: 28, sc: "span", t: "Into the detector",
+    p: `_detect() decides what each display point shows from the bins around it: the analyzer's detector mode. The walk follows it, zoomed on the tone.`,
+    c: [["calls", "_detect(f, power, fd)"]], ticks: true },
+  { m: "_detect", a: 3, b: 5, sc: "zoom", mode: "sample", t: "Sample detector",
+    p: `np.interp reads the spectrum at each display frequency, interpolating between bins. That is the sample detector, and the fallback for any display point whose bucket holds no bin at all.`,
+    c: [["mode", "sample"]] },
+  { m: "_detect", a: 6, b: 7, sc: "zoom", mode: "sample", t: "Sample mode stops here",
+    p: `In sample mode, or with a single display point, that is the answer. This analyzer is set to average, so the code goes on.`,
+    c: [["detector", "average"]] },
+  { m: "_detect", a: 8, b: 11, sc: "zoom", mode: "edges", t: "One bucket per display point",
+    p: `Each display point owns a bucket of the span, from halfway to its left neighbor to halfway to its right one: 10 kHz wide here, centered on the point.`,
+    c: [["half", "5 kHz"], ["edges", "202"]] },
+  { m: "_detect", a: 12, b: 14, sc: "zoom", mode: "counts", t: "Bins in each bucket",
+    p: `searchsorted finds where each edge falls among the bin frequencies; the differences count the bins per bucket, 6 here (10 kHz / 1.667 kHz). A bucket with no bins keeps the interpolated value.`,
+    c: [["bins per bucket", "6"]] },
+  { m: "_detect", a: 18, b: 19, sc: "zoom", mode: "peak", t: "Peak detector",
+    p: `Peak keeps the largest bin in each bucket. Right for tones, which it reads at full height, but on noise it reads high: across the span the median rises from −82.2 to −81.5 dBm.`,
+    c: [["tone", "−47.2 dBm"], ["noise median", "−81.5 dBm"]] },
+  { m: "_detect", a: 20, b: 21, sc: "zoom", mode: "average", t: "Average detector",
+    p: `Average takes the mean power of the bins in the bucket: the noise power in the RBW, which is what a noise measurement wants. A tone narrower than the bucket gets diluted: here it reads −48.2 dBm, 1 dB under its peak.`,
+    c: [["tone", "−48.2 dBm"], ["noise median", "−82.2 dBm"]] },
+  { m: "_detect", a: 22, b: 22, sc: "modes", t: "Three detectors, one spectrum",
+    p: `_detect returns 201 values. The same spectrum, read three ways: sample and average agree on noise, peak sits higher; on the tone, peak and sample agree and average reads low.`,
+    c: [["sample", "−82.3 dBm"], ["peak", "−81.5 dBm"], ["average", "−82.2 dBm"]] },
+  { m: "acquire", a: 29, b: 35, sc: "sweeps", t: "Trace average across sweeps",
+    p: `With trace = average, the displayed trace is the running mean, in power, of this sweep and all earlier ones: (old·n + new)/(n + 1). The trace smooths sweep by sweep while its median stays put.`,
+    c: [["sweeps", "8"]] },
+  { m: "acquire", a: 36, b: 44, sc: "maxhold", t: "Max hold, or start over",
+    p: `Max hold keeps the highest value each point has ever shown, so it creeps up on noise (1.6 dB after 8 sweeps here) and suits drifting tones. Write mode, or any change to the display size, starts over with this sweep alone. Yellow: trace average; pink: max hold of the same 8 sweeps.`,
+    c: [["max hold", "+1.6 dB on noise after 8 sweeps"]] },
+  { m: "acquire", a: 45, b: 63, sc: "final", t: "The result",
+    p: `The trace in dBm, 10·log10(P / 1 mW), plus the full-resolution bins inside the span for analysis. The lab's measurement box reads it: the median, −82.2 dBm, is the noise in one RBW; the tone peaks at −48.2 dBm at 500 kHz.`,
+    c: [["median", `${N.median_dbm.toFixed(1)} dBm`], ["peak", `${N.peak_dbm.toFixed(1)} dBm @ 500 kHz`], ["RBW", "10 kHz"]] },
+];
+
+/* ---------- canvas helpers ---------- */
+const cv = document.getElementById("scr");
+const ctx = cv.getContext("2d");
+let W = 960, H = 600;
+function resize() {
+  const r = cv.getBoundingClientRect();
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  W = Math.max(320, r.width); H = W * 10 / 16;
+  cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+let C = {};
+function colors() { C = { grid: css("--scr-grid"), axis: css("--scr-axis"), text: css("--scr-text"), tr: css("--scr-trace"), c2: css("--scr-2"), c3: css("--scr-3"), c4: css("--scr-4"), bg: css("--scr-bg") }; }
+const ease = (t) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+const font = (px, w = 500, fam = "mono") => `${w} ${px}px ${fam === "mono" ? '"IBM Plex Mono", ui-monospace, monospace' : '"Chakra Petch", system-ui, sans-serif'}`;
+const sz = () => Math.max(10, Math.min(13, W / 64));
+
+function frame(o) {
+  const L = Math.max(54, W * 0.075), R = 14, T = 30, B = 30;
+  const pw = W - L - R, ph = H - T - B;
+  const [x0, x1] = o.x, [y0, y1] = o.y;
+  const X = (x) => L + (x - x0) / (x1 - x0) * pw;
+  const Y = (y) => T + (1 - (y - y0) / (y1 - y0)) * ph;
+  ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = C.grid; ctx.lineWidth = 1;
+  const nx = o.nx || 10, ny = o.ny || 8;
+  for (let i = 0; i <= nx; i++) { const x = L + i * pw / nx; ctx.beginPath(); ctx.moveTo(x, T); ctx.lineTo(x, T + ph); ctx.stroke(); }
+  for (let j = 0; j <= ny; j++) { const y = T + j * ph / ny; ctx.beginPath(); ctx.moveTo(L, y); ctx.lineTo(L + pw, y); ctx.stroke(); }
+  ctx.strokeStyle = C.axis; ctx.strokeRect(L + .5, T + .5, pw - 1, ph - 1);
+  ctx.fillStyle = C.text; ctx.font = font(sz());
+  if (o.xt) { ctx.textAlign = "center"; ctx.textBaseline = "top"; for (const [v, lab] of o.xt) ctx.fillText(lab, X(v), T + ph + 7); }
+  if (o.yt) { ctx.textAlign = "right"; ctx.textBaseline = "middle"; for (const [v, lab] of o.yt) ctx.fillText(lab, L - 7, Y(v)); }
+  if (o.title) { ctx.textAlign = "left"; ctx.textBaseline = "alphabetic"; ctx.font = font(sz() + 1, 600, "disp"); ctx.fillStyle = C.text; ctx.fillText(o.title, L, T - 10); }
+  if (o.right) { ctx.textAlign = "right"; ctx.font = font(sz()); ctx.fillStyle = C.text; ctx.fillText(o.right, L + pw, T - 10); }
+  return { X, Y, L, T, pw, ph, R };
+}
+function clipTo(f) { ctx.save(); ctx.beginPath(); ctx.rect(f.L, f.T, f.pw, f.ph); ctx.clip(); }
+function line(f, xs, ys, color, width = 1.4, reveal = 1, alpha = 1) {
+  const n = xs.length, m = Math.max(2, Math.floor(n * reveal));
+  clipTo(f); ctx.globalAlpha = alpha; ctx.strokeStyle = color; ctx.lineWidth = width; ctx.lineJoin = "round";
+  ctx.beginPath();
+  for (let i = 0; i < m && i < n; i++) { const x = f.X(xs[i]), y = f.Y(ys[i]); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+  ctx.stroke(); ctx.globalAlpha = 1; ctx.restore();
+}
+function dots(f, xs, ys, color, r = 2.4, reveal = 1) {
+  const m = Math.floor(xs.length * reveal);
+  clipTo(f); ctx.fillStyle = color;
+  for (let i = 0; i < m; i++) { ctx.beginPath(); ctx.arc(f.X(xs[i]), f.Y(ys[i]), r, 0, 7); ctx.fill(); }
+  ctx.restore();
+}
+function vline(f, x, color, dash = [], label, at = "top") {
+  const px = f.X(x); ctx.save(); ctx.strokeStyle = color; ctx.setLineDash(dash); ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.moveTo(px, f.T); ctx.lineTo(px, f.T + f.ph); ctx.stroke(); ctx.restore();
+  if (label) { ctx.fillStyle = color; ctx.font = font(sz()); ctx.textAlign = px > f.L + f.pw * 0.8 ? "right" : "left"; ctx.textBaseline = "top"; ctx.fillText(label, px + (ctx.textAlign === "right" ? -6 : 6), at === "top" ? f.T + 6 : f.T + f.ph - 22); }
+}
+function band(f, x0, x1, color) { clipTo(f); ctx.fillStyle = color; ctx.fillRect(f.X(x0), f.T, f.X(x1) - f.X(x0), f.ph); ctx.restore(); }
+function label(text, x, y, color, align = "left", size, w = 500) { ctx.fillStyle = color; ctx.font = font(size || sz(), w); ctx.textAlign = align; ctx.textBaseline = "middle"; ctx.fillText(text, x, y); }
+function rgba(hex, a) {
+  const m = hex.replace("#", ""); const n = parseInt(m.length === 3 ? m.split("").map((c) => c + c).join("") : m, 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
+}
+const range = (n, f) => Array.from({ length: n }, (_, i) => f(i));
+const median = (a) => { const s = [...a].sort((p, q) => p - q); return s[s.length >> 1]; };
+const ticks = (vals, f) => vals.map((v) => [v, f(v)]);
+
+/* ---------- derived arrays ---------- */
+const fBins = range(N.nbins, (i) => i * N.fs / N.nfft);
+const fd = range(N.points, (i) => N.start + i * (N.stop - N.start) / (N.points - 1));
+const tFine = range(D.xfine.length, (i) => i * N.dts * 1e6);
+const tDec = range(D.xdec.length, (i) => i * 4 * N.dts * 1e6);
+const tV = range(D.v.length, (i) => i / N.fs * 1e6);
+const vAC = D.v.map((x) => (x - N.dc) * 1e3);
+const hann = range(N.n, (i) => 0.5 - 0.5 * Math.cos(2 * Math.PI * i / N.n));
+const dbmTicks = (lo, hi, st) => ticks(range(Math.round((hi - lo) / st) + 1, (i) => lo + i * st), (v) => `${v}`);
+const mhzTicks = (hi, st) => ticks(range(Math.round(hi / st) + 1, (i) => i * st), (v) => (v / 1e6).toFixed(v % 1e6 ? 1 : 0));
+
+/* ---------- scenes ---------- */
+const scenes = {
+  axis(t) {
+    const f = frame({ x: [0, 2.8e6], y: [0, 1], nx: 14, ny: 4, xt: mhzTicks(2.8e6, 0.4e6), title: "FREQUENCY [MHz]", right: "fs = 5.12 MS/s" });
+    const e = ease(t);
+    band(f, 0, 2e6 * e, rgba(C.tr, 0.14));
+    band(f, 2e6, 2e6 + 0.56e6 * Math.max(0, (e - 0.4) / 0.6), rgba(C.c4, 0.18));
+    vline(f, 2e6, C.tr, [], "Stop 2 MHz");
+    if (e > 0.5) vline(f, 2.56e6, C.c2, [5, 4], "Nyquist fs/2 = 2.56 MHz", "bottom");
+    label("display span", f.X(1e6), f.Y(0.55), C.tr, "center", sz() + 2, 600);
+    if (e > 0.7) label("guard band", f.X(2.28e6), f.Y(0.55), C.c4, "center");
+  },
+  enbw(t) {
+    const binHz = N.fs / N.n;
+    const f = frame({ x: [-30e3, 30e3], y: [0, 1.1], nx: 12, ny: 5, xt: ticks([-30e3, -20e3, -10e3, 0, 10e3, 20e3, 30e3], (v) => `${v / 1e3}`), yt: ticks([0, 0.5, 1], (v) => v.toFixed(1)), title: "HANN POWER RESPONSE vs OFFSET [kHz]", right: `bin = fs/n = ${(binHz / 1e3).toFixed(2)} kHz` });
+    const xs = range(601, (i) => -30e3 + i * 100);
+    const resp = xs.map((hz) => { const x = hz / binHz; if (Math.abs(x) < 1e-9) return 1; if (Math.abs(Math.abs(x) - 1) < 1e-9) return 0.25; const w = Math.sin(Math.PI * x) / (Math.PI * x) / (1 - x * x); return w * w; });
+    const e = ease(t);
+    clipTo(f); ctx.fillStyle = rgba(C.c2, 0.16 * e); ctx.fillRect(f.X(-5e3), f.Y(1), f.X(5e3) - f.X(-5e3), f.Y(0) - f.Y(1)); ctx.restore();
+    ctx.strokeStyle = rgba(C.c2, e); ctx.setLineDash([5, 4]); ctx.strokeRect(f.X(-5e3), f.Y(1), f.X(5e3) - f.X(-5e3), f.Y(0) - f.Y(1)); ctx.setLineDash([]);
+    line(f, xs, resp, C.tr, 2, e);
+    if (e > 0.6) { label("ENBW = 1.5 bins = 10 kHz = RBW", f.X(5.6e3), f.Y(0.9), C.c2); label("same area", f.X(5.6e3), f.Y(0.78), C.c2); }
+  },
+  nums(t, s) {
+    const f = frame({ x: [0, 1], y: [0, 1], nx: 10, ny: 8, title: "RETURNED VALUES" });
+    const V = {
+      fs: ["fs", "5.12 MS/s", "2.56 × Stop"], n: ["n", "768", "1.5·fs / RBW"], hop: ["hop", "384", "n // 2"], k: ["k", "10", "Avg"],
+      rbw: ["rbw", "10 000 Hz", "1.5·fs / n"], dts: ["dts", "48.8 ns", "1 / (4·fs)"], warm: ["warm", "20", "settle / dts"],
+      t0: ["t[warm]", `${(N.t0 * 1e3).toFixed(3)} ms`, "random start"], nfine: ["t.size", `${N.nfine.toLocaleString("en-US")}`, "warm + (total + 128)·4"],
+    };
+    const rows = s.vars.map((k) => V[k]);
+    const lh = Math.min(f.ph / (rows.length + 1), 54);
+    rows.forEach((r, i) => {
+      const y = f.T + lh * (i + 0.9);
+      const neu = s.neu.includes(s.vars[i]);
+      const a = neu ? ease(t) : 1;
+      ctx.globalAlpha = a;
+      label(r[0], f.L + 24, y, neu ? C.tr : C.text, "left", sz() + 4, 600);
+      label(r[1], f.L + f.pw * 0.36, y, neu ? C.tr : "#e8efe9", "left", sz() + 4, 600);
+      label(r[2], f.L + f.pw * 0.66, y, C.c4, "left", sz() + 1);
+      ctx.globalAlpha = 1;
+    });
+  },
+  records(t, s) {
+    const tot = N.total, k = N.k;
+    const f = frame({ x: [0, tot], y: [0, k + 1], nx: 11, ny: k + 1, xt: ticks([0, 768, 1536, 2304, 3072, 3840, 4224], (v) => `${v}`), title: "SAMPLE INDEX IN THE SWEEP", right: `${k} records × ${N.n}, hop ${N.hop}` });
+    const shown = Math.min(k, Math.ceil(ease(t) * k + 0.001));
+    for (let i = 0; i < shown; i++) {
+      const x0 = i * N.hop, y = k - i;
+      clipTo(f); ctx.fillStyle = rgba(i % 2 ? C.c2 : C.tr, 0.75); ctx.fillRect(f.X(x0), f.Y(y + 0.32), f.X(x0 + N.n) - f.X(x0), f.Y(y - 0.32) - f.Y(y + 0.32)); ctx.restore();
+      label(`${i}`, f.X(x0) - 6, f.Y(y), C.text, "right");
+    }
+    if (s.total && t > 0.6) { vline(f, tot, C.c3, [5, 4]); label(`total = ${tot} samples = 825 µs`, f.X(tot) - 8, f.Y(0.5), C.c3, "right", sz() + 1, 600); }
+  },
+  bench(t, s) {
+    ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
+    const boxes = [["LD-1", "3 dBm · sine 500 kHz"], ["VOA-1", "16 dB"], ["BS-1", "50:50"], ["BPD-1", "INPUT+ · 100 kV/A"], ["ESA-1", "50 Ω input"]];
+    const bw = W / 6.4, bh = H / 6, gap = (W - 5 * bw) / 6, y = H * 0.42;
+    boxes.forEach((b, i) => {
+      const x = gap + i * (bw + gap);
+      const hi = (s.hiBpd && (i === 3 || i === 4)) || (!s.hiBpd && i === 4);
+      const a = Math.min(1, ease(t) * 5 - i * 0.8);
+      ctx.globalAlpha = Math.max(0.15, a);
+      ctx.strokeStyle = hi ? C.tr : C.axis; ctx.lineWidth = hi ? 2 : 1.2;
+      ctx.strokeRect(x, y, bw, bh);
+      label(b[0], x + bw / 2, y + bh * 0.38, hi ? C.tr : "#e8efe9", "center", sz() + 3, 600);
+      label(b[1], x + bw / 2, y + bh * 0.72, C.text, "center", sz() - 1);
+      if (i < 4) { ctx.strokeStyle = i === 3 ? C.tr : "#facc1580"; ctx.lineWidth = 1.6; ctx.setLineDash(i === 3 ? [6, 4] : []); ctx.beginPath(); ctx.moveTo(x + bw, y + bh / 2); ctx.lineTo(x + bw + gap, y + bh / 2); ctx.stroke(); ctx.setLineDash([]); }
+      ctx.globalAlpha = 1;
+    });
+    label(s.hiBpd ? "src = (BPD-1, \"rf\"): a voltage source behind 50 Ω" : "v = self._signal(net, rng, fs, total)", W / 2, H * 0.78, C.tr, "center", sz() + 2, 600);
+    label("fiber", gap * 1.5 + bw, y - 12, C.c4, "center", sz() - 1);
+    label("RF coax", W - gap * 1.5 - bw, y - 12, C.c4, "center", sz() - 1);
+  },
+  grid(t) {
+    const f = frame({ x: [0, 1e-6], y: [0, 3], nx: 10, ny: 3, xt: ticks([0, 2e-7, 4e-7, 6e-7, 8e-7, 1e-6], (v) => `${(v * 1e9).toFixed(0)}`), title: "TIME [ns]", right: "fine grid vs output grid" });
+    const e = ease(t);
+    const fine = range(21, (i) => i * N.dts), out = range(6, (i) => i * 4 * N.dts);
+    dots(f, fine, fine.map(() => 2), C.c2, 3, e);
+    dots(f, out, out.map(() => 1), C.tr, 4.2, Math.max(0, (e - 0.3) / 0.7));
+    label("simulated: 20.48 MS/s, Δt = 48.8 ns", f.X(0) + 8, f.Y(2.55), C.c2);
+    label("analyzer samples: 5.12 MS/s", f.X(0) + 8, f.Y(1.45), C.tr);
+  },
+  warm(t) {
+    const nW = N.warm, xs = range(D.xfine_warm.length, (i) => (i - nW) * N.dts * 1e6), ys = D.xfine_warm;
+    const lo = Math.min(...ys), hi = Math.max(...ys), pad = (hi - lo) * 0.25;
+    const f = frame({ x: [xs[0], xs[xs.length - 1]], y: [lo - pad, hi + pad], xt: ticks([-0.9, -0.5, 0, 0.5, 1, 1.5], (v) => v.toFixed(1)), yt: ticks([lo, hi], (v) => v.toFixed(4)), title: "RF VOLTAGE AT THE INPUT [V] vs TIME [µs]", right: "warm = 20 samples" });
+    band(f, xs[0], 0, rgba(C.c4, 0.2));
+    line(f, xs, ys, C.tr, 1.4, ease(t));
+    vline(f, 0, C.c3, [5, 4], "t = 0: the record starts");
+    label("warm-up, discarded", f.X(xs[0]) + 8, f.Y(lo - pad * 0.5), C.c4);
+  },
+  optical(t) {
+    const ys = D.popt_uW, lo = Math.min(...ys), hi = Math.max(...ys);
+    const f = frame({ x: [0, 20], y: [lo - 0.01, hi + 0.01], xt: ticks([0, 4, 8, 12, 16, 20], (v) => `${v}`), yt: ticks([lo, (lo + hi) / 2, hi], (v) => v.toFixed(3)), title: "OPTICAL POWER AT INPUT+ [µW] vs TIME [µs]", right: "13.93 µW mean" });
+    line(f, tFine, ys, C.c2, 1.2, ease(t));
+  },
+  fine(t) {
+    const ys = D.xfine, lo = Math.min(...ys), hi = Math.max(...ys);
+    const f = frame({ x: [0, 20], y: [lo - 4e-4, hi + 4e-4], xt: ticks([0, 4, 8, 12, 16, 20], (v) => `${v}`), yt: ticks([lo, (lo + hi) / 2, hi], (v) => v.toFixed(4)), title: "VOLTAGE AT THE ANALYZER INPUT [V] vs TIME [µs]", right: "Δt = 48.8 ns" });
+    line(f, tFine, ys, C.tr, 1.1, ease(t));
+  },
+  decimate(t) {
+    const ys = D.xfine, lo = Math.min(...ys), hi = Math.max(...ys);
+    const f = frame({ x: [0, 20], y: [lo - 4e-4, hi + 4e-4], xt: ticks([0, 4, 8, 12, 16, 20], (v) => `${v}`), yt: ticks([lo, (lo + hi) / 2, hi], (v) => v.toFixed(4)), title: "FINE GRID (thin) AND DECIMATED SAMPLES (dots)", right: "20.48 → 5.12 MS/s" });
+    const e = ease(t);
+    line(f, tFine, ys, rgba(C.tr, 1), 1, 1, 1 - 0.65 * e);
+    line(f, tDec, D.xdec, C.c2, 1.6, e);
+    dots(f, tDec, D.xdec, C.c2, 2.6, e);
+  },
+  trim(t) {
+    const ys = D.xdec_head, xs = range(ys.length, (i) => i);
+    const f = frame({ x: [0, xs.length - 1], y: [0.4, 0.78], xt: ticks([0, 16, 32, 48, 64, 80, 96], (v) => `${v}`), yt: ticks([0.4, 0.5, 0.6, 0.7], (v) => v.toFixed(2)), title: "DECIMATED RECORD [V] vs SAMPLE", right: "pad = 64" });
+    band(f, 0, 63.5 * ease(t), rgba(C.c3, 0.18));
+    line(f, xs, ys, C.tr, 1.5);
+    dots(f, xs, ys, C.tr, 1.8);
+    vline(f, 64, C.c2, [5, 4], "v[0]: kept from here");
+    if (t > 0.5) label("filter transient: dropped", f.X(4), f.Y(0.45), C.c3);
+  },
+  acdc(t) {
+    const e = ease(t), off = (1 - e) * N.dc * 1e3;
+    const f = frame({ x: [0, 825], y: [-4, 4], xt: ticks([0, 165, 330, 495, 660, 825], (v) => `${v}`), yt: ticks([-4, -2, 0, 2, 4], (v) => `${v}`), title: "INPUT VOLTAGE [mV] vs TIME [µs]", right: `DC removed: ${(N.dc * (e)).toFixed(4)} V` });
+    line(f, tV, vAC.map((x) => x + off), C.tr, 1, 1);
+    if (off > 4.5) { label(`↑ trace at ${(off / 1e3 + 0).toFixed(3)} V, off screen`, f.X(412), f.Y(3.2), C.c3, "center", sz() + 1, 600); }
+    if (e > 0.95) label("1.39 mV tone + noise, centered on 0 V", f.X(412), f.Y(3.3), C.c2, "center");
+  },
+  levels(t) {
+    const f = frame({ x: [0, 1], y: [-160, -110], nx: 10, ny: 5, yt: dbmTicks(-160, -110, 10), title: "NOISE DENSITY AT THE INPUT [dBm/Hz]", right: "white, one-sided" });
+    const e = ease(t);
+    const bars = [["detector noise", -122.5, C.tr, 0.22], ["analyzer DANL", -150, C.c2, 0.6]];
+    bars.forEach(([lab, v, col, x], i) => {
+      const yv = -160 + (v + 160) * Math.min(1, e * 1.6 - i * 0.3);
+      clipTo(f); ctx.fillStyle = rgba(col, 0.75); ctx.fillRect(f.X(x), f.Y(yv), f.X(x + 0.18) - f.X(x), f.Y(-160) - f.Y(yv)); ctx.restore();
+      label(lab, f.X(x + 0.09), f.Y(-157), "#0a0d0f", "center", sz(), 600);
+      label(`${v} dBm/Hz`, f.X(x + 0.09), f.Y(yv) - 12, col, "center", sz() + 1, 600);
+    });
+    if (e > 0.8) label("27.5 dB apart: the floor adds 0.008 dB", f.X(0.5), f.Y(-114), C.text, "center", sz() + 1);
+  },
+  hann(t) {
+    const xs = range(N.n, (i) => i);
+    const f = frame({ x: [0, N.n - 1], y: [0, 1.05], xt: ticks([0, 192, 384, 576, 767], (v) => `${v}`), yt: ticks([0, 0.5, 1], (v) => v.toFixed(1)), title: "w[i], PERIODIC HANN, n = 768", right: "Σw = 384" });
+    line(f, xs, hann, C.c2, 2, ease(t));
+  },
+  segments(t) {
+    const k = N.k, e = reduceMotion ? 1 : t;
+    const cur = Math.min(k - 1, Math.floor(e * k * 0.999));
+    const L = Math.max(54, W * 0.075), R = 14;
+    // top panel: the sweep
+    ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
+    const top = { L, T: 30, pw: W - L - R, ph: H * 0.36 };
+    const bot = { L, T: H * 0.36 + 70, pw: W - L - R, ph: H - (H * 0.36 + 70) - 30 };
+    const panel = (p, x0, x1, y0, y1) => ({ ...p, X: (x) => p.L + (x - x0) / (x1 - x0) * p.pw, Y: (y) => p.T + (1 - (y - y0) / (y1 - y0)) * p.ph });
+    const fa = panel(top, 0, N.total, -3, 3), fb = panel(bot, 0, N.n - 1, -3, 3);
+    for (const p of [fa, fb]) { ctx.strokeStyle = C.axis; ctx.strokeRect(p.L + .5, p.T + .5, p.pw - 1, p.ph - 1); ctx.strokeStyle = C.grid; ctx.beginPath(); ctx.moveTo(p.L, p.Y(0)); ctx.lineTo(p.L + p.pw, p.Y(0)); ctx.stroke(); }
+    label("THE SWEEP, v [mV]", fa.L, fa.T - 12, C.text, "left", sz() + 1, 600);
+    label(`record ${cur}: samples ${cur * N.hop}–${cur * N.hop + N.n - 1}`, fa.L + fa.pw, fa.T - 12, C.tr, "right");
+    const x0 = cur * N.hop;
+    clipTo(fa); ctx.fillStyle = rgba(C.tr, 0.13); ctx.fillRect(fa.X(x0), fa.T, fa.X(x0 + N.n) - fa.X(x0), fa.ph);
+    ctx.strokeStyle = C.tr; ctx.beginPath();
+    for (let i = 0; i < N.n; i++) { const x = fa.X(x0 + i), y = fa.Y(hann[i] * 2.8); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+    ctx.stroke(); ctx.restore();
+    const idx = range(N.total, (i) => i);
+    line(fa, idx, vAC, rgba(C.c4, 1), 0.8, 1, 0.8);
+    label(`WINDOWED RECORD ${cur}, segs[${cur}] [mV]`, fb.L, fb.T - 12, C.text, "left", sz() + 1, 600);
+    const seg = range(N.n, (i) => vAC[x0 + i] * hann[i]);
+    line(fb, range(N.n, (i) => i), seg, C.tr, 1.1, 1);
+  },
+  fft1(t) {
+    const f = frame({ x: [0, 2.56e6], y: [-110, -40], xt: mhzTicks(2.56e6, 0.4e6), yt: dbmTicks(-110, -40, 10), title: "ONE RECORD: POWER IN THE RBW [dBm] vs FREQUENCY [MHz]", right: "record 0 of 10" });
+    line(f, fBins, D.spec0, C.tr, 1, ease(t));
+    if (t > 0.7) label("500 kHz tone, −47.1 dBm", f.X(0.53e6), f.Y(-47), C.tr);
+  },
+  fftk(t) {
+    const e = ease(t);
+    const f = frame({ x: [0, 2.56e6], y: [-110, -40], xt: mhzTicks(2.56e6, 0.4e6), yt: dbmTicks(-110, -40, 10), title: "MEAN OF 10 RECORDS [dBm] vs FREQUENCY [MHz]", right: "Welch average" });
+    line(f, fBins, D.spec0, C.c4, 1, 1, 1 - 0.75 * e);
+    line(f, fBins, D.power, C.tr, 1.2, e);
+    if (e > 0.9) label(`median bin ${median(D.spec0).toFixed(1)} → ${median(D.power).toFixed(1)} dBm`, f.X(1.3e6), f.Y(-55), C.text, "center", sz() + 1);
+  },
+  dc(t) {
+    const nb = 16, xs = fBins.slice(0, nb);
+    const ys = D.power.slice(0, nb).slice();
+    const e = ease(t);
+    ys[0] = N.p0_before_dbm + (N.p0_after_dbm - N.p0_before_dbm) * e;
+    const f = frame({ x: [-1e3, 26e3], y: [-95, -75], xt: ticks([0, 5e3, 10e3, 15e3, 20e3, 25e3], (v) => `${v / 1e3}`), yt: dbmTicks(-95, -75, 5), title: "FIRST BINS [dBm] vs FREQUENCY [kHz]", right: "power[0] /= 2" });
+    line(f, xs, ys, C.tr, 1.1);
+    dots(f, xs, ys, C.tr, 3);
+    dots(f, [0], [ys[0]], C.c3, 5.5);
+    label(`bin 0: ${ys[0].toFixed(1)} dBm`, f.X(0) + 12, f.Y(ys[0]), C.c3, "left", sz() + 1, 600);
+  },
+  bins(t) {
+    const lo = 485e3, hi = 515e3;
+    const i0 = Math.floor(lo / (N.fs / N.nfft)), i1 = Math.ceil(hi / (N.fs / N.nfft));
+    const xs = fBins.slice(i0, i1 + 1), ys = D.power.slice(i0, i1 + 1);
+    const f = frame({ x: [lo, hi], y: [-90, -40], xt: ticks([485e3, 490e3, 495e3, 500e3, 505e3, 510e3, 515e3], (v) => `${v / 1e3}`), yt: dbmTicks(-90, -40, 10), title: "AROUND THE TONE [dBm] vs FREQUENCY [kHz]", right: "bins every 1.667 kHz" });
+    for (let i = -2; i <= 2; i++) vline(f, 500e3 + i * N.fs / N.n, rgba(C.c2, 0.6), [3, 4]);
+    line(f, xs, ys, C.tr, 1.2, ease(t));
+    dots(f, xs, ys, C.tr, 3, ease(t));
+    label("dashed: one record's own bins, 6.67 kHz apart", f.X(lo) + 8, f.Y(-86), C.c2);
+  },
+  span(t, s) {
+    const f = frame({ x: [0, 2.56e6], y: [-110, -40], xt: mhzTicks(2.56e6, 0.4e6), yt: dbmTicks(-110, -40, 10), title: "AVERAGED SPECTRUM [dBm] vs FREQUENCY [MHz]", right: "201 points, 0–2 MHz" });
+    band(f, 2e6, 2.56e6, rgba(C.c4, 0.25 * ease(t)));
+    line(f, fBins, D.power, C.tr, 1.1);
+    vline(f, 2e6, C.c3, [5, 4], "Stop");
+    const m = Math.floor(fd.length * ease(t));
+    ctx.fillStyle = C.c2;
+    for (let i = 0; i < m; i++) { const x = f.X(fd[i]); ctx.fillRect(x - 0.6, f.T + f.ph - (s.ticks ? 14 : 9), 1.2, s.ticks ? 14 : 9); }
+    if (t > 0.6) label("not displayed", f.X(2.28e6), f.Y(-100), C.c4, "center");
+  },
+  zoom(t, s) {
+    const lo = 445e3, hi = 555e3, binHz = N.fs / N.nfft;
+    const i0 = Math.floor(lo / binHz), i1 = Math.ceil(hi / binHz);
+    const xs = fBins.slice(i0, i1 + 1), ys = D.power.slice(i0, i1 + 1);
+    const f = frame({ x: [lo, hi], y: [-95, -40], nx: 11, xt: ticks([450e3, 470e3, 490e3, 510e3, 530e3, 550e3], (v) => `${v / 1e3}`), yt: dbmTicks(-90, -40, 10), title: "ZOOM ON THE TONE [dBm] vs FREQUENCY [kHz]", right: `detector: ${s.mode === "edges" || s.mode === "counts" ? "buckets" : s.mode}` });
+    const e = ease(t);
+    const pts = fd.map((x, i) => [x, i]).filter(([x]) => x >= lo && x <= hi);
+    if (s.mode !== "sample") {
+      pts.forEach(([x], j) => { if (j % 2 === 0) band(f, x - 5e3, x + 5e3, rgba(C.c2, 0.08)); });
+      pts.forEach(([x]) => vline(f, x - 5e3, rgba(C.c2, 0.55 * (s.mode === "edges" ? e : 1)), [3, 3]));
+    }
+    line(f, xs, ys, rgba(C.c4, 1), 1, 1, 0.9);
+    if (s.mode === "counts") {
+      xs.forEach((x, i) => { const b = Math.round((x - 450e3) / 10e3); clipTo(f); ctx.fillStyle = b % 2 ? C.c2 : C.tr; ctx.beginPath(); ctx.arc(f.X(x), f.Y(ys[i]), 3, 0, 7); ctx.fill(); ctx.restore(); });
+      pts.forEach(([x]) => label("6", f.X(x), f.T + 14, C.text, "center"));
+    } else dots(f, xs, ys, C.c4, 2.2);
+    const key = s.mode === "edges" || s.mode === "counts" ? null : s.mode;
+    if (key) {
+      const col = key === "peak" ? C.c3 : key === "average" ? C.tr : C.c2;
+      const sel = pts.slice(0, Math.max(1, Math.ceil(pts.length * e)));
+      clipTo(f); ctx.strokeStyle = col; ctx.lineWidth = 2.4;
+      for (const [x, i] of sel) {
+        const y = f.Y(D.modes[key][i]);
+        if (key === "sample") { ctx.fillStyle = col; ctx.beginPath(); ctx.arc(f.X(x), y, 5, 0, 7); ctx.fill(); }
+        else { ctx.beginPath(); ctx.moveTo(f.X(x - 4.2e3), y); ctx.lineTo(f.X(x + 4.2e3), y); ctx.stroke(); }
+      }
+      ctx.restore();
+      const it = fd.findIndex((x) => Math.abs(x - 500e3) < 1);
+      if (e > 0.95) label(`500 kHz point: ${D.modes[key][it].toFixed(1)} dBm`, f.X(503e3), f.Y(D.modes[key][it]) - 14, col, "left", sz() + 1, 600);
+    }
+  },
+  modes(t) {
+    const f = frame({ x: [0, 2e6], y: [-100, -40], xt: mhzTicks(2e6, 0.25e6), yt: dbmTicks(-100, -40, 10), title: "DISPLAYED TRACE [dBm] vs FREQUENCY [MHz]", right: "three detector modes" });
+    const e = ease(t);
+    line(f, fd, D.modes.sample, C.c2, 1, e, 0.9);
+    line(f, fd, D.modes.peak, C.c3, 1, Math.max(0, e * 1.3 - 0.15), 0.9);
+    line(f, fd, D.modes.average, C.tr, 1.4, Math.max(0, e * 1.6 - 0.4));
+    const rows = [["sample", C.c2], ["peak", C.c3], ["average", C.tr]];
+    rows.forEach(([k, col], i) => label(`${k.padEnd(7)} median ${median(D.modes[k]).toFixed(2)}  tone ${D.modes[k][50].toFixed(1)}`, f.X(1.02e6), f.Y(-46 - i * 4.4), col, "left", sz(), 600));
+  },
+  sweeps(t) {
+    const nS = D.sweeps.length, j = Math.min(nS - 1, Math.floor((reduceMotion ? 1 : t) * nS * 0.999));
+    const tr = D.sweeps[j];
+    const noise = tr.filter((_, i) => fd[i] > 50e3 && Math.abs(fd[i] - 500e3) > 30e3);
+    const mu = noise.reduce((a, b) => a + b, 0) / noise.length;
+    const sd = Math.sqrt(noise.reduce((a, b) => a + (b - mu) ** 2, 0) / noise.length);
+    const f = frame({ x: [0, 2e6], y: [-100, -40], xt: mhzTicks(2e6, 0.25e6), yt: dbmTicks(-100, -40, 10), title: "TRACE AVERAGE [dBm] vs FREQUENCY [MHz]", right: `sweep ${j + 1} of ${nS}` });
+    if (j > 0) line(f, fd, D.singles[j], C.c4, 0.9, 1, 0.5);
+    line(f, fd, tr, C.tr, 1.4);
+    label(`trace ripple on noise: ${sd.toFixed(2)} dB rms    median ${median(tr).toFixed(2)} dBm`, f.X(1.02e6), f.Y(-46), C.tr, "left", sz() + 1, 600);
+    label("grey: this sweep alone", f.X(1.02e6), f.Y(-51), C.c4);
+  },
+  maxhold(t) {
+    const nS = D.singles.length;
+    const mh = fd.map((_, i) => Math.max(...D.singles.map((s) => s[i])));
+    const f = frame({ x: [0, 2e6], y: [-100, -40], xt: mhzTicks(2e6, 0.25e6), yt: dbmTicks(-100, -40, 10), title: "MAX HOLD vs TRACE AVERAGE [dBm]", right: `${nS} sweeps` });
+    const e = ease(t);
+    line(f, fd, D.sweeps[nS - 1], C.tr, 1.3, 1);
+    line(f, fd, mh, C.c3, 1.2, e);
+    if (e > 0.9) { label(`max hold median ${median(mh).toFixed(2)} dBm`, f.X(1.02e6), f.Y(-46), C.c3, "left", sz() + 1, 600); label(`average median ${median(D.sweeps[nS - 1]).toFixed(2)} dBm`, f.X(1.02e6), f.Y(-51), C.tr, "left", sz() + 1, 600); }
+  },
+  final(t) {
+    const tr = D.sweeps[D.sweeps.length - 1];
+    const f = frame({ x: [0, 2e6], y: [-120, -40], nx: 10, ny: 8, xt: ticks([0, 1e6, 2e6], (v) => ["Start 0 Hz", "1 MHz", "Stop 2 MHz"][Math.round(v / 1e6)]), yt: dbmTicks(-120, -40, 10), title: "Ref −40 dBm   10 dB/div", right: "RBW 10 kHz   Avg 10   trace average" });
+    line(f, fd, tr, C.tr, 1.5, ease(t));
+    if (t > 0.85) {
+      const i = tr.indexOf(Math.max(...tr));
+      ctx.fillStyle = C.c2; ctx.beginPath(); ctx.moveTo(f.X(fd[i]), f.Y(tr[i]) - 6); ctx.lineTo(f.X(fd[i]) - 6, f.Y(tr[i]) - 16); ctx.lineTo(f.X(fd[i]) + 6, f.Y(tr[i]) - 16); ctx.fill();
+      label(`MKR 500 kHz  ${tr[i].toFixed(1)} dBm`, f.X(fd[i]) + 10, f.Y(tr[i]) - 18, C.c2, "left", sz() + 1, 600);
+      label(`Median level ${median(tr).toFixed(1)} dBm`, f.X(1.3e6), f.Y(-52), C.tr, "left", sz() + 1, 600);
+    }
+  },
+};
+
+/* ---------- player ---------- */
+const track = document.getElementById("track");
+S.forEach((s, i) => {
+  const b = document.createElement("button");
+  b.className = "seg"; b.dataset.m = s.m; b.type = "button"; b.setAttribute("role", "tab");
+  b.setAttribute("aria-label", `Step ${i + 1}: ${s.t}`);
+  b.addEventListener("click", () => go(i, true));
+  track.appendChild(b);
+});
+const segs = [...track.children];
+const codeBox = document.getElementById("code");
+const capWhere = document.getElementById("capWhere"), capTitle = document.getElementById("capTitle"), capBody = document.getElementById("capBody"), capChips = document.getElementById("capChips");
+const counter = document.getElementById("counter"), playBtn = document.getElementById("play");
+let cur = 0, start = 0, playing = !reduceMotion, raf = 0, t = 1;
+const DUR = 900, DWELL = 6200;
+
+function render() { colors(); const s = S[cur]; scenes[s.sc](Math.min(1, t), s); }
+function setCode(s) {
+  codeBox.classList.add("active");
+  document.querySelectorAll(".ln.on").forEach((e) => e.classList.remove("on"));
+  document.querySelectorAll(".method").forEach((e) => e.classList.toggle("cur", e.dataset.m === s.m));
+  const rows = LINES[s.m].slice(s.a, s.b + 1);
+  rows.forEach((r) => r.classList.add("on"));
+  const first = rows[0], last = rows[rows.length - 1];
+  const top = first.offsetTop, bottom = last.offsetTop + last.offsetHeight;
+  const target = Math.max(0, (top + bottom) / 2 - codeScroll.clientHeight / 2);
+  codeScroll.scrollTo({ top: target, behavior: reduceMotion ? "auto" : "smooth" });
+}
+function setCaption(s, i) {
+  const mc = { record: "--m-record", acquire: "--m-acquire", _signal: "--m-signal", _detect: "--m-detect" }[s.m];
+  capWhere.style.setProperty("--mc", `var(${mc})`);
+  capWhere.textContent = `${s.m}() · line${s.a === s.b ? "" : "s"} ${s.a + 1}${s.a === s.b ? "" : "–" + (s.b + 1)}`;
+  capTitle.textContent = s.t; capBody.textContent = s.p;
+  capChips.innerHTML = (s.c || []).map(([k, v]) => `<span class="chip">${esc(k)} <b>${esc(v)}</b></span>`).join("");
+  counter.textContent = `${i + 1} / ${S.length}`;
+  segs.forEach((g, j) => { g.classList.toggle("cur", j === i); g.classList.toggle("done", j < i); g.setAttribute("aria-selected", j === i ? "true" : "false"); });
+  document.getElementById("scrState").textContent = playing ? "RUN" : "HOLD";
+}
+function go(i, user) {
+  cur = (i + S.length) % S.length; start = performance.now(); t = reduceMotion ? 1 : 0;
+  if (user && playing) start = performance.now();
+  setCode(S[cur]); setCaption(S[cur], cur); render();
+  loop();
+}
+function loop() {
+  cancelAnimationFrame(raf);
+  raf = requestAnimationFrame(function tick(now) {
+    const el = now - start;
+    const dur = S[cur].sc === "segments" || S[cur].sc === "sweeps" ? DWELL - 800 : DUR;
+    t = reduceMotion ? 1 : Math.min(1, el / dur);
+    render();
+    if (playing && el > DWELL) { go(cur + 1); return; }
+    if (t < 1 || playing) raf = requestAnimationFrame(tick);
+  });
+}
+function setPlay(p) { playing = p; playBtn.textContent = p ? "Pause" : "Play"; document.getElementById("scrState").textContent = p ? "RUN" : "HOLD"; if (p) { start = performance.now() - DUR; loop(); } }
+playBtn.addEventListener("click", () => setPlay(!playing));
+document.getElementById("prev").addEventListener("click", () => go(cur - 1, true));
+document.getElementById("next").addEventListener("click", () => go(cur + 1, true));
+document.addEventListener("keydown", (e) => {
+  if (e.target.closest && e.target.closest("button") && e.key === " ") return;
+  if (e.key === "ArrowRight") { go(cur + 1, true); e.preventDefault(); }
+  else if (e.key === "ArrowLeft") { go(cur - 1, true); e.preventDefault(); }
+  else if (e.key === " ") { setPlay(!playing); e.preventDefault(); }
+});
+window.addEventListener("resize", () => { resize(); render(); });
+resize();
+playBtn.textContent = playing ? "Pause" : "Play";
+go(0);
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => render());
+})();
+</script>

@@ -1,0 +1,554 @@
+<title>Tagger Run, Line by Line</title>
+<meta name="viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: source listing on the left, the tagger's screen and the step's story on the right;
+   one column on phones, screen first. Dark theme only, like an instrument's screen. */
+:root {
+  --bg: #0d1116;
+  --panel: #141a21;
+  --fg: #e4ebf1;
+  --muted: #93a1af;
+  --line: #26303b;
+  --accent: #facc15;
+  --hl: rgba(250, 204, 21, 0.13);
+  --m-acquire: #fbbf24;
+  --m-detect: #60a5fa;
+  --m-photons: #2dd4bf;
+  --m-prob: #e879f9;
+  --m-dead: #4ade80;
+  --m-blind: #fb7185;
+  --m-result: #94a3b8;
+  --tok-kw: #c4b5fd;
+  --tok-str: #6ee7b7;
+  --tok-num: #fdba74;
+  --tok-com: #6b7a89;
+  --tok-fn: #93c5fd;
+  --scr-bg: #05080a;
+  --scr-bezel: #1b2127;
+  --scr-grid: rgba(134, 178, 150, 0.15);
+  --scr-axis: rgba(134, 178, 150, 0.45);
+  --scr-text: #a9bdb0;
+  --scr-strong: #e8efe9;
+  --scr-trace: #facc15;
+  --scr-2: #22d3ee;
+  --scr-3: #f472b6;
+  --scr-4: #94a3b8;
+  --scr-5: #4ade80;
+  --font-display: "Chakra Petch", "Rajdhani", "Segoe UI", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 28px;
+}
+.wrap { max-width: 1440px; margin: 0 auto; display: grid; gap: 18px; }
+header.top { display: grid; gap: 6px; }
+.eyebrow { font-family: var(--font-mono); font-size: 12px; letter-spacing: .06em; color: var(--muted); text-transform: uppercase; }
+h1 { font-family: var(--font-display); font-weight: 600; font-size: clamp(26px, 3.4vw, 38px); line-height: 1.1; margin: 0; text-wrap: balance; letter-spacing: .01em; }
+.lede { margin: 0; max-width: 78ch; color: var(--muted); }
+.lede code, footer code { font-family: var(--font-mono); font-size: .92em; color: var(--fg); }
+.bench { font-family: var(--font-mono); font-size: 12.5px; color: var(--muted); margin: 0; max-width: 100%; overflow-x: auto; }
+
+.main { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+@media (max-width: 900px) { .main { grid-template-columns: minmax(0, 1fr); } .right { order: -1; } }
+
+.code { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; min-width: 0; overflow: hidden; }
+.code-scroll { position: relative; max-height: min(78vh, 860px); overflow: auto; padding: 6px 0 14px; scroll-behavior: smooth; }
+@media (max-width: 900px) { .code-scroll { max-height: 46vh; } }
+.method { padding-top: 10px; }
+.method h2 { margin: 0 0 4px; padding: 4px 16px; font-family: var(--font-mono); font-weight: 500; font-size: 13px; display: flex; align-items: center; gap: 8px; color: var(--muted); }
+.method h2 .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--mc); flex: none; }
+.method h2 b { color: var(--fg); font-weight: 500; }
+[data-m="acquire"] { --mc: var(--m-acquire); }
+[data-m="detect"] { --mc: var(--m-detect); }
+[data-m="photons"] { --mc: var(--m-photons); }
+[data-m="click_probability"] { --mc: var(--m-prob); }
+[data-m="dead_bins"] { --mc: var(--m-dead); }
+[data-m="blind_after"] { --mc: var(--m-blind); }
+[data-m="counts"], [data-m="coincidences"] { --mc: var(--m-result); }
+pre { margin: 0; font-family: var(--font-mono); font-size: 12.5px; line-height: 1.6; width: max-content; min-width: 100%; }
+.ln { display: grid; grid-template-columns: 3.2em auto; padding-right: 14px; border-left: 3px solid transparent; transition: background .35s ease, border-color .35s ease, opacity .35s ease; }
+.ln .no { color: var(--tok-com); text-align: right; padding-right: 1em; user-select: none; }
+.ln .tx { white-space: pre; }
+.code.active .ln { opacity: .55; }
+.code.active .method.cur .ln { opacity: .8; }
+.code.active .ln.on, .code.active .method.cur .ln.on { opacity: 1; background: var(--hl); border-left-color: var(--mc); }
+.k { color: var(--tok-kw); } .s { color: var(--tok-str); } .n { color: var(--tok-num); } .c { color: var(--tok-com); font-style: italic; } .f { color: var(--tok-fn); } .sf { color: var(--m-acquire); }
+
+.right { display: grid; gap: 12px; min-width: 0; }
+.instrument { background: var(--scr-bezel); border-radius: 12px; padding: 10px; box-shadow: 0 1px 0 rgba(255,255,255,.05) inset, 0 8px 24px rgba(0,0,0,.18); }
+.instrument .bar { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 0 4px 8px; font-family: var(--font-display); color: var(--scr-text); font-size: 13px; letter-spacing: .05em; }
+.instrument .bar .run { font-family: var(--font-mono); font-size: 11px; padding: 2px 8px; border-radius: 4px; background: rgba(52, 211, 153, .15); color: var(--scr-5); }
+canvas { display: block; width: 100%; aspect-ratio: 16 / 10; max-width: 100%; background: var(--scr-bg); border-radius: 6px; }
+
+.caption { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px 16px; display: grid; gap: 8px; min-height: 9.5em; }
+.cap-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.cap-head .where { font-family: var(--font-mono); font-size: 12px; color: var(--mc, var(--muted)); }
+.cap-head h3 { margin: 0; font-family: var(--font-display); font-weight: 600; font-size: 19px; line-height: 1.25; text-wrap: balance; }
+.caption p { margin: 0; max-width: 68ch; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-family: var(--font-mono); font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); font-variant-numeric: tabular-nums; }
+.chip b { color: var(--fg); font-weight: 500; }
+
+.controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.controls button { font: 500 14px var(--font-body); color: var(--fg); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 7px 14px; cursor: pointer; min-width: 44px; }
+.controls button:hover { border-color: var(--accent); }
+.controls button:focus-visible, .seg:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.controls button.primary { background: var(--fg); color: var(--bg); border-color: var(--fg); min-width: 88px; }
+.counter { font-family: var(--font-mono); font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; margin-left: auto; }
+.track { display: flex; gap: 3px; width: 100%; }
+.seg { flex: 1 1 0; height: 9px; border-radius: 3px; background: var(--mc); opacity: .28; border: 0; padding: 0; cursor: pointer; transition: opacity .25s, transform .25s; }
+.seg.done { opacity: .6; } .seg.cur { opacity: 1; transform: scaleY(1.45); }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; background: var(--mc); }
+footer { color: var(--muted); font-size: 13px; max-width: 90ch; }
+@media (prefers-reduced-motion: reduce) { .ln, .seg { transition: none; } .code-scroll { scroll-behavior: auto; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="eyebrow">phoq · src/phoq/instruments.py · PhotonCounter</div>
+    <h1>Tagger Run, Line by Line</h1>
+    <p class="lede">How phoq's time tagger turns weak laser pulses on two single-photon detectors into click records, counts and coincidences. The walk follows one run through <code>PhotonCounter.acquire()</code> and the detector methods it calls, <code>detect()</code>, <code>photons()</code>, <code>click_probability()</code>, <code>dead_bins()</code> and <code>blind_after()</code>, then the result's <code>counts</code> and <code>coincidences()</code>. Every mark on the screen comes from the arrays those lines produced on the bench below: the lines were replayed with the same random seed and checked against <code>acquire()</code> itself, click for click.</p>
+    <pre class="bench">laser −20 dBm, 100 ps pulses at 100 MHz → VOA 60 dB → 50:50 → SPD-1 (CH1) and SPD-2 (CH2), η 25 %, 1 kHz dark counts, 100 ns dead time
+CNT-1: 2000 bins per run, bin rate from the laser, delay compensation on, 1 sub-bin, chunks of 1000 bins</pre>
+  </header>
+
+  <div class="main">
+    <div class="code" id="code" aria-label="Source code of acquire and the methods it calls"><div class="code-scroll" id="codeScroll"></div></div>
+
+    <div class="right">
+      <div class="instrument">
+        <div class="bar"><span>CNT-1 · CH1 SPD-1 · CH2 SPD-2</span><span class="run" id="scrState">RUN</span></div>
+        <canvas id="scr" width="960" height="600" role="img" aria-label="Time-tagger screen showing the effect of the highlighted line"></canvas>
+      </div>
+      <div class="controls">
+        <button id="prev" type="button" aria-label="Previous step">◀</button>
+        <button id="play" type="button" class="primary">Pause</button>
+        <button id="next" type="button" aria-label="Next step">▶</button>
+        <span class="counter" id="counter">1 / 1</span>
+      </div>
+      <div class="track" id="track" role="tablist" aria-label="Steps"></div>
+      <div class="legend">
+        <span data-m="acquire"><i></i>acquire()</span>
+        <span data-m="detect"><i></i>detect()</span>
+        <span data-m="photons"><i></i>photons()</span>
+        <span data-m="click_probability"><i></i>click_probability()</span>
+        <span data-m="dead_bins"><i></i>dead_bins()</span>
+        <span data-m="blind_after"><i></i>blind_after()</span>
+        <span data-m="counts"><i></i>result</span>
+      </div>
+      <div class="caption" id="caption" aria-live="polite">
+        <div class="cap-head"><span class="where" id="capWhere"></span><h3 id="capTitle"></h3></div>
+        <p id="capBody"></p>
+        <div class="chips" id="capChips"></div>
+      </div>
+    </div>
+  </div>
+  <footer>Keys: ← and → step, Space plays or pauses. Data: phoq's own <code>PhotonCounter</code> and <code>SinglePhotonDetector</code> on a bench built for this page. The run is short (2000 bins) and cut into two chunks of 1000 so that the dead time's carry-over between chunks happens on screen; the seed was picked so that it removes a click.</footer>
+</div>
+
+<script id="data" type="application/json">/*DATA*/</script>
+<script>
+(() => {
+"use strict";
+const D = JSON.parse(document.getElementById("data").textContent);
+const N = D.nums;
+const ORDER = ["acquire", "detect", "photons", "click_probability", "dead_bins", "blind_after", "counts", "coincidences"];
+const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/* ---------- source listing with a small Python highlighter ---------- */
+const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const KW = new Set(["def", "return", "if", "elif", "else", "for", "in", "and", "or", "not", "is", "None", "True", "False", "import", "from", "as", "with", "while", "lambda"]);
+function hl(line, st) {
+  let out = "", i = 0;
+  if (st.doc) {
+    const j = line.indexOf('"""');
+    if (j < 0) return [`<span class="s">${esc(line)}</span>`, st];
+    out += `<span class="s">${esc(line.slice(0, j + 3))}</span>`; i = j + 3; st = { doc: false };
+  }
+  const re = /(#.*$)|("""|"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')|(\b\d[\d_]*(?:\.\d*)?(?:e[-+]?\d+)?\b)|(@?[A-Za-z_]\w*)/g;
+  re.lastIndex = i;
+  let m, last = i;
+  while ((m = re.exec(line))) {
+    out += esc(line.slice(last, m.index));
+    if (m[1]) out += `<span class="c">${esc(m[1])}</span>`;
+    else if (m[2] === '"""') {
+      const j = line.indexOf('"""', m.index + 3);
+      if (j < 0) { out += `<span class="s">${esc(line.slice(m.index))}</span>`; return [out, { doc: true }]; }
+      out += `<span class="s">${esc(line.slice(m.index, j + 3))}</span>`; re.lastIndex = j + 3; last = j + 3; continue;
+    } else if (m[2]) out += `<span class="s">${esc(m[2])}</span>`;
+    else if (m[3]) out += `<span class="n">${m[3]}</span>`;
+    else if (m[4]) {
+      const w = m[4], nxt = line[m.index + w.length];
+      if (w[0] === "@") out += `<span class="k">${w}</span>`;
+      else if (KW.has(w)) out += `<span class="k">${w}</span>`;
+      else if (w === "self") out += `<span class="sf">${w}</span>`;
+      else if (nxt === "(") out += `<span class="f">${w}</span>`;
+      else out += w;
+    }
+    last = re.lastIndex;
+  }
+  out += esc(line.slice(last));
+  return [out, st];
+}
+const LABELS = { acquire: "PhotonCounter.acquire(self, net, rng, start=None)", detect: "SinglePhotonDetector.detect(self, fields, dt, rng, n, sub=1, blind=0)", photons: "SinglePhotonDetector.photons(self, fields, dt, n, weighted=False)", click_probability: "SinglePhotonDetector.click_probability(self, nbar, dt)", dead_bins: "SinglePhotonDetector.dead_bins(self, dt)", blind_after: "SinglePhotonDetector.blind_after(self, clicks, dt, blind=0)", counts: "CounterResult.counts", coincidences: "CounterResult.coincidences(self, a, b)" };
+const codeScroll = document.getElementById("codeScroll");
+const LINES = {};
+for (const m of ORDER) {
+  const sec = document.createElement("section");
+  sec.className = "method"; sec.dataset.m = m;
+  sec.innerHTML = `<h2><span class="dot"></span><b>${esc(LABELS[m])}</b></h2>`;
+  const pre = document.createElement("pre");
+  let st = { doc: false };
+  const raw = D.src[m].replace(/\n+$/, "").split("\n");
+  LINES[m] = [];
+  raw.forEach((ln, i) => {
+    const [html, s2] = hl(ln.startsWith("    ") ? ln.slice(4) : ln, st); st = s2;
+    const row = document.createElement("div");
+    row.className = "ln";
+    row.innerHTML = `<span class="no">${i + 1}</span><span class="tx">${html || " "}</span>`;
+    pre.appendChild(row); LINES[m].push(row);
+  });
+  sec.appendChild(pre); codeScroll.appendChild(sec);
+}
+
+/* ---------- the steps ---------- */
+const ex = N.counts, raw = N.raw;
+const S = [
+  { m: "acquire", a: 5, b: 9, sc: "table", t: "Which inputs count",
+    p: `The tagger takes clicks only from single-photon detectors. CH1 is wired to SPD-1's click output and CH2 to SPD-2's; CH3 and CH4 are empty.`,
+    rows: [["CH1", "SPD-1", "SinglePhotonDetector", 1], ["CH2", "SPD-2", "SinglePhotonDetector", 1], ["CH3", "—", "not connected"], ["CH4", "—", "not connected"]] },
+  { m: "acquire", a: 10, b: 11, sc: "clock", t: "A clock that runs on",
+    p: `Like a real tagger's clock, the bin counter continues from call to call: this run covers bins 0 to 1999, and the next call would start at bin 2000. Passing start= jumps elsewhere.`,
+    c: [["first", "0"], ["position after", "2000"]] },
+  { m: "acquire", a: 12, b: 14, sc: "table", t: "One bin per laser pulse",
+    p: `The sync laser is the pulsed laser feeding the detectors. With bin_rate left at 0 the tagger uses its repetition rate, so each 10 ns bin holds exactly one pulse.`,
+    rows: [["laser", "LD-1", "pulsed, 100 MHz"], ["rate", "100 MHz", "bin_rate or rep_rate", 1], ["dt", "10 ns", "1 / rate", 1]] },
+  { m: "acquire", a: 15, b: 23, sc: "shift", t: "Line the bins up with the pulses",
+    p: `Light takes 14.69 ns from the laser to either detector: patch cords, the attenuator and the coupler. With delay compensation on, the bins are shifted by the earliest arrival (plus any channel delay, 0 here), so bin k holds the light of pulse k.`,
+    c: [["path delay", "14.69 ns"], ["shift", "14.69 ns"], ["CH delays", "0"]] },
+  { m: "acquire", a: 24, b: 27, sc: "table", t: "Per-channel offsets and empty records",
+    p: `A channel delay would move that detector's bins by −delay when the light is synthesized. Both are 0 here. Each channel starts with a record of 2000 False entries, one per bin.`,
+    rows: [["offsets", "SPD-1: 0, SPD-2: 0", "−channel delay"], ["clicks", "2 × 2000 False", "one entry per bin", 1]] },
+  { m: "acquire", a: 28, b: 32, sc: "table", t: "Dead time carried in",
+    p: `A click just before this record would keep its detector dead into it. That only applies when this record continues the last one; this is the first record, so both channels start alive.`,
+    rows: [["end", "0", "where the last record ended"], ["blind", "ch1: 0, ch2: 0", "dead bins at the start", 1]] },
+  { m: "acquire", a: 33, b: 36, sc: "chunks", t: "Work in chunks",
+    p: `m = 1 sub-bin per bin. The record is synthesized in chunks of chunk // m = 1000 bins to bound memory, so this run has two chunks: bins 0–999 and 1000–1999.`,
+    c: [["m", "1"], ["step", "1000"], ["chunks", "2"]] },
+  { m: "acquire", a: 37, b: 41, sc: "bins", t: "Bins centered on the pulses",
+    p: `Bin k starts at shift + k·dt − dt/2: half a period before pulse k arrives, so the 100 ps pulse sits in the middle of its 10 ns bin. With m > 1 each bin would be split into m sub-bins.`,
+    c: [["t[0]", "9.69 ns"], ["bin", "10 ns"], ["pulse", "100 ps"]] },
+  { m: "acquire", a: 42, b: 42, sc: "photonsbar", t: "Light at the detectors",
+    p: `synthesize() traces the light to both detectors and returns each one's field on the bins. The pulses are identical here, so every bin carries the same energy.`,
+    c: [["chunk", "bins 0–999"]] },
+  { m: "acquire", a: 43, b: 46, sc: "table", t: "Each detector turns light into clicks",
+    p: `For each channel in turn, the detector's detect() makes the click record of this chunk. The walk follows SPD-1's call.`,
+    rows: [["detect", "SPD-1", "fields, dt, rng, 1000 bins, sub=1, blind=0", 1], ["then", "SPD-2", "same, on its own field"]] },
+  { m: "photons", a: 5, b: 10, sc: "photonsbar", t: "Mean photon number per bin",
+    p: `|E|²·dt is the energy in a bin; divided by hν it is the mean photon number. The laser emits 7.8·10⁵ photons per pulse; after 60 dB, the 50:50 split and 2.6 dB of insertion and connector losses, each detector gets n̄ = 0.217 per pulse. Weighting by the spectral factor is 1 here: no datasheet curve.`,
+    c: [["hν", "1.28·10⁻¹⁹ J"], ["laser", "7.8·10⁵ / pulse"], ["n̄", "0.217 / pulse"]] },
+  { m: "detect", a: 7, b: 9, sc: "photonsbar", t: "Sub-bins add up",
+    p: `With sub-bins (m > 1) the photons of each bin's sub-bins are summed. Here m = 1, so n̄ is used as it is.`,
+    c: [["sub", "1"]] },
+  { m: "click_probability", a: 1, b: 2, sc: "prob", t: "Probability of a click",
+    p: `A dark count in a 10 ns bin has probability 1 − exp(−1 kHz × 10 ns) = 10⁻⁵. The light clicks unless every one of its photons is missed, exp(−η n̄) for Poissonian light. So p = 1 − (1 − p_dark)·exp(−0.25 × 0.217) = 0.0528 per bin.`,
+    c: [["p_dark", "1.0·10⁻⁵"], ["η n̄", "0.054"], ["p", "0.0528"]] },
+  { m: "detect", a: 10, b: 10, sc: "draws", t: "Roll the dice",
+    p: `One uniform random number per bin; the detector clicks where it falls below p. On the screen: the first 160 bins of SPD-1, each draw a dot, the line at p = 0.0528. Seven draws fall below it.`,
+    c: [["clicks before dead time", `${raw.ch1}`]] },
+  { m: "dead_bins", a: 3, b: 5, sc: "table", t: "Dead time in bins",
+    p: `100 ns / 10 ns = 10 bins: a click blinds its own bin and the next 9. The −10⁻⁹ keeps a ratio like 10.000000001 from rounding up to 11.`,
+    rows: [["dead_time", "100 ns", ""], ["dt", "10 ns", ""], ["dead", "10 bins", "ceil(dead_time / dt − 10⁻⁹)", 1]] },
+  { m: "detect", a: 11, b: 20, sc: "dead", t: "Drop clicks inside the dead time",
+    p: `Walk the clicks in order and keep one only if it comes at least 10 bins after the last kept click. Bin 75 comes 4 bins after 71 and is dropped; 114 is 9 bins after 105 and is dropped; 115 is 10 after 105 and stays. Over the whole run SPD-1 loses ${raw.ch1 - ex.ch1} of its ${raw.ch1} clicks this way.`,
+    c: [["kept", `${ex.ch1} of ${raw.ch1}`], ["window", "10 bins"]] },
+  { m: "blind_after", a: 4, b: 7, sc: "boundary", t: "Dead time crosses the chunk boundary",
+    p: `blind_after() hands the dead time on to the next chunk. SPD-2's last click in chunk 1 is at bin 994, so 994 + 10 − 1000 = 4 bins of chunk 2 are still dead. SPD-1's last click, at 984, has run out: 0.`,
+    c: [["SPD-2", "4 bins"], ["SPD-1", "0 bins"]] },
+  { m: "acquire", a: 35, b: 47, sc: "boundary", t: "The second chunk",
+    p: `Chunk 2 repeats the same steps for bins 1000–1999, starting SPD-2 with blind = 4. Its raw click at bin 1003 falls in those carried bins and is dropped, exactly as if the record had never been cut.`,
+    c: [["chunk", "bins 1000–1999"], ["dropped", "SPD-2 bin 1003"]], second: true },
+  { m: "acquire", a: 48, b: 56, sc: "raster", t: "The click records",
+    p: `The dead time still pending at the end is stored for the next run, which will start at bin 2000. The result holds the two 2000-bin records, the rate and the first bin. Each tick is a click.`,
+    c: [["rate", "100 MHz"], ["slots", "2000"], ["start", "0"]] },
+  { m: "counts", a: 0, b: 2, sc: "counts", t: "Counts",
+    p: `${ex.ch1} and ${ex.ch2} clicks. Without dead time there would have been about 0.0528 × 2000 = 106 per channel. A non-paralyzable dead time of D = 10 bins keeps p / (1 + p(D − 1)) = 0.0358 per bin, 71.6 per run; ${ex.ch1} is within its spread.`,
+    c: [["CH1", `${ex.ch1}`], ["CH2", `${ex.ch2}`], ["expected", "71.6"]] },
+  { m: "coincidences", a: 0, b: 1, sc: "coinc", t: "Coincidences",
+    p: `Bins where both channels clicked: ${N.coinc}, at bins 1611 and 1970. Coherent light splits into independent clicks, so the expectation is 2000 × 0.0358² = 2.56: no bunching, no antibunching. A heralded single-photon source would give far fewer.`,
+    c: [["coincidences", `${N.coinc}`], ["expected", N.expect_coinc.toFixed(2)]] },
+];
+
+/* ---------- canvas helpers ---------- */
+const cv = document.getElementById("scr");
+const ctx = cv.getContext("2d");
+let W = 960, H = 600;
+function resize() {
+  const r = cv.getBoundingClientRect();
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  W = Math.max(320, r.width); H = W * 10 / 16;
+  cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+let C = {};
+function colors() { C = { grid: css("--scr-grid"), axis: css("--scr-axis"), text: css("--scr-text"), strong: css("--scr-strong"), tr: css("--scr-trace"), c2: css("--scr-2"), c3: css("--scr-3"), c4: css("--scr-4"), c5: css("--scr-5"), bg: css("--scr-bg") }; }
+const ease = (t) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+const font = (px, w = 500, fam = "mono") => `${w} ${px}px ${fam === "mono" ? '"IBM Plex Mono", ui-monospace, monospace' : '"Chakra Petch", system-ui, sans-serif'}`;
+const sz = () => Math.max(10, Math.min(13, W / 64));
+function rgba(hex, a) {
+  const m = hex.replace("#", ""); const n = parseInt(m.length === 3 ? m.split("").map((c) => c + c).join("") : m, 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
+}
+function frame(o) {
+  const L = Math.max(58, W * 0.08), R = 14, T = 30, B = 30;
+  const pw = W - L - R, ph = H - T - B;
+  const [x0, x1] = o.x, [y0, y1] = o.y;
+  const X = (x) => L + (x - x0) / (x1 - x0) * pw;
+  const Y = (y) => T + (1 - (y - y0) / (y1 - y0)) * ph;
+  ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = C.grid; ctx.lineWidth = 1;
+  const nx = o.nx || 10, ny = o.ny || 8;
+  for (let i = 0; i <= nx; i++) { const x = L + i * pw / nx; ctx.beginPath(); ctx.moveTo(x, T); ctx.lineTo(x, T + ph); ctx.stroke(); }
+  for (let j = 0; j <= ny; j++) { const y = T + j * ph / ny; ctx.beginPath(); ctx.moveTo(L, y); ctx.lineTo(L + pw, y); ctx.stroke(); }
+  ctx.strokeStyle = C.axis; ctx.strokeRect(L + .5, T + .5, pw - 1, ph - 1);
+  ctx.fillStyle = C.text; ctx.font = font(sz());
+  if (o.xt) { ctx.textAlign = "center"; ctx.textBaseline = "top"; for (const [v, lab] of o.xt) ctx.fillText(lab, X(v), T + ph + 7); }
+  if (o.yt) { ctx.textAlign = "right"; ctx.textBaseline = "middle"; for (const [v, lab] of o.yt) ctx.fillText(lab, L - 7, Y(v)); }
+  if (o.title) { ctx.textAlign = "left"; ctx.textBaseline = "alphabetic"; ctx.font = font(sz() + 1, 600, "disp"); ctx.fillStyle = C.text; ctx.fillText(o.title, L, T - 10); }
+  if (o.right) { ctx.textAlign = "right"; ctx.font = font(sz()); ctx.fillStyle = C.text; ctx.fillText(o.right, L + pw, T - 10); }
+  return { X, Y, L, T, pw, ph };
+}
+function clipTo(f) { ctx.save(); ctx.beginPath(); ctx.rect(f.L, f.T, f.pw, f.ph); ctx.clip(); }
+function line(f, xs, ys, color, width = 1.4, reveal = 1, alpha = 1) {
+  const n = xs.length, m = Math.max(2, Math.floor(n * reveal));
+  clipTo(f); ctx.globalAlpha = alpha; ctx.strokeStyle = color; ctx.lineWidth = width; ctx.lineJoin = "round";
+  ctx.beginPath();
+  for (let i = 0; i < m && i < n; i++) { const x = f.X(xs[i]), y = f.Y(ys[i]); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+  ctx.stroke(); ctx.globalAlpha = 1; ctx.restore();
+}
+function dots(f, xs, ys, color, r = 2.4, reveal = 1) {
+  const m = Math.floor(xs.length * reveal);
+  clipTo(f); ctx.fillStyle = color;
+  for (let i = 0; i < m; i++) { ctx.beginPath(); ctx.arc(f.X(xs[i]), f.Y(ys[i]), r, 0, 7); ctx.fill(); }
+  ctx.restore();
+}
+function vline(f, x, color, dash = [], text, at = "top") {
+  const px = f.X(x); ctx.save(); ctx.strokeStyle = color; ctx.setLineDash(dash); ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.moveTo(px, f.T); ctx.lineTo(px, f.T + f.ph); ctx.stroke(); ctx.restore();
+  if (text) { ctx.fillStyle = color; ctx.font = font(sz()); const right = px > f.L + f.pw * 0.75; ctx.textAlign = right ? "right" : "left"; ctx.textBaseline = "top"; ctx.fillText(text, px + (right ? -6 : 6), at === "top" ? f.T + 6 : f.T + f.ph - 22); }
+}
+function hline(f, y, color, dash = [], text, side = "right") {
+  const py = f.Y(y); ctx.save(); ctx.strokeStyle = color; ctx.setLineDash(dash); ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.moveTo(f.L, py); ctx.lineTo(f.L + f.pw, py); ctx.stroke(); ctx.restore();
+  if (text) { ctx.fillStyle = color; ctx.font = font(sz()); ctx.textAlign = side === "right" ? "right" : "left"; ctx.textBaseline = "bottom"; ctx.fillText(text, side === "right" ? f.L + f.pw - 6 : f.L + 6, py - 3); }
+}
+function band(f, x0, x1, color, y0, y1) { clipTo(f); ctx.fillStyle = color; const ya = y1 === undefined ? f.T : f.Y(y1), yb = y0 === undefined ? f.T + f.ph : f.Y(y0); ctx.fillRect(f.X(x0), ya, f.X(x1) - f.X(x0), yb - ya); ctx.restore(); }
+function label(text, x, y, color, align = "left", size, w = 500) { ctx.fillStyle = color; ctx.font = font(size || sz(), w); ctx.textAlign = align; ctx.textBaseline = "middle"; ctx.fillText(text, x, y); }
+function tick(f, x, y0, y1, color, w = 2) { clipTo(f); ctx.strokeStyle = color; ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(f.X(x), f.Y(y0)); ctx.lineTo(f.X(x), f.Y(y1)); ctx.stroke(); ctx.restore(); }
+const range = (n, f) => Array.from({ length: n }, (_, i) => f(i));
+const ticks = (vals, f) => vals.map((v) => [v, f(v)]);
+
+/* ---------- derived ---------- */
+const raw1 = new Set(D.raw1), raw2 = new Set(D.raw2), kept1 = new Set(D.c1), kept2 = new Set(D.c2);
+const coincBins = D.c1.filter((i) => kept2.has(i));
+const CH = () => [["CH1 SPD-1", D.raw1, D.c1, C.tr, 1.5], ["CH2 SPD-2", D.raw2, D.c2, C.c2, 0.5]];
+
+/* ---------- scenes ---------- */
+const scenes = {
+  table(t, s) {
+    const f = frame({ x: [0, 1], y: [0, 1], nx: 10, ny: 8, title: "VALUES" });
+    const rows = s.rows, lh = Math.min(f.ph / (rows.length + 1), 56);
+    rows.forEach((r, i) => {
+      const y = f.T + lh * (i + 0.9), neu = r[3] === 1, a = neu ? ease(t) : 1;
+      ctx.globalAlpha = a;
+      label(r[0], f.L + 20, y, neu ? C.tr : C.text, "left", sz() + 3, 600);
+      label(r[1], f.L + f.pw * 0.3, y, neu ? C.tr : C.strong, "left", sz() + 3, 600);
+      label(r[2], f.L + f.pw * 0.62, y, C.c4, "left", sz());
+      ctx.globalAlpha = 1;
+    });
+  },
+  clock(t) {
+    const f = frame({ x: [0, 4000], y: [0, 3], nx: 8, ny: 3, xt: ticks([0, 1000, 2000, 3000, 4000], (v) => `${v}`), title: "THE TAGGER'S BIN COUNTER", right: "position: 0 → 2000" });
+    const e = ease(t);
+    band(f, 0, 2000 * e, rgba(C.tr, 0.6), 1.7, 2.3);
+    label("this run: bins 0–1999", f.X(1000), f.Y(2), "#05080a", "center", sz(), 600);
+    if (e > 0.8) { band(f, 2000, 4000, rgba(C.c4, 0.25), 0.7, 1.3); label("next call: from bin 2000", f.X(3000), f.Y(1), C.c4, "center"); }
+    vline(f, 2000, C.c3, [5, 4], "self.position");
+  },
+  shift(t) {
+    const f = frame({ x: [-5, 50], y: [0, 3], nx: 11, ny: 3, xt: ticks([0, 10, 20, 30, 40, 50], (v) => `${v}`), title: "TIME [ns]", right: "shift = 14.69 ns" });
+    const e = ease(t), sh = N.shift * 1e9;
+    for (let k = 0; k < 5; k++) { tick(f, k * 10, 2.2, 2.8, C.c3, 3); }
+    label("pulses leave the laser", f.X(-4), f.Y(2.95), C.c3, "left");
+    for (let k = 0; k < 5; k++) { const x = k * 10 + sh * e; tick(f, x, 1.2, 1.8, C.tr, 3); }
+    label("…arrive at SPD-1 and SPD-2", f.X(-4), f.Y(1.95), C.tr, "left");
+    if (e > 0.6) for (let k = 0; k < 4; k++) { band(f, sh + k * 10 - 5, sh + k * 10 + 5, rgba(k % 2 ? C.c2 : C.c5, 0.18), 0.2, 0.9); label(`bin ${k}`, f.X(sh + k * 10), f.Y(0.55), C.strong, "center"); }
+    ctx.strokeStyle = C.c4; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(f.X(0), f.Y(2.2)); ctx.lineTo(f.X(sh * e), f.Y(1.8)); ctx.stroke(); ctx.setLineDash([]);
+  },
+  chunks(t) {
+    const f = frame({ x: [0, 2000], y: [0, 3], nx: 10, ny: 3, xt: ticks([0, 500, 1000, 1500, 2000], (v) => `${v}`), title: "BINS OF THIS RUN", right: "step = chunk // m = 1000" });
+    const e = ease(t);
+    band(f, 0, 1000 * Math.min(1, e * 2), rgba(C.tr, 0.6), 1.2, 1.8);
+    band(f, 1000, 1000 + 1000 * Math.max(0, e * 2 - 1), rgba(C.c2, 0.6), 1.2, 1.8);
+    label("chunk 1: 0–999", f.X(500), f.Y(1.5), "#05080a", "center", sz(), 600);
+    if (e > 0.6) label("chunk 2: 1000–1999", f.X(1500), f.Y(1.5), "#05080a", "center", sz(), 600);
+  },
+  bins(t) {
+    const f = frame({ x: [-5, 35], y: [0, 1.1], nx: 8, ny: 4, xt: ticks([-5, 5, 15, 25, 35], (v) => `${v}`), title: "TIME FROM PULSE 0's ARRIVAL [ns]", right: "bins 10 ns, pulses 100 ps" });
+    const e = ease(t);
+    for (let k = 0; k < 4; k++) { band(f, k * 10 - 5, k * 10 + 5, rgba(k % 2 ? C.c2 : C.c5, 0.1 + 0.08 * e)); vline(f, k * 10 - 5, rgba(C.c4, 0.6), [3, 3]); label(`bin ${k}`, f.X(k * 10), f.Y(1.0), C.strong, "center"); }
+    const xs = range(801, (i) => -5 + i * 0.05), sg = 0.1 / 2.3548;
+    const ys = xs.map((x) => { let v = 0; for (let k = 0; k < 4; k++) v += Math.exp(-((x - k * 10) ** 2) / (2 * sg * sg)); return 0.85 * v; });
+    line(f, xs, ys, C.tr, 2, e);
+    label("t[k] = shift + k·dt − dt/2", f.X(15), f.Y(0.3), C.text, "center", sz() + 1);
+  },
+  photonsbar(t) {
+    const f = frame({ x: [0, 60], y: [0, 0.3], nx: 12, ny: 6, xt: ticks([0, 10, 20, 30, 40, 50, 60], (v) => `${v}`), yt: ticks([0, 0.1, 0.2, 0.3], (v) => v.toFixed(1)), title: "MEAN PHOTONS PER BIN, n̄ (first 60 bins)", right: "SPD-1 and SPD-2" });
+    const e = ease(t), m = Math.ceil(60 * e);
+    clipTo(f);
+    for (let k = 0; k < m; k++) { ctx.fillStyle = rgba(C.tr, 0.8); ctx.fillRect(f.X(k + 0.1), f.Y(N.nbar1), f.X(0.4) - f.X(0), f.Y(0) - f.Y(N.nbar1)); ctx.fillStyle = rgba(C.c2, 0.8); ctx.fillRect(f.X(k + 0.5), f.Y(N.nbar2), f.X(0.4) - f.X(0), f.Y(0) - f.Y(N.nbar2)); }
+    ctx.restore();
+    if (e > 0.7) label(`n̄ = ${N.nbar1.toFixed(3)} photons per pulse at each detector`, f.X(30), f.Y(0.27), C.strong, "center", sz() + 1, 600);
+  },
+  prob(t) {
+    const f = frame({ x: [0, 4], y: [0, 0.7], nx: 8, ny: 7, xt: ticks([0, 1, 2, 3, 4], (v) => `${v}`), yt: ticks([0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7], (v) => v.toFixed(1)), title: "CLICK PROBABILITY vs n̄", right: "η = 0.25, dark 1 kHz" });
+    const xs = range(201, (i) => i * 0.02), ys = xs.map((n) => 1 - (1 - N.p_dark) * Math.exp(-N.eff * n));
+    line(f, xs, ys, C.tr, 2, ease(t));
+    if (t > 0.6) { vline(f, N.nbar1, C.c3, [4, 4], `n̄ = ${N.nbar1.toFixed(3)}`); hline(f, N.p1, C.c3, [4, 4], `p = ${N.p1.toFixed(4)}`, "right"); dots(f, [N.nbar1], [N.p1], C.c3, 5.5); }
+    label("p = 1 − (1 − p_dark)·exp(−η n̄)", f.X(2), f.Y(0.12), C.strong, "center", sz() + 1, 600);
+  },
+  draws(t) {
+    const nb = 160, f = frame({ x: [-1, nb], y: [0, 0.3], nx: 8, ny: 6, xt: ticks([0, 40, 80, 120, 160], (v) => `${v}`), yt: ticks([0, 0.1, 0.2, 0.3], (v) => v.toFixed(1)), title: "SPD-1: ONE DRAW PER BIN (draws above 0.3 off the top)", right: "click where u < p" });
+    const m = Math.ceil(nb * ease(t));
+    band(f, -1, nb, rgba(C.c3, 0.1), 0, N.p1);
+    hline(f, N.p1, C.c3, [4, 4], `p = ${N.p1.toFixed(4)}`, "right");
+    clipTo(f);
+    for (let i = 0; i < m; i++) { const u = D.u1[i], hit = raw1.has(i); ctx.fillStyle = hit ? C.tr : rgba(C.c4, 0.75); ctx.beginPath(); ctx.arc(f.X(i), f.Y(Math.min(u, 0.298)), hit ? 4.5 : 2.2, 0, 7); ctx.fill(); }
+    ctx.restore();
+  },
+  dead(t) {
+    const nb = 160, f = frame({ x: [-1, nb], y: [0, 3], nx: 8, ny: 3, xt: ticks([0, 40, 80, 120, 160], (v) => `${v}`), title: "SPD-1, FIRST 160 BINS", right: "dead time = 10 bins" });
+    const e = ease(t);
+    label("raw", f.L + 6, f.Y(2.5), C.text, "left"); label("kept", f.L + 6, f.Y(1.0), C.text, "left");
+    for (const i of D.raw1.filter((i) => i < nb)) tick(f, i, 2.1, 2.9, kept1.has(i) ? C.tr : C.c3, 3);
+    const kept = D.c1.filter((i) => i < nb), m = Math.ceil(kept.length * e);
+    for (const i of kept.slice(0, m)) { band(f, i, i + N.dead_bins, rgba(C.c5, 0.18), 0.3, 2.95); tick(f, i, 0.6, 1.4, C.tr, 3); }
+    if (e > 0.8) label("pink: dropped, inside the green dead window of the kept click before it", f.X(80), f.Y(0.2), C.text, "center");
+  },
+  boundary(t, s) {
+    const lo = 975, hi = 1020;
+    const f = frame({ x: [lo, hi], y: [0, 4], nx: 9, ny: 4, xt: ticks([980, 990, 1000, 1010, 1020], (v) => `${v}`), title: "BINS AROUND THE CHUNK BOUNDARY", right: s.second ? "chunk 2 starts with blind = 4" : "blind_after(): 4 bins for SPD-2" });
+    vline(f, 999.5, C.c3, [5, 4], "chunk 1 | chunk 2");
+    const rows = [["SPD-1", D.raw1, kept1, C.tr, 3], ["SPD-2", D.raw2, kept2, C.c2, 1.2]];
+    for (const [nm, rw, kp, col, y] of rows) {
+      label(nm, f.L + 6, f.Y(y + 0.75), C.text, "left");
+      for (const i of rw.filter((i) => i >= lo && i <= hi)) { if (kp.has(i)) band(f, i, Math.min(i + N.dead_bins, 999.5), rgba(C.c5, 0.18), y - 0.3, y + 0.5); }
+      for (const i of rw.filter((i) => i >= lo && i <= hi)) tick(f, i, y - 0.3, y + 0.5, kp.has(i) ? col : C.c3, 3);
+    }
+    const e = ease(t);
+    band(f, 999.5, 999.5 + 4 * e, rgba(C.c5, 0.32), 0.9, 1.7);
+    if (e > 0.7) label("4 dead bins carried over", f.X(1004), f.Y(0.5), C.c5, "left");
+    if (s.second && e > 0.9) label("raw click at 1003: dropped", f.X(1004), f.Y(2.0), C.c3, "left", sz(), 600);
+  },
+  raster(t) {
+    const f = frame({ x: [0, 2000], y: [0, 2], nx: 10, ny: 2, xt: ticks([0, 500, 1000, 1500, 2000], (v) => `${v}`), title: "CLICK RECORDS, 2000 BINS = 20 µs", right: "1 tick = 1 click" });
+    const e = ease(t);
+    for (const [nm, rw, kp, col, y] of CH()) { label(nm, f.L + 6, f.Y(y + 0.42), C.text, "left"); for (const i of kp) if (i <= 2000 * e) tick(f, i, y - 0.3, y + 0.3, col, 1.6); }
+  },
+  counts(t) {
+    const f = frame({ x: [0, 4], y: [0, 120], nx: 4, ny: 6, yt: ticks([0, 20, 40, 60, 80, 100, 120], (v) => `${v}`), title: "CLICKS IN 2000 BINS", right: "dead time removes a third" });
+    const e = ease(t);
+    const bars = [["CH1 raw", raw.ch1, C.c4, 0.35], ["CH1 kept", ex.ch1, C.tr, 1.05], ["CH2 raw", raw.ch2, C.c4, 2.15], ["CH2 kept", ex.ch2, C.c2, 2.85]];
+    for (const [lab, v, col, x] of bars) {
+      clipTo(f); ctx.fillStyle = rgba(col, 0.85); ctx.fillRect(f.X(x), f.Y(v * e), f.X(x + 0.55) - f.X(x), f.Y(0) - f.Y(v * e)); ctx.restore();
+      label(`${lab}: ${v}`, f.X(x + 0.275), f.Y(v * e) - 12, col, "center", sz(), 600);
+    }
+    hline(f, 106, rgba(C.c4, 0.8), [4, 4], "no dead time: 0.0528 × 2000 = 106", "right");
+    hline(f, 71.6, rgba(C.c5, 0.9), [4, 4], "with dead time: 71.6", "right");
+  },
+  coinc(t) {
+    const f = frame({ x: [0, 2000], y: [0, 2], nx: 10, ny: 2, xt: ticks([0, 500, 1000, 1500, 2000], (v) => `${v}`), title: "COINCIDENCES: BOTH CHANNELS IN ONE BIN", right: `${N.coinc} found, ${N.expect_coinc.toFixed(2)} expected` });
+    for (const [nm, rw, kp, col, y] of CH()) { label(nm, f.L + 6, f.Y(y + 0.42), C.text, "left"); for (const i of kp) tick(f, i, y - 0.3, y + 0.3, rgba(col, 0.45), 1.4); }
+    const e = ease(t);
+    for (const i of coincBins) { band(f, i - 8, i + 8, rgba(C.c3, 0.25 * e)); tick(f, i, 0.15, 1.85, C.c3, 2.4); label(`bin ${i}`, f.X(i), f.Y(1.93), C.c3, "center", sz(), 600); }
+  },
+};
+
+/* ---------- player ---------- */
+const track = document.getElementById("track");
+S.forEach((s, i) => {
+  const b = document.createElement("button");
+  b.className = "seg"; b.dataset.m = s.m; b.type = "button"; b.setAttribute("role", "tab");
+  b.setAttribute("aria-label", `Step ${i + 1}: ${s.t}`);
+  b.addEventListener("click", () => go(i));
+  track.appendChild(b);
+});
+const segs = [...track.children];
+const codeBox = document.getElementById("code");
+const capWhere = document.getElementById("capWhere"), capTitle = document.getElementById("capTitle"), capBody = document.getElementById("capBody"), capChips = document.getElementById("capChips");
+const counter = document.getElementById("counter"), playBtn = document.getElementById("play"), state = document.getElementById("scrState");
+let cur = 0, start = 0, playing = !reduceMotion, raf = 0, t = 1;
+const DUR = 900, DWELL = 6200;
+const MC = { acquire: "--m-acquire", detect: "--m-detect", photons: "--m-photons", click_probability: "--m-prob", dead_bins: "--m-dead", blind_after: "--m-blind", counts: "--m-result", coincidences: "--m-result" };
+
+function render() { colors(); const s = S[cur]; scenes[s.sc](Math.min(1, t), s); }
+function setCode(s) {
+  codeBox.classList.add("active");
+  document.querySelectorAll(".ln.on").forEach((e) => e.classList.remove("on"));
+  document.querySelectorAll(".method").forEach((e) => e.classList.toggle("cur", e.dataset.m === s.m));
+  const rows = LINES[s.m].slice(s.a, s.b + 1);
+  rows.forEach((r) => r.classList.add("on"));
+  const top = rows[0].offsetTop, bottom = rows[rows.length - 1].offsetTop + rows[rows.length - 1].offsetHeight;
+  codeScroll.scrollTo({ top: Math.max(0, (top + bottom) / 2 - codeScroll.clientHeight / 2), behavior: reduceMotion ? "auto" : "smooth" });
+}
+function setCaption(s, i) {
+  capWhere.style.setProperty("--mc", `var(${MC[s.m]})`);
+  capWhere.textContent = `${s.m}${s.m === "counts" ? "" : "()"} · line${s.a === s.b ? "" : "s"} ${s.a + 1}${s.a === s.b ? "" : "–" + (s.b + 1)}`;
+  capTitle.textContent = s.t; capBody.textContent = s.p;
+  capChips.innerHTML = (s.c || []).map(([k, v]) => `<span class="chip">${esc(k)} <b>${esc(v)}</b></span>`).join("");
+  counter.textContent = `${i + 1} / ${S.length}`;
+  segs.forEach((g, j) => { g.classList.toggle("cur", j === i); g.classList.toggle("done", j < i); g.setAttribute("aria-selected", j === i ? "true" : "false"); });
+}
+function go(i) {
+  cur = (i + S.length) % S.length; start = performance.now(); t = reduceMotion ? 1 : 0;
+  setCode(S[cur]); setCaption(S[cur], cur); render(); loop();
+}
+function loop() {
+  cancelAnimationFrame(raf);
+  raf = requestAnimationFrame(function tickf(now) {
+    const el = now - start;
+    t = reduceMotion ? 1 : Math.min(1, el / DUR);
+    render();
+    if (playing && el > DWELL) { go(cur + 1); return; }
+    if (t < 1 || playing) raf = requestAnimationFrame(tickf);
+  });
+}
+function setPlay(p) { playing = p; playBtn.textContent = p ? "Pause" : "Play"; state.textContent = p ? "RUN" : "STOP"; if (p) { start = performance.now() - DUR; loop(); } }
+playBtn.addEventListener("click", () => setPlay(!playing));
+document.getElementById("prev").addEventListener("click", () => go(cur - 1));
+document.getElementById("next").addEventListener("click", () => go(cur + 1));
+document.addEventListener("keydown", (e) => {
+  if (e.target.closest && e.target.closest("button") && e.key === " ") return;
+  if (e.key === "ArrowRight") { go(cur + 1); e.preventDefault(); }
+  else if (e.key === "ArrowLeft") { go(cur - 1); e.preventDefault(); }
+  else if (e.key === " ") { setPlay(!playing); e.preventDefault(); }
+});
+window.addEventListener("resize", () => { resize(); render(); });
+resize();
+setPlay(playing);
+go(0);
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => render());
+})();
+</script>

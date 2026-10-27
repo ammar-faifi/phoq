@@ -1,0 +1,693 @@
+<title>Scope Sweep, Line by Line</title>
+<meta name="viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: source listing on the left, the scope's screen and the step's story on the right;
+   one column on phones, screen first. Dark theme only, like an instrument's screen. */
+:root {
+  --bg: #0d1116;
+  --panel: #141a21;
+  --fg: #e4ebf1;
+  --muted: #93a1af;
+  --line: #26303b;
+  --accent: #facc15;
+  --hl: rgba(250, 204, 21, 0.13);
+  --m-acquire: #fbbf24;
+  --m-record: #2dd4bf;
+  --m-front: #60a5fa;
+  --m-digitize: #e879f9;
+  --m-measure: #4ade80;
+  --tok-kw: #c4b5fd;
+  --tok-str: #6ee7b7;
+  --tok-num: #fdba74;
+  --tok-com: #6b7a89;
+  --tok-fn: #93c5fd;
+  --scr-bg: #05080a;
+  --scr-bezel: #1b2127;
+  --scr-grid: rgba(134, 178, 150, 0.15);
+  --scr-axis: rgba(134, 178, 150, 0.45);
+  --scr-text: #a9bdb0;
+  --scr-strong: #e8efe9;
+  --scr-trace: #facc15;
+  --scr-2: #22d3ee;
+  --scr-3: #f472b6;
+  --scr-4: #94a3b8;
+  --scr-5: #4ade80;
+  --font-display: "Chakra Petch", "Rajdhani", "Segoe UI", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 28px;
+}
+.wrap { max-width: 1440px; margin: 0 auto; display: grid; gap: 18px; }
+header.top { display: grid; gap: 6px; }
+.eyebrow { font-family: var(--font-mono); font-size: 12px; letter-spacing: .06em; color: var(--muted); text-transform: uppercase; }
+h1 { font-family: var(--font-display); font-weight: 600; font-size: clamp(26px, 3.4vw, 38px); line-height: 1.1; margin: 0; text-wrap: balance; letter-spacing: .01em; }
+.lede { margin: 0; max-width: 78ch; color: var(--muted); }
+.lede code { font-family: var(--font-mono); font-size: .92em; color: var(--fg); }
+.bench { font-family: var(--font-mono); font-size: 12.5px; color: var(--muted); margin: 0; max-width: 100%; overflow-x: auto; }
+
+.main { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+@media (max-width: 900px) { .main { grid-template-columns: minmax(0, 1fr); } .right { order: -1; } }
+
+.code { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; min-width: 0; overflow: hidden; }
+.code-scroll { position: relative; max-height: min(78vh, 860px); overflow: auto; padding: 6px 0 14px; scroll-behavior: smooth; }
+@media (max-width: 900px) { .code-scroll { max-height: 46vh; } }
+.method { padding-top: 10px; }
+.method h2 { margin: 0 0 4px; padding: 4px 16px; font-family: var(--font-mono); font-weight: 500; font-size: 13px; display: flex; align-items: center; gap: 8px; color: var(--muted); }
+.method h2 .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--mc); flex: none; }
+.method h2 b { color: var(--fg); font-weight: 500; }
+[data-m="acquire"] { --mc: var(--m-acquire); }
+[data-m="record"] { --mc: var(--m-record); }
+[data-m="_front_end"] { --mc: var(--m-front); }
+[data-m="_digitize"] { --mc: var(--m-digitize); }
+[data-m="measure"] { --mc: var(--m-measure); }
+pre { margin: 0; font-family: var(--font-mono); font-size: 12.5px; line-height: 1.6; width: max-content; min-width: 100%; }
+.ln { display: grid; grid-template-columns: 3.2em auto; padding-right: 14px; border-left: 3px solid transparent; transition: background .35s ease, border-color .35s ease, opacity .35s ease; }
+.ln .no { color: var(--tok-com); text-align: right; padding-right: 1em; user-select: none; }
+.ln .tx { white-space: pre; }
+.code.active .ln { opacity: .55; }
+.code.active .method.cur .ln { opacity: .8; }
+.code.active .ln.on, .code.active .method.cur .ln.on { opacity: 1; background: var(--hl); border-left-color: var(--mc); }
+.k { color: var(--tok-kw); } .s { color: var(--tok-str); } .n { color: var(--tok-num); } .c { color: var(--tok-com); font-style: italic; } .f { color: var(--tok-fn); } .sf { color: var(--m-acquire); }
+
+.right { display: grid; gap: 12px; min-width: 0; }
+.instrument { background: var(--scr-bezel); border-radius: 12px; padding: 10px; box-shadow: 0 1px 0 rgba(255,255,255,.05) inset, 0 8px 24px rgba(0,0,0,.18); }
+.instrument .bar { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 0 4px 8px; font-family: var(--font-display); color: var(--scr-text); font-size: 13px; letter-spacing: .05em; }
+.instrument .bar .run { font-family: var(--font-mono); font-size: 11px; padding: 2px 8px; border-radius: 4px; background: rgba(52, 211, 153, .15); color: var(--scr-5); }
+canvas { display: block; width: 100%; aspect-ratio: 16 / 10; max-width: 100%; background: var(--scr-bg); border-radius: 6px; }
+
+.caption { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px 16px; display: grid; gap: 8px; min-height: 9.5em; }
+.cap-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.cap-head .where { font-family: var(--font-mono); font-size: 12px; color: var(--mc, var(--muted)); }
+.cap-head h3 { margin: 0; font-family: var(--font-display); font-weight: 600; font-size: 19px; line-height: 1.25; text-wrap: balance; }
+.caption p { margin: 0; max-width: 68ch; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-family: var(--font-mono); font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); font-variant-numeric: tabular-nums; }
+.chip b { color: var(--fg); font-weight: 500; }
+
+.controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.controls button { font: 500 14px var(--font-body); color: var(--fg); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 7px 14px; cursor: pointer; min-width: 44px; }
+.controls button:hover { border-color: var(--accent); }
+.controls button:focus-visible, .seg:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.controls button.primary { background: var(--fg); color: var(--bg); border-color: var(--fg); min-width: 88px; }
+.counter { font-family: var(--font-mono); font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; margin-left: auto; }
+.track { display: flex; gap: 3px; width: 100%; }
+.seg { flex: 1 1 0; height: 9px; border-radius: 3px; background: var(--mc); opacity: .28; border: 0; padding: 0; cursor: pointer; transition: opacity .25s, transform .25s; }
+.seg.done { opacity: .6; } .seg.cur { opacity: 1; transform: scaleY(1.45); }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; background: var(--mc); }
+footer { color: var(--muted); font-size: 13px; max-width: 90ch; }
+footer code { font-family: var(--font-mono); font-size: .92em; }
+@media (prefers-reduced-motion: reduce) { .ln, .seg { transition: none; } .code-scroll { scroll-behavior: auto; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="eyebrow">phoq · src/phoq/instruments.py · Oscilloscope</div>
+    <h1>Scope Sweep, Line by Line</h1>
+    <p class="lede">How phoq's oscilloscope turns light on a photodiode into a triggered, digitized trace with measurements. The walk follows one sweep through <code>acquire()</code> and the helpers it calls, <code>record()</code>, <code>_front_end()</code>, <code>_digitize()</code> and <code>measure()</code>, in the order they run. Every curve on the screen is the array that line produced on the bench below: the lines were replayed with the same random seed and checked against <code>acquire()</code> itself, sample for sample.</p>
+    <pre class="bench">laser −10 dBm, gain-switched pulses 1 ns FWHM at 50 MHz, RIN −130 dBc/Hz → PD-1 (0.95 A/W, 1 GHz, 50 Ω load) → CH1
+OSC-1: 10 ns/div, 5 GS/s, 1 GHz front end, 20 000-point memory, 8-bit ADC, CH1 500 µA/div at −3 div, edge trigger ↑ CH1 at 0.704 mA</pre>
+  </header>
+
+  <div class="main">
+    <div class="code" id="code" aria-label="Source code of acquire and the helpers it calls"><div class="code-scroll" id="codeScroll"></div></div>
+
+    <div class="right">
+      <div class="instrument">
+        <div class="bar"><span>OSC-1 · CH1 PD-1</span><span class="run" id="scrState">RUN</span></div>
+        <canvas id="scr" width="960" height="600" role="img" aria-label="Oscilloscope screen showing the effect of the highlighted line"></canvas>
+      </div>
+      <div class="controls">
+        <button id="prev" type="button" aria-label="Previous step">◀</button>
+        <button id="play" type="button" class="primary">Pause</button>
+        <button id="next" type="button" aria-label="Next step">▶</button>
+        <span class="counter" id="counter">1 / 1</span>
+      </div>
+      <div class="track" id="track" role="tablist" aria-label="Steps"></div>
+      <div class="legend">
+        <span data-m="acquire"><i></i>acquire()</span>
+        <span data-m="record"><i></i>record()</span>
+        <span data-m="_front_end"><i></i>_front_end()</span>
+        <span data-m="_digitize"><i></i>_digitize()</span>
+        <span data-m="measure"><i></i>measure()</span>
+      </div>
+      <div class="caption" id="caption" aria-live="polite">
+        <div class="cap-head"><span class="where" id="capWhere"></span><h3 id="capTitle"></h3></div>
+        <p id="capBody"></p>
+        <div class="chips" id="capChips"></div>
+      </div>
+    </div>
+  </div>
+  <footer>Keys: ← and → step, Space plays or pauses. Data: phoq's own <code>Oscilloscope</code> on a laser → photodiode bench built for this page. The scale and trigger level were chosen the way the lab's Autoset picks them (peak / 6 rounded up a 1-2-5 step, level at half the peak), with the trigger switched to edge so the trigger search runs. A photodiode's output is a current, so CH1 reads amperes.</footer>
+</div>
+
+<script id="data" type="application/json">/*DATA*/</script>
+<script>
+(() => {
+"use strict";
+const D = JSON.parse(document.getElementById("data").textContent);
+const N = D.nums;
+const ORDER = ["acquire", "record", "_front_end", "_digitize", "measure"];
+const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/* ---------- source listing with a small Python highlighter ---------- */
+const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const KW = new Set(["def", "return", "if", "elif", "else", "for", "in", "and", "or", "not", "is", "None", "True", "False", "import", "from", "as", "with", "while", "lambda"]);
+function hl(line, st) {
+  let out = "", i = 0;
+  if (st.doc) {
+    const j = line.indexOf('"""');
+    if (j < 0) return [`<span class="s">${esc(line)}</span>`, st];
+    out += `<span class="s">${esc(line.slice(0, j + 3))}</span>`; i = j + 3; st = { doc: false };
+  }
+  const re = /(#.*$)|("""|"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')|(\b\d[\d_]*(?:\.\d*)?(?:e[-+]?\d+)?\b)|([A-Za-z_]\w*)/g;
+  re.lastIndex = i;
+  let m, last = i;
+  while ((m = re.exec(line))) {
+    out += esc(line.slice(last, m.index));
+    if (m[1]) out += `<span class="c">${esc(m[1])}</span>`;
+    else if (m[2] === '"""') {
+      const j = line.indexOf('"""', m.index + 3);
+      if (j < 0) { out += `<span class="s">${esc(line.slice(m.index))}</span>`; return [out, { doc: true }]; }
+      out += `<span class="s">${esc(line.slice(m.index, j + 3))}</span>`; re.lastIndex = j + 3; last = j + 3; continue;
+    } else if (m[2]) out += `<span class="s">${esc(m[2])}</span>`;
+    else if (m[3]) out += `<span class="n">${m[3]}</span>`;
+    else if (m[4]) {
+      const w = m[4], nxt = line[m.index + w.length];
+      if (KW.has(w)) out += `<span class="k">${w}</span>`;
+      else if (w === "self") out += `<span class="sf">${w}</span>`;
+      else if (nxt === "(") out += `<span class="f">${w}</span>`;
+      else out += w;
+    }
+    last = re.lastIndex;
+  }
+  out += esc(line.slice(last));
+  return [out, st];
+}
+const LABELS = { acquire: "Oscilloscope.acquire(self, net, rng)", record: "Oscilloscope.record(self)", _front_end: "Oscilloscope._front_end(self, sig, dt)", _digitize: "Oscilloscope._digitize(self, v, scale, offset)", measure: "measure(data, dt)" };
+const codeScroll = document.getElementById("codeScroll");
+const LINES = {};
+for (const m of ORDER) {
+  const sec = document.createElement("section");
+  sec.className = "method"; sec.dataset.m = m;
+  sec.innerHTML = `<h2><span class="dot"></span><b>${esc(LABELS[m])}</b></h2>`;
+  const pre = document.createElement("pre");
+  let st = { doc: false };
+  const raw = D.src[m].replace(/\n+$/, "").split("\n");
+  const indent = m === "measure" ? "" : "    ";
+  LINES[m] = [];
+  raw.forEach((ln, i) => {
+    const [html, s2] = hl(indent && ln.startsWith(indent) ? ln.slice(indent.length) : ln, st); st = s2;
+    const row = document.createElement("div");
+    row.className = "ln";
+    row.innerHTML = `<span class="no">${i + 1}</span><span class="tx">${html || " "}</span>`;
+    pre.appendChild(row); LINES[m].push(row);
+  });
+  sec.appendChild(pre); codeScroll.appendChild(sec);
+}
+
+/* ---------- numbers used in the story ---------- */
+const M = N.meas;
+const uA = (a) => `${(a * 1e6).toFixed(a < 1e-4 ? 2 : 1)} µA`;
+const mA = (a) => `${(a * 1e3).toFixed(3)} mA`;
+
+/* ---------- the steps ---------- */
+const S = [
+  { m: "acquire", a: 8, b: 9, sc: "table", t: "What is plugged in",
+    p: `acquire() starts by listing its inputs. CH1 is wired to PD-1's RF output, a photodiode, so PD-1 is also a detector the scope has to simulate light for. CH2 to CH4 are empty.`,
+    rows: [["CH1", "PD-1.rf", "Photodiode → simulate", 1], ["CH2", "—", "not connected"], ["CH3", "—", "not connected"], ["CH4", "—", "not connected"]] },
+  { m: "record", a: 3, b: 3, sc: "window", t: "The screen spans 10 divisions",
+    p: `acquire() asks record() for the sampling. The record covers the whole screen: 10 divisions at 10 ns/div, a 100 ns window.`,
+    c: [["timebase", "10 ns/div"], ["window", "100 ns"]] },
+  { m: "record", a: 4, b: 4, sc: "table", t: "Memory caps the sample rate",
+    p: `The sample rate is the set maximum, 5 GS/s, unless the 20 000-point memory cannot hold the window at that rate. Here 20 000 points over 100 ns would allow 200 GS/s, so 5 GS/s stands. At 1 µs/div the cap would be 2 GS/s, at 1 ms/div 2 MS/s.`,
+    rows: [["sample_rate", "5 GS/s", "the knob"], ["max_points / window", "200 GS/s", "20 000 / 100 ns"], ["fs", "5 GS/s", "the smaller", 1]] },
+  { m: "record", a: 5, b: 5, sc: "table", t: "Points in the record",
+    p: `n = fs × window = 5 GS/s × 100 ns = 500 samples. A floor of 100 points keeps very fast timebases drawable; when it applies, the rate goes up rather than the record down.`,
+    rows: [["fs", "5 GS/s", ""], ["window", "100 ns", ""], ["n", "500", "max(100, round(fs·window))", 1]] },
+  { m: "record", a: 6, b: 6, sc: "table", t: "Rate and interval back to acquire()",
+    p: `record() returns the rate the n points actually give, n / window, and the sample interval dt = window / n = 200 ps.`,
+    rows: [["fs", "5 GS/s", "n / window"], ["n", "500", ""], ["dt", "200 ps", "window / n", 1]] },
+  { m: "acquire", a: 11, b: 15, sc: "grid", t: "Simulate finer than you sample",
+    p: `To resolve the 1 GHz front end, the analog signal is simulated with at least 6 points per 1/bandwidth: k = ceil(6 × 1 GHz × 200 ps) = 2 simulated points per sample, dts = 100 ps. The 200 000 // n cap keeps long records affordable.`,
+    c: [["k", "2"], ["dts", "100 ps"], ["sim rate", "10 GS/s"]] },
+  { m: "acquire", a: 16, b: 17, sc: "buffer", t: "Twice the record, for an edge trigger",
+    p: `An edge trigger first has to find its edge, so the scope simulates two records' worth, total = 2n = 1000 samples, and looks for the edge in the first half. With sync or free run, one record is enough.`,
+    c: [["trigger", "edge"], ["total", "1000 samples"]] },
+  { m: "acquire", a: 18, b: 26, sc: "table", t: "Where the sweep starts",
+    p: `This is an edge trigger, so the start time is random within the first millisecond, 0.129 ms here, and nothing is triggered yet. A sync trigger would instead start a whole number of laser periods in, so every sweep shows the pulses at the same place.`,
+    rows: [["trigger", "edge", "not sync"], ["t0", `${(N.t0 * 1e3).toFixed(4)} ms`, "rng.uniform(0, 1 ms) + h_position", 1], ["triggered", "False", "until an edge is found", 1]] },
+  { m: "acquire", a: 27, b: 32, sc: "warm", t: "Warm-up for the filters",
+    p: `Every filter in the chain needs time to settle: six time constants of the photodiode's 1 GHz pole and of the scope's front end, 0.95 ns each. So warm = ceil(0.95 ns / 100 ps) = 10 simulated points come before the sweep and are dropped later.`,
+    c: [["settle", "0.955 ns"], ["warm", "10 points"]] },
+  { m: "acquire", a: 33, b: 34, sc: "optical", t: "Light at the photodiode",
+    p: `The simulation grid holds warm + total·k = 10 + 2000 = 2010 points at 100 ps. synthesize() traces the light to PD-1: Gaussian pulses of 1 ns FWHM every 20 ns, 1.69 mW peak, 0.087 mW average after the patch cord.`,
+    c: [["t_sim", "2010 points"], ["peak", "1.69 mW"], ["period", "20 ns"]] },
+  { m: "acquire", a: 35, b: 37, sc: "table", t: "One channel at a time",
+    p: `No function generator drives a modulator here, so driving is empty. The loop visits each wired channel; for CH1 the source is a Photodiode.`,
+    rows: [["driving", "{}", "no modulators on these paths"], ["CH1", "PD-1", "Photodiode", 1]] },
+  { m: "acquire", a: 44, b: 45, sc: "raw", t: "Photocurrent",
+    p: `PD-1 turns light into current: ℜ = 0.95 A/W, plus shot noise (2qi) and the 50 Ω load's thermal noise, through its own 1 GHz pole. The pole widens each pulse and lowers its peak from 1.60 mA (ℜ × peak power) to 1.48 mA. The scope's input is high-impedance, so it sees this current directly.`,
+    c: [["ℜ", "0.95 A/W"], ["peak", "1.48 mA"], ["pole", "1 GHz"]] },
+  { m: "_front_end", a: 2, b: 3, sc: "response", t: "Is there a bandwidth to apply?",
+    p: `The front end only matters if the simulation can resolve it: 1 GHz is well below 0.45 / dts = 4.5 GHz, so the filter runs. Otherwise the signal would pass unchanged.`,
+    c: [["bandwidth", "1 GHz"], ["0.45 / dts", "4.5 GHz"]] },
+  { m: "_front_end", a: 4, b: 4, sc: "response", t: "Two poles, −3 dB at 1 GHz",
+    p: `Two identical first-order poles at 1.554 × 1 GHz give the pair a −3 dB point at exactly 1 GHz: (1 + 1/1.554²)² = 2. alpha = 1 − exp(−2π · 1.554 GHz · 100 ps) = 0.623 is each pole's discrete-time coefficient. Dashed: one pole alone.`,
+    c: [["pole", "1.554 GHz"], ["alpha", N.alpha.toFixed(3)]], alpha: true },
+  { m: "_front_end", a: 5, b: 9, sc: "poles", t: "Filter twice",
+    p: `lfilter runs the pole over the signal twice, each pass started at the first sample's value so there is no turn-on step. The pulse rounds off: 1.485 → 1.455 → 1.417 mA at the peak.`,
+    c: [["raw", "1.485 mA"], ["1 pole", "1.455 mA"], ["2 poles", "1.417 mA"]] },
+  { m: "acquire", a: 52, b: 52, sc: "pick", t: "Sample: every k-th point",
+    p: `[warm::k] drops the 10 warm-up points and keeps every 2nd one after them: the scope point-samples at 5 GS/s with no averaging. A signal above fs/2 = 2.5 GHz would alias, as on a real scope; the 1 GHz front end keeps that small here. [:total] keeps 1000 samples.`,
+    c: [["kept", "1 in 2"], ["samples", "1000"], ["dt", "200 ps"]] },
+  { m: "acquire", a: 53, b: 54, sc: "buffer", t: "Sample times",
+    p: `t_s gives each of the 1000 samples its absolute time, t0 + i·dt. start = 0 means the displayed record would begin at the buffer's first sample unless the trigger moves it.`,
+    c: [["t_s", "t0 + i·200 ps"], ["start", "0"]], ts: true },
+  { m: "acquire", a: 55, b: 62, sc: "search", t: "Look for the edge",
+    p: `pre = n // 10 = 50 samples: the trigger point will sit one division in from the left edge. The search covers samples 50 to 549 and wants a sample below the level, 0.704 mA (half the peak), followed by one at or above it. It finds 5 rising edges, one every 20 ns.`,
+    c: [["pre", "50"], ["level", "0.704 mA"], ["hits", "5"]] },
+  { m: "acquire", a: 63, b: 65, sc: "lock", t: "Lock onto the first edge",
+    p: `The first hit is 21 samples into the search, so start = 22 and the trigger sample is start + pre = 72. The displayed record is samples 22 to 521, and the sweep is now triggered. t_trig is the time of sample 72.`,
+    c: [["start", "22"], ["trigger sample", "72"], ["triggered", "True"]] },
+  { m: "acquire", a: 66, b: 66, sc: "screen", t: "Time relative to the trigger",
+    p: `tt is the record's time axis measured from the trigger: −10 ns at the left edge, 0 one division in, +89.8 ns at the right. That is the classic scope picture, with the trigger marker (T) at the top and the level marker at the right.`,
+    c: [["tt[0]", "−10 ns"], ["trigger", "0 ns, 1 div in"]] },
+  { m: "acquire", a: 67, b: 71, sc: "table", t: "Cut each channel's record",
+    p: `For each of the four channels, take the 500 samples from start. CH1 has data; the empty channels get None and no measurements.`,
+    rows: [["CH1", "500 samples", "signals['ch1'][22:522]", 1], ["CH2", "None", ""], ["CH3", "None", ""], ["CH4", "None", ""]] },
+  { m: "_digitize", a: 3, b: 4, sc: "codes", t: "The ADC: 256 codes across the screen",
+    p: `An 8-bit ADC has codes 0 to top = 255 spread over the 8 divisions. A sample's screen position, value / scale + offset, is mapped to the nearest code. The −3 div offset puts 0 mA one division above the bottom, at code 31.875 → 32; the 1.41 mA peak lands on code 122. Anything off the screen would clip to 0 or 255.`,
+    c: [["top", "255"], ["0 mA", "code 32"], ["peak", "code 122"]] },
+  { m: "_digitize", a: 5, b: 5, sc: "steps", t: "Codes back to amperes",
+    p: `Each code becomes the current it stands for: one step is 8 × 500 µA / 255 = 15.7 µA. Between pulses the photodiode's noise, 0.69 µA rms, is a twentieth of a step, so every sample there reads the same code, 1.96 µA. The ADC has swallowed the noise.`,
+    c: [["LSB", "15.7 µA"], ["noise", "0.69 µA rms"], ["zero reads", "1.96 µA"]] },
+  { m: "acquire", a: 76, b: 93, sc: "table", t: "Package the trace",
+    p: `Each channel becomes a Trace: its source and unit (a photodiode's output is a current, so amperes), the data, the screen scale and offset, and measure(data, dt). The walk follows measure().`,
+    rows: [["source", "PD-1", ""], ["unit", "A", "signal_unit"], ["scale", "500 µA/div", "offset −3 div"], ["meas", "measure(data, dt)", "next", 1]] },
+  { m: "measure", a: 7, b: 16, sc: "stats", t: "The basic numbers",
+    p: `Mean, extremes, peak-to-peak and rms, where rms is the standard deviation (the AC part). The mean, 84.3 µA, is the average photocurrent: 0.95 A/W × 0.087 mW, give or take the 5 pulses in this window.`,
+    c: [["mean", uA(M.mean)], ["min", uA(M.min)], ["max", mA(M.max)], ["pk-pk", mA(M.pk_pk)], ["rms", uA(M.rms)]] },
+  { m: "measure", a: 17, b: 19, sc: "noise", t: "How noisy is it?",
+    p: `The noise estimate is the median sample-to-sample step, scaled to an rms (÷ 0.6745√2, as for Gaussian noise). Here 84 % of the steps are exactly zero, because the ADC reads one code between pulses, so the estimate is 0.`,
+    c: [["zero steps", "84 %"], ["noise", "0"]] },
+  { m: "measure", a: 20, b: 29, sc: "hyst", t: "Count rising edges, with hysteresis",
+    p: `The signal stands far above the noise (pk-pk > 8 × noise), so it is timed by crossings. Mid-level 0.708 mA, hysteresis ±20 % of pk-pk: a sample below 0.425 mA arms the counter and the next sample above 0.990 mA counts a rise. That ignores noise wiggles around the mid-level. Rises at samples 51, 151, 251, 351 and 451.`,
+    c: [["mid", mA(N.mid)], ["± h", mA(N.h)], ["rises", "5"]] },
+  { m: "measure", a: 30, b: 32, sc: "freq", t: "Frequency from the rises",
+    p: `(5 − 1) rises over (451 − 51) samples × 200 ps = 4 periods in 80 ns: 50.00 MHz, the laser's repetition rate. Counting whole periods between the first and last rise makes the estimate exact to the sample.`,
+    c: [["periods", "4"], ["span", "80 ns"], ["freq", "50.00 MHz"]] },
+  { m: "measure", a: 33, b: 41, sc: "spectrum", t: "The spectral fallback",
+    p: `For a coarsely sampled or aliased trace, measure() would take the strongest FFT line instead, refined by a parabola through its neighbors, but only if that line holds over 20 % of the energy. This pulse train spreads its energy over many harmonics: the 50 MHz line holds 17.8 %, so the fallback would report no frequency. The crossings are what time a pulse train.`,
+    c: [["line", "50 MHz"], ["energy", "17.8 % < 20 %"]] },
+  { m: "acquire", a: 94, b: 107, sc: "result", t: "The result",
+    p: `ScopeResult carries the time axis, the four traces with their measurements, and the settings that made them: trigger edge on CH1 at 0.704 mA, triggered, 5 GS/s, 1 GHz, 8 bits. The lab draws it like this.`,
+    c: [["freq", "50.00 MHz"], ["pk-pk", mA(M.pk_pk)], ["mean", uA(M.mean)]] },
+];
+
+/* ---------- canvas helpers ---------- */
+const cv = document.getElementById("scr");
+const ctx = cv.getContext("2d");
+let W = 960, H = 600;
+function resize() {
+  const r = cv.getBoundingClientRect();
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  W = Math.max(320, r.width); H = W * 10 / 16;
+  cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+let C = {};
+function colors() { C = { grid: css("--scr-grid"), axis: css("--scr-axis"), text: css("--scr-text"), strong: css("--scr-strong"), tr: css("--scr-trace"), c2: css("--scr-2"), c3: css("--scr-3"), c4: css("--scr-4"), c5: css("--scr-5"), bg: css("--scr-bg") }; }
+const ease = (t) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+const font = (px, w = 500, fam = "mono") => `${w} ${px}px ${fam === "mono" ? '"IBM Plex Mono", ui-monospace, monospace' : '"Chakra Petch", system-ui, sans-serif'}`;
+const sz = () => Math.max(10, Math.min(13, W / 64));
+function rgba(hex, a) {
+  const m = hex.replace("#", ""); const n = parseInt(m.length === 3 ? m.split("").map((c) => c + c).join("") : m, 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
+}
+function frame(o) {
+  const L = Math.max(58, W * 0.08), R = 14, T = 30, B = 30;
+  const pw = W - L - R, ph = H - T - B;
+  const [x0, x1] = o.x, [y0, y1] = o.y;
+  const X = (x) => L + (x - x0) / (x1 - x0) * pw;
+  const Y = (y) => T + (1 - (y - y0) / (y1 - y0)) * ph;
+  ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = C.grid; ctx.lineWidth = 1;
+  const nx = o.nx || 10, ny = o.ny || 8;
+  for (let i = 0; i <= nx; i++) { const x = L + i * pw / nx; ctx.beginPath(); ctx.moveTo(x, T); ctx.lineTo(x, T + ph); ctx.stroke(); }
+  for (let j = 0; j <= ny; j++) { const y = T + j * ph / ny; ctx.beginPath(); ctx.moveTo(L, y); ctx.lineTo(L + pw, y); ctx.stroke(); }
+  if (o.scope) {  // minor ticks on the center lines, as on a scope graticule
+    ctx.strokeStyle = C.axis;
+    for (let i = 0; i <= nx * 5; i++) { const x = L + i * pw / (nx * 5); ctx.beginPath(); ctx.moveTo(x, T + ph / 2 - 3); ctx.lineTo(x, T + ph / 2 + 3); ctx.stroke(); }
+    for (let j = 0; j <= ny * 5; j++) { const y = T + j * ph / (ny * 5); ctx.beginPath(); ctx.moveTo(L + pw / 2 - 3, y); ctx.lineTo(L + pw / 2 + 3, y); ctx.stroke(); }
+  }
+  ctx.strokeStyle = C.axis; ctx.strokeRect(L + .5, T + .5, pw - 1, ph - 1);
+  ctx.fillStyle = C.text; ctx.font = font(sz());
+  if (o.xt) { ctx.textAlign = "center"; ctx.textBaseline = "top"; for (const [v, lab] of o.xt) ctx.fillText(lab, X(v), T + ph + 7); }
+  if (o.yt) { ctx.textAlign = "right"; ctx.textBaseline = "middle"; for (const [v, lab] of o.yt) ctx.fillText(lab, L - 7, Y(v)); }
+  if (o.title) { ctx.textAlign = "left"; ctx.textBaseline = "alphabetic"; ctx.font = font(sz() + 1, 600, "disp"); ctx.fillStyle = C.text; ctx.fillText(o.title, L, T - 10); }
+  if (o.right) { ctx.textAlign = "right"; ctx.font = font(sz()); ctx.fillStyle = C.text; ctx.fillText(o.right, L + pw, T - 10); }
+  return { X, Y, L, T, pw, ph };
+}
+function clipTo(f) { ctx.save(); ctx.beginPath(); ctx.rect(f.L, f.T, f.pw, f.ph); ctx.clip(); }
+function line(f, xs, ys, color, width = 1.4, reveal = 1, alpha = 1, step = false) {
+  const n = xs.length, m = Math.max(2, Math.floor(n * reveal));
+  clipTo(f); ctx.globalAlpha = alpha; ctx.strokeStyle = color; ctx.lineWidth = width; ctx.lineJoin = "round";
+  ctx.beginPath();
+  for (let i = 0; i < m && i < n; i++) {
+    const x = f.X(xs[i]), y = f.Y(ys[i]);
+    if (!i) ctx.moveTo(x, y);
+    else if (step) { ctx.lineTo(x, f.Y(ys[i - 1])); ctx.lineTo(x, y); }
+    else ctx.lineTo(x, y);
+  }
+  ctx.stroke(); ctx.globalAlpha = 1; ctx.restore();
+}
+function dots(f, xs, ys, color, r = 2.4, reveal = 1) {
+  const m = Math.floor(xs.length * reveal);
+  clipTo(f); ctx.fillStyle = color;
+  for (let i = 0; i < m; i++) { ctx.beginPath(); ctx.arc(f.X(xs[i]), f.Y(ys[i]), r, 0, 7); ctx.fill(); }
+  ctx.restore();
+}
+function vline(f, x, color, dash = [], text, at = "top") {
+  const px = f.X(x); ctx.save(); ctx.strokeStyle = color; ctx.setLineDash(dash); ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.moveTo(px, f.T); ctx.lineTo(px, f.T + f.ph); ctx.stroke(); ctx.restore();
+  if (text) { ctx.fillStyle = color; ctx.font = font(sz()); const right = px > f.L + f.pw * 0.75; ctx.textAlign = right ? "right" : "left"; ctx.textBaseline = "top"; ctx.fillText(text, px + (right ? -6 : 6), at === "top" ? f.T + 6 : f.T + f.ph - 22); }
+}
+function hline(f, y, color, dash = [], text, side = "right") {
+  const py = f.Y(y); ctx.save(); ctx.strokeStyle = color; ctx.setLineDash(dash); ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.moveTo(f.L, py); ctx.lineTo(f.L + f.pw, py); ctx.stroke(); ctx.restore();
+  if (text) { ctx.fillStyle = color; ctx.font = font(sz()); ctx.textAlign = side === "right" ? "right" : "left"; ctx.textBaseline = "bottom"; ctx.fillText(text, side === "right" ? f.L + f.pw - 6 : f.L + 6, py - 3); }
+}
+function band(f, x0, x1, color) { clipTo(f); ctx.fillStyle = color; ctx.fillRect(f.X(x0), f.T, f.X(x1) - f.X(x0), f.ph); ctx.restore(); }
+function label(text, x, y, color, align = "left", size, w = 500) { ctx.fillStyle = color; ctx.font = font(size || sz(), w); ctx.textAlign = align; ctx.textBaseline = "middle"; ctx.fillText(text, x, y); }
+const range = (n, f) => Array.from({ length: n }, (_, i) => f(i));
+const ticks = (vals, f) => vals.map((v) => [v, f(v)]);
+const median = (a) => { const s = [...a].sort((p, q) => p - q); return s[s.length >> 1]; };
+
+/* ---------- derived arrays ---------- */
+const dtn = N.dt * 1e9, dtsn = N.dts * 1e9;
+const tFine = range(D.raw_mA.length, (i) => (i - N.warm) * dtsn);          // ns from t0
+const tSig = range(D.sig_mA.length, (i) => i * dtn);                        // ns from t0
+const iSig = range(D.sig_mA.length, (i) => i);
+const tt = range(N.n, (i) => (i - N.pre) * dtn);                            // ns from the trigger
+const scrY = (v) => v / (N.scale * 1e3) + N.offset;                         // mA → screen divisions
+const screenData = D.data_mA.map(scrY), screenAn = D.data_an_mA.map(scrY);
+const hitIdx = range(5, (j) => N.pre + N.first_hit + 1 + 100 * j);
+const peakFine = (() => { let b = 40; for (let i = 40; i < D.raw_mA.length - 40; i++) if (D.raw_mA[i] > D.raw_mA[b]) b = i; return b; })();
+let SPEC = null;
+function spectrum() {
+  if (SPEC) return SPEC;
+  const x = D.data_mA, n = x.length, mu = x.reduce((a, b) => a + b, 0) / n;
+  const mag2 = [];
+  for (let k = 0; k <= n / 2; k++) { let re = 0, im = 0; for (let i = 0; i < n; i++) { const a = -2 * Math.PI * k * i / n; re += (x[i] - mu) * Math.cos(a); im += (x[i] - mu) * Math.sin(a); } mag2.push(re * re + im * im); }
+  mag2[0] = 0;
+  const tot = mag2.reduce((a, b) => a + b, 0);
+  SPEC = mag2.map((v) => v / tot);
+  return SPEC;
+}
+const screenFrame = (title, right) => frame({ x: [tt[0], tt[0] + 10 * N.timebase * 1e9], y: [-4, 4], nx: 10, ny: 8, scope: true, xt: ticks([0, 20, 40, 60, 80], (v) => `${v}`), yt: ticks([-2, 0, 2], (v) => `${((v - N.offset) * N.scale * 1e3).toFixed(1)} mA`), title, right });
+function trigMarks(f) {
+  const x = f.X(0); ctx.fillStyle = C.c3; ctx.beginPath(); ctx.moveTo(x, f.T + 12); ctx.lineTo(x - 7, f.T + 1); ctx.lineTo(x + 7, f.T + 1); ctx.fill();
+  label("T", x + 12, f.T + 8, C.c3, "left", sz(), 600);
+  const y = f.Y(scrY(N.level * 1e3)); ctx.fillStyle = C.c3; ctx.beginPath(); ctx.moveTo(f.L + f.pw - 1, y); ctx.lineTo(f.L + f.pw + 9, y - 6); ctx.lineTo(f.L + f.pw + 9, y + 6); ctx.fill();
+  ctx.fillStyle = C.tr; ctx.beginPath(); const y0 = f.Y(N.offset); ctx.moveTo(f.L + 1, y0); ctx.lineTo(f.L - 9, y0 - 6); ctx.lineTo(f.L - 9, y0 + 6); ctx.fill();
+}
+
+/* ---------- scenes ---------- */
+const scenes = {
+  table(t, s) {
+    const f = frame({ x: [0, 1], y: [0, 1], nx: 10, ny: 8, title: "VALUES" });
+    const rows = s.rows, lh = Math.min(f.ph / (rows.length + 1), 56);
+    rows.forEach((r, i) => {
+      const y = f.T + lh * (i + 0.9), neu = r[3] === 1, a = neu ? ease(t) : 1;
+      ctx.globalAlpha = a;
+      label(r[0], f.L + 20, y, neu ? C.tr : C.text, "left", sz() + 3, 600);
+      label(r[1], f.L + f.pw * 0.38, y, neu ? C.tr : C.strong, "left", sz() + 3, 600);
+      label(r[2], f.L + f.pw * 0.64, y, C.c4, "left", sz());
+      ctx.globalAlpha = 1;
+    });
+  },
+  window(t) {
+    const f = frame({ x: [0, 100], y: [-4, 4], nx: 10, ny: 8, scope: true, xt: ticks([0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100], (v) => `${v}`), title: "THE SCREEN [ns]", right: "10 ns/div" });
+    const m = Math.ceil(ease(t) * 10);
+    for (let i = 0; i < m; i++) { clipTo(f); ctx.fillStyle = rgba(i % 2 ? C.c2 : C.tr, 0.12); ctx.fillRect(f.X(i * 10), f.T, f.X(10) - f.X(0), f.ph); ctx.restore(); label(`${i + 1}`, f.X(i * 10 + 5), f.Y(0), C.text, "center", sz() + 2, 600); }
+    if (t > 0.8) label("window = 10 × timebase = 100 ns", f.X(50), f.Y(2.6), C.tr, "center", sz() + 2, 600);
+  },
+  grid(t) {
+    const f = frame({ x: [0, 2], y: [0, 3], nx: 10, ny: 3, xt: ticks([0, 0.4, 0.8, 1.2, 1.6, 2], (v) => v.toFixed(1)), title: "TIME [ns]", right: "simulated vs sampled" });
+    const e = ease(t);
+    const sim = range(21, (i) => i * dtsn), smp = range(11, (i) => i * dtn);
+    dots(f, sim, sim.map(() => 2), C.c2, 3.2, e);
+    dots(f, smp, smp.map(() => 1), C.tr, 4.4, Math.max(0, (e - 0.3) / 0.7));
+    label("simulated: dts = 100 ps (10 GS/s)", f.X(0) + 8, f.Y(2.5), C.c2);
+    label("sampled: dt = 200 ps (5 GS/s)", f.X(0) + 8, f.Y(1.5), C.tr);
+  },
+  buffer(t, s) {
+    const f = frame({ x: [0, 1000], y: [0, 3], nx: 10, ny: 3, xt: ticks([0, 200, 400, 600, 800, 1000], (v) => `${v}`), title: "SAMPLES IN THE BUFFER", right: s.ts ? "t_s = t0 + i · 200 ps" : "total = 2n" });
+    const e = ease(t);
+    clipTo(f);
+    ctx.fillStyle = rgba(C.tr, 0.7); ctx.fillRect(f.X(0), f.Y(2.45), f.X(500 * Math.min(1, e * 2)) - f.X(0), f.Y(1.95) - f.Y(2.45));
+    ctx.fillStyle = rgba(C.c2, 0.7); ctx.fillRect(f.X(500), f.Y(2.45), (f.X(1000) - f.X(500)) * Math.max(0, e * 2 - 1), f.Y(1.95) - f.Y(2.45));
+    ctx.fillStyle = rgba(C.c3, 0.35); ctx.fillRect(f.X(N.pre), f.Y(1.25), f.X(N.n + N.pre) - f.X(N.pre), f.Y(0.85) - f.Y(1.25));
+    ctx.restore();
+    label("record 1 (n = 500)", f.X(250), f.Y(2.2), "#05080a", "center", sz(), 600);
+    label("record 2", f.X(750), f.Y(2.2), "#05080a", "center", sz(), 600);
+    label("edge search: samples 50–549", f.X(300), f.Y(0.6), C.c3, "center");
+    if (s.ts) label(`t_s[0] = t0 = ${(N.t0 * 1e3).toFixed(4)} ms, t_s[999] = t0 + 199.8 ns`, f.X(500), f.Y(2.8), C.strong, "center");
+  },
+  warm(t) {
+    const nShow = 45, xs = tFine.slice(0, nShow), ys = D.raw_mA.slice(0, nShow);
+    const lo = Math.min(...ys), hi = Math.max(...ys), pad = Math.max(1e-4, (hi - lo) * 0.25);
+    const f = frame({ x: [xs[0], xs[nShow - 1]], y: [lo - pad, hi + pad], xt: ticks([-1, 0, 1, 2, 3], (v) => `${v}`), yt: ticks([lo, hi], (v) => `${(v * 1e3).toFixed(1)} µA`), title: "PHOTOCURRENT BEFORE THE SWEEP [ns]", right: "warm = 10 points" });
+    band(f, xs[0], 0, rgba(C.c4, 0.22));
+    line(f, xs, ys, C.tr, 1.4, ease(t));
+    dots(f, xs, ys, C.tr, 2, ease(t));
+    vline(f, 0, C.c3, [5, 4], "t0: the sweep starts");
+    label("warm-up, dropped", f.X(xs[0]) + 8, f.Y(hi + pad * 0.5), C.c4);
+  },
+  optical(t) {
+    const f = frame({ x: [-1, 200], y: [0, 2], nx: 10, ny: 8, xt: ticks([0, 40, 80, 120, 160, 200], (v) => `${v}`), yt: ticks([0, 0.5, 1, 1.5, 2], (v) => v.toFixed(1)), title: "OPTICAL POWER AT PD-1 [mW] vs TIME [ns]", right: "2010 points, 100 ps apart" });
+    line(f, tFine, D.popt_mW, C.c2, 1.4, ease(t));
+  },
+  raw(t) {
+    const e = ease(t);
+    const f = frame({ x: [-1, 60], y: [0, 2], nx: 10, ny: 8, xt: ticks([0, 10, 20, 30, 40, 50, 60], (v) => `${v}`), yt: ticks([0, 0.5, 1, 1.5, 2], (v) => v.toFixed(1)), title: "PHOTOCURRENT [mA] vs TIME [ns]", right: "PD-1, 1 GHz pole" });
+    line(f, tFine, D.popt_mW.map((p) => p * 0.95), C.c4, 1.2, 1, 0.7);
+    line(f, tFine, D.raw_mA, C.tr, 1.6, e);
+    label("grey: ℜ × optical power", f.X(30), f.Y(1.85), C.c4);
+    label("yellow: PD-1 current", f.X(30), f.Y(1.7), C.tr);
+  },
+  response(t, s) {
+    const fs = range(401, (i) => i * 10e6);
+    const two = fs.map((x) => 10 * Math.log10(1 / (1 + (x / (1.554 * N.bandwidth)) ** 2) ** 2));
+    const one = fs.map((x) => 10 * Math.log10(1 / (1 + (x / (1.554 * N.bandwidth)) ** 2)));
+    const f = frame({ x: [0, 4e9], y: [-15, 1], nx: 8, ny: 8, xt: ticks([0, 1e9, 2e9, 3e9, 4e9], (v) => `${v / 1e9}`), yt: ticks([0, -3, -6, -9, -12, -15], (v) => `${v}`), title: "FRONT-END RESPONSE [dB] vs FREQUENCY [GHz]", right: s.alpha ? `alpha = ${N.alpha.toFixed(3)}` : "0.45 / dts = 4.5 GHz" });
+    const e = ease(t);
+    hline(f, -3, rgba(C.c3, 0.8), [4, 4], "−3 dB", "left");
+    vline(f, 1e9, rgba(C.c3, 0.8), [4, 4], "1 GHz");
+    if (s.alpha) { line(f, fs, one, C.c2, 1.3, e, 0.9); vline(f, 1.554e9, rgba(C.c2, 0.7), [2, 4], "each pole: 1.554 GHz", "bottom"); }
+    line(f, fs, two, C.tr, 2, e);
+    if (!s.alpha) label("the simulation resolves up to 4.5 GHz, so the 1 GHz filter applies", f.X(2e9), f.Y(-13), C.text, "center");
+  },
+  poles(t) {
+    const c = peakFine, a = Math.max(0, c - 30), b = Math.min(D.raw_mA.length, c + 31);
+    const xs = tFine.slice(a, b), e = ease(t);
+    const f = frame({ x: [xs[0], xs[xs.length - 1]], y: [0, 1.6], nx: 10, ny: 8, xt: ticks([xs[0], tFine[c], xs[xs.length - 1]], (v) => v.toFixed(1)), yt: ticks([0, 0.4, 0.8, 1.2, 1.6], (v) => v.toFixed(1)), title: "ONE PULSE [mA] vs TIME [ns]", right: "raw → 1 pole → 2 poles" });
+    line(f, xs, D.raw_mA.slice(a, b), C.c4, 1.4, 1);
+    line(f, xs, D.one_pole_mA.slice(a, b), C.c2, 1.4, Math.min(1, e * 2));
+    line(f, xs, D.fe_mA.slice(a, b), C.tr, 2, Math.max(0, e * 2 - 1));
+    label(`raw ${Math.max(...D.raw_mA.slice(a, b)).toFixed(3)}`, f.X(xs[0]) + 8, f.Y(1.5), C.c4);
+    label(`1 pole ${Math.max(...D.one_pole_mA.slice(a, b)).toFixed(3)}`, f.X(xs[0]) + 8, f.Y(1.4), C.c2);
+    label(`2 poles ${Math.max(...D.fe_mA.slice(a, b)).toFixed(3)} mA`, f.X(xs[0]) + 8, f.Y(1.3), C.tr);
+  },
+  pick(t) {
+    const c = peakFine, a = Math.max(N.warm, c - 24), b = c + 25;
+    const xs = tFine.slice(a, b), ys = D.fe_mA.slice(a, b);
+    const kept = [], ky = [];
+    for (let i = a; i < b; i++) if ((i - N.warm) % N.k === 0) { kept.push(tFine[i]); ky.push(D.fe_mA[i]); }
+    const f = frame({ x: [xs[0], xs[xs.length - 1]], y: [0, 1.6], nx: 10, ny: 8, xt: ticks([xs[0], xs[xs.length - 1]], (v) => v.toFixed(1)), yt: ticks([0, 0.4, 0.8, 1.2, 1.6], (v) => v.toFixed(1)), title: "FILTERED SIGNAL [mA] vs TIME [ns]", right: "[warm::k]: every 2nd point" });
+    line(f, xs, ys, C.c4, 1.2, 1);
+    dots(f, xs, ys, C.c4, 2, 1);
+    dots(f, kept, ky, C.tr, 4.2, ease(t));
+    label("grey: simulated (100 ps)   yellow: sampled (200 ps)", f.X(xs[0]) + 8, f.Y(1.5), C.text);
+  },
+  search(t) {
+    const f = frame({ x: [0, 999], y: [0, 1.6], nx: 10, ny: 8, xt: ticks([0, 200, 400, 600, 800, 999], (v) => `${v}`), yt: ticks([0, 0.4, 0.8, 1.2, 1.6], (v) => v.toFixed(1)), title: "THE BUFFER [mA] vs SAMPLE", right: "edge ↑ at 0.704 mA" });
+    band(f, N.pre, N.n + N.pre, rgba(C.c3, 0.12));
+    line(f, iSig, D.sig_mA, C.tr, 1.2, 1);
+    hline(f, N.level * 1e3, C.c3, [5, 4], "level 0.704 mA");
+    const m = Math.ceil(ease(t) * 5);
+    dots(f, hitIdx.slice(0, m), hitIdx.slice(0, m).map((i) => D.sig_mA[i]), C.c2, 5, 1);
+    label("search window 50–549", f.X(300), f.Y(1.5), C.c3, "center");
+  },
+  lock(t) {
+    const f = frame({ x: [0, 999], y: [0, 1.6], nx: 10, ny: 8, xt: ticks([0, 22, 72, 521, 999], (v) => `${v}`), yt: ticks([0, 0.4, 0.8, 1.2, 1.6], (v) => v.toFixed(1)), title: "THE BUFFER [mA] vs SAMPLE", right: "start = 22" });
+    const e = ease(t);
+    band(f, N.start, N.start + N.n * e, rgba(C.tr, 0.12));
+    line(f, iSig, D.sig_mA, rgba(C.tr, 1), 1.2, 1, 0.45);
+    line(f, iSig.slice(N.start, N.start + N.n), D.sig_mA.slice(N.start, N.start + N.n), C.tr, 1.4, e);
+    vline(f, N.start + N.pre, C.c3, [5, 4], "trigger sample 72");
+    dots(f, [N.start + N.pre], [D.sig_mA[N.start + N.pre]], C.c3, 5.5);
+    label("displayed: 22 → 521", f.X(N.start + N.n / 2), f.Y(1.5), C.tr, "center");
+  },
+  screen(t) {
+    const f = screenFrame("CH1 500 µA/div   10 ns/div", "time from trigger [ns]");
+    line(f, tt, screenAn, C.tr, 1.6, ease(t));
+    trigMarks(f);
+  },
+  codes(t) {
+    const f = frame({ x: [tt[0], tt[N.n - 1]], y: [0, 255], nx: 10, ny: 8, xt: ticks([0, 20, 40, 60, 80], (v) => `${v}`), yt: ticks([0, 32, 64, 96, 122, 160, 192, 224, 255], (v) => `${v}`), title: "ADC CODE vs TIME FROM TRIGGER [ns]", right: "8 bits: 0 … 255" });
+    hline(f, 32, rgba(C.c2, 0.9), [4, 4], "0 mA → 31.875 → code 32");
+    hline(f, 122, rgba(C.c3, 0.9), [4, 4], "peak → code 122");
+    line(f, tt, D.codes, C.tr, 1.4, ease(t), 1, true);
+  },
+  steps(t) {
+    const lsb = N.lsb * 1e6;
+    const xs = tt.slice(175, 236), an = D.data_an_mA.slice(175, 236).map((v) => v * 1e3), dg = D.data_mA.slice(175, 236).map((v) => v * 1e3);
+    const f = frame({ x: [xs[0], xs[xs.length - 1]], y: [-20, 25], nx: 10, ny: 9, xt: ticks([xs[0], xs[xs.length - 1]], (v) => v.toFixed(1)), yt: ticks([-13.73, 1.96, 17.65], (v) => v.toFixed(2)), title: "BETWEEN PULSES [µA] vs TIME [ns]", right: `one step = ${lsb.toFixed(1)} µA` });
+    for (const v of [-13.73, 1.96, 17.65]) hline(f, v, rgba(C.c4, 0.6), [3, 4]);
+    line(f, xs, an, C.c2, 1.2, 1, 0.9);
+    line(f, xs, dg, C.tr, 2, ease(t), 1, true);
+    label("cyan: analog, 0.69 µA rms   yellow: ADC reads code 32 = 1.96 µA", f.X(xs[0]) + 8, f.Y(22), C.text);
+  },
+  stats(t) {
+    const f = screenFrame("CH1 500 µA/div   10 ns/div", "measure()");
+    line(f, tt, screenData, C.tr, 1.5, 1);
+    trigMarks(f);
+    const e = ease(t);
+    const rows = [["max", M.max, C.c3], ["mean", M.mean, C.c5], ["min", M.min, C.c2]];
+    rows.forEach(([k, v, col], i) => { if (e > i * 0.25) hline(f, scrY(v * 1e3), col, [5, 4], `${k} ${v < 1e-3 ? (v * 1e6).toFixed(2) + " µA" : (v * 1e3).toFixed(3) + " mA"}`, i === 2 ? "left" : "right"); });
+    if (e > 0.8) label(`pk-pk ${(M.pk_pk * 1e3).toFixed(3)} mA   rms ${(M.rms * 1e6).toFixed(1)} µA`, f.X(40), f.Y(1.2), C.strong, "center", sz() + 1, 600);
+  },
+  noise(t) {
+    const d = D.data_mA, diffs = range(d.length - 1, (i) => Math.abs(d[i + 1] - d[i]) * 1e3);
+    const xs = tt.slice(0, diffs.length);
+    const f = frame({ x: [tt[0], tt[N.n - 1]], y: [0, 800], nx: 10, ny: 8, xt: ticks([0, 20, 40, 60, 80], (v) => `${v}`), yt: ticks([0, 200, 400, 600, 800], (v) => `${v}`), title: "|STEP BETWEEN SAMPLES| [µA] vs TIME [ns]", right: `median = ${median(diffs).toFixed(1)} µA` });
+    clipTo(f); ctx.fillStyle = C.tr;
+    const m = Math.floor(diffs.length * ease(t));
+    for (let i = 0; i < m; i++) { const x = f.X(xs[i]); ctx.fillRect(x - 0.8, f.Y(diffs[i]), 1.6, f.Y(0) - f.Y(diffs[i]) || 1); }
+    ctx.restore();
+    const zeros = diffs.filter((v) => v === 0).length;
+    hline(f, 0, C.c3, [], "median 0 → noise = 0", "right");
+    label(`${zeros} of ${diffs.length} steps are exactly 0`, f.X(40), f.Y(700), C.strong, "center", sz() + 1, 600);
+  },
+  hyst(t) {
+    const f = screenFrame("CH1 500 µA/div   10 ns/div", "hysteresis ±20 %");
+    const lo = N.mid - N.h, hi = N.mid + N.h, e = ease(t);
+    clipTo(f); ctx.fillStyle = rgba(C.c2, 0.1); ctx.fillRect(f.L, f.Y(scrY(hi * 1e3)), f.pw, f.Y(scrY(lo * 1e3)) - f.Y(scrY(hi * 1e3))); ctx.restore();
+    line(f, tt, screenData, C.tr, 1.5, 1);
+    hline(f, scrY(hi * 1e3), C.c2, [4, 4], `rise counted above ${(hi * 1e3).toFixed(3)} mA`);
+    hline(f, scrY(N.mid * 1e3), rgba(C.c4, 0.9), [2, 4], `mid ${(N.mid * 1e3).toFixed(3)}`);
+    hline(f, scrY(lo * 1e3), C.c2, [4, 4], `armed below ${(lo * 1e3).toFixed(3)} mA`);
+    const m = Math.ceil(e * N.rises.length);
+    dots(f, N.rises.slice(0, m).map((i) => tt[i]), N.rises.slice(0, m).map((i) => screenData[i]), C.c3, 5.5);
+  },
+  freq(t) {
+    const f = screenFrame("CH1 500 µA/div   10 ns/div", `freq = ${(M.freq / 1e6).toFixed(2)} MHz`);
+    line(f, tt, screenData, C.tr, 1.5, 1);
+    const r = N.rises, e = ease(t);
+    dots(f, r.map((i) => tt[i]), r.map((i) => screenData[i]), C.c3, 5.5);
+    const y = f.Y(1.6), x0 = f.X(tt[r[0]]), x1 = f.X(tt[r[0]]) + (f.X(tt[r[r.length - 1]]) - f.X(tt[r[0]])) * e;
+    ctx.strokeStyle = C.c3; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x1, y); ctx.stroke();
+    for (const i of r) { const x = f.X(tt[i]); if (x <= x1 + 0.5) { ctx.beginPath(); ctx.moveTo(x, y - 6); ctx.lineTo(x, y + 6); ctx.stroke(); } }
+    if (e > 0.9) label("4 periods in 400 samples × 200 ps = 80 ns → 50.00 MHz", (x0 + x1) / 2, y - 16, C.strong, "center", sz() + 1, 600);
+  },
+  spectrum(t) {
+    const sp = spectrum(), nb = 60;
+    const f = frame({ x: [-5, nb * 10 + 5], y: [0, 0.25], nx: 10, ny: 5, xt: ticks([0, 100, 200, 300, 400, 500, 600], (v) => `${v}`), yt: ticks([0, 0.05, 0.1, 0.15, 0.2, 0.25], (v) => `${Math.round(v * 100)} %`), title: "SHARE OF THE ENERGY PER FFT LINE vs FREQUENCY [MHz]", right: "bins every 10 MHz" });
+    hline(f, 0.2, C.c3, [5, 4], "20 %: the test for one dominant line", "right");
+    const e = ease(t);
+    clipTo(f);
+    for (let k = 1; k <= nb; k++) { const v = sp[k] * Math.min(1, e * 1.4); ctx.fillStyle = k === 5 ? C.tr : rgba(C.c2, 0.8); ctx.fillRect(f.X(k * 10) - 3, f.Y(v), 6, f.Y(0) - f.Y(v)); }
+    ctx.restore();
+    if (e > 0.9) label(`50 MHz line: ${(sp[5] * 100).toFixed(1)} %, harmonics take the rest`, f.X(70), f.Y(sp[5]) - 4, C.tr, "left", sz() + 1, 600);
+  },
+  result(t) {
+    const f = screenFrame("CH1 500 µA/div   10 ns/div   5 GS/s   1 GHz   8 bit", "Edge ↑ CH1 0.704 mA   T'D");
+    line(f, tt, screenData, C.tr, 1.6, ease(t));
+    trigMarks(f);
+    if (t > 0.85) {
+      const rows = [`Freq ${(M.freq / 1e6).toFixed(2)} MHz`, `Pk-Pk ${(M.pk_pk * 1e3).toFixed(3)} mA`, `Mean ${(M.mean * 1e6).toFixed(1)} µA`, `RMS ${(M.rms * 1e6).toFixed(1)} µA`];
+      rows.forEach((r, i) => label(r, f.X(60) , f.Y(3.4 - i * 0.55), C.tr, "left", sz() + 1, 600));
+    }
+  },
+};
+
+/* ---------- player ---------- */
+const track = document.getElementById("track");
+S.forEach((s, i) => {
+  const b = document.createElement("button");
+  b.className = "seg"; b.dataset.m = s.m; b.type = "button"; b.setAttribute("role", "tab");
+  b.setAttribute("aria-label", `Step ${i + 1}: ${s.t}`);
+  b.addEventListener("click", () => go(i, true));
+  track.appendChild(b);
+});
+const segs = [...track.children];
+const codeBox = document.getElementById("code");
+const capWhere = document.getElementById("capWhere"), capTitle = document.getElementById("capTitle"), capBody = document.getElementById("capBody"), capChips = document.getElementById("capChips");
+const counter = document.getElementById("counter"), playBtn = document.getElementById("play"), state = document.getElementById("scrState");
+let cur = 0, start = 0, playing = !reduceMotion, raf = 0, t = 1;
+const DUR = 900, DWELL = 6200;
+const MC = { acquire: "--m-acquire", record: "--m-record", _front_end: "--m-front", _digitize: "--m-digitize", measure: "--m-measure" };
+
+function render() { colors(); const s = S[cur]; scenes[s.sc](Math.min(1, t), s); }
+function setCode(s) {
+  codeBox.classList.add("active");
+  document.querySelectorAll(".ln.on").forEach((e) => e.classList.remove("on"));
+  document.querySelectorAll(".method").forEach((e) => e.classList.toggle("cur", e.dataset.m === s.m));
+  const rows = LINES[s.m].slice(s.a, s.b + 1);
+  rows.forEach((r) => r.classList.add("on"));
+  const top = rows[0].offsetTop, bottom = rows[rows.length - 1].offsetTop + rows[rows.length - 1].offsetHeight;
+  codeScroll.scrollTo({ top: Math.max(0, (top + bottom) / 2 - codeScroll.clientHeight / 2), behavior: reduceMotion ? "auto" : "smooth" });
+}
+function setCaption(s, i) {
+  capWhere.style.setProperty("--mc", `var(${MC[s.m]})`);
+  capWhere.textContent = `${s.m}() · line${s.a === s.b ? "" : "s"} ${s.a + 1}${s.a === s.b ? "" : "–" + (s.b + 1)}`;
+  capTitle.textContent = s.t; capBody.textContent = s.p;
+  capChips.innerHTML = (s.c || []).map(([k, v]) => `<span class="chip">${esc(k)} <b>${esc(v)}</b></span>`).join("");
+  counter.textContent = `${i + 1} / ${S.length}`;
+  segs.forEach((g, j) => { g.classList.toggle("cur", j === i); g.classList.toggle("done", j < i); g.setAttribute("aria-selected", j === i ? "true" : "false"); });
+}
+function go(i) {
+  cur = (i + S.length) % S.length; start = performance.now(); t = reduceMotion ? 1 : 0;
+  setCode(S[cur]); setCaption(S[cur], cur); render(); loop();
+}
+function loop() {
+  cancelAnimationFrame(raf);
+  raf = requestAnimationFrame(function tick(now) {
+    const el = now - start;
+    t = reduceMotion ? 1 : Math.min(1, el / DUR);
+    render();
+    if (playing && el > DWELL) { go(cur + 1); return; }
+    if (t < 1 || playing) raf = requestAnimationFrame(tick);
+  });
+}
+function setPlay(p) { playing = p; playBtn.textContent = p ? "Pause" : "Play"; state.textContent = p ? "RUN" : "STOP"; if (p) { start = performance.now() - DUR; loop(); } }
+playBtn.addEventListener("click", () => setPlay(!playing));
+document.getElementById("prev").addEventListener("click", () => go(cur - 1));
+document.getElementById("next").addEventListener("click", () => go(cur + 1));
+document.addEventListener("keydown", (e) => {
+  if (e.target.closest && e.target.closest("button") && e.key === " ") return;
+  if (e.key === "ArrowRight") { go(cur + 1); e.preventDefault(); }
+  else if (e.key === "ArrowLeft") { go(cur - 1); e.preventDefault(); }
+  else if (e.key === " ") { setPlay(!playing); e.preventDefault(); }
+});
+window.addEventListener("resize", () => { resize(); render(); });
+resize();
+setPlay(playing);
+go(0);
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => render());
+})();
+</script>

@@ -41,13 +41,14 @@ kbd { font: 11px var(--mono); padding: 1px 5px; border: 1px solid var(--line-2);
   padding: 0 14px; border-bottom: 1px solid var(--line);
   background: linear-gradient(180deg, #0d121b, #0a0d14);
 }
-.brand { display: flex; align-items: center; gap: 10px; color: var(--accent); min-width: 0; }
-.brand h1 { margin: 0; font-size: 15px; font-weight: 650; color: var(--text); letter-spacing: .2px; white-space: nowrap; }
+.brand { display: flex; align-items: center; gap: 10px; color: var(--accent); min-width: 0; flex: 1 1 0; }  /* the space the buttons leave */
+.brand h1 { margin: 0; font-size: 15px; font-weight: 650; color: var(--text); letter-spacing: .2px; white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .brand span { font-size: 11.5px; color: var(--muted); white-space: nowrap; }
 .brand .server { display: inline-flex; align-items: center; gap: 6px; font: 11px var(--mono); }
 #server-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--bad); box-shadow: 0 0 6px var(--bad); display: inline-block; }
 #server-dot.on { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
-.actions { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; overflow-x: auto; }
+.actions { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; overflow-x: auto; min-width: 0; }
+.actions > button { flex: none; }  /* the title truncates first; buttons keep their size */
 
 button, select {
   background: var(--panel-2); border: 1px solid var(--line-2); border-radius: 7px;
@@ -315,11 +316,17 @@ button.run:not(.on) { color: var(--bad); border-color: rgba(248, 113, 113, .5); 
 /* ---------- modal ---------- */
 .modal { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(3, 5, 9, .7); z-index: 20; padding: 16px; backdrop-filter: blur(4px); }
 .modal.hidden { display: none; }
-.modal-card { max-width: 560px; width: 100%; background: var(--panel); border: 1px solid var(--line-2); border-radius: 14px; padding: 22px 24px; box-shadow: 0 30px 80px rgba(0, 0, 0, .6); }
+.modal-card { max-width: 560px; width: 100%; max-height: calc(100vh - 32px); overflow-y: auto; background: var(--panel); border: 1px solid var(--line-2); border-radius: 14px; padding: 22px 24px; box-shadow: 0 30px 80px rgba(0, 0, 0, .6); }
 .modal-card h2 { margin: 0 0 12px; font-size: 18px; }
+.modal-card h3 { margin: 18px 0 4px; font-size: 14px; }
 .modal-card ol { padding-left: 20px; margin: 0 0 12px; }
 .modal-card li { margin-bottom: 8px; color: #c9d2df; }
 .modal-card .muted { color: var(--muted); font-size: 12px; }
+.modal-card .walks { list-style: none; padding: 0; margin: 8px 0 16px; display: grid; gap: 6px; }
+.modal-card .walks li { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; }
+.modal-card .walks a { color: var(--accent); font-weight: 600; text-decoration: none; }
+.modal-card .walks a:hover, .modal-card .walks a:focus-visible { text-decoration: underline; }
+.modal-card .walks span { color: var(--muted); font-size: 12px; }
 
 /* ---------- narrow screens ---------- */
 @media (max-width: 1100px) {
