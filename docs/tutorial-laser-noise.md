@@ -82,7 +82,10 @@ Then wire it:
 
 The measurement box under the screen shows the **Median level**: on a noise floor, that is the
 noise power in one resolution bandwidth. Press **Clear trace** after every change so the
-running average starts afresh. It takes about ten seconds to settle.
+running average starts afresh, and read once the box's **Sweeps** count passes 20. A fresh trace
+reads low, by up to 0.2 dB after one sweep: the median of noise sits below its mean until many
+sweeps are averaged. Even settled, a reading wanders by a few hundredths of a dB, so its last digit
+can differ by one from the numbers below.
 
 ## 3. Read the laser first
 
@@ -108,10 +111,12 @@ Set the laser's **Emission** off. The analyzer reads:
 
 | | Median level (RBW 10 kHz) | as a density |
 |---|---|---|
-| laser off | **−89.6 dBm** | −129.6 dBm/Hz |
+| laser off | **−89.4 dBm** | −129.4 dBm/Hz |
 
 That is the detector's amplifier noise. At 100 kV/A the PDB450C has an NEP of 1.55 pW/√Hz,
-−129.2 dBm/Hz at the analyzer. Nothing optical is involved. The application-note name for it is
+−129.2 dBm/Hz at the analyzer. The median sits mid-span, at 1 MHz, where the detector's 4 MHz
+bandwidth takes 0.26 dB (section 6 comes back to this), and the analyzer's own floor adds 0.03 dB:
+−129.4 dBm/Hz. Nothing optical is involved. The application-note name for it is
 "thermal noise"; Park calls it the electronic noise.
 
 The analyzer has a floor of its own too. Select it and set **Noise floor (DANL)** to
@@ -163,10 +168,10 @@ Read the noise with the laser's RIN at −130 dBc/Hz, then again with it off (**
 
 | Attenuation | INPUT+ | RIN −130 | RIN off |
 |---|---|---|---|
-| 13 dB | 27.8 µW | **−73.8 dBm** | −82.8 dBm |
-| 16 dB | 13.9 µW | −79.1 dBm | −85.0 dBm |
-| 20 dB | 5.55 µW | −84.7 dBm | −87.1 dBm |
-| 25 dB | 1.75 µW | −88.2 dBm | −88.5 dBm |
+| 13 dB | 27.8 µW | **−73.8 dBm** | −82.7 dBm |
+| 16 dB | 13.9 µW | −79.1 dBm | −84.9 dBm |
+| 20 dB | 5.55 µW | −84.6 dBm | −87.0 dBm |
+| 25 dB | 1.75 µW | −88.1 dBm | −88.5 dBm |
 | 30 dB | 555 nW | −89.1 dBm | −89.1 dBm |
 
 - With RIN off you see shot noise over the floor, 1 dB per dB at high power.
@@ -181,9 +186,9 @@ The relative measure is noise density over the carrier's power, in dBc/Hz. Obars
 it R(f) = P_E(f) / (P·C(f)): the noise above the floor, over the DC power, corrected for the
 detection system's frequency response C(f). At **20 dB**:
 
-1. Noise density: −84.7 dBm − 10·log₁₀(10 kHz) = −124.7 dBm/Hz.
-2. Remove the floor (section 4, −129.6 dBm/Hz) by subtracting powers, not dB:
-   10^(−12.47) − 10^(−12.96) mW/Hz, which is −126.4 dBm/Hz.
+1. Noise density: −84.6 dBm − 10·log₁₀(10 kHz) = −124.6 dBm/Hz.
+2. Remove the floor (section 4, −129.4 dBm/Hz) by subtracting powers, not dB:
+   10^(−12.46) − 10^(−12.94) mW/Hz, which is −126.3 dBm/Hz.
 3. Correct for C(f). The detector's 4 MHz bandwidth passes 1/(1 + (f/4 MHz)²) of the noise
    power. The median level sits mid-span, at 1 MHz, where that is −0.26 dB, so the noise is
    −126.1 dBm/Hz before the roll-off.
@@ -193,17 +198,18 @@ detection system's frequency response C(f). At **20 dB**:
 
 The measured RIN is the laser's excess RIN plus the detected shot-noise RIN 2q/I. With
 I = 5.55 µA, 2q/I = −132.4 dBc/Hz, and taking it away (again in powers) leaves **−130.0 dBc/Hz**:
-the laser's setting, its excess RIN. Skip step 3 and you get −130.4 dBc/Hz instead. Noise and
-carrier pass through the same 50 Ω divider and the same gain, so neither the gain nor the
-responsivity needs calibrating, only the shape of the response. That is the use of a relative
-measure.
+the laser's setting, its excess RIN. Skip step 3 and you get −130.3 dBc/Hz instead. The noise is
+only 4.8 dB above the floor here, so the floor must be read well: the 0.2 dB a fresh trace can be
+off by moves the result by 0.15 dB. Noise and carrier pass through the same 50 Ω divider and the
+same gain, so neither the gain nor the responsivity needs calibrating, only the shape of the
+response. That is the use of a relative measure.
 
 The analyzer can do steps 1 and 4 for you. Set its **Units** to **dBc/Hz**. Ref moves to
 −101.9 dBc/Hz, so the trace stays where it was, and the measurement box shows **DC at input
 +1.9 dBm**: phoq's analyzer reads the DC ahead of its DC block. The Median level now reads
-**−126.6 dBc/Hz**, everything at the input over that DC: the floor is still in it and C(f) is
-not applied, so steps 2, 3 and 5 stay yours. Against this DC the floor is −129.6 − 1.9 =
-−131.5 dBc/Hz, and the arithmetic ends at the same −128.0 dBc/Hz. A real RF analyzer blocks DC,
+**−126.5 dBc/Hz**, everything at the input over that DC: the floor is still in it and C(f) is
+not applied, so steps 2, 3 and 5 stay yours. Against this DC the floor is −129.4 − 1.9 =
+−131.3 dBc/Hz, and the arithmetic ends at the same −128.0 dBc/Hz. A real RF analyzer blocks DC,
 which is why step 4 reads it off the detector. Set the Units back to **dBm**.
 
 Only the excess RIN is a property of the laser. The measured RIN depends on the attenuation,
@@ -226,7 +232,7 @@ Now make the laser noisier: RIN **−120 dBc/Hz**.
 
 | | RF OUTPUT (DC, high-Z) | Median level |
 |---|---|---|
-| RIN −120, split 0.5 | +1.754 V | **−65.2 dBm**, 2.2 dB above section 5 |
+| RIN −120, split 0.5 | +1.754 V | **−65.1 dBm**, 2.3 dB above section 5 |
 | RIN −120, split **0.492** | +0.007 V | **−67.8 dBm**, the shot noise alone |
 
 The PDB450C's INPUT− is 3.2 % less responsive than INPUT+ (its CMRR is 30 dB). With a 50:50
@@ -244,13 +250,13 @@ On the balanced bench at 0 dB, change the RBW:
 
 | RBW | Median level | as a density |
 |---|---|---|
-| 1 kHz | −77.5 dBm | −107.5 dBm/Hz |
+| 1 kHz | −77.4 dBm | −107.4 dBm/Hz |
 | 10 kHz | −67.4 dBm | −107.4 dBm/Hz |
-| 100 kHz | −57.5 dBm | −107.5 dBm/Hz |
+| 100 kHz | −57.4 dBm | −107.4 dBm/Hz |
 
 Noise power grows 10 dB per decade of RBW; the density stays put. To get the power spectral
-density, subtract 10·log₁₀(RBW). A tone is the opposite: its level doesn't change with RBW. Set
-the RBW back to 10 kHz. Two other settings:
+density, subtract 10·log₁₀(RBW), or set the analyzer's **Units** to **dBm/Hz**. A tone is the
+opposite: its level doesn't change with RBW. Set the RBW back to 10 kHz. Two other settings:
 - **Avg** smooths the trace without moving the level.
 - **Detector average** is the one for noise. **Peak** suits tones, and reads noise high whenever
   a display point spans several analyzer bins (at these settings each holds one, so they agree).
@@ -267,7 +273,7 @@ FC/UPC end, and a warning appears:
 > Open connector BS-1.a2 reflects light on to BPD-1, −58 dB under the light that reaches it
 > directly…
 
-The reading rises from −67.4 to **−62.8 dBm**. Light reflected at the coupler's outputs leaves by
+The reading rises from −67.4 to **−62.6 dBm**. Light reflected at the coupler's outputs leaves by
 `a2`, its flat end sends 3.6 % back, and it reaches the detector about 10 ns late. Set the laser's
 **Linewidth** to **0 Hz**: the reading falls back to about −67.4 dBm. The extra noise was the
 laser's phase noise, turned into intensity noise by that delayed copy. The open port has built,
