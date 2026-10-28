@@ -159,8 +159,9 @@ export class ScopeDisplay {
   }
 }
 
-/** Spectrum-analyzer screen: level in dBm against frequency, ten divisions down from the
- *  reference level, with a peak marker and the −3 dB markers (also the 3D screen texture). */
+/** Spectrum-analyzer screen: level in the analyzer's units (dBm, dBm/Hz or dBc/Hz) against
+ *  frequency, ten divisions down from the reference level, with a peak marker and the −3 dB
+ *  markers (also the 3D screen texture). */
 export class SpectrumDisplay {
   constructor(name) {
     this.name = name;
@@ -221,8 +222,8 @@ export class SpectrumDisplay {
       }
       g.stroke();
       g.shadowBlur = 0;
-      if (m.peak_freq != null) {                   // peak marker
-        const x = X(m.peak_freq), y = clamp(Y(m.peak_dbm), top + 8, bottom - 8);
+      if (m.peak_level != null) {                  // peak marker
+        const x = X(m.peak_freq), y = clamp(Y(m.peak_level), top + 8, bottom - 8);
         g.fillStyle = '#34d399';
         g.beginPath(); g.moveTo(x, y - 14); g.lineTo(x - 8, y - 26); g.lineTo(x + 8, y - 26); g.fill();
       }
@@ -242,8 +243,9 @@ export class SpectrumDisplay {
       g.fillText('waiting for a sweep…', 14, 15);
       return;
     }
+    const u = f.units ?? 'dBm', relative = u === 'dBc/Hz';
     g.fillStyle = '#e2e8f0';
-    g.fillText(`Ref ${f.ref_level.toFixed(1)} dBm  ${f.db_per_div} dB/div`, 14, 15);
+    g.fillText(`Ref ${f.ref_level.toFixed(1)} ${u}  ${f.db_per_div} dB/div`, 14, 15);
     g.textAlign = 'right';
     g.fillStyle = this.running ? '#facc15' : '#f87171';
     g.fillText(this.running ? `RBW ${fmtSI(f.rbw, 'Hz')}` : 'STOP', W - 12, 15);
@@ -251,9 +253,15 @@ export class SpectrumDisplay {
     g.font = '500 14px ui-monospace, Menlo, monospace';
     g.fillStyle = '#64748b';
     const tr = f.sweeps > 1 ? ` · trace of ${f.sweeps} sweeps` : '';
-    g.fillText(`${f.source ?? 'no input'} · ${f.detector} detector · ${f.averages} avg${tr}`, 14, 36);
+    const dc = relative ? ` · DC ${f.dc_dbm != null ? `${f.dc_dbm.toFixed(1)} dBm` : 'none'}` : '';
+    g.fillText(`${f.source ?? 'no input'} · ${f.detector} detector · ${f.averages} avg${tr}${dc}`, 14, 36);
     const m = f.meas ?? {};
     g.font = '500 18px ui-monospace, Menlo, monospace';
+    if (relative && !f.n) {
+      g.textAlign = 'center';
+      g.fillText('no DC at the input: dBc/Hz has no reference', W / 2, (this.top + bottom) / 2);
+      g.textAlign = 'left';
+    }
     const y = (bottom + H) / 2;
     g.fillStyle = '#94a3b8';
     g.fillText(`Start ${fmtSI(f.start, 'Hz')}`, 14, y);
@@ -261,7 +269,7 @@ export class SpectrumDisplay {
     g.fillText(`Stop ${fmtSI(f.stop, 'Hz')}`, W - 12, y);
     g.textAlign = 'center';
     g.fillStyle = '#34d399';
-    if (m.peak_freq != null) g.fillText(`MKR ${fmtSI(m.peak_freq, 'Hz')}  ${m.peak_dbm.toFixed(1)} dBm`, W / 2, y);
+    if (m.peak_level != null) g.fillText(`MKR ${fmtSI(m.peak_freq, 'Hz')}  ${m.peak_level.toFixed(1)} ${u}`, W / 2, y);
     g.textAlign = 'left';
   }
 }
@@ -340,7 +348,7 @@ export class ScopePanel {
       this.chEl.appendChild(row);
       return { row, on, src, scale };
     });
-    this.esa = Object.fromEntries(['src', 'start', 'stop', 'rbw', 'avg', 'det', 'trace', 'ref', 'div'].map((k) => [k, $(`esa-${k}`)]));
+    this.esa = Object.fromEntries(['src', 'start', 'stop', 'rbw', 'avg', 'det', 'trace', 'units', 'ref', 'ref-unit', 'div'].map((k) => [k, $(`esa-${k}`)]));
     this.label = this.el.querySelector('.scope-head .muted');
     const e = this.esa;
     e.start.onchange = () => set({ start_freq: Number(e.start.value) * 1e6 });
@@ -349,6 +357,7 @@ export class ScopePanel {
     e.avg.onchange = () => set({ averages: Number(e.avg.value) });
     e.det.onchange = () => set({ detector: e.det.value });
     e.trace.onchange = () => set({ trace: e.trace.value });
+    e.units.onchange = () => set({ units: e.units.value });   // the server moves Ref with them
     e.ref.onchange = () => set({ ref_level: Number(e.ref.value) });
     e.div.onchange = () => set({ db_per_div: Number(e.div.value) });
     e.src.onchange = async () => {
@@ -448,9 +457,11 @@ export class ScopePanel {
     fill(e.avg, 'averages', (v) => String(v));
     fill(e.det, 'detector', (v) => v);
     fill(e.trace, 'trace', (v) => v);
+    fill(e.units, 'units', (v) => v);
     fill(e.div, 'db_per_div', (v) => `${v} dB/div`);
     if (document.activeElement !== e.start) e.start.value = Number((p.start_freq / 1e6).toPrecision(6));
     if (document.activeElement !== e.ref) e.ref.value = p.ref_level;
+    e['ref-unit'].textContent = p.units;
     const peer = c.ports.find((pt) => pt.name === 'inp')?.peer;
     const outs = this.lab.state.components.flatMap((d) => d.ports
       .filter((pt) => pt.kind === 'electrical' && pt.direction === 'out' && (!pt.peer || pt.peer === `${c.name}.inp`))
@@ -488,13 +499,16 @@ export class ScopePanel {
     if (frame.kind === 'spectrum') {
       const m = frame.meas ?? {};
       const atStart = m.w3_lo <= frame.start + (frame.stop - frame.start) * 1e-3;
+      const lvl = (v, u) => (v == null ? '—' : `${v.toFixed(1)} ${u}`);
+      const u = frame.units ?? 'dBm';
       const rows = [
-        ['Peak level', `${m.peak_dbm?.toFixed(1)} dBm`],
-        ['Peak at', fmtSI(m.peak_freq, 'Hz')],
-        [atStart ? '−3 dB point' : '−3 dB width', atStart ? fmtSI(m.w3_hi, 'Hz') : fmtSI(m.w3_hi - m.w3_lo, 'Hz')],
-        ['Median level', `${m.median_dbm?.toFixed(1)} dBm`],
-        ['In span', `${m.span_dbm?.toFixed(1)} dBm`],
+        ['Peak level', lvl(m.peak_level, u)],
+        ['Peak at', m.peak_freq == null ? '—' : fmtSI(m.peak_freq, 'Hz')],
+        [atStart ? '−3 dB point' : '−3 dB width', m.w3_hi == null ? '—' : atStart ? fmtSI(m.w3_hi, 'Hz') : fmtSI(m.w3_hi - m.w3_lo, 'Hz')],
+        ['Median level', lvl(m.median_level, u)],
+        ['In span', lvl(m.span_level, frame.span_unit ?? 'dBm')],
         ['Lorentzian HWHM', m.fit_hwhm ? fmtSI(m.fit_hwhm, 'Hz') : '—'],
+        ...(u === 'dBc/Hz' ? [['DC at input', lvl(frame.dc_dbm, 'dBm')]] : []),
         ['RBW', fmtSI(frame.rbw, 'Hz')],
         ['Sweeps', String(frame.sweeps)],
       ];

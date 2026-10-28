@@ -1047,6 +1047,23 @@ Two consequences an experimentalist uses all the time:
 - noise shows $S \cdot B_N$, with $B_N$ the RBW filter's noise bandwidth, so the noise floor moves
   10 dB per decade of RBW, and the density is $L - 10\log_{10}\mathrm{RBW}$ in dBm/Hz.
 
+`units` picks what the screen shows: **dBm**, the power in the RBW above; **dBm/Hz**, that density
+(a tone then moves with the RBW); or **dBc/Hz**, the density over the DC power at the input,
+$S/P_\mathrm{DC}$ with $P_\mathrm{DC} = V_\mathrm{DC}^2/R_\mathrm{in}$. On a photodetector's output,
+noise and DC pass through the same gain and divider, so dBc/Hz is the RIN of the detected light:
+
+```math
+\frac{S}{P_\mathrm{DC}} = \left(\mathrm{RIN} + \frac{2q}{I} + \frac{S_\mathrm{dark}}{I^2}\right)|H(f)|^2 + \frac{\mathrm{DANL}}{P_\mathrm{DC}}
+```
+
+the excess RIN, the shot-noise RIN, the detector's floor and the analyzer's, not corrected for the
+detector's response $H(f)$ (Obarski and Hale's $C(f)$). An RF analyzer blocks DC, so on the bench
+$V_\mathrm{DC}$ comes from a voltmeter or the detector's readout; phoq's analyzer reads it ahead of
+its DC block. A DC smaller than the input's AC (the light off, a generator's sine) is no reference,
+and the screen says so. The reference level is in the display units, and a change of units moves it so the
+trace keeps its place. `SpectrumResult.level` stays dBm in the RBW and `psd()` W/Hz whatever the
+units; `dc_power` is the dBc/Hz reference, so `psd()[1] / dc_power` is the RIN spectrum.
+
 **How phoq computes it.** A swept-tuned analyzer mixes the input down with a swept local
 oscillator, filters it with the RBW filter, detects the envelope and smooths it with the video
 bandwidth. An FFT analyzer samples, windows, transforms and averages. For stationary signals both
@@ -1071,13 +1088,14 @@ span:
 6. **Display.** `points` frequencies from `start_freq` to `stop_freq`. Each point takes the bins in
    its bucket through the `detector`: *peak* (the largest: tones read right even when a bucket is
    wider than the RBW), *average* (mean power: right for noise) or *sample*. The top line is
-   `ref_level`, with `db_per_div` over ten divisions.
+   `ref_level`, in the display units (`units`), with `db_per_div` over ten divisions.
 7. **Instrument noise.** The displayed average noise level (`noise_floor`, dBm/Hz) is added at the
    input as white noise; the photodiode's shot noise $2qI$ and thermal noise $4k_BT/R$ come on top,
    as on the bench.
 8. **Measurements.** The peak (frequency, level), the median of the trace (the noise floor when
    signals cover little of the span), the −3 dB width around the peak, the frequency where the
-   trace has fallen by $N$ dB, the power integrated over the span, and, when the peak sits at the
+   trace has fallen by $N$ dB, the power integrated over the span (in dBc/Hz, relative to the DC:
+   the RIN integrated over the span, in dBc), and, when the peak sits at the
    start of the span as a self-homodyne beat does, a Lorentzian fit (`fit_lorentzian()`).
    `fit_self_homodyne(tau_d)` fits the self-homodyne spectrum for any delay, below. Several
    sweeps combine with `SpectrumResult.average(results)`, and `Runner.average_spectrum(esa,

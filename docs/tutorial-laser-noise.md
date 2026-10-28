@@ -198,6 +198,14 @@ carrier pass through the same 50 Ω divider and the same gain, so neither the ga
 responsivity needs calibrating, only the shape of the response. That is the use of a relative
 measure.
 
+The analyzer can do steps 1 and 4 for you. Set its **Units** to **dBc/Hz**. Ref moves to
+−101.9 dBc/Hz, so the trace stays where it was, and the measurement box shows **DC at input
++1.9 dBm**: phoq's analyzer reads the DC ahead of its DC block. The Median level now reads
+**−126.6 dBc/Hz**, everything at the input over that DC: the floor is still in it and C(f) is
+not applied, so steps 2, 3 and 5 stay yours. Against this DC the floor is −129.6 − 1.9 =
+−131.5 dBc/Hz, and the arithmetic ends at the same −128.0 dBc/Hz. A real RF analyzer blocks DC,
+which is why step 4 reads it off the detector. Set the Units back to **dBm**.
+
 Only the excess RIN is a property of the laser. The measured RIN depends on the attenuation,
 through 2q/I: at 25 dB, I = 1.75 µA and the shot-noise part, 2q/I = −127.4 dBc/Hz, is already
 larger than the laser's −130 dBc/Hz. Attenuate enough and any laser looks shot-noise limited.

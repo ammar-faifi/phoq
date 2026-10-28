@@ -122,7 +122,8 @@
             <label class="ctl" title="Records power-averaged in each sweep">Avg <select id="esa-avg"></select></label>
             <label class="ctl" title="peak for tones, average for noise">Detector <select id="esa-det"></select></label>
             <label class="ctl">Trace <select id="esa-trace"></select></label>
-            <label class="ctl">Ref <input id="esa-ref" type="number" step="any" aria-label="Reference level" /> dBm</label>
+            <label class="ctl" title="dBm in the RBW, dBm/Hz, or dBc/Hz relative to the DC at the input">Units <select id="esa-units"></select></label>
+            <label class="ctl">Ref <input id="esa-ref" type="number" step="any" aria-label="Reference level" /> <span id="esa-ref-unit">dBm</span></label>
             <label class="ctl">Scale <select id="esa-div" aria-label="dB per division"></select></label>
             <button id="esa-clear" title="Restart trace averaging / max hold">Clear trace</button>
           </div>

@@ -254,8 +254,15 @@ export class UI {
       ${cur ? `<small class="part-desc">${esc(cur.description)}${cur.curves?.length ? ' · spectral curve from the datasheet' : ''}${cur.has_limits ? ' · absolute maximum ratings are checked' : ''}</small>` : ''}</div>`;
   }
 
+  /** A parameter's spec, its unit replaced where the component says it follows another
+   *  setting (the analyzer's reference level is in its display units). */
+  specOf(comp, key) {
+    const spec = this.lab.spec(comp.type, key), unit = comp.units?.[key];
+    return spec && unit ? { ...spec, unit } : spec;
+  }
+
   fieldHtml(comp, key) {
-    const spec = this.lab.spec(comp.type, key);
+    const spec = this.specOf(comp, key);
     if (!spec) return '';
     const v = comp.params[key];
     const id = `f-${key}`;
@@ -306,7 +313,7 @@ export class UI {
   bind(comp) {
     const lab = this.lab;
     for (const el of this.body.querySelectorAll('[data-key]')) {
-      const key = el.dataset.key, spec = lab.spec(comp.type, key);
+      const key = el.dataset.key, spec = this.specOf(comp, key);
       const value = () => {
         if (el.type === 'checkbox') return el.checked;
         if (el.dataset.num || el.type === 'range') return Number(el.value);

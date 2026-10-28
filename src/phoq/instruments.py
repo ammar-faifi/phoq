@@ -846,6 +846,17 @@ ZERO_PAD = 4  # FFT zero padding: a tone's level is right wherever it falls betw
 MAX_SAMPLES = 4_000_000  # per sweep, after decimation
 
 
+def unit_offset(units: str, rbw: float, dc_power: float) -> float | None:
+    """dB that turn a level in dBm (in the RBW) into ``units``: dBm/Hz divides by the
+    RBW, dBc/Hz also by the DC power [W]. None for dBc/Hz with no DC."""
+    if units == "dBm":
+        return 0.0
+    density = -10 * math.log10(rbw)
+    if units == "dBm/Hz":
+        return density
+    return density - 10 * math.log10(dc_power / 1e-3) if dc_power > 1e-30 else None
+
+
 @dataclass
 class SpectrumResult:
     """One sweep of an RF spectrum analyzer: the displayed trace and the full-resolution
@@ -858,7 +869,7 @@ class SpectrumResult:
     rbw: float  # resolution (noise) bandwidth actually used [Hz]
     start: float
     stop: float
-    ref_level: float
+    ref_level: float  # top of the screen [units]
     db_per_div: float
     detector: str
     averages: int  # records averaged in this sweep
@@ -866,10 +877,25 @@ class SpectrumResult:
     bin_freq: np.ndarray  # FFT bins inside the span [Hz]
     bin_power: np.ndarray  # power in the RBW at each bin [W], this sweep
     bin_spacing: float
+    # V_DC²/R ahead of the DC block [W], the dBc/Hz reference; 0 when the DC is smaller
+    # than the input's AC (the light off, a generator's sine): there is none
+    dc_power: float = 0.0
+    units: str = "dBm"  # the screen's: dBm (in the RBW), dBm/Hz or dBc/Hz
 
     def psd(self) -> tuple[np.ndarray, np.ndarray]:
         """(frequency [Hz], one-sided power spectral density at the input [W/Hz])."""
         return self.bin_freq, self.bin_power / self.rbw
+
+    @property
+    def offset(self) -> float | None:
+        """dB from ``level`` (dBm in the RBW) to ``units``; None for dBc/Hz with no DC
+        at the input."""
+        return unit_offset(self.units, self.rbw, self.dc_power)
+
+    def _shown(self) -> tuple[float, str]:
+        """(offset, unit) of the screen; dBm when dBc/Hz has no DC to refer to."""
+        off = self.offset
+        return (0.0, "dBm") if off is None else (off, self.units)
 
     @property
     def peak(self) -> tuple[float, float]:
@@ -1107,26 +1133,30 @@ class SpectrumResult:
             first.bin_freq,
             sum(r.bin_power for r in results) / k,
             first.bin_spacing,
+            sum(r.dc_power for r in results) / k,
+            first.units,
         )
 
     def summary(self) -> str:
         f0, l0 = self.peak
         lo, hi = self.width(3.0)
         p = self.power()
+        off, unit = self._shown()
         return (
             f"{self.instrument}: {fmt_si(self.start, 'Hz')} …"
             f" {fmt_si(self.stop, 'Hz')}, RBW {fmt_si(self.rbw, 'Hz')}, {self.averages}"
             f" avg, {self.detector} detector\n  {self.source or 'no input'}: peak"
-            f" {l0:.1f} dBm at {fmt_si(f0, 'Hz')}, −3 dB {fmt_si(lo, 'Hz')} …"
-            f" {fmt_si(hi, 'Hz')}, median {self.median_level:.1f} dBm,"
+            f" {l0 + off:.1f} {unit} at {fmt_si(f0, 'Hz')}, −3 dB {fmt_si(lo, 'Hz')} …"
+            f" {fmt_si(hi, 'Hz')}, median {self.median_level + off:.1f} {unit},"
             f" {10 * math.log10(max(p, 1e-30) / 1e-3):.1f} dBm in the span"
         )
 
     def plot(self, ax=None):
-        """Matplotlib plot of the trace (dBm against frequency), on the analyzer's own
-        scale, in the dark_background style."""
+        """Matplotlib plot of the trace against frequency in the analyzer's units, on
+        its own scale, in the dark_background style."""
         import matplotlib.pyplot as plt
 
+        off, shown = self._shown()
         with plt.style.context("dark_background"):
             ax = ax or plt.subplots(figsize=(8, 3.6))[1]
             scale, unit = next(
@@ -1137,10 +1167,14 @@ class SpectrumResult:
                 ),
                 (1.0, "Hz"),
             )
-            ax.plot(self.freq / scale, self.level, color=CH_COLORS[0], lw=1.2)
+            ax.plot(self.freq / scale, self.level + off, color=CH_COLORS[0], lw=1.2)
             ax.set(
                 xlabel=f"frequency [{unit}]",
-                ylabel=f"level [dBm in {fmt_si(self.rbw, 'Hz')}]",
+                ylabel=(
+                    f"level [dBm in {fmt_si(self.rbw, 'Hz')}]"
+                    if shown == "dBm"
+                    else f"level [{shown}]"
+                ),
                 title=self.instrument,
                 xlim=(self.start / scale, self.stop / scale),
                 ylim=(self.ref_level - 10 * self.db_per_div, self.ref_level),
@@ -1151,15 +1185,24 @@ class SpectrumResult:
     def to_json(self) -> dict:
         f0, l0 = self.peak
         lo, hi = self.width(3.0)
+        off, p, dc = self.offset, self.power(), self.dc_power
+        relative = self.units == "dBc/Hz"
         meas = {
             "peak_freq": f0,
-            "peak_dbm": l0,
-            "median_dbm": self.median_level,
+            "peak_level": None if off is None else l0 + off,
+            "median_level": None if off is None else self.median_level + off,
             "w3_lo": lo,
             "w3_hi": hi,
-            "span_dbm": 10 * math.log10(max(self.power(), 1e-30) / 1e-3),
+            # dBc/Hz: the noise integrated over the span relative to the DC, dBc
+            "span_level": (
+                None
+                if off is None
+                else 10 * math.log10(max(p, 1e-30) / (dc if relative else 1e-3))
+            ),
         }
-        if lo <= self.start + 1e-3 * (self.stop - self.start) and hi < self.stop:
+        if off is None:  # dBc/Hz with no DC to refer to: no trace, nothing to read
+            meas = dict.fromkeys(meas)
+        elif lo <= self.start + 1e-3 * (self.stop - self.start) and hi < self.stop:
             # a line folded at DC (self-homodyne): its Lorentzian half width is the
             # linewidth
             try:
@@ -1182,9 +1225,17 @@ class SpectrumResult:
             "detector": self.detector,
             "averages": self.averages,
             "sweeps": self.sweeps,
-            "n": int(self.level.size),
+            "units": self.units,
+            "span_unit": "dBc" if relative else "dBm",
+            "dc_dbm": 10 * math.log10(dc / 1e-3) if dc > 1e-30 else None,
+            # dBc/Hz with no DC at the input: nothing to draw
+            "n": 0 if off is None else int(self.level.size),
             "data": (
-                base64.b64encode(np.asarray(self.level, dtype="<f4").tobytes()).decode()
+                ""
+                if off is None
+                else base64.b64encode(
+                    np.asarray(self.level + off, dtype="<f4").tobytes()
+                ).decode()
             ),
             "meas": meas,
         }
@@ -1258,7 +1309,27 @@ class SpectrumAnalyzer(Component):
             " max hold: the largest seen"
         ),
     )
-    ref_level = Param(0.0, unit="dBm", label="Reference level", min=-200.0, max=40.0)
+    units = Param(
+        "dBm",
+        choices=("dBm", "dBm/Hz", "dBc/Hz"),
+        label="Units",
+        doc=(
+            "dBm: the power in the RBW. dBm/Hz: that power over the RBW, a noise density"
+            " (a tone then moves with the RBW). dBc/Hz: the density over the DC power at"
+            " the input, read ahead of the DC block (none when the DC is smaller than the"
+            " AC); on a photodetector, the RIN of the detected light with the detector's"
+            " and the analyzer's noise, not corrected for the detector's response. The"
+            " reference level follows"
+        ),
+    )
+    ref_level = Param(
+        0.0,
+        unit="dBm",
+        label="Reference level",
+        min=-200.0,
+        max=40.0,
+        doc="Top of the screen, in the display units",
+    )
     db_per_div = Param(
         10.0,
         unit="dB",
@@ -1292,12 +1363,34 @@ class SpectrumAnalyzer(Component):
             None  # displayed trace in W, for trace average / max hold
         )
         self._sweeps = 0
+        self._dc_power = 0.0  # the last sweep's, for converting the reference level
+        self._units = None  # the units the reference level is in; None while building
         super().__init__(name, **params)
+        self._units = self.units
 
     def _build(self):
         self.add_port("inp", "electrical", "in", "RF input")
 
+    def set(self, **params) -> SpectrumAnalyzer:
+        """As Component.set, units first: they move the reference level, which a
+        ``ref_level`` given with them then overrides."""
+        if "units" in params:
+            params = {"units": params.pop("units"), **params}
+        return super().set(**params)
+
+    def param_units(self) -> dict[str, str]:
+        return {"ref_level": self.units}
+
     def _param_changed(self, name: str) -> None:
+        if name == "units" and self._units is not None:
+            # the reference level follows, as on an analyzer: the trace stays in place
+            rbw = self.record()[3]
+            dc = self._dc_power if self._dc_power > 1e-30 else 1e-3  # none seen yet
+            old, new = (unit_offset(u, rbw, dc) for u in (self._units, self.units))
+            self._units = self.units
+            spec = self.param_specs()["ref_level"]
+            ref = round(self.ref_level + new - old, 2)
+            self.ref_level = min(max(ref, spec.min), spec.max)
         if name != "running":
             self.clear_trace()
         super()._param_changed(name)
@@ -1309,7 +1402,7 @@ class SpectrumAnalyzer(Component):
     def ui_fields(self):
         return [
             "running", "start_freq", "stop_freq", "rbw", "averages", "detector",
-            "trace", "ref_level", "db_per_div", "points", "input_impedance",
+            "trace", "units", "ref_level", "db_per_div", "points", "input_impedance",
             "noise_floor",
         ]  # fmt: skip
 
@@ -1392,7 +1485,9 @@ class SpectrumAnalyzer(Component):
         hop, R = n // 2, self.input_impedance
         total = n + (k - 1) * hop
         v = self._signal(net, rng, fs, total)
-        v = v - v.mean()  # AC-coupled input: the DC photocurrent is blocked
+        dc = float(v.mean())
+        v = v - dc  # AC-coupled input: the DC photocurrent is blocked
+        self._dc_power = dc**2 / R if dc**2 > v.var() else 0.0  # the dBc/Hz reference
         danl = (
             10 ** ((self.noise_floor - 30) / 10) * R
         )  # one-sided voltage PSD of the instrument [V²/Hz]
@@ -1449,6 +1544,8 @@ class SpectrumAnalyzer(Component):
             f[inside],
             power[inside],
             fs / nfft,
+            self._dc_power,
+            self.units,
         )
 
     def _detect(self, f: np.ndarray, power: np.ndarray, fd: np.ndarray) -> np.ndarray:

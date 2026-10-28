@@ -371,6 +371,11 @@ class Component:
         """Derived, human-readable quantities shown as read-outs."""
         return {}
 
+    def param_units(self) -> dict[str, str]:
+        """Units that follow another setting, in place of a parameter's own (an
+        analyzer's reference level is in its display units)."""
+        return {}
+
     def scatter(self, port: Port, wavelength: float) -> list[Transfer]:
         """Optical transfer: light entering ``port`` → list of outgoing Transfers."""
         return []

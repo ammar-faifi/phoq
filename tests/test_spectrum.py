@@ -139,6 +139,71 @@ def test_trace_average_max_hold_and_clearing():
     assert np.all(a.acquire(net, rng).level >= first)
 
 
+def test_dbc_per_hz_reads_the_rin_of_the_detected_light():
+    """Over the DC power read ahead of the DC block, the noise density is RIN + 2q/I +
+    S_dark/I², times the detector's response: noise and DC share the gain and the 50 Ω
+    divider."""
+    ex = run_path(str(EXAMPLES / "laser_noise.py"))
+    s = ex["build"](20.0, inputs=1)
+    bpd, esa = s["BPD-1"], s["ESA-1"]
+    esa.units = "dBc/Hz"
+    r = sweep(esa, s)
+    i = ex["currents"](s)[0]
+    bw, nep, _ = bpd.setting()
+    rin = (
+        10 ** (s["LD-1"].rin_db_hz / 10)
+        + 2 * Q_E / i
+        + (nep * bpd.peak_responsivity() / i) ** 2
+    )
+    f, psd = r.psd()
+    band = (f > 0.2e6) & (f < 1e6)
+    read = np.mean(psd[band] * (1 + (f[band] / bw) ** 2)) / r.dc_power
+    assert 10 * math.log10(read) == pytest.approx(10 * math.log10(rin), abs=0.15)
+    r_in = esa.input_impedance
+    v_dc = bpd.gain * i * r_in / (r_in + bpd.rf_impedance)
+    assert r.dc_power == pytest.approx(v_dc**2 / r_in, rel=1e-3)
+    meas = r.to_json()["meas"]
+    density = r.median_level - 10 * math.log10(r.rbw)
+    assert meas["median_level"] == pytest.approx(
+        density - 10 * math.log10(r.dc_power / 1e-3)
+    )
+    assert meas["span_level"] == pytest.approx(10 * math.log10(r.power() / r.dc_power))
+
+
+def test_the_reference_level_follows_the_units():
+    """As on an analyzer, a change of units moves the reference level and the trace keeps
+    its place; a level given with the units, or to the constructor, is kept as given."""
+    s, a = tone(ref_level=-20.0)
+    rbw = a.record()[3]
+    a.units = "dBm/Hz"
+    assert a.ref_level == pytest.approx(-20 - 10 * math.log10(rbw), abs=0.01)
+    r = sweep(a, s)
+    js = r.to_json()
+    assert js["units"] == "dBm/Hz" and js["meas"]["peak_level"] == pytest.approx(
+        r.peak[1] - 10 * math.log10(r.rbw)
+    )
+    a.units = "dBm"
+    assert a.ref_level == pytest.approx(-20.0, abs=0.01)
+    a.set(ref_level=-150.0, units="dBc/Hz")
+    assert a.ref_level == -150.0 and a.param_units() == {"ref_level": "dBc/Hz"}
+    b = SpectrumAnalyzer("B", ref_level=-140.0, units="dBc/Hz")
+    assert b.ref_level == -140.0
+
+
+def test_dbc_per_hz_needs_a_dc_above_the_ac():
+    """No input, or the laser off (the record's mean is then a little noise): nothing to
+    refer to, so nothing is drawn."""
+    empty = Setup("empty")
+    a = empty.add(SpectrumAnalyzer("ESA", stop_freq=1e6, rbw=10e3, units="dBc/Hz"))
+    dark = run_path(str(EXAMPLES / "laser_noise.py"))["build"](20.0, 1, laser_on=False)
+    dark["ESA-1"].units = "dBc/Hz"
+    for s, esa in ((empty, a), (dark, dark["ESA-1"])):
+        r = sweep(esa, s)
+        js = r.to_json()
+        assert r.dc_power == 0.0 and js["n"] == 0 and js["dc_dbm"] is None
+        assert set(js["meas"].values()) == {None}
+
+
 def test_the_lab_streams_and_clears_spectra():
     from fastapi.testclient import TestClient
     from phoq.server import create_app
@@ -156,7 +221,7 @@ def test_the_lab_streams_and_clears_spectra():
         assert (
             spec["instrument"] == "ESA"
             and spec["n"] == a.points
-            and spec["meas"]["peak_dbm"] > 3
+            and spec["meas"]["peak_level"] > 3
         )
         assert (
             c.post("/api/instruments/ESA/clear").json() == {"ok": True}

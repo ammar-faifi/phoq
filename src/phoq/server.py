@@ -193,6 +193,7 @@ class LabSession:
                             + [k for k in c.param_specs() if k.startswith("connector")]
                         ),
                         "info": c.info(),
+                        "units": c.param_units(),
                         "ports": [p.to_dict() for p in c.ports.values()],
                     }
                 )
