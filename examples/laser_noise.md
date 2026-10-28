@@ -79,8 +79,9 @@ dBc/Hz or as an rms value *over a stated bandwidth*. A bare "±0.1 %" means noth
 
 Doubling the light raises the electrical noise power by 6 dB.
 
-**In phoq.** `Laser.rin_db_hz` is the laser's classical RIN: the one-sided PSD $S$ of
-$\delta P/\bar P$, white, in dBc/Hz. One-sided means the factor 2 in [RP][rp-rin]'s definition,
+**In phoq.** `Laser.rin_db_hz` (the lab's **Excess RIN**) is the laser's RIN above the shot noise
+limit: the one-sided PSD $S$ of $\delta P/\bar P$, white, in dBc/Hz. One-sided means the factor 2 in
+[RP][rp-rin]'s definition,
 $`S(f) = (2/\bar P^2)\int\langle\delta P(t)\,\delta P(t+\tau)\rangle e^{i2\pi f\tau}\,d\tau`$, and an
 rms value over a band is $`\sqrt{\int S\,df}`$. It is the "simple approach" of Seimetz (2009),
 Eq. (2.8): Gaussian statistics with a white spectrum. `Laser.intensity_factor` multiplies the
@@ -151,9 +152,9 @@ also keeps *heterodyne* (a frequency-shifted local oscillator) apart from *balan
 **In phoq.** `BalancedPhotodetector.detect` computes each diode's current from its own fields. Each
 gets its own shot noise, drawn independently. The INPUT− diode's responsivity is short by
 $10^{-\mathrm{CMRR}/20}$, which is how the CMRR is modeled. The two currents are subtracted before
-the amplifier noise (NEP) is added. Classical noise common to both inputs, the laser's δ above all,
-leaves a residue $`\mathrm{RIN}\,(I_+ - I_-)^2`$. The README's *Balanced photodetector* section has
-the rest: the gain switch, the path-length CMRR and the monitors.
+the amplifier noise (NEP) is added. Noise above the shot noise limit common to both inputs, the
+laser's δ above all, leaves a residue $`\mathrm{RIN}\,(I_+ - I_-)^2`$. The README's *Balanced
+photodetector* section has the rest: the gain switch, the path-length CMRR and the monitors.
 
 ## The measurement: `laser_noise.py`
 
@@ -204,10 +205,10 @@ python examples/laser_noise.py
 
 What the three measurements show:
 
-- **One input** follows $`2qI + \mathrm{RIN}\,I^2`$. It is shot-noise-like below 10 µA and
-  intensity-noise-like above. The fit returns the laser's RIN to 0.05 dB, and the electron charge to
-  4 %; q is the harder term to pin down, since shot noise only leads at the low currents where the
-  dark noise is comparable.
+- **One input** follows $`2qI + \mathrm{RIN}\,I^2`$, both parts intensity noise: the shot noise
+  leads below 10 µA, the excess noise above. The fit returns the excess RIN to 0.05 dB, and the
+  electron charge to 4 %; q is the harder term to pin down, since shot noise only leads at the low
+  currents where the dark noise is comparable.
 - **Both inputs** stay on $`2q(I_+ + I_-)`$ within ±0.4 dB over more than two decades of current,
   and give q to 0.2 %. At 1 mA the same light on one diode would read 20 dB higher: that is the
   laser's excess over the shot-noise limit, and balanced detection removes it.
@@ -251,7 +252,7 @@ README's *Quantum random numbers from vacuum fluctuations* section.
 | --- | --- | --- |
 | phase noise | fluctuation of the optical phase; sets the linewidth | `Laser.phase`: a Wiener walk, white frequency noise, `linewidth` |
 | linewidth, coherence time | FWHM of the line; 1/(πΔν) for a Lorentzian | `linewidth`; the laser's inspector shows the coherence time |
-| intensity noise | noise of the optical power | `Laser.rin_db_hz` (classical part) plus shot noise at detection |
+| intensity noise | noise of the optical power | `Laser.rin_db_hz` (the part above the shot noise limit) plus shot noise at detection |
 | RIN | δP/P̄ as a one-sided PSD (dBc/Hz) or as an rms √∫S df over a stated band ([RIN][rp-rin]) | `rin_db_hz`, a one-sided PSD in dBc/Hz; demo rms values state their band |
 | excess RIN / shot-noise RIN | RIN above Poisson statistics / the shot-noise part 2hν/ηP, which [Obarski and Hale][oh-rin] call Poisson RIN | `rin_db_hz` / drawn at detection; a detector measures their sum |
 | shot noise | quantum noise of the light, $2q\bar I$ in a photocurrent | drawn at detection: $2qi$ for photodiodes, Poisson for clicks |

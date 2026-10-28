@@ -13,7 +13,7 @@ from .units import COMMON_WAVELENGTHS, dbm_to_w, fmt_si, photon_energy, seq125
 MODES = ("cw", "pulsed", "sine", "ook")
 RIN_OFF = (
     -200.0
-)  # dBc/Hz: a laser without classical intensity noise (no random draws at all)
+)  # dBc/Hz: no intensity noise above the shot noise limit (no random draws at all)
 _FWHM = 2.0 * np.sqrt(2.0 * np.log(2.0))  # Gaussian FWHM / sigma
 
 
@@ -23,10 +23,10 @@ class Laser(FiberConnectors, Component):
     The emitted field is ``sqrt(P(t)·(1 + δ(t))) · exp(i φ(t))`` where the envelope
     follows ``mode``, the phase performs a random walk set by ``linewidth`` (plus
     ``detuning`` and, for weak coherent pulse sources, an optional uniformly random
-    phase per pulse), and δ is the laser's classical relative intensity noise, white at
-    ``rin_db_hz``: the excess RIN, in Obarski and Hale's terms (Laser Focus World,
-    1999). Shot noise is not part of δ: phoq draws it at detection, so a detector
-    measures RIN = rin + 2hν/(ηP), the excess RIN plus the shot-noise RIN.
+    phase per pulse), and δ is the laser's relative intensity noise above the shot noise
+    limit, white at ``rin_db_hz``: the excess RIN, in Obarski and Hale's terms (Laser
+    Focus World, 1999). Shot noise is not part of δ: phoq draws it at detection, so a
+    detector measures RIN = rin + 2hν/(ηP), the excess RIN plus the shot-noise RIN.
     """
 
     category = "source"
@@ -84,13 +84,13 @@ class Laser(FiberConnectors, Component):
     rin_db_hz = Param(
         RIN_OFF,
         unit="dBc/Hz",
-        label="Intensity noise (RIN)",
+        label="Excess RIN",
         min=RIN_OFF,
         max=-80.0,
         presets=(RIN_OFF, -160.0, -150.0, -140.0, -130.0, -120.0),
         doc=(
-            "One-sided PSD of the classical relative intensity noise δP/P̄, white; the"
-            " shot noise comes on top at detection. −200 dBc/Hz = none"
+            "The laser's intensity noise above the shot noise limit: one-sided PSD of"
+            " δP/P̄, white. The shot-noise RIN, 2hν/P, adds to it. −200 dBc/Hz = none"
         ),
     )
     phase_randomized = Param(
@@ -155,7 +155,7 @@ class Laser(FiberConnectors, Component):
             out["Coherence time"] = fmt_si(1 / (np.pi * self.linewidth), "s")
         if self.rin_db_hz > RIN_OFF and self.power > 0:
             shot = 10 * math.log10(2 * photon_energy(self.wavelength) / self.power)
-            out["RIN"] = (
+            out["Excess RIN"] = (
                 f"{self.rin_db_hz:g} dBc/Hz; shot-noise RIN at this power:"
                 f" {shot:.1f} dBc/Hz"
             )

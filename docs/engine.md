@@ -217,8 +217,9 @@ walk at $t-\tau_1$ and $t-\tau_2$. `detuning` adds $`2\pi\,\delta f\,t`$, which 
 a chosen offset. `phase_randomized` adds a fresh uniform phase per pulse slot, for weak-coherent-
 pulse sources.
 
-**Intensity noise.** `rin_db_hz` is the laser's classical relative intensity noise, the one-sided
-PSD $S$ of $\delta P/\bar P$, white. `intensity_factor(t, dt, rng)` multiplies the field by
+**Intensity noise.** `rin_db_hz` is the laser's relative intensity noise above the shot noise
+limit, the one-sided PSD $S$ of $\delta P/\bar P$, white. `intensity_factor(t, dt, rng)`
+multiplies the field by
 $\sqrt{1+\delta}$, where $\delta$ is drawn per bin of an absolute grid of `dt`, with variance
 $S/2\Delta t$ (the PSD over the bin's bandwidth $1/2\Delta t$). Every path that leaves in the same
 bin reads the same $\delta$, as with the phase walk, so the noise is common to all of them and a

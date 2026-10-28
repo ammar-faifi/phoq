@@ -152,7 +152,8 @@ export class Interaction {
     let best = null, bestD = SNAP_DIST;
     for (const part of this.lab.parts.values()) {
       for (const [name, port] of part.ports) {
-        if (port.kind !== 'optical' || !this.lab.portFree(part.name, name)) continue;
+        // no ring: a plug's port (a terminator), which takes no cord
+        if (port.kind !== 'optical' || !port.ring || !this.lab.portFree(part.name, name)) continue;
         part.portWorld(name, this.tip);
         const dist = Math.hypot(this.tip.x - p.x, this.tip.z - p.z);
         if (dist < bestD) { bestD = dist; best = { part, port: name, ring: port.ring }; }
@@ -180,7 +181,7 @@ export class Interaction {
     this.carry = on ? end?.connector ?? null : null;
     for (const part of this.lab.parts.values()) {
       for (const [name, port] of part.ports) {
-        if (port.kind !== 'optical') continue;
+        if (port.kind !== 'optical' || !port.ring) continue;
         this.ringState(port, on && this.lab.portFree(part.name, name) ? 'free' : 'hidden');
       }
     }
@@ -194,10 +195,11 @@ export class Interaction {
       this.lab.controls.enabled = true;
       this.dom.style.cursor = '';
       if (d.kind === 'end' && !d.pending) {
-        this.showPorts(false);
+        // plug in (or set down) before the rings go: the connector must never stay in hand
         this.lab.dragEnd = null;
         if (d.snap) this.lab.plugEnd(d.end, d.snap.part, d.snap.port);
         else { d.end.group.position.y = REST_Y; d.end.placed = true; d.end.fiber.pull(d.end); }
+        this.showPorts(false);
       }
       if (d.kind === 'part' && !d.pending) this.lab.rememberLayout();
       if (d.pending && down?.hit?.part?.type === 'Oscilloscope') this.lab.ui.showScope(true);

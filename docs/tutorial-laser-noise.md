@@ -1,9 +1,9 @@
 # Laser noise in the virtual lab
 
 A hands-on tour of laser noise, done entirely in phoq's 3D lab: no Python. You build one bench
-and use it to see, measure and tell apart the noise floor of the detector, the shot noise of the
-light and the laser's intensity noise (RIN). You also see what balanced detection cancels, where it
-stops, and what the spectrum analyzer actually displays.
+and use it to see, measure and tell apart the detector's noise floor and the two parts of the
+light's intensity noise: its shot noise and the laser's excess noise. You also see what balanced
+detection cancels, where it stops, and what the spectrum analyzer actually displays.
 
 Every reading quoted below is what the lab shows for these settings, to within a few tenths of a
 dB (the noise is random). The theory behind each step is in
@@ -35,8 +35,8 @@ Open <http://localhost:8000>. The table is empty. Add `--no-save` if you don't w
 autosaved to `lab_setup.json`.
 
 To skip the building in section 2, open the finished bench instead. It's built by a script, but
-from then on you only use the lab. Set the laser's RIN to −130 dBc/Hz, the attenuation to 0 dB and
-the analyzer as in step 4 of section 2, then go on from section 3:
+from then on you only use the lab. Set the laser's Excess RIN to −130 dBc/Hz, the attenuation to
+0 dB and the analyzer as in step 4 of section 2, then go on from section 3:
 
 ```bash
 uv run phoq serve examples/laser_noise.py
@@ -54,7 +54,7 @@ part by clicking it or dragging it onto the table:
 
 | Part | Then set, in the inspector |
 |---|---|
-| **Laser module** | Modulation **cw** (it starts as pulsed); Average power **3 dBm**; Wavelength **1550 nm**; Intensity noise (RIN) **−130 dBc/Hz** |
+| **Laser module** | Modulation **cw** (it starts as pulsed); Average power **3 dBm**; Wavelength **1550 nm**; Excess RIN **−130 dBc/Hz** |
 | **Variable attenuator** | Attenuation **0 dB** |
 | **2×2 fiber coupler** | Split ratio (bar) **0.5** |
 | **Balanced photodetector** | Part preset **Thorlabs PDB450C**; Transimpedance gain **100 kV/A** (the preset starts at 10 kV/A) |
@@ -91,16 +91,16 @@ can differ by one from the numbers below.
 
 Select the laser. Its readouts include:
 
-> RIN: −130 dBc/Hz; shot-noise RIN at this power: −158.9 dBc/Hz
+> Excess RIN: −130 dBc/Hz; shot-noise RIN at this power: −158.9 dBc/Hz
 
 These are the two parts of the beam's RIN, both "noise power over mean power²" per Hz:
 
-- **−130 dBc/Hz** is the **excess RIN**, the laser's classical fluctuation above Poisson
-  statistics. Losses leave it unchanged: a laser has it no matter how you attenuate or detect the
-  light.
-- **−158.9 dBc/Hz** is the **shot-noise RIN** of a beam of this power, 2hν/P, the standard
-  quantum limit. It belongs to the light (coherent light arrives Poissonian), not to the laser's
-  quality.
+- **−130 dBc/Hz** is the **excess RIN**, the laser's intensity noise above the shot noise limit,
+  from quantum noise (gain and resonator losses) and technical noise (the pump, vibrations).
+  Losses leave it unchanged: a laser has it no matter how you attenuate or detect the light.
+- **−158.9 dBc/Hz** is the **shot-noise RIN** of a beam of this power, 2hν/P, the shot noise
+  limit: the fundamental minimum RIN of a laser beam. It belongs to the light (coherent light
+  arrives Poissonian), not to the laser's quality.
 
 Set Average power to **0 dBm**. The shot-noise RIN becomes −155.9 dBc/Hz: it falls as power
 rises, ∝ 1/P. The excess RIN stays −130 dBc/Hz. Set the power back to **3 dBm**.
@@ -140,7 +140,8 @@ With both inputs patched, the two photocurrents subtract. Step the attenuator an
 | 10 dB | 55.5 µW each | −77.5 dBm |
 
 The noise falls **1 dB for every dB** of attenuation: it is proportional to the photocurrent.
-That is the signature of shot noise. The laser's RIN, which would scale as I², has cancelled.
+That is the signature of shot noise. The laser's excess noise, which would scale as I², has
+cancelled.
 
 Check the absolute level. The photocurrents are I = ℜ·P with ℜ = 1.00 and 0.968 A/W, so
 I₊ + I₋ = 1.09 mA at 0 dB. The shot noise is 2q(I₊ + I₋). RF OUTPUT drives the analyzer's 50 Ω
@@ -149,8 +150,8 @@ from 50 Ω, so the analyzer sees half the voltage G·i:
   S = G²·2q(I₊ + I₋) / (4 · 50 Ω) = −107.6 dBm/Hz, so −67.6 dBm in 10 kHz.
 
 That is within 0.2 dB of the −67.4 dBm on screen. Two small effects make up the rest, pulling
-opposite ways. A trace of the laser's RIN leaks through the detector's imbalance (+0.4 dB; section
-7 removes it). The detector's 4 MHz bandwidth trims the noise toward 2 MHz (−0.3 dB).
+opposite ways. A trace of the laser's excess RIN leaks through the detector's imbalance (+0.4 dB;
+section 7 removes it). The detector's 4 MHz bandwidth trims the noise toward 2 MHz (−0.3 dB).
 
 ## 6. Intensity noise: one input
 
@@ -164,9 +165,10 @@ The third stays: RF OUTPUT now carries the whole DC, and G·I₊ must stay under
 4.6 V swing. At **10 dB** it still reads "RF OUTPUT would reach +5.55 V, beyond its ±4.6 V
 swing…". Work at **13 dB** and above.
 
-Read the noise with the laser's RIN at −130 dBc/Hz, then again with it off (**−200 dBc/Hz**):
+Read the noise with the laser's **Excess RIN** at −130 dBc/Hz, then again with it off
+(**−200 dBc/Hz**):
 
-| Attenuation | INPUT+ | RIN −130 | RIN off |
+| Attenuation | INPUT+ | excess RIN −130 | excess RIN off |
 |---|---|---|---|
 | 13 dB | 27.8 µW | **−73.8 dBm** | −82.7 dBm |
 | 16 dB | 13.9 µW | −79.1 dBm | −84.9 dBm |
@@ -174,8 +176,12 @@ Read the noise with the laser's RIN at −130 dBc/Hz, then again with it off (**
 | 25 dB | 1.75 µW | −88.1 dBm | −88.5 dBm |
 | 30 dB | 555 nW | −89.1 dBm | −89.1 dBm |
 
-- With RIN off you see shot noise over the floor, 1 dB per dB at high power.
-- With RIN on, the high-power end climbs toward **2 dB per dB**: intensity noise is ∝ I².
+Both columns are the light's intensity noise over the amplifier's floor. How it grows with the
+photocurrent I tells its two parts apart:
+
+- With the excess RIN off, only the shot-noise part is left, 2qI: 1 dB per dB at high power.
+- With it on, the high-power end climbs toward **2 dB per dB**: the excess part, RIN·I², is
+  ∝ I².
 - At low power the two columns meet. The shot noise, ∝ I, wins below the crossover current
   2q/RIN = **3.2 µA**, between 20 and 25 dB here. By 30 dB both are lost in the amplifier's
   floor.
@@ -228,20 +234,20 @@ loose cord's two connectors back onto `b2` and INPUT−. Set the attenuation to 
 reading returns to **−67.4 dBm**, as in section 5, even though each diode now carries 100× the
 light of section 6's 20 dB reading.
 
-Now make the laser noisier: RIN **−120 dBc/Hz**.
+Now make the laser noisier: Excess RIN **−120 dBc/Hz**.
 
 | | RF OUTPUT (DC, high-Z) | Median level |
 |---|---|---|
-| RIN −120, split 0.5 | +1.754 V | **−65.1 dBm**, 2.3 dB above section 5 |
-| RIN −120, split **0.492** | +0.007 V | **−67.8 dBm**, the shot noise alone |
+| excess RIN −120, split 0.5 | +1.754 V | **−65.1 dBm**, 2.3 dB above section 5 |
+| excess RIN −120, split **0.492** | +0.007 V | **−67.8 dBm**, the shot noise alone |
 
 The PDB450C's INPUT− is 3.2 % less responsive than INPUT+ (its CMRR is 30 dB). With a 50:50
 coupler the two photocurrents differ by that much, so the residue RIN·ΔI² gets through: the
 non-zero DC on RF OUTPUT is the giveaway. Set the coupler's split ratio to **0.492** to give
 INPUT− the extra light: drag the slider, or click it and step with the arrow keys (0.001 per
-press). The DC drops to millivolts and the RIN cancels again. The reading even lands 0.4 dB below
-section 5's, which still carried a trace of the −130 dBc/Hz RIN. That is Park's precision
-balancing. Set the RIN back to −130 dBc/Hz and the split to 0.5.
+press). The DC drops to millivolts and the excess RIN cancels again. The reading even lands 0.4 dB
+below section 5's, which still carried a trace of the −130 dBc/Hz excess RIN. That is Park's
+precision balancing. Set the Excess RIN back to −130 dBc/Hz and the split to 0.5.
 
 ## 8. What the analyzer shows
 
@@ -285,17 +291,17 @@ forward to the detectors, so it is this double bounce that matters. Restore the 
 ## 10. A real laser
 
 Select the laser and set **Part preset** to **Koheras MIKRO E15**, a 1550 nm fiber laser: RIN
-< −135 dBc/Hz at 10 MHz and a 100 Hz linewidth, from its datasheet. The RIN selector now shows
-−135 dBc/Hz, the preset's value. The preset sets 40 mW, which overdrives the detector (two swing
-warnings); set the Average power back to **3 dBm** and they clear (the real laser's output is
-adjustable).
+< −135 dBc/Hz at 10 MHz and a 100 Hz linewidth, from its datasheet. The Excess RIN selector now
+shows −135 dBc/Hz, the preset's value. The preset sets 40 mW, which overdrives the detector (two
+swing warnings); set the Average power back to **3 dBm** and they clear (the real laser's output
+is adjustable).
 
 The preset also gives the laser its real FC/APC pigtail, and the lab warns that an angled
 connector now meets your flat FC/UPC cord: about 5 dB lost and 3.6 % reflected into the cord.
 Select that cord and set the connector at the laser end to **FC/APC**: its inspector lists which
 end (A or B) is plugged into the laser. The warning clears.
 
-The bench reads as before, because phoq's RIN is white. The real E15's RIN has a
+The bench reads as before, because phoq's excess RIN is white. The real E15's RIN has a
 relaxation-oscillation peak near **0.7 MHz**, inside this analyzer span, at up to **−100 dBc/Hz**:
 35 dB above what the lab shows. On a real bench, the balanced detector would need about 55 dB of
 rejection at 0.7 MHz to reach the shot noise, so you would measure well above 1 MHz instead. The
@@ -305,12 +311,14 @@ preset lists the peak and the laser's frequency-noise spectrum under *unsupporte
 
 | Noise | Absolute (what the analyzer shows) | Relative (dBc/Hz) | Balanced detection |
 |---|---|---|---|
-| amplifier floor | constant | ∝ 1/I² | stays |
-| shot noise | ∝ I: 1 dB per dB | shot-noise RIN 2q/I = 2hν/(ηP) ∝ 1/I | stays: 2q(I₊ + I₋) |
-| laser RIN | ∝ I²: 2 dB per dB | constant: the excess RIN | cancels, down to the CMRR residue |
+| amplifier floor (the detector's) | constant | ∝ 1/I² | stays |
+| shot noise (quantum-limited intensity noise) | ∝ I: 1 dB per dB | shot-noise RIN 2q/I = 2hν/(ηP) ∝ 1/I | stays: 2q(I₊ + I₋) |
+| excess noise (above the shot noise limit) | ∝ I²: 2 dB per dB | constant: the excess RIN | cancels, down to the CMRR residue |
+
+The last two rows are the light's intensity noise; the first is not.
 
 - **The crossovers:** shot noise beats the floor above the current where 2qI equals the floor;
-  RIN beats shot noise above 2q/RIN.
+  the excess noise beats the shot noise above 2q/RIN.
 - **Absolute numbers** tell you what dominates on your bench and whether a signal clears the
   floor. **Relative numbers** need no gain calibration, only the detector's frequency response.
   The excess RIN describes the laser and survives attenuation; the measured RIN does not,

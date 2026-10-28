@@ -266,7 +266,7 @@ const S = [
     p: `The grid starts at a random instant in the first millisecond, 0.625 ms in this sweep, so every sweep sees a fresh stretch of the laser's noise and of the tone's phase. It holds warm + (total + 2·pad)·4 = 20 + 17 408 = 17 428 points.`,
     vars: ["dts", "warm", "t0", "nfine"], neu: ["t0", "nfine"] },
   { m: "_signal", a: 16, b: 17, sc: "optical", t: "Light at the detector",
-    p: `synthesize() traces every light path to the detector and builds the optical field on that grid. INPUT+ receives 13.9 µW, with the 0.2 % sine at 500 kHz (a 2 µs period) and the laser's RIN on top. Shown: the first 20 µs.`,
+    p: `synthesize() traces every light path to the detector and builds the optical field on that grid. INPUT+ receives 13.9 µW, with the 0.2 % sine at 500 kHz (a 2 µs period) and the laser's excess RIN on top. Shown: the first 20 µs.`,
     c: [["P(INPUT+)", "13.93 µW"], ["tone", "500 kHz, 0.2 %"]] },
   { m: "_signal", a: 18, b: 26, sc: "fine", t: "Light becomes volts",
     p: `The detector makes its RF voltage, G·i, with shot noise and amplifier noise, through its 4 MHz pole. That is the voltage of a source behind 50 Ω; with the analyzer's 50 Ω it forms a divider, so the input sees half: 0.696 V of DC, the 1.39 mV tone and 0.44 mV rms of noise.`,

@@ -495,8 +495,8 @@ detector dead time across records, and what long dead times do to the clicks.
 - **Lasers:** the envelope is averaged over each sample bin, so a 100 ps pulse is exact at any
   timebase. Phase is a Wiener process from the linewidth, drawn once per acquisition and shared
   by all paths. That makes interferometer visibility and Alice/Bob phase drift physical. A white
-  relative intensity noise (`rin_db_hz`) can be added, also one realization shared by all paths;
-  shot noise comes on top at detection. See
+  excess RIN (`rin_db_hz`, **Excess RIN** in the lab) can be added, also one realization shared by
+  all paths; shot noise comes on top at detection. See
   [examples/laser_noise.md](examples/laser_noise.md).
 - **Photodiode:** I = Σ R(λ)·P + I_dark plus white shot noise (density 2qI) and thermal noise
   (4kT/R), all through a one-pole bandwidth: the noise RMS is √(2qIB) and √(4kTB/R) with
@@ -870,7 +870,7 @@ referred to the peak responsivity, and all of it passes through the same pole:
 ```
 
 This is why balanced detection reaches the shot-noise limit with a strong local oscillator: the
-oscillator's classical noise cancels, and its shot noise does not.
+oscillator's noise above the shot noise limit cancels, and its shot noise does not.
 
 **Monitors.** Each monitor reads its own diode's current at 10 V/mW at peak responsivity
 (`monitor_gain`), from DC to 1 MHz, up to 10 V into a high-impedance load. They therefore saturate
@@ -1277,14 +1277,15 @@ backscattering in the spool (§5 notes double Rayleigh scattering distorts the l
 
 ### Laser intensity noise and shot noise
 
-`Laser(rin_db_hz=…)` gives a laser classical relative intensity noise: a white one-sided PSD of
-δP/P̄ in dBc/Hz, one realization per laser shared by all its paths. Shot noise is drawn at
+`Laser(rin_db_hz=…)` gives a laser relative intensity noise above the shot noise limit, its excess
+RIN (**Excess RIN** in the lab): a white one-sided PSD of δP/P̄ in dBc/Hz, one realization per
+laser shared by all its paths. Shot noise is drawn at
 detection, so a photodiode reads $`S_I = \mathcal R^2\bar P^2\,\mathrm{RIN} + 2q\bar I + 4k_BT/R`$.
 `examples/laser_noise.py` measures both with a PDB450C at 10⁵ V/A and the spectrum analyzer:
 
 ```
-laser (RIN −135 dBc/Hz) → VOA → 50:50 ─┬─ 1 m → INPUT+    BPD-1 (PDB450C, 10⁵ V/A)
-                                       └─ 1 m → INPUT−    RF OUTPUT → spectrum analyzer
+laser (excess RIN −135 dBc/Hz) → VOA → 50:50 ─┬─ 1 m → INPUT+    BPD-1 (PDB450C, 10⁵ V/A)
+                                              └─ 1 m → INPUT−    RF OUTPUT → spectrum analyzer
 ```
 
 | Measurement | Expected | phoq |

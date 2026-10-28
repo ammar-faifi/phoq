@@ -307,7 +307,7 @@ def synthesize(
         field_ = src.envelope(emit, dt) * np.exp(1j * src.phase(mid, rng))
         noise = src.intensity_factor(
             emit, dt, rng
-        )  # the laser's classical intensity noise, if any
+        )  # the laser's intensity noise above the shot noise limit, if any
         if noise is not None:
             field_ = field_ * noise
         for k, (d, p) in enumerate(items):
@@ -535,7 +535,7 @@ def report(setup: Setup, net: Network | None = None) -> dict:
                     ),
                 }
             )
-    warnings += _open_port_strays(net)
+    warnings += _open_port_strays(net, setup)
     # every mated pair of connectors: direct, or the two held in a mating sleeve
     pairs = [
         (a, b, "")
@@ -583,12 +583,22 @@ STRAY_WARN = (
 )
 
 
-def _open_port_strays(net: Network) -> list:
+def _open_port_strays(net: Network, setup: Setup) -> list:
     """Open connectors whose reflections, all paths together, go on to a detector
     strongly enough to beat with the light that reaches it directly: power ratio r beats
     at 2√r, so −70 dB is a 6·10⁻⁴ ripple, and a delayed copy turns the laser's phase
-    noise into intensity noise.
+    noise into intensity noise. The remedy: a part's port takes a terminator; a cord's
+    loose end goes back in, or into a mating sleeve with a terminator on its other side.
     """
+
+    def remedy(port: str) -> str:
+        if setup.port(port).component.is_cord:
+            return (
+                "Plug the cord back in, or end it with a mating sleeve and a terminator"
+                " of its own connector type."
+            )
+        return "Cap the port with a terminator of its own connector type."
+
     stray: dict = {}
     for d, paths in net.paths.items():
         direct = sum(
@@ -609,8 +619,7 @@ def _open_port_strays(net: Network) -> list:
                 f"Open connector {port} reflects light on to {det},"
                 f" {10 * math.log10(r):.0f} dB under the light that reaches it"
                 " directly: enough to beat with it, and a delayed copy turns the"
-                " laser's phase noise into intensity noise. Cap the port with a"
-                " terminator of its own connector type."
+                f" laser's phase noise into intensity noise. {remedy(port)}"
             ),
         }
         for (port, det), r in sorted(stray.items())

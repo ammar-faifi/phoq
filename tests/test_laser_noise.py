@@ -118,7 +118,7 @@ def test_laser_reports_its_rin_against_the_shot_noise_level():
     shot = 10 * math.log10(
         2 * 6.62607015e-34 * 299792458 / laser.wavelength / 1e-3
     )  # 2hν/P
-    assert laser.info()["RIN"] == (
+    assert laser.info()["Excess RIN"] == (
         f"-150 dBc/Hz; shot-noise RIN at this power: {shot:.1f} dBc/Hz"
     )
 
@@ -131,5 +131,27 @@ def test_shot_noise_rin_matches_rp_photonics(power_dbm, rp):
     shot-noise RIN 2hν/P of 3.73·10⁻¹⁶ Hz⁻¹ (−154 dBc/Hz), and the 100 mW Nd:YAG of
     its Fig. 1 reaches −174 dBc/Hz."""
     laser = Laser("LD", wavelength=1064e-9, power_dbm=power_dbm, rin_db_hz=-150.0)
-    shot = float(laser.info()["RIN"].split("at this power: ")[1].split(" ")[0])
+    shot = float(laser.info()["Excess RIN"].split("at this power: ")[1].split(" ")[0])
     assert shot == pytest.approx(rp, abs=0.5 if power_dbm else 0.05)
+
+
+def test_an_open_connector_is_told_the_remedy_that_fits_it():
+    """Unplug INPUT− (section 6 of the tutorial): the cord's loose end reflects onto the
+    detector. That end is a plug, as a terminator is, so it goes back in, or into a
+    mating sleeve with a terminator; a part's open port, the coupler's a2, takes the
+    terminator itself."""
+    s = EX["build"](10.0)
+    s.disconnect("FIB-4.b")
+    s.remove(s["BS-1"].ports["a2"].peer.component)
+    strays = {
+        w["text"].split()[2]: w["text"]
+        for w in report(s)["warnings"]
+        if "reflects light on to BPD-1" in w["text"]
+    }
+    assert strays["FIB-4.b"].endswith(
+        "Plug the cord back in, or end it with a mating sleeve and a terminator of"
+        " its own connector type."
+    )
+    assert strays["BS-1.a2"].endswith(
+        "Cap the port with a terminator of its own connector type."
+    )

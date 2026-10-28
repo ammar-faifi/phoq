@@ -52,7 +52,7 @@ from phoq.units import Q_E, fmt_si, photon_energy
 
 RIN = (
     -135.0
-)  # dBc/Hz: the laser's classical relative intensity noise (white), a noisy diode laser
+)  # dBc/Hz: intensity noise above the shot noise limit (white), a noisy diode laser
 # V/A: 4 MHz of bandwidth, and an amplifier noise 21 dB under the shot noise of 1.4 mA
 GAIN = 1e5
 BAND = (0.2e6, 1.0e6)  # where the noise is read: flat, and well inside the 4 MHz pole
@@ -194,10 +194,10 @@ if __name__ == "__main__":
     bw, nep, _ = bpd.setting()
     shot_rin = 2 * photon_energy(laser.wavelength) / laser.power
     print(
-        f"{laser.name}: {laser.power_dbm:g} dBm, RIN {laser.rin_db_hz:g} dBc/Hz; its"
-        f" shot-noise RIN 2hν/P is {10 * math.log10(shot_rin):.1f} dBc/Hz, so the laser"
-        f" is {laser.rin_db_hz - 10 * math.log10(shot_rin):.0f} dB above the shot-noise"
-        " limit"
+        f"{laser.name}: {laser.power_dbm:g} dBm, excess RIN {laser.rin_db_hz:g}"
+        f" dBc/Hz; its shot-noise RIN 2hν/P is {10 * math.log10(shot_rin):.1f} dBc/Hz,"
+        f" so the laser is {laser.rin_db_hz - 10 * math.log10(shot_rin):.0f} dB above"
+        " the shot-noise limit"
     )
     print(
         f"{bpd.name}: {bpd.preset} at {fmt_si(GAIN, 'V/A')}, {fmt_si(bw, 'Hz')}, NEP"
