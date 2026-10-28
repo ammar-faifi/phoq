@@ -204,11 +204,12 @@ detection system's frequency response C(f). At **20 dB**:
 
 The measured RIN is the laser's excess RIN plus the detected shot-noise RIN 2q/I. With
 I = 5.55 µA, 2q/I = −132.4 dBc/Hz, and taking it away (again in powers) leaves **−130.0 dBc/Hz**:
-the laser's setting, its excess RIN. Skip step 3 and you get −130.3 dBc/Hz instead. The noise is
-only 4.8 dB above the floor here, so the floor must be read well: the 0.2 dB a fresh trace can be
-off by moves the result by 0.15 dB. Noise and carrier pass through the same 50 Ω divider and the
-same gain, so neither the gain nor the responsivity needs calibrating, only the shape of the
-response. That is the use of a relative measure.
+the laser's setting, its excess RIN. Skip step 3 and you get −130.3 dBc/Hz instead. Read the floor
+with care. At 20 dB the reading, −124.6 dBm/Hz, is only 4.8 dB above the floor, −129.4 dBm/Hz, so
+the floor is a third of it, and subtracting it magnifies any error in it: a floor read 0.2 dB low,
+as a fresh trace can be (section 2), raises the excess RIN by 0.15 dB. Noise and carrier pass
+through the same 50 Ω divider and the same gain, so neither the gain nor the responsivity needs
+calibrating, only the shape of the response. That is the use of a relative measure.
 
 The analyzer can do steps 1 and 4 for you. Set its **Units** to **dBc/Hz**. Ref moves to
 −101.9 dBc/Hz, so the trace stays where it was, and the measurement box shows **DC at input
