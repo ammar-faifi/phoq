@@ -400,7 +400,10 @@ resolution bandwidth against frequency, in dBm into its input impedance.
   current becomes a voltage across the input impedance; the input is AC-coupled, so the mean is
   removed.
 - **Instrument noise.** White noise at the displayed average noise level (`noise_floor`, dBm/Hz) is
-  added at the input; the photodiode's shot and thermal noise come from its own model.
+  added at the input; the photodiode's shot and thermal noise come from its own model. The input
+  attenuation (`input_attenuation()`) adds to that level dB for dB and leaves signals in place. It
+  is set by hand, or with `auto_attenuation` it is the least of 0, 10, … 70 dB that keeps a tone at
+  the reference level, converted to dBm, at or below `max_mixer_level` at the first mixer.
 - **Spectrum.** Each record is zero-padded 4× (a tone's level is right wherever it falls between
   bins) and scaled as $P_k = 2|X_k|^2/(R_\mathrm{in}(\sum w_n)^2)$: a sine of amplitude $A$ reads
   $A^2/2R_\mathrm{in}$ whatever the RBW, and white noise reads its density times the RBW.
@@ -529,9 +532,10 @@ with the time average of synthesized fields: 0.1085 mW against 0.1091 ± 0.0016 
   delays are set by hand (`examples/dli_for_cow.py` computes its 9.8 ns from the traced paths); there
   is no arrival-time histogram to read them from.
 - Spectrum analyzer: FFT method only (no video bandwidth, swept-filter artifacts, spurs or local-
-  oscillator phase noise), a white noise floor, no input attenuator or compression. The lab window
-  shows a plain Lorentzian half width, which assumes a delay much longer than the coherence time;
-  the short-delay fit runs from Python.
+  oscillator phase noise), a white noise floor, and an input attenuator that sets only that floor:
+  no mixer compression or overload, so a signal above the reference level still reads right. The
+  lab window shows a plain Lorentzian half width, which assumes a delay much longer than the
+  coherence time; the short-delay fit runs from Python.
 
 **Time and statistics**
 

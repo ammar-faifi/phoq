@@ -123,7 +123,7 @@ footer { color: var(--muted); font-size: 13px; max-width: 90ch; }
     <h1>ESA Sweep, Line by Line</h1>
     <p class="lede">How phoq's RF spectrum analyzer turns a detector's voltage into the trace on its screen. The walk follows one sweep through <code>record()</code>, <code>acquire()</code>, <code>_signal()</code> and <code>_detect()</code> in the order they run. Every curve on the screen is the array that line produced on the bench below: the lines were replayed with the same random seed and checked against <code>acquire()</code> itself, to 10⁻¹³ dB.</p>
     <pre class="bench">laser 3 dBm, RIN −135 dBc/Hz, 0.2 % intensity sine at 500 kHz → VOA 16 dB → 50:50 → PDB450C INPUT+ (100 kV/A, 4 MHz) → ESA-1
-ESA-1: Start 0, Stop 2 MHz, RBW 10 kHz, Avg 10, 201 display points, detector average, trace average, DANL −150 dBm/Hz</pre>
+ESA-1: Start 0, Stop 2 MHz, RBW 10 kHz, Avg 10, 201 display points, detector average, trace average, Ref −80 dBm, attenuation auto, DANL −150 dBm/Hz</pre>
   </header>
 
   <div class="main">
@@ -281,8 +281,8 @@ const S = [
     p: `Subtract the mean. The analyzer's input is AC-coupled, so the 0.696 V of DC is blocked, as a DC block would block it. What is left is the 1.39 mV tone and the noise, now centered on 0 V. The DC's power, (0.696 V)²/50 Ω = +9.9 dBm, is kept: in dBc/Hz the screen shows the density relative to it.`,
     c: [["mean", "0.6964 V"], ["after", "0 V"], ["DC power", "+9.9 dBm"]] },
   { m: "acquire", a: 9, b: 12, sc: "levels", t: "The analyzer's own floor",
-    p: `The displayed average noise level, −150 dBm/Hz, becomes a voltage density: 10^((−150 − 30)/10) W/Hz × 50 Ω = 5·10⁻¹⁷ V²/Hz, added as white noise with σ = √(S·fs/2) = 11.3 µV per sample. The detector's noise reaches the analyzer at about −122.5 dBm/Hz, 27.5 dB above, so this floor barely shows.`,
-    c: [["DANL", "−150 dBm/Hz"], ["σ", "11.3 µV"], ["detector", "≈ −122.5 dBm/Hz"]] },
+    p: `The displayed average noise level, −150 dBm/Hz, is the analyzer's floor at 0 dB input attenuation, and each dB of attenuation adds a dB. input_attenuation() picks none here: a tone at the −80 dBm reference level brings far less than the −10 dBm max mixer level to the first mixer (at Ref 0 dBm it would switch in 10 dB). The floor becomes a voltage density: 10^((−150 + 0 − 30)/10) W/Hz × 50 Ω = 5·10⁻¹⁷ V²/Hz, added as white noise with σ = √(S·fs/2) = 11.3 µV per sample. The detector's noise reaches the analyzer at about −122.5 dBm/Hz, 27.5 dB above, so this floor barely shows.`,
+    c: [["DANL", "−150 dBm/Hz"], ["attenuation", "0 dB, auto"], ["σ", "11.3 µV"], ["detector", "≈ −122.5 dBm/Hz"]] },
   { m: "acquire", a: 14, b: 16, sc: "hann", t: "The window",
     p: `A periodic Hann window of 768 points: zero at the record's ends, so a tone that does not fit a whole number of cycles leaks little into distant bins. Its equivalent noise bandwidth is 1.5 bins, which is why record() picked n from the RBW.`,
     c: [["Σw", "384"], ["ENBW", "1.5 fs/n"]] },
@@ -334,8 +334,8 @@ const S = [
   { m: "acquire", a: 38, b: 46, sc: "maxhold", t: "Max hold, or start over",
     p: `Max hold keeps the highest value each point has ever shown, so it creeps up on noise (1.6 dB after 8 sweeps here) and suits drifting tones. Write mode, or any change to the display size, starts over with this sweep alone. Yellow: trace average; pink: max hold of the same 8 sweeps.`,
     c: [["max hold", "+1.6 dB on noise after 8 sweeps"]] },
-  { m: "acquire", a: 47, b: 67, sc: "final", t: "The result",
-    p: `The trace in dBm, 10·log10(P / 1 mW); the dBm/Hz and dBc/Hz units shift it on the screen by −10·log10(RBW) and the DC power. Plus the full-resolution bins inside the span for analysis. The lab's measurement box reads it: the median, −82.2 dBm, is the noise in one RBW; the tone peaks at −48.2 dBm at 500 kHz.`,
+  { m: "acquire", a: 47, b: 68, sc: "final", t: "The result",
+    p: `The trace in dBm, 10·log10(P / 1 mW); the dBm/Hz and dBc/Hz units shift it on the screen by −10·log10(RBW) and the DC power. Plus the full-resolution bins inside the span for analysis, and the attenuation in use for the screen's header. The lab's measurement box reads it: the median, −82.2 dBm, is the noise in one RBW; the tone peaks at −48.2 dBm at 500 kHz.`,
     c: [["median", `${N.median_dbm.toFixed(1)} dBm`], ["peak", `${N.peak_dbm.toFixed(1)} dBm @ 500 kHz`], ["RBW", "10 kHz"]] },
 ];
 

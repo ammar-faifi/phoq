@@ -245,7 +245,7 @@ export class SpectrumDisplay {
     }
     const u = f.units ?? 'dBm', relative = u === 'dBc/Hz';
     g.fillStyle = '#e2e8f0';
-    g.fillText(`Ref ${f.ref_level.toFixed(1)} ${u}  ${f.db_per_div} dB/div`, 14, 15);
+    g.fillText(`Ref ${f.ref_level.toFixed(1)} ${u}  Atten ${f.attenuation ?? 0} dB  ${f.db_per_div} dB/div`, 14, 15);
     g.textAlign = 'right';
     g.fillStyle = this.running ? '#facc15' : '#f87171';
     g.fillText(this.running ? `RBW ${fmtSI(f.rbw, 'Hz')}` : 'STOP', W - 12, 15);
@@ -348,7 +348,7 @@ export class ScopePanel {
       this.chEl.appendChild(row);
       return { row, on, src, scale };
     });
-    this.esa = Object.fromEntries(['src', 'start', 'stop', 'rbw', 'avg', 'det', 'trace', 'units', 'ref', 'ref-unit', 'div'].map((k) => [k, $(`esa-${k}`)]));
+    this.esa = Object.fromEntries(['src', 'start', 'stop', 'rbw', 'avg', 'det', 'trace', 'units', 'ref', 'ref-unit', 'atten', 'div'].map((k) => [k, $(`esa-${k}`)]));
     this.label = this.el.querySelector('.scope-head .muted');
     const e = this.esa;
     e.start.onchange = () => set({ start_freq: Number(e.start.value) * 1e6 });
@@ -359,6 +359,7 @@ export class ScopePanel {
     e.trace.onchange = () => set({ trace: e.trace.value });
     e.units.onchange = () => set({ units: e.units.value });   // the server moves Ref with them
     e.ref.onchange = () => set({ ref_level: Number(e.ref.value) });
+    e.atten.onchange = () => set(e.atten.value === 'auto' ? { auto_attenuation: true } : { auto_attenuation: false, attenuation: Number(e.atten.value) });
     e.div.onchange = () => set({ db_per_div: Number(e.div.value) });
     e.src.onchange = async () => {
       const port = `${this.current}.inp`;
@@ -462,6 +463,11 @@ export class ScopePanel {
     if (document.activeElement !== e.start) e.start.value = Number((p.start_freq / 1e6).toPrecision(6));
     if (document.activeElement !== e.ref) e.ref.value = p.ref_level;
     e['ref-unit'].textContent = p.units;
+    const auto = parseFloat(c.info?.['Input attenuation']);   // "10 dB (auto)": the step in use
+    const steps = [...new Set([...(spec('attenuation')?.presets ?? []), p.attenuation])].sort((a, b) => a - b);
+    e.atten.innerHTML = [`<option value="auto">Auto${p.auto_attenuation && Number.isFinite(auto) ? ` · ${auto} dB` : ''}</option>`,
+      ...steps.map((v) => `<option value="${v}">${v} dB</option>`)].join('');
+    e.atten.value = p.auto_attenuation ? 'auto' : String(p.attenuation);
     const peer = c.ports.find((pt) => pt.name === 'inp')?.peer;
     const outs = this.lab.state.components.flatMap((d) => d.ports
       .filter((pt) => pt.kind === 'electrical' && pt.direction === 'out' && (!pt.peer || pt.peer === `${c.name}.inp`))

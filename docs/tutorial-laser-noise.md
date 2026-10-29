@@ -126,7 +126,18 @@ of that 50 Ω load, 4kT/R, which the analyzer shows as 4kT = −168 dBm/Hz; the 
 2qI·50 Ω, is the same −168 dBm/Hz. Both sit below a typical analyzer's DANL, which is why noise is
 measured with an amplified detector. (Obarski and Hale draw the thermal limit at kT = −174 dBm/Hz,
 the noise a matched 50 Ω source delivers. A photodiode is a current source, so the load's full
-4kT/R shows, 6 dB more.) Set the DANL back to **−150 dBm/Hz**, and the Emission back on.
+4kT/R shows, 6 dB more.) Set the DANL back to **−150 dBm/Hz**.
+
+Even with an amplified detector, a reference level set too high can bury its noise. Set **Ref** to
+**+20 dBm**. The analyzer's input attenuator follows the reference level, so that a tone at the
+top of the screen brings at most −10 dBm to the first mixer: the screen's header now reads
+**Atten 30 dB**. The IF gain makes up for the attenuator's loss, so a signal would keep its level,
+but the analyzer's floor rises dB for dB, to −150 + 30 = −120 dBm/Hz. The trace drops below the
+screen, and the Median level reads −79.5 dBm again: you're measuring the analyzer. At its preset,
+Ref 0 dBm, 10 dB is in and the reading is −89.1 dBm; the detector's noise stays 10 dB above that
+floor, so the 10 dB costs only 0.3 dB here. When you measure noise, keep the reference level near
+the trace, or set **Atten** by hand. Set Ref back to **−60 dBm** (Atten 0 dB) and the Emission
+back on.
 
 ## 5. Shot noise: both inputs
 
@@ -248,12 +259,14 @@ non-zero DC on RF OUTPUT is the giveaway. Set the coupler's split ratio to **0.4
 INPUT− the extra light: drag the slider, or click it and step with the arrow keys (0.001 per
 press). The DC drops to millivolts and the excess RIN cancels again. The reading even lands 0.4 dB
 below section 5's, which still carried a trace of the −130 dBc/Hz excess RIN. That is Park's
-precision balancing. Set the Excess RIN back to −130 dBc/Hz and the split to 0.5.
+precision balancing. Set the Excess RIN back to −130 dBc/Hz and the split back to **0.5**: the
+readings in sections 8 and 9 are for the plain 50:50 coupler, and at 0.492 they come out up to
+0.5 dB lower.
 
 ## 8. What the analyzer shows
 
 The analyzer displays **power in one resolution bandwidth** (dBm in the RBW), not a density.
-On the balanced bench at 0 dB, change the RBW:
+On the balanced bench at 0 dB, split 0.5, change the RBW:
 
 | RBW | Median level | as a density |
 |---|---|---|
@@ -273,21 +286,21 @@ correction. phoq averages power, so it needs none.
 
 ## 9. A trap: an open spare port
 
-Still on both inputs at 0 dB, select the terminator on the coupler's `a2`, the input no light
-should enter, and set **Plugged into** to **— not plugged in —**. The port is now an open flat
-FC/UPC end, and a warning appears:
+Still on both inputs at 0 dB and split 0.5, select the terminator on the coupler's `a2`, the
+input no light should enter, and set **Plugged into** to **— not plugged in —**. The port is now
+an open flat FC/UPC end, and a warning appears:
 
 > Open connector BS-1.a2 reflects light on to BPD-1, −58 dB under the light that reaches it
 > directly…
 
 The reading rises from −67.4 to **−62.6 dBm**. Light reflected at the coupler's outputs leaves by
 `a2`, its flat end sends 3.6 % back, and it reaches the detector about 10 ns late. Set the laser's
-**Linewidth** to **0 Hz**: the reading falls back to about −67.4 dBm. The extra noise was the
-laser's phase noise, turned into intensity noise by that delayed copy. The open port has built,
-by accident, the optical frequency discriminator that [RP Photonics][rp-laser] lists for
-measuring phase noise: an unbalanced interferometer. Light needs two reflections to come back
-forward to the detectors, so it is this double bounce that matters. Restore the linewidth to
-100 kHz and set the terminator's **Plugged into** back to `BS-1.a2`.
+**Linewidth** to **0 Hz**: the reading falls back to −67.3 dBm, nearly where it started. The extra
+noise was the laser's phase noise, turned into intensity noise by that delayed copy. The open
+port has built, by accident, the optical frequency discriminator that [RP Photonics][rp-laser]
+lists for measuring phase noise: an unbalanced interferometer. Light needs two reflections to
+come back forward to the detectors, so it is this double bounce that matters. Restore the
+linewidth to 100 kHz and set the terminator's **Plugged into** back to `BS-1.a2`.
 
 ## 10. A real laser
 

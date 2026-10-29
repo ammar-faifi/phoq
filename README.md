@@ -1089,9 +1089,16 @@ span:
    its bucket through the `detector`: *peak* (the largest: tones read right even when a bucket is
    wider than the RBW), *average* (mean power: right for noise) or *sample*. The top line is
    `ref_level`, in the display units (`units`), with `db_per_div` over ten divisions.
-7. **Instrument noise.** The displayed average noise level (`noise_floor`, dBm/Hz) is added at the
-   input as white noise; the photodiode's shot noise $2qI$ and thermal noise $4k_BT/R$ come on top,
-   as on the bench.
+7. **Instrument noise.** The displayed average noise level (`noise_floor`, dBm/Hz, at 0 dB input
+   attenuation) is added at the input as white noise; the photodiode's shot noise $2qI$ and thermal
+   noise $4k_BT/R$ come on top, as on the bench. The input attenuator ahead of the first mixer
+   raises that floor dB for dB, and the IF gain makes up for its loss, so a signal keeps its level.
+   With `auto_attenuation`, as on an analyzer, the attenuation follows the reference level: the
+   least of 0, 10, … 70 dB that keeps a tone at the top of the screen (in dBm, whatever the units)
+   at or below `max_mixer_level`, −10 dBm, at the mixer. At the default Ref 0 dBm that is 10 dB,
+   so the floor sits 10 dB above `noise_floor`. A reference level far above the signal can bury a
+   detector's noise under the analyzer's: lower it, or set `attenuation` by hand.
+   `SpectrumResult.attenuation`, the screen's header and the read-outs show the attenuation in use.
 8. **Measurements.** The peak (frequency, level), the median of the trace (the noise floor when
    signals cover little of the span), the −3 dB width around the peak, the frequency where the
    trace has fallen by $N$ dB, the power integrated over the span (in dBc/Hz, relative to the DC:

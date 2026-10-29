@@ -61,9 +61,11 @@ def test_the_empty_input_shows_the_noise_floor_in_the_rbw():
             averages=200,
             detector="average",
             noise_floor=-145.0,
+            ref_level=-40.0,  # low enough for no input attenuation
         )
     )
     r = sweep(a, s)
+    assert r.attenuation == 0.0
     assert float(np.mean(r.level)) == pytest.approx(
         -145.0 + 10 * math.log10(r.rbw), abs=0.2
     )
@@ -78,6 +80,63 @@ def test_the_empty_input_shows_the_noise_floor_in_the_rbw():
     assert np.mean(peak.level) > np.mean(
         avg.level
     )  # the peak detector rides on the noise
+
+
+@pytest.mark.parametrize(
+    "ref, units, atten",
+    [
+        (0.0, "dBm", 10.0),  # the analyzer's preset state
+        (-10.0, "dBm", 0.0),  # a tone at the top brings −10 dBm to the mixer
+        (-5.0, "dBm", 10.0),  # 5 dB needed, the next step is 10
+        (12.0, "dBm", 30.0),
+        (-40.0, "dBm/Hz", 10.0),  # in the 10 kHz RBW, 0 dBm
+    ],
+)
+def test_auto_attenuation_follows_the_reference_level(ref, units, atten):
+    a = SpectrumAnalyzer("ESA", stop_freq=5e6, rbw=10e3, units=units, ref_level=ref)
+    assert a.input_attenuation() == atten
+    a.units = "dBm/Hz" if units == "dBm" else "dBm"  # the reference level follows
+    assert a.input_attenuation() == atten
+    a.set(max_mixer_level=-40.0, units="dBm", ref_level=40.0)
+    assert a.input_attenuation() == 70.0  # the attenuator's last step
+    a.auto_attenuation = False
+    assert a.input_attenuation() == a.attenuation == 10.0
+
+
+def test_the_attenuator_raises_the_floor_and_leaves_a_tone_in_place():
+    """The IF gain makes up for the attenuator's loss: a tone reads the same while the
+    displayed noise floor rises dB for dB."""
+    read = {}
+    for atten in (0.0, 20.0):
+        s, a = tone(
+            vpp=0.01,
+            averages=50,
+            detector="average",
+            auto_attenuation=False,
+            attenuation=atten,
+        )
+        r = sweep(a, s)
+        far = np.abs(r.freq - 1.234e6) > 200e3
+        read[atten] = r.peak[1], float(np.mean(r.level[far]))
+        assert r.attenuation == atten
+    assert read[20.0][0] == pytest.approx(read[0.0][0], abs=0.05)
+    assert read[20.0][1] - read[0.0][1] == pytest.approx(20.0, abs=0.1)
+    assert read[0.0][1] == pytest.approx(-150 + 10 * math.log10(r.rbw), abs=0.2)
+
+
+def test_the_attenuation_shows_in_the_info_and_on_the_screen():
+    s = Setup("atten")
+    a = s.add(SpectrumAnalyzer("ESA", stop_freq=1e6, rbw=10e3))
+    info = a.info()
+    assert info["Input attenuation"] == "10 dB (auto)"
+    assert info["DANL"].startswith("-140 dBm/Hz")
+    assert "max_mixer_level" in a.ui_fields() and "attenuation" not in a.ui_fields()
+    a.set(auto_attenuation=False, attenuation=0.0)
+    assert a.info()["Input attenuation"] == "0 dB (by hand)"
+    assert "attenuation" in a.ui_fields() and "max_mixer_level" not in a.ui_fields()
+    r = sweep(a, s)
+    assert r.to_json()["attenuation"] == 0.0 and "atten 0 dB" in r.summary()
+    assert SpectrumResult.average([r, r]).attenuation == 0.0
 
 
 def test_shot_noise_of_a_photodiode():

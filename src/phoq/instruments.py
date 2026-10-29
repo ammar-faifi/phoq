@@ -844,6 +844,7 @@ DECIMATE = (
 )
 ZERO_PAD = 4  # FFT zero padding: a tone's level is right wherever it falls between bins
 MAX_SAMPLES = 4_000_000  # per sweep, after decimation
+ATTENUATIONS = tuple(10.0 * k for k in range(8))  # input attenuator steps [dB], generic
 
 
 def unit_offset(units: str, rbw: float, dc_power: float) -> float | None:
@@ -881,6 +882,7 @@ class SpectrumResult:
     # than the input's AC (the light off, a generator's sine): there is none
     dc_power: float = 0.0
     units: str = "dBm"  # the screen's: dBm (in the RBW), dBm/Hz or dBc/Hz
+    attenuation: float = 0.0  # input attenuation [dB]: the DANL rose by as much
 
     def psd(self) -> tuple[np.ndarray, np.ndarray]:
         """(frequency [Hz], one-sided power spectral density at the input [W/Hz])."""
@@ -1135,6 +1137,7 @@ class SpectrumResult:
             first.bin_spacing,
             sum(r.dc_power for r in results) / k,
             first.units,
+            first.attenuation,
         )
 
     def summary(self) -> str:
@@ -1145,7 +1148,8 @@ class SpectrumResult:
         return (
             f"{self.instrument}: {fmt_si(self.start, 'Hz')} …"
             f" {fmt_si(self.stop, 'Hz')}, RBW {fmt_si(self.rbw, 'Hz')}, {self.averages}"
-            f" avg, {self.detector} detector\n  {self.source or 'no input'}: peak"
+            f" avg, {self.detector} detector, atten {self.attenuation:g} dB\n"
+            f"  {self.source or 'no input'}: peak"
             f" {l0 + off:.1f} {unit} at {fmt_si(f0, 'Hz')}, −3 dB {fmt_si(lo, 'Hz')} …"
             f" {fmt_si(hi, 'Hz')}, median {self.median_level + off:.1f} {unit},"
             f" {10 * math.log10(max(p, 1e-30) / 1e-3):.1f} dBm in the span"
@@ -1221,6 +1225,7 @@ class SpectrumResult:
             "stop": self.stop,
             "rbw": self.rbw,
             "ref_level": self.ref_level,
+            "attenuation": self.attenuation,
             "db_per_div": self.db_per_div,
             "detector": self.detector,
             "averages": self.averages,
@@ -1248,7 +1253,8 @@ class SpectrumAnalyzer(Component):
     FFT method (README, "RF spectrum analyzer"): anti-alias filter and decimate to f_s =
     2.56 f_stop, Hann records of N = 1.5 f_s / RBW samples, ``averages`` of them
     power-averaged with 50 % overlap, then ``points`` display points through the
-    ``detector``.
+    ``detector``. The input attenuator follows the reference level unless set by hand;
+    every dB of it raises the displayed noise floor by a dB.
     """
 
     category = "instrument"
@@ -1330,6 +1336,38 @@ class SpectrumAnalyzer(Component):
         max=40.0,
         doc="Top of the screen, in the display units",
     )
+    auto_attenuation = Param(
+        True,
+        label="Auto attenuation",
+        doc=(
+            "The input attenuator follows the reference level, as on an analyzer: the"
+            " least attenuation, in 10 dB steps, that keeps a tone at the top of the"
+            " screen at or below the max mixer level. Off: the attenuation set by hand"
+        ),
+    )
+    attenuation = Param(
+        10.0,
+        unit="dB",
+        label="Input attenuation",
+        min=0.0,
+        max=ATTENUATIONS[-1],
+        presets=ATTENUATIONS,
+        doc=(
+            "Used with auto attenuation off. Each dB raises the displayed noise floor by"
+            " a dB; a signal keeps its level, as the IF gain makes up for the loss"
+        ),
+    )
+    max_mixer_level = Param(
+        -10.0,
+        unit="dBm",
+        label="Max mixer level",
+        min=-50.0,
+        max=10.0,
+        doc=(
+            "Auto attenuation: the most a tone at the reference level may bring to the"
+            " first mixer; a generic default"
+        ),
+    )
     db_per_div = Param(
         10.0,
         unit="dB",
@@ -1353,8 +1391,9 @@ class SpectrumAnalyzer(Component):
         min=-200.0,
         max=-60.0,
         doc=(
-            "Displayed average noise level, added at the input as white noise; a"
-            " generic default (analyzers span about −140 … −165 dBm/Hz)"
+            "Displayed average noise level at 0 dB input attenuation, added at the"
+            " input as white noise; the attenuation adds to it. A generic default"
+            " (analyzers span about −140 … −165 dBm/Hz)"
         ),
     )
 
@@ -1384,9 +1423,7 @@ class SpectrumAnalyzer(Component):
     def _param_changed(self, name: str) -> None:
         if name == "units" and self._units is not None:
             # the reference level follows, as on an analyzer: the trace stays in place
-            rbw = self.record()[3]
-            dc = self._dc_power if self._dc_power > 1e-30 else 1e-3  # none seen yet
-            old, new = (unit_offset(u, rbw, dc) for u in (self._units, self.units))
+            old, new = (self._offset(u) for u in (self._units, self.units))
             self._units = self.units
             spec = self.param_specs()["ref_level"]
             ref = round(self.ref_level + new - old, 2)
@@ -1399,11 +1436,27 @@ class SpectrumAnalyzer(Component):
         """Restart trace averaging and max hold."""
         self._trace, self._sweeps = None, 0
 
+    def _offset(self, units: str) -> float:
+        """dB from dBm in the RBW to ``units``, against the last sweep's DC (1 mW before
+        there is one)."""
+        dc = self._dc_power if self._dc_power > 1e-30 else 1e-3  # none seen yet
+        return unit_offset(units, self.record()[3], dc)
+
+    def input_attenuation(self) -> float:
+        """The input attenuation in use [dB]: set by hand, or auto the least step that
+        keeps a tone at the reference level (in dBm, whatever the units) at or below
+        ``max_mixer_level`` at the first mixer."""
+        if not self.auto_attenuation:
+            return self.attenuation
+        need = self.ref_level - self._offset(self.units) - self.max_mixer_level
+        return next((a for a in ATTENUATIONS if a >= need - 1e-9), ATTENUATIONS[-1])
+
     def ui_fields(self):
+        atten = "max_mixer_level" if self.auto_attenuation else "attenuation"
         return [
             "running", "start_freq", "stop_freq", "rbw", "averages", "detector",
-            "trace", "units", "ref_level", "db_per_div", "points", "input_impedance",
-            "noise_floor",
+            "trace", "units", "ref_level", "auto_attenuation", atten, "db_per_div",
+            "points", "input_impedance", "noise_floor",
         ]  # fmt: skip
 
     def _input(self):
@@ -1432,9 +1485,14 @@ class SpectrumAnalyzer(Component):
 
     def info(self):
         fs, n, k, rbw = self.record()
+        att = self.input_attenuation()
         out = {
             "Sweep": f"{fmt_si(fs, 'S/s')}, {k} × {fmt_si(n / fs, 's')} records",
             "RBW used": fmt_si(rbw, "Hz"),
+            "Input attenuation": (
+                f"{att:g} dB ({'auto' if self.auto_attenuation else 'by hand'})"
+            ),
+            "DANL": f"{self.noise_floor + att:g} dBm/Hz, the attenuation included",
         }
         if self.trace != "write":
             out["Trace"] = f"{self.trace} of {self._sweeps} sweeps"
@@ -1489,8 +1547,8 @@ class SpectrumAnalyzer(Component):
         v = v - dc  # AC-coupled input: the DC photocurrent is blocked
         self._dc_power = dc**2 / R if dc**2 > v.var() else 0.0  # the dBc/Hz reference
         danl = (
-            10 ** ((self.noise_floor - 30) / 10) * R
-        )  # one-sided voltage PSD of the instrument [V²/Hz]
+            10 ** ((self.noise_floor + self.input_attenuation() - 30) / 10) * R
+        )  # one-sided voltage PSD of the instrument [V²/Hz], raised by the attenuator
         v = v + math.sqrt(danl * fs / 2) * rng.standard_normal(total)
 
         w = np.hanning(n + 1)[
@@ -1546,6 +1604,7 @@ class SpectrumAnalyzer(Component):
             fs / nfft,
             self._dc_power,
             self.units,
+            self.input_attenuation(),
         )
 
     def _detect(self, f: np.ndarray, power: np.ndarray, fd: np.ndarray) -> np.ndarray:

@@ -71,7 +71,8 @@ def capture() -> dict:
     # acquire()
     dc = float(v.mean())
     v_ac = v - v.mean()
-    danl = 10 ** ((esa.noise_floor - 30) / 10) * R
+    atten = esa.input_attenuation()
+    danl = 10 ** ((esa.noise_floor + atten - 30) / 10) * R
     v2 = v_ac + math.sqrt(danl * fs / 2) * rng.standard_normal(total)
     w = np.hanning(n + 1)[:-1]
     segs = v2[np.arange(k)[:, None] * hop + np.arange(n)[None, :]] * w
@@ -135,6 +136,7 @@ def capture() -> dict:
             "nfine": int(t.size),
             "dc": dc,
             "danl_dbm_hz": esa.noise_floor,
+            "atten_db": atten,
             "danl_v2": danl,
             "noise_std": math.sqrt(danl * fs / 2),
             "zero_pad": I.ZERO_PAD,
