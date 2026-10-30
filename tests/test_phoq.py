@@ -9,11 +9,11 @@ import numpy as np
 import pytest
 
 from phoq import (
+    ArbitraryWaveformGenerator,
     Attenuator,
     Coupler,
     DCPowerSupply,
     FiberSpool,
-    FunctionGenerator,
     IntensityModulator,
     Laser,
     OpticalSwitch,
@@ -182,7 +182,7 @@ def test_modulator_pattern_aligned_with_counter_bins():
     spd = s.add(SinglePhotonDetector(efficiency=1.0, dark_count_rate=0, dead_time=0))
     cnt = s.add(PhotonCounter(slots=2000))
     s.chain(laser, im, spool, spd, cnt)
-    fg = s.add(FunctionGenerator())
+    fg = s.add(ArbitraryWaveformGenerator())
     s.connect(fg.ch1, im.rf)
     fg.set_pattern(
         "ch1",
@@ -193,9 +193,9 @@ def test_modulator_pattern_aligned_with_counter_bins():
     assert clicks[0::2].all() and not clicks[1::2].any()
 
 
-# ---- function generator & modulators -------------------------------------------------
+# ---- arbitrary waveform generator & modulators ---------------------------------------
 def test_generator_shapes_and_pattern():
-    fg = FunctionGenerator(
+    fg = ArbitraryWaveformGenerator(
         ch1_shape="sine",
         ch1_freq=1e6,
         ch1_vpp=3.0,
@@ -228,7 +228,7 @@ def test_generator_describes_pattern_levels():
     input)."""
     s = Setup()
     fg = s.add(
-        FunctionGenerator(
+        ArbitraryWaveformGenerator(
             ch1_shape="sine", ch1_freq=1e6, ch1_vpp=3.0, ch2_shape="pattern"
         )
     )
@@ -297,7 +297,7 @@ def test_dc_supply_biases_modulators():
     assert s.run()["M"].power == pytest.approx(full, rel=1e-9)  # output off → 0 V
     psu.ch1_enabled = True
     fg = s.add(
-        FunctionGenerator(
+        ArbitraryWaveformGenerator(
             ch1_shape="square", ch1_freq=1e6, ch1_vpp=im.v_pi, ch1_duty=0.5
         )
     )
@@ -335,7 +335,7 @@ def test_modulator_has_no_drive_of_its_own():
     expected_db = 4 * CONNECTOR_LOSS_DB + 2 * 0.19e-3
     # 0 V → full transmission
     assert 10 * math.log10(1e-3 / undriven) == pytest.approx(expected_db, abs=0.01)
-    fg = s.add(FunctionGenerator(ch1_shape="dc", ch1_offset=s["IM-1"].v_pi))
+    fg = s.add(ArbitraryWaveformGenerator(ch1_shape="dc", ch1_offset=s["IM-1"].v_pi))
     s.connect(fg.ch1, s["IM-1"].rf)
     # Vπ → extinction floor
     assert s.run()["OPM-1"].power == pytest.approx(undriven * db_to_t(30), rel=1e-6)
@@ -378,7 +378,7 @@ def test_optical_switch_routes_statically_and_pulse_by_pulse():
     s.connect(sw.b2, d1.inp)
     s.connect(d0.out, cnt.ch1)
     s.connect(d1.out, cnt.ch2)
-    fg = s.add(FunctionGenerator())
+    fg = s.add(ArbitraryWaveformGenerator())
     s.connect(fg.ch1, sw.ctrl)
     cross = np.arange(3000) % 3 == 0
     fg.set_pattern("ch1", sw.voltage_for(cross), rate=laser.rep_rate)
@@ -394,7 +394,7 @@ def test_phase_modulator_driven_by_generator_shifts_fringe():
     b1, b2 = s.add(Coupler("BS-1"), Coupler("BS-2"))
     pm = s.add(PhaseModulator(insertion_loss_db=0))
     m1 = s.add(PowerMeter("M1"))
-    fg = s.add(FunctionGenerator(ch1_shape="dc", ch1_offset=0.0))
+    fg = s.add(ArbitraryWaveformGenerator(ch1_shape="dc", ch1_offset=0.0))
     s.connect(laser.out, b1.a1)
     s.connect(b1.b1, pm.p1)
     s.connect(pm.p2, b2.a1)
@@ -416,11 +416,12 @@ def test_phase_modulator_driven_by_generator_shifts_fringe():
 
 def test_scope_can_view_generator_output_and_chain_wires_rf():
     s = Setup.from_chain(
-        FunctionGenerator(ch2_shape="sine", ch2_freq=1e6, ch2_vpp=2.0), PhaseModulator()
+        ArbitraryWaveformGenerator(ch2_shape="sine", ch2_freq=1e6, ch2_vpp=2.0),
+        PhaseModulator(),
     )
-    assert s["PM-1"].driver() == (s["FG-1"], "ch1")
+    assert s["PM-1"].driver() == (s["AWG-1"], "ch1")
     osc = s.add(Oscilloscope(timebase=1e-6))
-    s.connect(s["FG-1"].ch2, osc.ch1)
+    s.connect(s["AWG-1"].ch2, osc.ch1)
     tr = s.run()["OSC-1"]["ch1"]
     assert (
         tr.unit == "V"
@@ -467,7 +468,7 @@ def test_single_shot_waits_for_edge_trigger_and_holds():
 
 
 def test_scope_bandwidth_sample_rate_and_memory():
-    fg = FunctionGenerator(
+    fg = ArbitraryWaveformGenerator(
         ch1_shape="square",
         ch1_freq=10e6,
         ch1_vpp=2.0,
@@ -1003,6 +1004,38 @@ def test_beamsplitter_is_the_old_name_of_coupler():
     )
 
 
+def test_functiongenerator_is_the_old_name_of_arbitrarywaveformgenerator():
+    """Scripts and setups saved before the rename still work: the old name hands over an
+    ArbitraryWaveformGenerator."""
+    with pytest.warns(DeprecationWarning, match="now ArbitraryWaveformGenerator"):
+        from phoq import FunctionGenerator
+    with pytest.warns(DeprecationWarning, match="now ArbitraryWaveformGenerator"):
+        from phoq.generators import FunctionGenerator as from_module
+    assert FunctionGenerator is from_module is ArbitraryWaveformGenerator
+    assert ArbitraryWaveformGenerator().prefix == "AWG"
+    s = Setup("old")
+    s.add(IntensityModulator("IM-1"), ArbitraryWaveformGenerator("FG-1", ch1_vpp=1.0))
+    s.connect("FG-1.ch1", "IM-1.rf")
+    # an old save
+    data = json.loads(
+        json.dumps(s.to_dict()).replace(
+            '"ArbitraryWaveformGenerator"', '"FunctionGenerator"'
+        )
+    )
+    loaded = Setup.from_dict(data)
+    # saved anew as ArbitraryWaveformGenerator
+    assert (
+        type(loaded["FG-1"]) is ArbitraryWaveformGenerator
+        and loaded.to_dict() == s.to_dict()
+    )
+    from phoq.core import Component
+
+    assert (
+        Component.lookup("FunctionGenerator") is ArbitraryWaveformGenerator
+        and "FunctionGenerator" not in Component.registry
+    )
+
+
 # ---- API -----------------------------------------------------------------------------
 def test_api_edits_the_python_objects():
     from fastapi.testclient import TestClient
@@ -1015,6 +1048,8 @@ def test_api_edits_the_python_objects():
             "Laser" in types
             and types.count("Coupler") == 1
             and "BeamSplitter" not in types
+            and types.count("ArbitraryWaveformGenerator") == 1
+            and "FunctionGenerator" not in types
         )
         assert (
             client.post(
@@ -1025,6 +1060,14 @@ def test_api_edits_the_python_objects():
         # an old client's type name still adds a coupler
         assert type(s["BS-9"]) is Coupler
         s.remove("BS-9")
+        assert (
+            client.post(
+                "/api/components", json={"type": "FunctionGenerator", "name": "FG-9"}
+            ).status_code
+            == 200
+        )
+        assert type(s["FG-9"]) is ArbitraryWaveformGenerator
+        s.remove("FG-9")
         assert (
             client.patch(
                 "/api/components/LD-1", json={"params": {"power_dbm": -1}}

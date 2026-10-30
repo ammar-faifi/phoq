@@ -13,7 +13,7 @@ from scipy.signal import lfilter, resample_poly
 from .core import Component, Param
 from .detectors import BalancedPhotodetector, Photodiode, SinglePhotonDetector
 from .engine import Network, driving_generators, synthesize
-from .generators import DCPowerSupply, FunctionGenerator
+from .generators import ArbitraryWaveformGenerator, DCPowerSupply
 from .sources import Laser
 from .units import fmt_si, seq125
 
@@ -369,7 +369,7 @@ class Oscilloscope(Component):
                         Photodiode,
                         BalancedPhotodetector,
                         SinglePhotonDetector,
-                        FunctionGenerator,
+                        ArbitraryWaveformGenerator,
                         DCPowerSupply,
                     ),
                 )
@@ -1452,7 +1452,7 @@ class SpectrumAnalyzer(Component):
             Photodiode,
             BalancedPhotodetector,
             SinglePhotonDetector,
-            FunctionGenerator,
+            ArbitraryWaveformGenerator,
             DCPowerSupply,
         )
         return (src, peer.name) if isinstance(src, ok) else None

@@ -13,9 +13,9 @@ import numpy as np
 import pytest
 
 from phoq import (
+    ArbitraryWaveformGenerator,
     BalancedPhotodetector,
     Coupler,
-    FunctionGenerator,
     IntensityModulator,
     Laser,
     Oscilloscope,
@@ -49,7 +49,9 @@ def bench(
     """
     s = Setup("balanced")
     laser = s.add(Laser("LD", mode="cw", wavelength=wavelength, power_dbm=power_dbm))
-    im, fg = s.add(IntensityModulator("IM"), FunctionGenerator("FG", trigger="free"))
+    im, fg = s.add(
+        IntensityModulator("IM"), ArbitraryWaveformGenerator("FG", trigger="free")
+    )
     bs = s.add(Coupler("BS", ratio=ratio))
     bpd = s.add(BalancedPhotodetector("BPD", preset=preset))
     if gain is not None:

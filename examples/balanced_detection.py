@@ -33,9 +33,9 @@ import math
 import numpy as np
 
 from phoq import (
+    ArbitraryWaveformGenerator,
     BalancedPhotodetector,
     Coupler,
-    FunctionGenerator,
     IntensityModulator,
     Laser,
     Oscilloscope,
@@ -78,7 +78,7 @@ def build(gain: float = 1e4, signal: bool = True, rin: float = RIN) -> Setup:
         )
     )
     im = setup.add(IntensityModulator("IM-LO"))
-    fg = setup.add(FunctionGenerator("FG-1", trigger="free"))
+    fg = setup.add(ArbitraryWaveformGenerator("FG-1", trigger="free"))
     bs = setup.add(Coupler("BS-1"))
     bpd = setup.add(
         BalancedPhotodetector("BPD-1", preset="thorlabs/pdb450c", gain=gain)

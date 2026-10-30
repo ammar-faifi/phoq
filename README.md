@@ -4,7 +4,7 @@
 [![PyPI](https://img.shields.io/pypi/v/phoq.svg)](https://pypi.org/project/phoq/)
 
 **phoq** (photon + q, it sounds like Fock) is a quantum optics and quantum-communication lab for Python. Build fiber-optic experiments from parts — lasers, modulators, couplers, attenuators, photodiodes, single-photon
-detectors, function generators, time taggers, oscilloscopes — run them, post-process the clicks
+detectors, arbitrary waveform generators, time taggers, oscilloscopes — run them, post-process the clicks
 with your own scripts, and run multi-party protocols such as QKD with every party in its own
 process talking over real sockets. A 3D virtual lab in the browser shows the same Python objects
 live and lets you edit them.
@@ -74,7 +74,7 @@ Units are SI throughout: meters, seconds, hertz and watts. Powers use `power_dbm
 | Passive | `Attenuator`, `Coupler` (2×2 fused fiber coupler; `BeamSplitter` is its deprecated old name), `PhaseShifter`, `Isolator`, `MatingSleeve` (FC–FC adapter joining two cords), `FiberTerminator` (cap for an unused port: plugs straight in, absorbs), `OpticalDelayLine` (variable free-space delay: dial, carrier phase, Gaussian-beam coupling loss) |
 | Modulators | `PhaseModulator` (φ = π·V/Vπ), `IntensityModulator` (Mach–Zehnder, extinction) — voltage comes only through their `rf` and `bias` inputs; `IQModulator` (dual-parallel MZM: `rf_i`, `rf_q` and three DC biases, `bias_i`, `bias_q`, `bias_p`); `OpticalSwitch` (2×2, bar below the threshold voltage on `ctrl`, cross above: a pattern routes pulse by pulse) |
 | Detectors | `Photodiode`, `BalancedPhotodetector` (two FC inputs whose photocurrents subtract before a switchable-gain amplifier: RF OUTPUT, and a MONITOR output per diode), `SinglePhotonDetector`, `PowerMeter` |
-| Instruments | `Oscilloscope` (with an optional ADC resolution, `adc_bits`), `SpectrumAnalyzer` (RF spectrum in dBm: RBW, averaging, detectors, trace average and max hold, Lorentzian and short-delay linewidth fits), `PhotonCounter` (time tagger: per-channel input delays, sub-bins for pulses shorter than a bin), `FunctionGenerator` (2 outputs: dc / sine / square / triangle / ramp / loaded pattern), `DCPowerSupply` (2 outputs, ±30 V) |
+| Instruments | `Oscilloscope` (with an optional ADC resolution, `adc_bits`), `SpectrumAnalyzer` (RF spectrum in dBm: RBW, averaging, detectors, trace average and max hold, Lorentzian and short-delay linewidth fits), `PhotonCounter` (time tagger: per-channel input delays, sub-bins for pulses shorter than a bin), `ArbitraryWaveformGenerator` (2 outputs: dc / sine / square / triangle / ramp / loaded pattern; `FunctionGenerator` is its deprecated old name), `DCPowerSupply` (2 outputs, ±30 V) |
 
 Run `phoq catalog` for every port and parameter.
 
@@ -312,12 +312,12 @@ with `--save PATH`, or turn it off with `--no-save`. Serve that JSON to carry on
 ### Driving modulators
 
 Modulators have no drive settings of their own. Each has two electrical inputs whose voltages
-add on the electrodes: `rf` for a function-generator output and `bias` for a DC supply output.
+add on the electrodes: `rf` for an AWG output and `bias` for a DC supply output.
 
 ```python
 psu = setup.add(DCPowerSupply(ch1_voltage=im.v_pi / 2))                      # quadrature bias
 setup.connect(psu.ch1, im.bias)
-fg = setup.add(FunctionGenerator())
+fg = setup.add(ArbitraryWaveformGenerator())
 setup.connect(fg.ch1, im.rf)
 fg.set(ch1_shape="sine", ch1_freq=10e6, ch1_vpp=1.0)                           # linear modulation
 fg.set_pattern("ch2", pm.voltage_for(2 * np.pi * k / 16), rate=laser.rep_rate)   # one voltage per pulse
@@ -340,7 +340,7 @@ the laser feeding it, as a calibrated AWG would. Use *laser* to set `chN_delay` 
 channel to look at the drive. Patterns are data, not parameters: they are not saved in the JSON
 setup and have to be loaded by code.
 
-![The modulated-link example: a 10 MHz sine from the function generator modulates the laser through the intensity modulator, and the oscilloscope shows the photocurrent next to the drive](https://raw.githubusercontent.com/ammar-faifi/phoq/main/docs/images/oscilloscope.webp)
+![The modulated-link example: a 10 MHz sine from the AWG modulates the laser through the intensity modulator, and the oscilloscope shows the photocurrent next to the drive](https://raw.githubusercontent.com/ammar-faifi/phoq/main/docs/images/oscilloscope.webp)
 
 *`examples/modulated_link.py`: the DC supply holds the intensity modulator at quadrature, the
 generator's CH1 drives it with a 10 MHz sine, and the scope shows the photocurrent (CH1, yellow)
@@ -585,7 +585,7 @@ device with $V_\pi$ = 4 V swings $T$ between about 0.30 and 0.70). `im.voltage_f
 $`V = (V_\pi/\pi)\left[\arccos\!\big((2T - 1)/k\big) - \varphi_0\right] - V_\mathrm{bias}`$, so protocol
 code can ask for a transmission. Asking for 0 or 1 gives the null or the maximum.
 
-**Time base.** A function-generator pattern has one value per symbol, symbol $k$ centered on
+**Time base.** An AWG pattern has one value per symbol, symbol $k$ centered on
 $t = k/f_\mathrm{sym}$. With the default *aligned* time base the generator is treated as a
 calibrated AWG locked to the laser clock: the voltage a pulse sees is evaluated at the pulse's
 emission time, so pulse $k$ meets symbol $k$ in whichever modulator the channel drives, whatever

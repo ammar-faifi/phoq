@@ -2,11 +2,11 @@
 
 A modulator has no drive of its own: it applies a voltage-dependent factor to the light
 passing through it. The voltage is the sum of what is plugged into its two electrical
-inputs, ``rf`` (normally a :class:`~phoq.FunctionGenerator` channel) and ``bias``
-(normally a :class:`~phoq.DCPowerSupply` output). An unconnected input contributes 0 V.
-The :class:`IQModulator` has two RF inputs and three bias inputs, one per electrode. The
-:class:`OpticalSwitch` follows the same rule: its route is set by the voltage on
-``ctrl``.
+inputs, ``rf`` (normally a :class:`~phoq.ArbitraryWaveformGenerator` channel) and
+``bias`` (normally a :class:`~phoq.DCPowerSupply` output). An unconnected input
+contributes 0 V. The :class:`IQModulator` has two RF inputs and three bias inputs, one
+per electrode. The :class:`OpticalSwitch` follows the same rule: its route is set by the
+voltage on ``ctrl``.
 """
 
 from __future__ import annotations
@@ -558,7 +558,7 @@ class OpticalSwitch(FiberConnectors, Component):
 
     Like a modulator it has no setting of its own: the state follows the voltage on its
     ``ctrl`` input — cross at or above ``threshold``, bar below, and bar when nothing is
-    connected (0 V). A function-generator pattern on ``ctrl`` therefore routes pulse by
+    connected (0 V). An AWG pattern on ``ctrl`` therefore routes pulse by
     pulse (an eavesdropper's tap, time multiplexing, a protected path).
     ``voltage_for(cross)`` gives the drive for a wanted sequence of states. The
     unselected route leaks ``crosstalk_db`` below the selected one, both carry

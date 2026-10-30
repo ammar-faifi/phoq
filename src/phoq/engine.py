@@ -27,7 +27,7 @@ from .detectors import (
     SinglePhotonDetector,
     _Detector,
 )
-from .generators import FunctionGenerator
+from .generators import ArbitraryWaveformGenerator
 from .modulators import _Modulator
 from .passive import OpticalDelayLine
 from .sources import Laser
@@ -317,7 +317,7 @@ def synthesize(
 
 
 def driving_generators(net: Network, detectors) -> set:
-    """Function generators feeding a modulator on some path to ``detectors``."""
+    """AWGs feeding a modulator on some path to ``detectors``."""
     gens = set()
     for d in detectors:
         for p in net.paths.get(d, []):
@@ -493,7 +493,7 @@ def report(setup: Setup, net: Network | None = None) -> dict:
                         ),
                     }
                 )
-    for g in setup.of_type(FunctionGenerator):
+    for g in setup.of_type(ArbitraryWaveformGenerator):
         for ch, pat in g.patterns.items():
             if getattr(g, f"{ch}_shape") == "pattern" and pat is None:
                 warnings.append(

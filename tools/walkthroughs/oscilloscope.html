@@ -255,7 +255,7 @@ const S = [
     p: `The simulation grid holds warm + total·k = 10 + 2000 = 2010 points at 100 ps. synthesize() traces the light to PD-1: Gaussian pulses of 1 ns FWHM every 20 ns, 1.69 mW peak, 0.087 mW average after the patch cord.`,
     c: [["t_sim", "2010 points"], ["peak", "1.69 mW"], ["period", "20 ns"]] },
   { m: "acquire", a: 34, b: 36, sc: "table", t: "One channel at a time",
-    p: `No function generator drives a modulator here, so driving is empty. The loop visits each wired channel; for CH1 the source is a Photodiode.`,
+    p: `No AWG drives a modulator here, so driving is empty. The loop visits each wired channel; for CH1 the source is a Photodiode.`,
     rows: [["driving", "{}", "no modulators on these paths"], ["CH1", "PD-1", "Photodiode", 1]] },
   { m: "acquire", a: 42, b: 43, sc: "raw", t: "Photocurrent",
     p: `PD-1 turns light into current: ℜ = 0.95 A/W, plus shot noise (2qi) and the 50 Ω load's thermal noise, through its own 1 GHz pole. The pole widens each pulse and lowers its peak from 1.60 mA (ℜ × peak power) to 1.48 mA. The scope's input is high-impedance, so it sees this current directly.`,

@@ -14,8 +14,8 @@ import numpy as np
 import pytest
 
 from phoq import (
+    ArbitraryWaveformGenerator,
     DCPowerSupply,
-    FunctionGenerator,
     IntensityModulator,
     IQModulator,
     Laser,
@@ -137,7 +137,7 @@ def test_steady_state_matches_synthesized_16qam():
     """
     s = outer_fringe_bench()
     iqm = s["IQM"]
-    psu2, fg = s.add(DCPowerSupply("PSU-2")), s.add(FunctionGenerator("FG"))
+    psu2, fg = s.add(DCPowerSupply("PSU-2")), s.add(ArbitraryWaveformGenerator("FG"))
     b = iqm.operating_bias()
     s["PSU"].ch1_voltage = b["bias_p"]
     s.connect(psu2.ch1, iqm.bias_i)

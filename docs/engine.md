@@ -13,7 +13,7 @@ modulator, oscilloscope and spectrum-analyzer physics in more depth.
 | `engine.py` | `trace()` → `Network`, `synthesize()`, `report()`: the light |
 | `sources.py` | `Laser`: the bin-averaged envelope and the phase noise |
 | `passive.py`, `modulators.py` | `scatter()` of every optical part; modulators' time-dependent factors |
-| `generators.py` | function generator and DC supply: the voltages that drive modulators |
+| `generators.py` | arbitrary waveform generator and DC supply: the voltages that drive modulators |
 | `detectors.py` | photodiode, single-photon detector, power meter |
 | `instruments.py` | oscilloscope, photon counter (time tagger), RF spectrum analyzer |
 | `runner.py` | `Runner`: acquire, run, sweep, average spectra |

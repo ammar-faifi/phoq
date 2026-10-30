@@ -1,7 +1,9 @@
-"""Electrical signal sources. The function generator is the only thing that drives
-modulators."""
+"""Electrical signal sources. The arbitrary waveform generator is the only thing that
+drives modulators."""
 
 from __future__ import annotations
+
+import warnings
 
 import numpy as np
 
@@ -13,14 +15,14 @@ SHAPES = ("dc", "sine", "square", "triangle", "ramp", "pattern")
 TRIGGERS = ("aligned", "laser", "free")
 
 
-class FunctionGenerator(Component):
-    """Two-channel arbitrary function generator (AWG).
+class ArbitraryWaveformGenerator(Component):
+    """Two-channel arbitrary waveform generator (AWG).
 
     Each output has a shape, a frequency (the symbol rate for a loaded pattern), a
     peak-to-peak amplitude, an offset, and a delay. Connect an output to a modulator's
     ``rf`` port::
 
-        fg = setup.add(FunctionGenerator())
+        fg = setup.add(ArbitraryWaveformGenerator())
         setup.connect(fg.ch1, pm.rf)
         fg.set(ch1_shape="sine", ch1_freq=1e9, ch1_vpp=2.0)
         levels = im.voltage_for(np.where(bits, 1.0, 0.0))
@@ -31,11 +33,15 @@ class FunctionGenerator(Component):
     modulator the channel drives; *laser* is locked to the laser clock as it leaves the
     laser, and you set ``chN_delay`` yourself; *free* runs free with a random start each
     acquisition. Symbol k of a pattern is centered on t = k / rate.
+
+    It used to be called ``FunctionGenerator``: that name still works, with a
+    deprecation warning, and saved setups and presets that use it load as an
+    ArbitraryWaveformGenerator.
     """
 
     category = "instrument"
-    prefix = "FG"
-    label = "Function generator"
+    prefix = "AWG"
+    label = "Arbitrary waveform generator"
     description = "2-channel AWG: dc / sine / square / triangle / ramp / pattern"
     outputs = CHANNELS
     signal_unit = "V"
@@ -121,7 +127,7 @@ class FunctionGenerator(Component):
 
     def set_pattern(
         self, channel: str, volts, rate: float | None = None
-    ) -> FunctionGenerator:
+    ) -> ArbitraryWaveformGenerator:
         """Load an arbitrary waveform, one voltage per symbol, and switch the channel to
         it.
 
@@ -248,6 +254,17 @@ class FunctionGenerator(Component):
             peer = self.ports[ch].peer
             out[ch.upper()] = self.describe(ch) + (f" → {peer.path}" if peer else "")
         return out
+
+
+Component.aliases["FunctionGenerator"] = "ArbitraryWaveformGenerator"
+RENAMED = "FunctionGenerator is now ArbitraryWaveformGenerator; the old name will go"
+
+
+def __getattr__(name: str):
+    if name == "FunctionGenerator":  # the old name of ArbitraryWaveformGenerator
+        warnings.warn(RENAMED, DeprecationWarning, stacklevel=2)
+        return ArbitraryWaveformGenerator
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 class DCPowerSupply(Component):

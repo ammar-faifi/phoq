@@ -8,10 +8,10 @@ import numpy as np
 import pytest
 
 from phoq import (
+    ArbitraryWaveformGenerator,
     Component,
     Coupler,
     DCPowerSupply,
-    FunctionGenerator,
     IntensityModulator,
     Laser,
     Photodiode,
@@ -128,7 +128,7 @@ def test_bias_electrode_vpi_is_referred_to_the_rf_electrode():
     assert im.transmission(im.static_voltage()) == pytest.approx(0.5, abs=1e-9)
     psu.ch1_voltage = im.v_pi_bias
     assert im.transmission(im.static_voltage()) == pytest.approx(im.t_min)  # the null
-    fg = setup.add(FunctionGenerator("FG"))
+    fg = setup.add(ArbitraryWaveformGenerator("FG"))
     setup.connect(fg.ch1, im.rf)
     # rf voltage for quadrature on top of the null bias
     v_rf = float(im.voltage_for(0.5))
@@ -284,7 +284,7 @@ def test_modulator_limits_warn_on_bias_and_rf_drive():
     assert "IM bias is 25 V, outside the absolute maximum -20 … 20 V" in texts
     psu.ch1_voltage = 2.0
     fg = setup.add(
-        FunctionGenerator("FG", ch1_shape="sine", ch1_freq=1e6, ch1_vpp=20.0)
+        ArbitraryWaveformGenerator("FG", ch1_shape="sine", ch1_freq=1e6, ch1_vpp=20.0)
     )
     setup.connect(fg.ch1, im.rf)  # 10 V peak; 28 dBm into 50 Ω is 7.9 V peak
     texts = " ".join(w["text"] for w in report(setup)["warnings"])
@@ -455,6 +455,29 @@ def test_presets_written_for_the_old_beamsplitter_name_apply_to_couplers(
         assert p.component == "Coupler" and not presets.check(p)
         assert p in presets.search(Coupler) and p in presets.search("BeamSplitter")
         assert Coupler(preset="generic/tap").ratio == 0.9
+    finally:
+        monkeypatch.delenv(presets.ENV_VAR)
+        presets.reload()
+
+
+def test_presets_written_for_the_old_functiongenerator_name_apply_to_awgs(
+    tmp_path, monkeypatch
+):
+    mine = tmp_path / "old"
+    mine.mkdir()
+    (mine / "sine.toml").write_text(
+        'component = "FunctionGenerator"\ntitle = "Our 1 MHz sine"\n[params]\n'
+        'ch1_shape = "sine"\nch1_freq = 1e6\n'
+    )
+    monkeypatch.setenv(presets.ENV_VAR, str(mine))
+    presets.reload()
+    try:
+        p = presets.get("generic/sine")
+        assert p.component == "ArbitraryWaveformGenerator" and not presets.check(p)
+        assert p in presets.search(ArbitraryWaveformGenerator)
+        assert p in presets.search("FunctionGenerator")
+        awg = ArbitraryWaveformGenerator(preset="generic/sine")
+        assert awg.ch1_shape == "sine" and awg.ch1_freq == 1e6
     finally:
         monkeypatch.delenv(presets.ENV_VAR)
         presets.reload()

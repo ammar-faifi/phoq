@@ -27,7 +27,7 @@ import numpy as np
 from phoq.core import Setup
 from phoq.detectors import PowerMeter, SinglePhotonDetector
 from phoq.engine import trace
-from phoq.generators import FunctionGenerator
+from phoq.generators import ArbitraryWaveformGenerator
 from phoq.instruments import PhotonCounter
 from phoq.modulators import IntensityModulator, OpticalSwitch, PhaseModulator
 from phoq.passive import Attenuator, Coupler, FiberSpool, PhaseShifter
@@ -166,7 +166,7 @@ def transmitter(
     setup.connect(bs_out.b1, voa.p1)
     setup.connect(bs_out.b2, setup.add(PowerMeter(f"{tag}-OPM")).inp)
     awg = setup.add(
-        FunctionGenerator(
+        ArbitraryWaveformGenerator(
             f"{tag}-AWG", ch1_shape="dc", ch1_offset=0.0, ch2_shape="dc", ch2_offset=0.0
         )
     )
@@ -212,7 +212,7 @@ def receiver(
     setup.connect(det[0].out, cnt.ch1)
     setup.connect(det[1].out, cnt.ch2)
     awg = setup.add(
-        FunctionGenerator(
+        ArbitraryWaveformGenerator(
             f"{tag}-AWG", ch1_shape="dc", ch1_offset=0.0, ch2_shape="dc", ch2_offset=0.0
         )
     )

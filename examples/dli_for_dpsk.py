@@ -28,7 +28,7 @@ from pathlib import Path
 import numpy as np
 
 from phoq import (
-    FunctionGenerator,
+    ArbitraryWaveformGenerator,
     Laser,
     Oscilloscope,
     PhaseModulator,
@@ -73,7 +73,7 @@ def build(linewidth: float = 100e3, bits: np.ndarray | None = None) -> Setup:
         )
     )
     pm = setup.add(PhaseModulator("PM-1"))
-    fg = setup.add(FunctionGenerator("FG-1"))
+    fg = setup.add(ArbitraryWaveformGenerator("FG-1"))
     pd_c, pd_d = setup.add(
         Photodiode("PD-C", bandwidth=5e9), Photodiode("PD-D", bandwidth=5e9)
     )

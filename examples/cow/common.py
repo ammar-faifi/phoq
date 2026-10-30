@@ -43,7 +43,7 @@ import numpy as np
 from phoq.core import Setup
 from phoq.detectors import SinglePhotonDetector
 from phoq.engine import trace
-from phoq.generators import FunctionGenerator
+from phoq.generators import ArbitraryWaveformGenerator
 from phoq.instruments import PhotonCounter
 from phoq.modulators import IntensityModulator, OpticalSwitch
 from phoq.passive import Attenuator, Coupler, FiberSpool, OpticalDelayLine, PhaseShifter
@@ -174,7 +174,7 @@ def transmitter(setup: Setup, p: COWParams) -> Attenuator:
         raise ValueError(f"source must be 'cw' or 'gain-switched', not {p.source!r}")
     im = setup.add(IntensityModulator("ALICE-IM", extinction_db=p.extinction_db))
     awg = setup.add(
-        FunctionGenerator(
+        ArbitraryWaveformGenerator(
             "ALICE-AWG",
             ch1_shape="dc",
             ch1_offset=float(im.voltage_for(1.0)),
@@ -270,7 +270,7 @@ def eavesdropper(setup: Setup, p: COWParams, e: EveParams, slots: int) -> Optica
     im = setup.add(IntensityModulator("EVE-TX-IM", extinction_db=e.extinction_db))
     voa = setup.add(Attenuator("EVE-TX-VOA", attenuation_db=40.0))
     awg = setup.add(
-        FunctionGenerator(
+        ArbitraryWaveformGenerator(
             "EVE-AWG",
             trigger="laser",
             ch1_shape="dc",

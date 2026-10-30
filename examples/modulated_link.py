@@ -1,5 +1,6 @@
 """A CW laser and an intensity modulator biased at quadrature by a DC supply and driven
-by a function generator, with a scope watching the photocurrent next to the drive.
+by an arbitrary waveform generator, with a scope watching the photocurrent next to the
+drive.
 
     # headless
     uv run phoq run examples/modulated_link.py
@@ -14,8 +15,8 @@ straight to the oscilloscope so the drive can be seen next to the photocurrent.
 import numpy as np
 
 from phoq import (
+    ArbitraryWaveformGenerator,
     DCPowerSupply,
-    FunctionGenerator,
     IntensityModulator,
     Laser,
     Oscilloscope,
@@ -30,7 +31,7 @@ pd = setup.add(Photodiode("PD-1", bandwidth=5e9))
 scope = setup.add(
     Oscilloscope("OSC-1", timebase=100e-9, ch1_scale=20e-6, ch2_scale=0.5)
 )
-fg = setup.add(FunctionGenerator("FG-1"))
+fg = setup.add(ArbitraryWaveformGenerator("FG-1"))
 # quadrature: the linear point
 psu = setup.add(DCPowerSupply("PSU-1", ch1_voltage=im.v_pi / 2))
 

@@ -27,10 +27,10 @@ from pathlib import Path
 import numpy as np
 
 from phoq import (
+    ArbitraryWaveformGenerator,
     Attenuator,
     Coupler,
     FiberSpool,
-    FunctionGenerator,
     IntensityModulator,
     Laser,
     PhotonCounter,
@@ -88,7 +88,7 @@ def build(
         )
     )
     im = setup.add(IntensityModulator("IM-A"))
-    fg = setup.add(FunctionGenerator("FG-A"))
+    fg = setup.add(ArbitraryWaveformGenerator("FG-A"))
     voa = setup.add(Attenuator("VOA-A"))
     spool = setup.add(FiberSpool("SPL", length=km * 1e3))
     tap = setup.add(Coupler("TAP", ratio=0.9))

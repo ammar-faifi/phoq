@@ -583,7 +583,7 @@ const BUILDERS = {
     p._height = 23;
   },
 
-  FunctionGenerator(p, comp) {
+  ArbitraryWaveformGenerator(p, comp) {
     p.onShelf = true;
     p.footprint = { w: 36, d: 16 };
     p.box(36, 12, 16, MAT.case, 0, 6, 0);
@@ -697,8 +697,8 @@ function drawSupplyDisplay(display, comp) {
   tex.needsUpdate = true;
 }
 
-/** A pattern channel's levels, from the server's description (FunctionGenerator.describe reads
- *  the loaded samples, so a pattern with no swing shows where it sits, whatever its Vpp). */
+/** A pattern channel's levels, from the server's description (ArbitraryWaveformGenerator.describe
+ *  reads the loaded samples, so a pattern with no swing shows where it sits, whatever its Vpp). */
 function patternLevels(comp, ch) {
   const text = comp.info?.[ch.toUpperCase()] ?? '';
   const v = (s) => Number(s).toFixed(2);
@@ -710,7 +710,7 @@ function patternLevels(comp, ch) {
   return `${comp.params[`${ch}_vpp`].toFixed(2)} Vpp`;
 }
 
-/** Front-panel display of a function generator: one row per channel. */
+/** Front-panel display of an AWG: one row per channel. */
 function drawGeneratorDisplay(display, comp) {
   const { ctx: g, canvas: c, tex } = display;
   g.fillStyle = '#060b12'; g.fillRect(0, 0, c.width, c.height);
@@ -790,7 +790,7 @@ const LABELS = {
   IntensityModulator: (c) => ({ lines: [`Vπ ${c.params.v_pi} V · ${driveText(c, 'rf')}`, driveText(c, 'bias')], accent: '#fbbf24' }),
   IQModulator: (c) => ({ lines: [`IQ · Vπ ${c.params.v_pi} V`, `${driveText(c, 'rf_i')} · ${driveText(c, 'rf_q')}`], accent: '#a78bfa' }),
   OpticalSwitch: (c) => ({ lines: ['2×2 switch · a1 a2 ⇄ b1 b2', `ctrl ${driveText(c, 'ctrl').replace('ctrl ', '')}`], accent: '#38bdf8' }),
-  FunctionGenerator: () => ({ lines: ['2-ch AWG'], accent: '#a78bfa' }),
+  ArbitraryWaveformGenerator: () => ({ lines: ['2-ch AWG'], accent: '#a78bfa' }),
   DCPowerSupply: () => ({ lines: ['2 outputs'], accent: '#f87171' }),
   FiberSpool: (c) => ({ lines: [`${(c.params.length / 1e3).toPrecision(3)} km SMF-28`, `delay ${fmtSI(c.params.length * 4.897e-9, 's')}`], accent: '#facc15' }),
   Oscilloscope: () => ({ lines: ['4 ch · photocurrent'], accent: '#facc15' }),

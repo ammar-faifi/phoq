@@ -25,7 +25,7 @@ pass your own script that defines `setup`. To use another server, open the page 
 | Edit a parameter in the Inspector | `setattr(component, name, value)`, validated, then autosaved |
 | Drag a fiber connector onto a free port / away from it | `setup.connect(...)` / `setup.disconnect(...)` |
 | Pick a channel source in the scope window or Inspector | connects `pd.rf` ↔ `osc.chN` (a generator output can be viewed too) |
-| Inspector → Electrical connections on a modulator | plugs a function-generator channel into `mod.rf` or a DC-supply output into `mod.bias`; the modulator has no drive of its own |
+| Inspector → Electrical connections on a modulator | plugs an AWG channel into `mod.rf` or a DC-supply output into `mod.bias`; the modulator has no drive of its own |
 | Click or drag a toolbox item | adds an instance of that Python class |
 | `Del` | `setup.remove(...)` |
 | `Space` on a laser | toggles `enabled` |

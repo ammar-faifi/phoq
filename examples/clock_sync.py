@@ -67,9 +67,9 @@ import math
 import numpy as np
 
 from phoq import (
+    ArbitraryWaveformGenerator,
     Attenuator,
     FiberSpool,
-    FunctionGenerator,
     IntensityModulator,
     Laser,
     PhotonCounter,
@@ -132,7 +132,7 @@ def build(
     f_a = rate * (1 + ppm * 1e-6)  # Alice's clock is her AWG's
     laser = setup.add(Laser("LD-1", mode="cw", power_dbm=-10.0))
     im = setup.add(IntensityModulator("IM-1"))
-    awg = setup.add(FunctionGenerator("AWG-1"))
+    awg = setup.add(ArbitraryWaveformGenerator("AWG-1"))
     voa = setup.add(Attenuator("VOA-1"))
     spd = setup.add(SinglePhotonDetector("SPD-1", dead_time=dead_time))
     bins = round(record / resolution)

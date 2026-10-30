@@ -3,7 +3,7 @@
 import { fmtSI, CH_COLORS, esc, clamp } from './util.js';
 
 const DIVX = 10, DIVY = 8, PRE_DIV = 1;
-const UNIT_OF = { Photodiode: 'A', SinglePhotonDetector: 'V', FunctionGenerator: 'V', DCPowerSupply: 'V' };
+const UNIT_OF = { Photodiode: 'A', SinglePhotonDetector: 'V', ArbitraryWaveformGenerator: 'V', DCPowerSupply: 'V' };
 
 function decode(b64) {
   const bin = atob(b64);

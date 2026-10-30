@@ -27,7 +27,7 @@ from .detectors import (
     SinglePhotonDetector,
 )
 from .engine import Network, report, synthesize, trace
-from .generators import DCPowerSupply, FunctionGenerator
+from .generators import ArbitraryWaveformGenerator, DCPowerSupply
 from .instruments import (
     CounterResult,
     Oscilloscope,
@@ -58,6 +58,7 @@ except PackageNotFoundError:  # running from a checkout that is not installed
     __version__ = "0.0.0"
 
 __all__ = [
+    "ArbitraryWaveformGenerator",
     "Attenuator",
     "BalancedPhotodetector",
     "Component",
@@ -67,7 +68,6 @@ __all__ = [
     "Fiber",
     "FiberSpool",
     "FiberTerminator",
-    "FunctionGenerator",
     "IntensityModulator",
     "IQModulator",
     "Isolator",
@@ -109,4 +109,9 @@ def __getattr__(name: str):
 
         warnings.warn(RENAMED, DeprecationWarning, stacklevel=2)
         return Coupler
+    if name == "FunctionGenerator":  # the old name of ArbitraryWaveformGenerator
+        from .generators import RENAMED
+
+        warnings.warn(RENAMED, DeprecationWarning, stacklevel=2)
+        return ArbitraryWaveformGenerator
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

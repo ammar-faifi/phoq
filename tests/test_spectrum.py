@@ -11,7 +11,7 @@ import numpy as np
 import pytest
 
 from phoq import (
-    FunctionGenerator,
+    ArbitraryWaveformGenerator,
     Laser,
     Photodiode,
     Runner,
@@ -31,7 +31,9 @@ def sweep(esa, setup, seed=1):
 
 def tone(freq=1.234e6, vpp=1.0, **esa):
     s = Setup("tone")
-    fg = s.add(FunctionGenerator("FG", ch1_shape="sine", ch1_freq=freq, ch1_vpp=vpp))
+    fg = s.add(
+        ArbitraryWaveformGenerator("FG", ch1_shape="sine", ch1_freq=freq, ch1_vpp=vpp)
+    )
     a = s.add(
         SpectrumAnalyzer("ESA", **{"stop_freq": 5e6, "rbw": 10e3, "averages": 4, **esa})
     )

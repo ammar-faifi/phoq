@@ -20,7 +20,7 @@ import numpy as np
 from phoq.core import Setup
 from phoq.detectors import SinglePhotonDetector
 from phoq.engine import trace
-from phoq.generators import FunctionGenerator
+from phoq.generators import ArbitraryWaveformGenerator
 from phoq.instruments import PhotonCounter
 from phoq.modulators import IntensityModulator, PhaseModulator
 from phoq.passive import Attenuator, Coupler, FiberSpool
@@ -109,7 +109,7 @@ def build(p: MPQKDParams | None = None, rounds: int = 200_000) -> Setup:
             Attenuator(f"{tag}-VOA", attenuation_db=50.0),
             FiberSpool(f"{tag}-SPL", length=p.distance / 2, splice_loss_db=0.0),
         )
-        awg = setup.add(FunctionGenerator(f"{tag}-AWG"))
+        awg = setup.add(ArbitraryWaveformGenerator(f"{tag}-AWG"))
         setup.connect(awg.ch1, setup[f"{tag}-IM"].rf)
         setup.connect(awg.ch2, setup[f"{tag}-PM"].rf)
     bs = setup.add(Coupler("CHARLIE", excess_loss_db=0.0))

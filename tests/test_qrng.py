@@ -14,7 +14,7 @@ import numpy as np
 import pytest
 from scipy.special import erf
 
-from phoq import FunctionGenerator, Oscilloscope, Setup
+from phoq import ArbitraryWaveformGenerator, Oscilloscope, Setup
 from phoq.engine import report, trace
 from phoq.units import Q_E
 
@@ -27,7 +27,9 @@ def test_scope_adc_quantizes_across_the_screen():
     """2^bits codes over the 8 divisions about the offset; beyond them, the end
     codes."""
     s = Setup("adc")
-    fg = s.add(FunctionGenerator("FG", ch1_shape="sine", ch1_freq=1e6, ch1_vpp=1.0))
+    fg = s.add(
+        ArbitraryWaveformGenerator("FG", ch1_shape="sine", ch1_freq=1e6, ch1_vpp=1.0)
+    )
     osc = s.add(
         Oscilloscope(
             "OSC",

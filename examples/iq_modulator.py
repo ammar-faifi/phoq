@@ -37,11 +37,11 @@ import math
 import numpy as np
 
 from phoq import (
+    ArbitraryWaveformGenerator,
     Attenuator,
     BalancedPhotodetector,
     Coupler,
     DCPowerSupply,
-    FunctionGenerator,
     IQModulator,
     Laser,
     Oscilloscope,
@@ -81,7 +81,7 @@ def build(
     iqm = setup.add(IQModulator("IQM-1", preset="exail/mxiq-ln-30"))
     voa = setup.add(Attenuator("VOA-1", attenuation_db=channel_db))
     ps_i, ps_q = setup.add(PhaseShifter("PS-I"), PhaseShifter("PS-Q"))
-    fg = setup.add(FunctionGenerator("FG-1", trigger="free"))
+    fg = setup.add(ArbitraryWaveformGenerator("FG-1", trigger="free"))
     psu1, psu2 = setup.add(DCPowerSupply("PSU-1"), DCPowerSupply("PSU-2"))
     bpd_i, bpd_q = (
         setup.add(BalancedPhotodetector(n, preset="thorlabs/pdb450c", gain=1e3))
