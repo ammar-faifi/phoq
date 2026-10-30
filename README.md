@@ -670,8 +670,10 @@ The receiver is a 90° hybrid built from four 50:50 couplers and a phase shifter
 Both branches therefore lose the same; with unequal LO powers, the two quadratures would read the
 square as a rectangle seen at an angle, which looks like a bias error. Each balanced detector reads
 one quadrature of $`E_S E_\mathrm{LO}^*`$. The shifters are set as a homodyne receiver's phase lock
-would set them, so those quadratures are the I and Q axes. The LO is the same laser, and every path
-is 4 m of cord, so the laser's phase noise cancels.
+would set them, so those quadratures are the I and Q axes. They land on 0 and π/2 because each
+detector's INPUT+ takes the mixer output where the signal and the LO have passed as many cross
+ports, each adding a factor $j$; on the other output the lock would land on π and 3π/2. The LO is
+the same laser, and every path is 4 m of cord, so the laser's phase noise cancels.
 
 The DSP finds the frame from the known symbols and fits $`\mathrm{CH1} + j\,\mathrm{CH2} = a\,i + b\,q + c`$:
 

@@ -111,9 +111,11 @@ def build(
     for ps, b, mix in ((ps_i, hyb_l.b1, mix_i), (ps_q, hyb_l.b2, mix_q)):
         setup.connect(b, ps.p1)
         setup.connect(ps.p2, mix.a2)
+    # INPUT+ takes b2: there the signal and the LO have crossed as many couplers, so the
+    # phase lock lands on 0 and π/2
     for mix, bpd, ch in ((mix_i, bpd_i, osc.ch1), (mix_q, bpd_q, osc.ch2)):
-        setup.connect(mix.b1, bpd.inp_plus)
-        setup.connect(mix.b2, bpd.inp_minus)
+        setup.connect(mix.b2, bpd.inp_plus)
+        setup.connect(mix.b1, bpd.inp_minus)
         setup.connect(bpd.rf, ch)
     for out, port in (
         (psu1.ch1, iqm.bias_i),
@@ -146,7 +148,7 @@ def lock_lo(setup: Setup) -> tuple[float, float]:
     """Set the LO's phase shifters as a homodyne receiver's phase lock would: each
     detector reads Re(x·z) of the symbol field x, with z its signal path times the
     conjugate LO path (at INPUT+). PS-I turns z_I real, so CH1 reads i; PS-Q turns z_Q
-    to −j, so CH2 reads q, 90° from it.
+    to −j, so CH2 reads q, 90° from it. On this bench they land on 0 and π/2.
     """
     iqm = setup["IQM-1"]
     setup["PS-I"].phase = setup["PS-Q"].phase = 0.0
