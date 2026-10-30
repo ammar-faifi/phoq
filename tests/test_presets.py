@@ -120,21 +120,18 @@ def test_subclass_inherits_its_bases_presets():
 
 def test_bias_electrode_vpi_is_referred_to_the_rf_electrode():
     setup = Setup("bias")
-    im = setup.add(
-        IntensityModulator("IM", preset="exail/mx-ln-10")
-    )  # Vπ 5.5 V RF, 4.2 V DC
+    # Vπ 5.5 V RF, 4.2 V DC
+    im = setup.add(IntensityModulator("IM", preset="exail/mx-ln-10"))
     psu = setup.add(DCPowerSupply("PSU", ch1_voltage=im.v_pi_bias / 2))
     setup.connect(psu.ch1, im.bias)
-    assert im.transmission(im.static_voltage()) == pytest.approx(
-        0.5, abs=1e-9
-    )  # quadrature at Vπ_DC/2
+    # quadrature at Vπ_DC/2
+    assert im.transmission(im.static_voltage()) == pytest.approx(0.5, abs=1e-9)
     psu.ch1_voltage = im.v_pi_bias
     assert im.transmission(im.static_voltage()) == pytest.approx(im.t_min)  # the null
     fg = setup.add(FunctionGenerator("FG"))
     setup.connect(fg.ch1, im.rf)
-    v_rf = float(
-        im.voltage_for(0.5)
-    )  # rf voltage for quadrature on top of the null bias
+    # rf voltage for quadrature on top of the null bias
+    v_rf = float(im.voltage_for(0.5))
     assert im.transmission(v_rf + im.bias_voltage()) == pytest.approx(0.5)
     assert im.info()["Bias electrode"].startswith("Vπ 4.2 V")
     assert IntensityModulator().bias_scale() == 1.0  # generic: one electrode
@@ -160,23 +157,19 @@ def test_photodiode_presets_responsivity_and_optical_limit():
 
 
 def test_spectral_curves_set_efficiency_and_responsivity_versus_wavelength():
-    spcm = SinglePhotonDetector(
-        "SPD", preset="excelitas/spcm-aqrh-13-fc"
-    )  # Si: 400–1060 nm
-    assert spcm.efficiency_at(650e-9) == pytest.approx(
-        0.62
-    )  # anchored at the table's wavelength
-    assert spcm.efficiency_at(830e-9) == pytest.approx(
-        0.51, abs=0.01
-    )  # the figure's shape
+    # Si: 400–1060 nm
+    spcm = SinglePhotonDetector("SPD", preset="excelitas/spcm-aqrh-13-fc")
+    # anchored at the table's wavelength
+    assert spcm.efficiency_at(650e-9) == pytest.approx(0.62)
+    # the figure's shape
+    assert spcm.efficiency_at(830e-9) == pytest.approx(0.51, abs=0.01)
     assert spcm.efficiency_at(1310e-9) == spcm.efficiency_at(1550e-9) == 0.0
     assert (
         "ref_wavelength" in spcm.ui_fields()
         and spcm.info()["Spectral PDE"] == "400–1060 nm · datasheet graph"
     )
-    pdm = SinglePhotonDetector(
-        preset="mpd/pdm-ir"
-    )  # InGaAs/InP: peaks near 1300–1475 nm
+    # InGaAs/InP: peaks near 1300–1475 nm
+    pdm = SinglePhotonDetector(preset="mpd/pdm-ir")
     assert pdm.efficiency_at(1550e-9) == pytest.approx(0.25)
     assert 0.34 < pdm.efficiency_at(1310e-9) < 0.37 and pdm.efficiency_at(850e-9) < 0.01
     generic = SinglePhotonDetector(efficiency=0.3)  # no curve: flat, as before
@@ -185,20 +178,17 @@ def test_spectral_curves_set_efficiency_and_responsivity_versus_wavelength():
     )
     assert "ref_wavelength" not in generic.ui_fields() and generic.info() == {}
 
-    hf = Photodiode(
-        preset="thorlabs/dx25hf"
-    )  # peaks near 1.15 µm, falls off past 1.55 µm
+    # peaks near 1.15 µm, falls off past 1.55 µm
+    hf = Photodiode(preset="thorlabs/dx25hf")
     assert hf.responsivity(1550e-9) == pytest.approx(0.45)
     assert hf.responsivity(1310e-9) == pytest.approx(0.509, abs=0.005)
     assert hf.responsivity(900e-9) == hf.responsivity(1650e-9) == 0.0
     det = Photodiode(preset="thorlabs/det08cfc")
     assert det.responsivity(1550e-9) == pytest.approx(0.90)
-    assert det.responsivity(1650e-9) == pytest.approx(
-        0.79, abs=0.01
-    )  # the generic InGaAs table: 0.57
-    assert Photodiode(ref_responsivity=0.8).responsivity(1550e-9) == pytest.approx(
-        0.8
-    )  # material curve
+    # the generic InGaAs table: 0.57
+    assert det.responsivity(1650e-9) == pytest.approx(0.79, abs=0.01)
+    # material curve
+    assert Photodiode(ref_responsivity=0.8).responsivity(1550e-9) == pytest.approx(0.8)
 
 
 def test_silicon_spad_on_a_1550_nm_link_is_blind():
@@ -206,9 +196,8 @@ def test_silicon_spad_on_a_1550_nm_link_is_blind():
         "SPD", preset="excelitas/spcm-aqrh-16-fc", dark_count_rate=0.0, dead_time=0.0
     )
     n, dt = 20_000, 1e-9
-    field = np.full(
-        n, math.sqrt(1e-10), dtype=complex
-    )  # 0.1 nW: 0.43 photons per ns at 850 nm
+    # 0.1 nW: 0.43 photons per ns at 850 nm
+    field = np.full(n, math.sqrt(1e-10), dtype=complex)
     assert spcm.detect({1550e-9: field}, dt, np.random.default_rng(1), n).sum() == 0
     clicks = spcm.detect({850e-9: field}, dt, np.random.default_rng(1), n).sum()
     assert clicks == pytest.approx(

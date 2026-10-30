@@ -42,9 +42,8 @@ def test_scope_adc_quantizes_across_the_screen():
     r = osc.acquire(trace(s), np.random.default_rng(1))
     codes, v = r.codes("ch1"), r["ch1"].data
     assert set(np.unique(codes)) == set(range(16))
-    assert np.allclose(
-        np.unique(v), -0.4 + np.arange(16) * 0.8 / 15
-    )  # ±4 div at 0.1 V/div, clipped
+    # ±4 div at 0.1 V/div, clipped
+    assert np.allclose(np.unique(v), -0.4 + np.arange(16) * 0.8 / 15)
     osc.adc_bits = 0
     with pytest.raises(ValueError, match="no ADC resolution"):
         osc.acquire(trace(s), np.random.default_rng(1)).codes("ch1")
@@ -66,9 +65,8 @@ def test_gehring_2021_table1_quantum_side_information():
     assert h(3.96e7, 3.29e7, 2.49e7) == pytest.approx(11.07, abs=0.01)
     corners = itertools.product((3.87e7, 4.05e7), (3.22e7, 3.36e7), (2.43e7, 2.55e7))
     assert min(h(*c) for c in corners) == pytest.approx(10.74, abs=0.05)
-    assert EX["secure_length"](352, 3.51, 1e-32) == pytest.approx(
-        1024, abs=2
-    )  # Eq. (1): 5632 bits → 1024
+    # Eq. (1): 5632 bits → 1024
+    assert EX["secure_length"](352, 3.51, 1e-32) == pytest.approx(1024, abs=2)
 
 
 @pytest.mark.parametrize("g", [5.0, 20.0])
@@ -78,16 +76,14 @@ def test_quantum_bound_without_excess_noise_is_the_vacuum_center_bin(g):
     assert EX["h_quantum"](g, 0.0, 12) == pytest.approx(
         -math.log2(erf(1 / (2 * math.sqrt(2) * g))), rel=1e-9
     )
-    assert EX["h_quantum"](g, 0.2, 12) < EX["h_quantum"](
-        g, 0.0, 12
-    )  # excess noise only costs
+    # excess noise only costs
+    assert EX["h_quantum"](g, 0.2, 12) < EX["h_quantum"](g, 0.0, 12)
 
 
 def test_bench_shot_noise_qcnr_and_correlations():
     bench = EX["build"]()
-    assert (
-        abs(report(bench)["detectors"]["BPD-1"]["rf"]) < 1e-6
-    )  # the coupler trims the currents equal
+    # the coupler trims the currents equal
+    assert abs(report(bench)["detectors"]["BPD-1"]["rf"]) < 1e-6
     scale = EX["fit_range"](bench)
     dark = EX["variance"](
         EX["record"](EX["build"](laser_on=False, scale=scale), sweeps=4)
@@ -116,9 +112,8 @@ def test_bench_shot_noise_qcnr_and_correlations():
     )
     on = EX["record"](EX["build"](scale=scale), sweeps=4)
     off = EX["record"](EX["build"](scale=scale, laser_on=False), sweeps=4)
-    assert EX["entropy"](on, off, 8)["qcnr_db"] == pytest.approx(
-        want, abs=0.3
-    )  # shot over NEP, one pole
+    # shot over NEP, one pole
+    assert EX["entropy"](on, off, 8)["qcnr_db"] == pytest.approx(want, abs=0.3)
     slow, fast = (
         EX["record"](EX["build"](sample_rate=fs, scale=scale), sweeps=4)
         for fs in (50e6, 200e6)
@@ -126,9 +121,8 @@ def test_bench_shot_noise_qcnr_and_correlations():
     a_slow, a_fast = EX["autocorrelation"](slow)[0], EX["autocorrelation"](fast)[0]
     assert abs(a_slow) < 0.03 and a_fast > 0.2
     ratio = EX["conditional_variance"](fast) / EX["variance"](fast)
-    assert ratio == pytest.approx(
-        1 - a_fast**2, abs=0.03
-    )  # an AR(1)-like process: what the past predicts
+    # an AR(1)-like process: what the past predicts
+    assert ratio == pytest.approx(1 - a_fast**2, abs=0.03)
 
 
 def _volts(setup, sweeps, monkeypatch, shot=True):

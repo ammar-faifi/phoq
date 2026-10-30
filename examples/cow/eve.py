@@ -36,9 +36,8 @@ import numpy as np
 from phoq.loading import import_source
 from phoq.parties import Party
 
-cow = import_source(
-    Path(__file__).resolve().parent
-)  # the protocol package, however it was loaded
+# the protocol package, however it was loaded
+cow = import_source(Path(__file__).resolve().parent)
 common = cow.common
 
 
@@ -56,12 +55,10 @@ class Eve(Party):
         "EVE-AWG",
     )
     params = common.COWParams()  # Alice and Bob's public parameters: she knows them too
-    fraction = float(
-        os.environ.get("PHOQ_EVE_FRACTION", "1.0")
-    )  # share of the bits intercepted
-    inconclusive = os.environ.get(
-        "PHOQ_EVE_INCONCLUSIVE", "empty"
-    )  # what she re-sends when she saw nothing
+    # share of the bits intercepted
+    fraction = float(os.environ.get("PHOQ_EVE_FRACTION", "1.0"))
+    # what she re-sends when she saw nothing
+    inconclusive = os.environ.get("PHOQ_EVE_INCONCLUSIVE", "empty")
     resend_mu = (
         float(os.environ["PHOQ_EVE_MU"]) if "PHOQ_EVE_MU" in os.environ else None
     )
@@ -77,9 +74,8 @@ class Eve(Party):
         )
         # her AWG's CH2 drives the switch; with that output off it rests in bar
         self.engaged = True
-        self.att0 = self.hw.get(
-            "EVE-TX-VOA", "attenuation_db"
-        )  # calibrated: μ photons per pulse at her detector
+        # calibrated: μ photons per pulse at her detector
+        self.att0 = self.hw.get("EVE-TX-VOA", "attenuation_db")
         self.efficiency = self.hw.get("EVE-D", "efficiency")
         self.dark = float(self.hw.call("EVE-TX-IM", "voltage_for", 0.0))
         print(
@@ -103,12 +99,10 @@ class Eve(Party):
                     " untouched"
                 )
             )
-        attack = (
-            self.rng.random(n // 2) < self.fraction
-        ) & engaged  # per logical bit: both of its slots
-        v_sw = self.hw.call(
-            "EVE-SW", "voltage_for", np.repeat(attack, 2)
-        )  # cross: into her detector, hers out
+        # per logical bit: both of its slots
+        attack = (self.rng.random(n // 2) < self.fraction) & engaged
+        # cross: into her detector, hers out
+        v_sw = self.hw.call("EVE-SW", "voltage_for", np.repeat(attack, 2))
         self.hw.call("EVE-AWG", "set_pattern", "ch2", v_sw, p.rate)
         # her transmitter dark while she listens: a one-symbol pattern keeps the channel
         # in pattern mode

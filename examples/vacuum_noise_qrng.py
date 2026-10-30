@@ -232,13 +232,11 @@ def conditional_variance(runs: list[np.ndarray], segment: int = 2000) -> float:
         for r in runs
         for i in range(0, r.size - segment + 1, segment)
     ]
-    psd = np.mean([np.abs(np.fft.rfft(s)) ** 2 / segment for s in segs], axis=0)[
-        1:-1
-    ]  # no DC, no Nyquist
+    # no DC, no Nyquist
+    psd = np.mean([np.abs(np.fft.rfft(s)) ** 2 / segment for s in segs], axis=0)[1:-1]
     k = len(segs)
-    return float(
-        np.exp(np.mean(np.log(psd)) + 1 / (2 * k))
-    )  # E ln(mean of K) = ln σ² − 1/2K: undo the bias
+    # E ln(mean of K) = ln σ² − 1/2K: undo the bias
+    return float(np.exp(np.mean(np.log(psd)) + 1 / (2 * k)))
 
 
 def autocorrelation(runs: list[np.ndarray], lags: int = 20) -> np.ndarray:
@@ -291,9 +289,8 @@ def h_quantum_optimal_range(n: float, bits: int) -> float:
     erf(Δx/2g′*) = ½erfc(R/g′*).
     """
     d = 2**bits
-    u = brentq(
-        lambda u: erf(u / (d - 2)) - 0.5 * erfc(u), 1e-6, 40.0
-    )  # u = R/g′*, Δx/2g′* = u/(d − 2)
+    # u = R/g′*, Δx/2g′* = u/(d − 2)
+    u = brentq(lambda u: erf(u / (d - 2)) - 0.5 * erfc(u), 1e-6, 40.0)
     return -math.log2((math.sqrt(n) + math.sqrt(n + 1)) ** 2) - math.log2(
         erf(u / (d - 2))
     )
@@ -305,9 +302,8 @@ def entropy(on: list[np.ndarray], dark: list[np.ndarray], bits: int) -> dict:
     s2, s2_dark = variance(on), variance(dark)
     sx2, su2 = conditional_variance(on), conditional_variance(dark)
     g2 = sx2 - su2  # the conditional vacuum variance (Eq. 22)
-    n = (
-        0.5 * s2 / g2 - 0.5
-    )  # the excess noise as thermal photons, with the past's share (Eq. 24)
+    # the excess noise as thermal photons, with the past's share (Eq. 24)
+    n = 0.5 * s2 / g2 - 0.5
     sigma_q = math.sqrt(s2 - s2_dark)
     return {
         "sigma2": s2,

@@ -27,9 +27,8 @@ def noise_bandwidth(pd: Photodiode, dt: float = DT) -> float:
 
 
 def quiet(**kw) -> Photodiode:
-    return Photodiode(
-        bandwidth=1e9, temperature=1.0, load=1e7, **kw
-    )  # thermal noise negligible
+    # thermal noise negligible
+    return Photodiode(bandwidth=1e9, temperature=1.0, load=1e7, **kw)
 
 
 def test_shot_noise_fills_the_bandwidth_with_density_2qI():
@@ -105,9 +104,8 @@ def test_heterodyne_beat_and_its_shot_noise_limited_snr():
         c, *_ = np.linalg.lstsq(tone, i, rcond=None)
         snr.append((c[1] ** 2 + c[2] ** 2) / 2 / (i - tone @ c).var())
     a = -math.expm1(-DT * 2 * math.pi * pd.bandwidth)
-    h2 = (
-        abs(a / (1 - (1 - a) * np.exp(-2j * math.pi * 100e6 * DT))) ** 2
-    )  # the pole at the IF
+    # the pole at the IF
+    h2 = abs(a / (1 - (1 - a) * np.exp(-2j * math.pi * 100e6 * DT))) ** 2
     eta = r * HV / Q_E
     assert np.mean(snr) == pytest.approx(
         eta * p_s / (HV * noise_bandwidth(pd)) * h2, rel=0.05

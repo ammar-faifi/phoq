@@ -77,9 +77,8 @@ def test_the_empty_input_shows_the_noise_floor_in_the_rbw():
         SpectrumAnalyzer("A", stop_freq=5e6, rbw=10e3, averages=20, detector="average"),
         s,
     )
-    assert np.mean(peak.level) > np.mean(
-        avg.level
-    )  # the peak detector rides on the noise
+    # the peak detector rides on the noise
+    assert np.mean(peak.level) > np.mean(avg.level)
 
 
 @pytest.mark.parametrize(
@@ -158,17 +157,15 @@ def test_shot_noise_of_a_photodiode():
     current = pd.mean_current(trace(s).mean_powers(pd))
     r = sweep(a, s)
     mid = (r.freq > 5e6) & (r.freq < 45e6)
-    expected = 10 * math.log10(
-        2 * Q_E * current * 50 * r.rbw / 1e-3
-    )  # 2qI into 50 Ω, in the RBW
+    # 2qI into 50 Ω, in the RBW
+    expected = 10 * math.log10(2 * Q_E * current * 50 * r.rbw / 1e-3)
     assert float(np.mean(r.level[mid])) == pytest.approx(expected, abs=0.3)
     assert r.level[0] < float(np.mean(r.level[mid])) + 3  # AC-coupled: no DC line
 
 
 def test_a_tone_above_the_span_does_not_fold_into_it():
-    s, a = tone(
-        freq=9e6, vpp=1.0, stop_freq=5e6
-    )  # sampled at 12.8 MS/s it would alias to 3.8 MHz
+    # sampled at 12.8 MS/s it would alias to 3.8 MHz
+    s, a = tone(freq=9e6, vpp=1.0, stop_freq=5e6)
     r = sweep(a, s)
     near = np.abs(r.freq - 3.8e6) < 50e3
     assert float(np.max(r.level[near])) < -60
@@ -188,9 +185,8 @@ def test_trace_average_max_hold_and_clearing():
     )
     net, rng = trace(s), np.random.default_rng(2)
     spread = [float(np.std(a.acquire(net, rng).level)) for _ in range(20)]
-    assert (
-        a._sweeps == 20 and spread[-1] < spread[0] / 2
-    )  # the averaged trace smooths out
+    # the averaged trace smooths out
+    assert a._sweeps == 20 and spread[-1] < spread[0] / 2
     a.rbw = 20e3  # any setting change restarts it
     assert a.acquire(net, rng).sweeps == 1
     a.trace = "max hold"
@@ -415,12 +411,10 @@ def test_short_delay_fit_measures_a_100_hz_laser(spool_km):
     m = ex["measure"](ex["build"](100.0, spool_km, averages=300))
     assert m["tau_d"] * math.pi * 100 < 1  # shorter than the coherence time
     assert m["fit"] == pytest.approx(100.0, rel=0.04)
-    assert not m["lorentzian"] == pytest.approx(
-        100.0, rel=0.2
-    )  # the long-delay fit does not apply
-    assert not m["one_phase"] == pytest.approx(
-        100.0, rel=0.2
-    )  # one bias phase is biased
+    # the long-delay fit does not apply
+    assert not m["lorentzian"] == pytest.approx(100.0, rel=0.2)
+    # one bias phase is biased
+    assert not m["one_phase"] == pytest.approx(100.0, rel=0.2)
 
 
 def test_long_delay_fits_agree_for_1_khz():

@@ -142,9 +142,8 @@ class LabSession:
         self.save_at = 0.0
         self.last_counter = 0.0
         self.esa_next: dict[str, float] = {}  # when each spectrum analyzer sweeps next
-        self.sent_held: dict[str, int] = (
-            {}
-        )  # scope → id of the held sweep already streamed
+        # scope → id of the held sweep already streamed
+        self.sent_held: dict[str, int] = {}
         setup.on_change(self._changed)
 
     def _changed(self, event, component, param) -> None:
@@ -237,9 +236,8 @@ class LabSession:
                 if inst.running and now >= self.esa_next.get(inst.name, 0.0):
                     res = inst.acquire(net, self.rng)
                     took = time.monotonic() - now
-                    self.esa_next[inst.name] = now + max(
-                        0.2, 3 * took
-                    )  # long sweeps run less often
+                    # long sweeps run less often
+                    self.esa_next[inst.name] = now + max(0.2, 3 * took)
                     msgs.append({"type": "frame", "frame": res.to_json()})
             if self.experiment:  # parties drive the blocks
                 if time.monotonic() - self.experiment.last_acquire >= 0.5:
@@ -251,11 +249,8 @@ class LabSession:
                         res = inst.acquire(net, self.rng)
                         res.seq = self.batch_seq
                         msgs.append({"type": "counter", "counter": res.to_json()})
-                        for (
-                            w
-                        ) in (
-                            self.task_workers
-                        ):  # the user's analysis tasks get every batch
+                        # the user's analysis tasks get every batch
+                        for w in self.task_workers:
                             if w.task.accepts(inst.name):
                                 w.send(res)
                 if any(

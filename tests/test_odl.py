@@ -21,9 +21,8 @@ EX = run_path(
 def test_group_delay_is_the_insertion_delay_plus_the_dial():
     for dial, step, got, want, warned in EX["check_delay"]():
         assert got == pytest.approx(want, abs=1e-16)
-        assert warned == (
-            dial > 330e-12
-        )  # set beyond the travel: stops there, and says so
+        # set beyond the travel: stops there, and says so
+        assert warned == (dial > 330e-12)
 
 
 def test_resolution_puts_the_dial_on_the_step_grid():
@@ -48,9 +47,8 @@ def test_dli_visibility_is_the_overlap_of_neighboring_pulses():
     for dial, delta, want, rep, syn in rows:
         assert rep == pytest.approx(want, abs=0.005)
         assert syn == pytest.approx(want, abs=0.02)
-    assert (
-        max(rows, key=lambda r: r[3])[0] == 105e-12
-    )  # the peak sits where `balance` set it
+    # the peak sits where `balance` set it
+    assert max(rows, key=lambda r: r[3])[0] == 105e-12
 
 
 def test_standard_cords_alone_lose_short_pulses():
@@ -61,9 +59,8 @@ def test_standard_cords_alone_lose_short_pulses():
 
 def test_balance_refuses_a_delay_beyond_the_travel():
     setup = EX["build"]()
-    setup["DLI-ODL"].insertion_delay = (
-        300e-12  # the cords already leave only 205 ps to add
-    )
+    # the cords already leave only 205 ps to add
+    setup["DLI-ODL"].insertion_delay = 300e-12
     with pytest.raises(ValueError, match="travel"):
         EX["balance"](setup, "LD-1", "PD-C", "DLI-ODL")
 
@@ -101,9 +98,8 @@ def test_dli_arms_are_standard_cords():
     for setup in (*(b() for b in benches), EX["build"]()):
         lengths = {c.length for c in setup if type(c).__name__ == "Fiber"}
         assert lengths <= {0.5, 1.0, 2.0, 3.0}, lengths
-        assert all(
-            "ODL" not in w["text"] for w in report(setup)["warnings"]
-        )  # within its travel
+        # within its travel
+        assert all("ODL" not in w["text"] for w in report(setup)["warnings"])
 
 
 # Wang et al., "Design of optical fiber delay line with large delay range and low
@@ -137,9 +133,8 @@ def test_coupling_reproduces_wang_2024_fig5():
 
     z4 = least_squares(lambda p: curve(p[0]) - WANG_F4, x0=[0.6]).x[0]
     assert np.sqrt(np.mean((curve(z4) - WANG_F4) ** 2)) < 0.003
-    assert (
-        np.sqrt(np.mean((curve(4 * z4) - WANG_F8) ** 2)) < 0.006
-    )  # predicted, not fitted
+    # predicted, not fitted
+    assert np.sqrt(np.mean((curve(4 * z4) - WANG_F8) ** 2)) < 0.006
     for f in (
         12,
         16,

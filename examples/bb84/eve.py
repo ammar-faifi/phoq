@@ -27,9 +27,8 @@ import numpy as np
 from phoq.loading import import_source
 from phoq.parties import Party
 
-bb84 = import_source(
-    Path(__file__).resolve().parent
-)  # the protocol package, however it was loaded
+# the protocol package, however it was loaded
+bb84 = import_source(Path(__file__).resolve().parent)
 common = bb84.common
 
 
@@ -54,9 +53,8 @@ class Eve(Party):
         "EVE-TX-OPM",
     )
     params = common.BB84Params()
-    fraction = float(
-        os.environ.get("PHOQ_EVE_FRACTION", "1.0")
-    )  # share of pulses intercepted
+    # share of pulses intercepted
+    fraction = float(os.environ.get("PHOQ_EVE_FRACTION", "1.0"))
     # photons per re-sent pulse at the switch; None: match Alice's mean intensity / her
     # click probability
     resend_mu = (
@@ -66,9 +64,8 @@ class Eve(Party):
     def setup(self) -> None:
         self.blocks: dict[int, dict] = {}
         self.totals = dict(blocks=0, pulses=0, intercepted=0, clicks=0, resent=0)
-        self.att0 = self.hw.get(
-            "EVE-TX-VOA", "attenuation_db"
-        )  # calibrated: μ photons per pulse at the switch
+        # calibrated: μ photons per pulse at the switch
+        self.att0 = self.hw.get("EVE-TX-VOA", "attenuation_db")
         print(
             f"eavesdropper up · intercept-resend on {self.fraction:.0%} of the pulses ·"
             " re-sends with μ_E ="
@@ -81,9 +78,8 @@ class Eve(Party):
         attack = self.rng.random(m) < self.fraction
         basis = self.rng.integers(0, 2, size=m, dtype=np.int8)
         rate = self.params.rep_rate
-        v_sw = self.hw.call(
-            "EVE-SW", "voltage_for", attack
-        )  # cross: into her receiver, hers out
+        # cross: into her receiver, hers out
+        v_sw = self.hw.call("EVE-SW", "voltage_for", attack)
         v_pm = self.hw.call("EVE-RX-PM", "voltage_for", common.measurement_phase(basis))
         self.hw.call("EVE-RX-AWG", "set_pattern", "ch2", v_sw, rate)
         self.hw.call("EVE-RX-AWG", "set_pattern", "ch1", v_pm, rate)

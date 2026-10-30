@@ -136,9 +136,8 @@ def monitor(setup: Setup, batches: int = 5, seed: int = 2) -> dict:
     rate."""
     slots, kind = setup.cow["slots"], setup.cow["kind"]
     n = slots.size
-    pair = (slots > 0) & (
-        np.roll(slots, 1) > 0
-    )  # slot k: pulse k and pulse k−1 both present
+    # slot k: pulse k and pulse k−1 both present
+    pair = (slots > 0) & (np.roll(slots, 1) > 0)
     runner = Runner(setup, seed=seed)
     n1 = n2 = 0
     right = wrong = 0

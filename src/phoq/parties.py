@@ -81,9 +81,8 @@ class Message:
         return self.payload.get("block")
 
     def __getattr__(self, item):
-        payload = self.__dict__.get(
-            "payload"
-        )  # absent while pickle rebuilds the object
+        # absent while pickle rebuilds the object
+        payload = self.__dict__.get("payload")
         if payload is None or item.startswith("_") or item not in payload:
             raise AttributeError(item)
         return payload[item]
@@ -578,9 +577,8 @@ class Experiment:
                 value = getattr(comp, args[0])(*args[1:], **kw)
             else:
                 raise ValueError(f"unknown hardware operation {op!r}")
-        if isinstance(
-            value, Component
-        ):  # a method returned the instrument itself (fluent API)
+        # a method returned the instrument itself (fluent API)
+        if isinstance(value, Component):
             return value.name
         try:
             pickle.dumps(value)
@@ -731,9 +729,8 @@ class Experiment:
                     break
             for w in self.workers:
                 w.wait_idle(timeout)
-            self.wait_quiet(
-                timeout=min(timeout, 30.0)
-            )  # the parties' last classical messages
+            # the parties' last classical messages
+            self.wait_quiet(timeout=min(timeout, 30.0))
             if echo:
                 self.echo()
         finally:

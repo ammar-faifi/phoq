@@ -47,9 +47,8 @@ from phoq.units import fmt_si
 # signal − LO optical frequency: inside the 45 MHz RF bandwidth and the 1 MHz monitors
 BEAT = 400e3
 RIN = 0.05  # the LO's relative intensity noise: 5 % rms, over the band below CORNER
-CORNER = (
-    30e3  # its one-pole corner: slow technical wander, not the laser's white rin_db_hz
-)
+# its one-pole corner: slow technical wander, not the laser's white rin_db_hz
+CORNER = 30e3
 
 
 def lo_noise(
@@ -102,9 +101,8 @@ def build(gain: float = 1e4, signal: bool = True, rin: float = RIN) -> Setup:
     setup.connect(lo.out, im.p1)
     setup.connect(im.p2, bs.a1)
     setup.connect(sig.out, bs.a2)
-    setup.connect(
-        bs.b1, bpd.inp_plus, length=1.0
-    )  # equal cords: the beat and the noise arrive in step
+    # equal cords: the beat and the noise arrive in step
+    setup.connect(bs.b1, bpd.inp_plus, length=1.0)
     setup.connect(bs.b2, bpd.inp_minus, length=1.0)
     setup.connect(fg.ch1, im.rf)
     setup.connect(bpd.rf, osc.ch1)
@@ -116,9 +114,8 @@ def build(gain: float = 1e4, signal: bool = True, rin: float = RIN) -> Setup:
     fg.set_pattern(
         "ch1", im.voltage_for(0.5 * (1 + lo_noise(2**15, rate, rin))), rate=rate
     )
-    osc.trigger_level = report(setup)["detectors"]["BPD-1"].get(
-        "rf", 0.0
-    )  # the beat's mid-level
+    # the beat's mid-level
+    osc.trigger_level = report(setup)["detectors"]["BPD-1"].get("rf", 0.0)
     return setup
 
 

@@ -34,9 +34,8 @@ import numpy as np
 
 from phoq.parties import Experiment, load_protocol
 
-mpqkd = load_protocol(
-    Path(__file__).resolve().parent
-)  # the parties' processes re-import it the same way
+# the parties' processes re-import it the same way
+mpqkd = load_protocol(Path(__file__).resolve().parent)
 MPQKDParams, build, theory, arm_transmittance = (
     mpqkd.MPQKDParams,
     mpqkd.build,
@@ -226,9 +225,8 @@ def main(argv=None) -> list[dict]:
             title=f"MP-QKD showcase, {args.blocks} × {args.rounds:,} pulses per point",
         )
         ax.grid(True, which="major", alpha=0.3)
-        ax.grid(
-            True, which="minor", alpha=0.1
-        )  # on black a full-strength minor grid buries the curves
+        # on black a full-strength minor grid buries the curves
+        ax.grid(True, which="minor", alpha=0.1)
         ax.legend(fontsize=8)
         fig.tight_layout()
         fig.savefig(args.plot, dpi=140)

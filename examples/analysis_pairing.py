@@ -19,9 +19,8 @@ import numpy as np
 from phoq.analysis import task
 from phoq.loading import import_source
 
-mpqkd = import_source(
-    Path(__file__).parent / "mpqkd"
-)  # the showcase next to this script
+# the showcase next to this script
+mpqkd = import_source(Path(__file__).parent / "mpqkd")
 pairing_rate_theory, simple_pairing = mpqkd.pairing_rate_theory, mpqkd.simple_pairing
 
 totals = {"L": 0, "R": 0, "both": 0, "bins": 0}

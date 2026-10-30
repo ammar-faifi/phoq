@@ -403,9 +403,8 @@ class BalancedPhotodetector(_Responsive, _Detector):
             noisy["inp_plus"] - noisy["inp_minus"] + amp, bw, dt, diff
         )
         out = {"rf": _soft_clip(rf, swing)}
-        b_mon = (
-            self.monitor_bandwidth * math.pi / 2
-        )  # noise bandwidth of the monitor's pole
+        # noise bandwidth of the monitor's pole
+        b_mon = self.monitor_bandwidth * math.pi / 2
         for port, mon in (("inp_plus", "mon_plus"), ("inp_minus", "mon_minus")):
             extra = (
                 self.monitor_noise / self.monitor_gain if self.monitor_gain else 0.0
@@ -506,9 +505,8 @@ class SinglePhotonDetector(_Detector):
         c = self.curve("efficiency")
         if c is None:
             return 1.0
-        ref = (
-            c(self.ref_wavelength) or c.peak
-        )  # λ_ref outside the curve: anchor at its peak
+        # λ_ref outside the curve: anchor at its peak
+        ref = c(self.ref_wavelength) or c.peak
         return c(wavelength) / ref
 
     def efficiency_at(self, wavelength: float) -> float:
@@ -556,9 +554,8 @@ class SinglePhotonDetector(_Detector):
     def dead_bins(self, dt: float) -> int:
         """The dead time in bins of ``dt`` (a click blinds this bin and the next
         dead_bins − 1)."""
-        return (
-            int(math.ceil(self.dead_time / dt - 1e-9)) if self.dead_time > 0 else 0
-        )  # 40 µs / 10 ns is 4000
+        # 40 µs / 10 ns is 4000
+        return int(math.ceil(self.dead_time / dt - 1e-9)) if self.dead_time > 0 else 0
 
     def blind_after(self, clicks: np.ndarray, dt: float, blind: int = 0) -> int:
         """Bins of the next record still inside the dead time, after ``clicks`` (which

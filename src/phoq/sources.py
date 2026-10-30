@@ -11,9 +11,8 @@ from .core import Component, FiberConnectors, Param
 from .units import COMMON_WAVELENGTHS, dbm_to_w, fmt_si, photon_energy, seq125
 
 MODES = ("cw", "pulsed", "sine", "ook")
-RIN_OFF = (
-    -200.0
-)  # dBc/Hz: no intensity noise above the shot noise limit (no random draws at all)
+# dBc/Hz: no intensity noise above the shot noise limit (no random draws at all)
+RIN_OFF = -200.0
 _FWHM = 2.0 * np.sqrt(2.0 * np.log(2.0))  # Gaussian FWHM / sigma
 
 

@@ -60,9 +60,8 @@ class Path:
     delay: float
     mods: tuple = ()  # ((modulator, delay at which the light passes it), ...)
     port: str = "inp"  # the detector input it enters (a balanced detector has two)
-    reflections: int = (
-        0  # connector reflections on the way: 0 for the route itself, 1–2 for a stray
-    )
+    # connector reflections on the way: 0 for the route itself, 1–2 for a stray
+    reflections: int = 0
     sites: tuple = ()  # (where it reflected, the open port's path or None), in order
 
 
@@ -71,9 +70,8 @@ class Network:
     paths: dict = field(default_factory=lambda: defaultdict(list))  # detector → [Path]
     fibers: dict = field(default_factory=dict)  # cord name → flow
     open_ends: list = field(default_factory=list)
-    port_power: dict = field(
-        default_factory=lambda: defaultdict(float)
-    )  # "NAME.port" → W arriving
+    # "NAME.port" → W arriving
+    port_power: dict = field(default_factory=lambda: defaultdict(float))
     # laser → {(own light?, reflection site or other laser's name) → W entering its
     # output}
     returned: dict = field(
@@ -185,9 +183,8 @@ def trace(setup: Setup) -> Network:
                 if peer is not None and peer.component.is_adaptor:
                     continue  # sleeve plugged into a sleeve: nothing to mate with
             if peer is None:
-                if (
-                    port.connector is not None
-                ):  # an open cord or part: light leaves, a flat end reflects 3.6 %
+                # an open cord or part: light leaves, a flat end reflects 3.6 %
+                if port.connector is not None:
                     r = open_end_reflection(port.connector)
                     net.open_ends.append(
                         {
@@ -305,9 +302,8 @@ def synthesize(
         emit = t[None, :] - delays[:, None]  # emission time at the start of each bin
         mid = emit + dt / 2  # …and at its center (pulse k sits at k/f)
         field_ = src.envelope(emit, dt) * np.exp(1j * src.phase(mid, rng))
-        noise = src.intensity_factor(
-            emit, dt, rng
-        )  # the laser's intensity noise above the shot noise limit, if any
+        # the laser's intensity noise above the shot noise limit, if any
+        noise = src.intensity_factor(emit, dt, rng)
         if noise is not None:
             field_ = field_ * noise
         for k, (d, p) in enumerate(items):
@@ -483,9 +479,8 @@ def report(setup: Setup, net: Network | None = None) -> dict:
         rf_dbm = lim.get("rf_input_dbm")
         for port in c.rf_ports if rf_dbm is not None else ():
             _, peak = _port_level(c, port)
-            v_max = math.sqrt(
-                2 * dbm_to_w(float(rf_dbm)) * 50.0
-            )  # sine of that power into 50 Ω
+            # sine of that power into 50 Ω
+            v_max = math.sqrt(2 * dbm_to_w(float(rf_dbm)) * 50.0)
             if peak > v_max:
                 drive = "RF drive" if port == "rf" else f"RF drive on {port}"
                 warnings.append(
@@ -578,9 +573,8 @@ def report(setup: Setup, net: Network | None = None) -> dict:
     }
 
 
-STRAY_WARN = (
-    1e-7  # an open port's reflection reaching a detector at −70 dB of its direct light
-)
+# an open port's reflection reaching a detector at −70 dB of its direct light
+STRAY_WARN = 1e-7
 
 
 def _open_port_strays(net: Network, setup: Setup) -> list:

@@ -59,9 +59,8 @@ class BB84Params:
     nu: float = 0.1  # decoy intensity
     p_mu: float = 0.7  # probability of sending μ …
     p_nu: float = 0.2  # … and ν; the rest is vacuum
-    p_z: float = (
-        0.5  # probability of the Z basis, for Alice and Bob alike; Z bits make the key
-    )
+    # probability of the Z basis, for Alice and Bob alike; Z bits make the key
+    p_z: float = 0.5
     sample_fraction: float = 0.1  # share of the Z-μ bits disclosed to estimate E_μ^Z
     efficiency: float = 0.5  # detector efficiency
     dark_count_rate: float = 100.0  # [Hz]
@@ -69,15 +68,13 @@ class BB84Params:
     rep_rate: float = 250e6
     wavelength: float = 1550e-9
     pulse_width: float = 100e-12
-    extinction_db: float = (
-        30.0  # intensity-modulator extinction: how dark "vacuum" really is
-    )
+    # intensity-modulator extinction: how dark "vacuum" really is
+    extinction_db: float = 30.0
     # residual phase error of Bob's interferometer [rad]: sin²(0.1) ≈ 1 % optical QBER
     phase_error: float = 0.2
     f_ec: float = 1.16  # error-correction inefficiency
-    eve_position: float = (
-        0.5  # where Eve's station cuts the fiber (fraction of the distance)
-    )
+    # where Eve's station cuts the fiber (fraction of the distance)
+    eve_position: float = 0.5
 
     @property
     def slot(self) -> float:
@@ -262,9 +259,8 @@ def build(
             setup, "EVE-RX", p, pulses, ("EVE-DET-0", "EVE-DET-1"), "EVE-TAGGER"
         )
         setup.connect(sw.b2, rx.a1)
-        setup.connect(
-            setup["EVE-RX-AWG"].ch2, sw.ctrl
-        )  # CH2 of her receiver's AWG throws the switch
+        # CH2 of her receiver's AWG throws the switch
+        setup.connect(setup["EVE-RX-AWG"].ch2, sw.ctrl)
         tx_voa = transmitter(setup, "EVE-TX", p, shifter=True)
         delay = setup.add(FiberSpool("EVE-DELAY", length=1.0, splice_loss_db=0.0))
         setup.connect(tx_voa.p2, delay.p1)
@@ -286,13 +282,11 @@ def calibrate(setup: Setup, p: BB84Params, eve: bool) -> None:
         awg.ch2_offset = 2 * sw.threshold  # cross while Eve's optics are calibrated …
         calibrate_interferometer(setup, "ALICE-LD", "EVE-DET-0", "EVE-RX-PS", p.slot)
         match_delay(setup, "EVE-TX-LD", "ALICE-LD", "DET-0", "EVE-DELAY")
-        calibrate_mu(
-            setup, "EVE-TX", p.mu, "EVE-SW.a2"
-        )  # after the delay line: it has loss
+        # after the delay line: it has loss
+        calibrate_mu(setup, "EVE-TX", p.mu, "EVE-SW.a2")
         calibrate_interferometer(setup, "EVE-TX-LD", "DET-0", "EVE-TX-PS", p.slot)
-        awg.ch2_offset = (
-            0.0  # … then bar: Alice's pulses pass until Eve throws the switch
-        )
+        # … then bar: Alice's pulses pass until Eve throws the switch
+        awg.ch2_offset = 0.0
     setup["BOB-PS"].phase += p.phase_error  # what the stabilization leaves behind
 
 
@@ -383,9 +377,8 @@ class Tally:
     detected: np.ndarray = field(
         default_factory=lambda: np.zeros((3, 2), dtype=np.int64)
     )  # … of which Bob had a middle-slot click
-    x_errors: np.ndarray = field(
-        default_factory=lambda: np.zeros(3, dtype=np.int64)
-    )  # errors among the (all disclosed) X-basis detections, per intensity
+    # errors among the (all disclosed) X-basis detections, per intensity
+    x_errors: np.ndarray = field(default_factory=lambda: np.zeros(3, dtype=np.int64))
     z_sampled: int = 0  # Z-μ bits disclosed …
     z_errors: int = 0  # … and wrong
     doubles: int = 0

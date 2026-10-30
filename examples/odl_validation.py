@@ -51,9 +51,8 @@ from dli import (
     lock,
 )  # noqa: E402  (the shared interferometer)
 
-WIDTH = (
-    100e-12  # pulse FWHM for the DLI checks: its delay must match to a fraction of this
-)
+# pulse FWHM for the DLI checks: its delay must match to a fraction of this
+WIDTH = 100e-12
 T = 1 / RATE
 
 
@@ -123,9 +122,8 @@ def build(width: float = WIDTH, linewidth: float = 100e3) -> Setup:
     setup.terminate_spares()
     balance(setup, "LD-1", "PD-C", "DLI-ODL")
     lock(setup, "LD-1", "PD-C", "DLI-PS")
-    osc.h_position = (
-        min(trace(setup).delays(pd_c, laser)) % T - 4 * osc.timebase
-    )  # pulse mid-screen
+    # pulse mid-screen
+    osc.h_position = min(trace(setup).delays(pd_c, laser)) % T - 4 * osc.timebase
     return setup
 
 
@@ -254,9 +252,8 @@ def check_fringe(
         odl.delay = float(tau)
         p.append(report(setup)["detectors"]["PD-1"]["power"])
     p = np.array(p) - np.mean(p)
-    k = np.flatnonzero(
-        (p[:-1] < 0) & (p[1:] >= 0)
-    )  # rising crossings: immune to a biased mean
+    # rising crossings: immune to a biased mean
+    k = np.flatnonzero((p[:-1] < 0) & (p[1:] >= 0))
     cross = taus[k] - p[k] * (taus[k + 1] - taus[k]) / (p[k + 1] - p[k])
     return (cross[-1] - cross[0]) / (len(cross) - 1), wavelength / C0
 

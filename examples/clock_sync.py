@@ -85,9 +85,8 @@ PPM = 23.4  # how fast Alice's clock really runs [ppm] (Bob does not know)
 L = 1000  # string length: one frame P = L / f = 10 µs
 CARVE = 4  # AWG samples per symbol: a "1" lights the first, a pulse of 1/4 symbol
 EPOCH = 3.21e-6  # Bob's clock reads this much later than Alice's (Bob does not know)
-RESOLUTION = (
-    100e-12  # Bob's tagger bin (``resolution=``; phoq's tagger goes down to 20 ps)
-)
+# Bob's tagger bin (``resolution=``; phoq's tagger goes down to 20 ps)
+RESOLUTION = 100e-12
 RECORD = 2e-3  # one acquisition [s] (``record=``)
 DEAD_TIME = 1e-6  # free-running InGaAs hold-off (``dead_time=``)
 MU = 0.2  # photons per "1" pulse at the detector
@@ -101,12 +100,10 @@ DEAD_CASES = (
     (100e-6, MU, 50e-3),
     (100e-6, 0.0008, 50e-3),
 )
-GHZ = dict(
-    rate=1e9, resolution=20e-12
-)  # 1 ns time bins: an AWG at 4 GS/s carves 250 ps pulses
-LONG = dict(
-    rate=1e9, resolution=250e-12
-)  # the same with 250 ps bins: still under half a symbol (see build)
+# 1 ns time bins: an AWG at 4 GS/s carves 250 ps pulses
+GHZ = dict(rate=1e9, resolution=20e-12)
+# the same with 250 ps bins: still under half a symbol (see build)
+LONG = dict(rate=1e9, resolution=250e-12)
 # the tagger's bins per acquisition; a longer record is several, back to back
 MAX_SLOTS = 100_000_000
 
@@ -139,9 +136,8 @@ def build(
     voa = setup.add(Attenuator("VOA-1"))
     spd = setup.add(SinglePhotonDetector("SPD-1", dead_time=dead_time))
     bins = round(record / resolution)
-    setup.acquisitions = -(
-        -bins // MAX_SLOTS
-    )  # the tagger runs on, and the detector's dead time with it
+    # the tagger runs on, and the detector's dead time with it
+    setup.acquisitions = -(-bins // MAX_SLOTS)
     tagger = setup.add(
         PhotonCounter(
             "TAGGER",
@@ -173,9 +169,8 @@ def build(
     # μ photons in a "1" pulse at the detector: CW power through the open modulator for
     # one sample
     voa.attenuation_db = 0.0
-    on = (
-        trace(setup).port_power["SPD-1.inp"] * im.t_max
-    )  # the trace leaves the modulator's drive out
+    # the trace leaves the modulator's drive out
+    on = trace(setup).port_power["SPD-1.inp"] * im.t_max
     voa.attenuation_db = 10 * math.log10(
         on / (carve * f_a) / photon_energy(laser.wavelength) / mu
     )
@@ -229,9 +224,8 @@ def recover_clock(
     search window at a quarter FFT bin.
     """
     span = t[-1] - t[0]
-    dt = 1 / (
-        8 * f_nom
-    )  # 8 histogram bins per symbol: the clock line is well below Nyquist
+    # 8 histogram bins per symbol: the clock line is well below Nyquist
+    dt = 1 / (8 * f_nom)
     step = 1 / span  # one FFT bin
     if span / dt <= 2**25:
         hist = np.bincount(((t - t[0]) / dt).astype(np.int64)).astype(float)
@@ -244,9 +238,8 @@ def recover_clock(
         spec = periodogram(t, freq)
         window = np.ones(freq.size, dtype=bool)
     coarse = float(freq[window][np.argmax(spec[window])])
-    elsewhere = window & (
-        np.abs(freq - coarse) > 2 * step
-    )  # the rest of the search window
+    # the rest of the search window
+    elsewhere = window & (np.abs(freq - coarse) > 2 * step)
     runner_up = (
         float(spec[elsewhere].max() / spec[window].max()) if elsewhere.any() else 0.0
     )
@@ -311,9 +304,8 @@ def recover_delay(t: np.ndarray, f: float, string: np.ndarray) -> dict:
     n = np.rint(t * f - theta).astype(np.int64)
     hist = np.bincount(n % size, minlength=size).astype(float)
     ref = 2.0 * string - 1.0  # ±1: the correlation peak stands L above a ±√L floor
-    xcorr = np.fft.irfft(
-        np.fft.rfft(hist) * np.conj(np.fft.rfft(ref)), size
-    )  # C[d] = Σ_m h[m] s[m − d]
+    # C[d] = Σ_m h[m] s[m − d]
+    xcorr = np.fft.irfft(np.fft.rfft(hist) * np.conj(np.fft.rfft(ref)), size)
     d = int(np.argmax(xcorr))
     floor = np.delete(xcorr, d)
     on_ones = float(hist[(np.flatnonzero(string) + d) % size].sum() / hist.sum())

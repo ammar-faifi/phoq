@@ -19,19 +19,16 @@ def test_hardware_is_calibrated():
     setup = cow.build(p)
     assert cow.common.pulse_photons(setup, p) == pytest.approx(p.mu, rel=1e-9)
     short, long_ = cow.common.arms(setup)
-    assert long_.delay - short.delay == pytest.approx(
-        p.slot, abs=1e-15
-    )  # the DLI: one slot
-    assert abs(long_.amp) == pytest.approx(
-        abs(short.amp), rel=1e-9
-    )  # balanced by BOB-VOA
+    # the DLI: one slot
+    assert long_.delay - short.delay == pytest.approx(p.slot, abs=1e-15)
+    # balanced by BOB-VOA
+    assert abs(long_.amp) == pytest.approx(abs(short.amp), rel=1e-9)
     a, b = (cow.common.static_amplitude(q) for q in (short, long_))
     assert abs(np.angle(a / b)) < 1e-9  # equal phases interfere constructively on DM1
     net, src = trace(setup), setup["ALICE-LD"]
     db, dm1 = (min(net.delays(setup[d], src)) for d in ("DB", "DM1"))
-    assert db + setup["TAGGER"].ch1_delay == pytest.approx(
-        dm1, abs=1e-15
-    )  # slot j is pulse j
+    # slot j is pulse j
+    assert db + setup["TAGGER"].ch1_delay == pytest.approx(dm1, abs=1e-15)
     assert all(
         c.length in (0.5, 1.0, 1.5, 2.0, 3.0, 5.0)
         for c in setup
@@ -64,9 +61,8 @@ def test_reference_run_matches_theory():
     assert res.qber == pytest.approx(e["QBER"], abs=0.004)
     assert t.v(net=False) == pytest.approx(e["V raw"], abs=0.02)  # dark counts on DM2
     assert t.v() == pytest.approx(e["V net"], abs=0.025)
-    assert e["V net"] == pytest.approx(
-        math.exp(-math.pi * 1e6 / 434e6), rel=1e-3
-    )  # balanced arms
+    # balanced arms
+    assert e["V net"] == pytest.approx(math.exp(-math.pi * 1e6 / 434e6), rel=1e-3)
     assert "QBER" in res.summary() and "V raw" in res.summary()
 
 
@@ -90,9 +86,8 @@ def test_parties_sift_the_same_key():
         k: v for k, v in r.items() if k not in ("sent [kB]", "received [kB]")
     }  # noqa: E731
     assert trim(alice.result) == pytest.approx(trim(bob.result), nan_ok=True)
-    assert (
-        bob.net["sent"] == 6 and alice.net["sent"] == 3
-    )  # detect + errors per block; sift
+    # detect + errors per block; sift
+    assert bob.net["sent"] == 6 and alice.net["sent"] == 3
 
 
 # ---- the eavesdropper ----------------------------------------------------------------
@@ -102,12 +97,10 @@ EVE = Path(__file__).resolve().parents[1] / "examples" / "cow" / "eve.py"
 def test_eve_station_is_calibrated():
     p, c = cow.COWParams(), cow.common
     setup = cow.build(p, eve=True)
-    assert c.pulse_photons(setup, p) == pytest.approx(
-        p.mu, rel=1e-9
-    )  # μ at the fiber input, SPL-A
-    assert c.eve_pulse_photons(setup, p) == pytest.approx(
-        p.mu, rel=1e-9
-    )  # her loopback, through the bar state
+    # μ at the fiber input, SPL-A
+    assert c.pulse_photons(setup, p) == pytest.approx(p.mu, rel=1e-9)
+    # her loopback, through the bar state
+    assert c.eve_pulse_photons(setup, p) == pytest.approx(p.mu, rel=1e-9)
     net, awg = trace(setup), setup["EVE-AWG"]
     alice, eve = setup["ALICE-LD"], setup["EVE-TX-LD"]
     # symbol k of the switch pattern meets Alice's pulse k; Eve's pulse k reaches each
@@ -154,9 +147,8 @@ def test_intercept_resend_breaks_coherence_not_the_qber():
     for f, r in runs.items():
         t, e = r.tally, r.expected
         for which in ("decoy", "1-0"):
-            n = t.monitor[
-                cow.MON.index(which), :2
-            ].sum()  # DM clicks where the two pulses meet
+            # DM clicks where the two pulses meet
+            n = t.monitor[cow.MON.index(which), :2].sum()
             v = e[f"V {which}"]
             assert t.v(which) == pytest.approx(
                 v, abs=4 * math.sqrt(max(1 - v * v, 0.05) / n)
@@ -182,15 +174,13 @@ def test_intercept_resend_breaks_coherence_not_the_qber():
 def test_three_parties_with_an_eavesdropper(monkeypatch):
     from phoq import parties
 
-    monkeypatch.setattr(
-        parties, "PARTY_REGISTRY", list(parties.PARTY_REGISTRY)
-    )  # keep her out of other tests
+    # keep her out of other tests
+    monkeypatch.setattr(parties, "PARTY_REGISTRY", list(parties.PARTY_REGISTRY))
     monkeypatch.setenv("PHOQ_EVE_FRACTION", "0.5")  # read in her own process
     (eve,) = parties.load_parties(EVE)
     assert eve.name == "EVE" and eve.stage == 1
-    setup = cow.build(
-        slots=400_000
-    )  # an Eve party is loaded: build() splices her station in
+    # an Eve party is loaded: build() splices her station in
+    setup = cow.build(slots=400_000)
     assert "EVE-SW" in setup and "EVE-TAGGER" in setup
     exp = Experiment(setup, [*cow.PARTIES, eve], seed=8)
     assert [lt["name"] for lt in exp.laptops()] == ["ALICE", "BOB", "EVE"]
@@ -234,6 +224,5 @@ def test_eve_stands_down_when_her_switch_drive_is_off(monkeypatch):
         and alice.result["V_1-0 now"] > 0.8
         and alice.result["QBER now"] < 0.06
     )
-    assert (
-        alice.result["V_d now"] == alice.result["V decoy (net)"]
-    )  # two blocks: the window is everything
+    # two blocks: the window is everything
+    assert alice.result["V_d now"] == alice.result["V decoy (net)"]

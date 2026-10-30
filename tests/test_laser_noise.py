@@ -39,9 +39,8 @@ def test_photodiode_reads_shot_thermal_and_intensity_noise(rin):
     current = report(s)["detectors"]["PD"]["current"]
     f, psd = esa.acquire(trace(s), np.random.default_rng(1)).psd()
     band = (f > 2e6) & (f < 18e6)
-    s_i = (
-        psd[band].mean() / esa.input_impedance
-    )  # the photocurrent flows into the analyzer's 50 Ω
+    # the photocurrent flows into the analyzer's 50 Ω
+    s_i = psd[band].mean() / esa.input_impedance
     want = (
         2 * Q_E * current
         + 4 * K_B * pd.temperature / pd.load
@@ -108,16 +107,14 @@ def test_balanced_difference_keeps_the_shot_noise_and_cancels_the_rin():
     assert a / 2 == pytest.approx(Q_E, rel=0.08)
     top = max(both, key=lambda r: r["i"])
     single = 2 * Q_E * top["i"] + 10 ** (EX["RIN"] / 10) * top["i"] ** 2
-    assert (
-        10 * math.log10(single / top["above_dark"]) > 15
-    )  # what one detector would see of this light
+    # what one detector would see of this light
+    assert 10 * math.log10(single / top["above_dark"]) > 15
 
 
 def test_laser_reports_its_rin_against_the_shot_noise_level():
     laser = Laser("LD", power_dbm=0.0, rin_db_hz=-150.0)
-    shot = 10 * math.log10(
-        2 * 6.62607015e-34 * 299792458 / laser.wavelength / 1e-3
-    )  # 2hν/P
+    # 2hν/P
+    shot = 10 * math.log10(2 * 6.62607015e-34 * 299792458 / laser.wavelength / 1e-3)
     assert laser.info()["Excess RIN"] == (
         f"-150 dBc/Hz; shot-noise RIN at this power: {shot:.1f} dBc/Hz"
     )

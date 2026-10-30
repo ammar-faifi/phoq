@@ -50,9 +50,8 @@ from phoq import (
 from phoq.engine import trace
 from phoq.units import Q_E, fmt_si, photon_energy
 
-RIN = (
-    -135.0
-)  # dBc/Hz: intensity noise above the shot noise limit (white), a noisy diode laser
+# dBc/Hz: intensity noise above the shot noise limit (white), a noisy diode laser
+RIN = -135.0
 # V/A: 4 MHz of bandwidth, and an amplifier noise 21 dB under the shot noise of 1.4 mA
 GAIN = 1e5
 BAND = (0.2e6, 1.0e6)  # where the noise is read: flat, and well inside the 4 MHz pole
@@ -205,9 +204,8 @@ if __name__ == "__main__":
         f" {fmt_si(BAND[0], 'Hz')}–{fmt_si(BAND[1], 'Hz')}; S_I in dB re 1 A²/Hz\n"
     )
 
-    dark = noise_density(
-        build(laser_on=False), sweeps=8
-    )  # subtracted from every point: read it well
+    # subtracted from every point: read it well
+    dark = noise_density(build(laser_on=False), sweeps=8)
     print(
         f"1. Dark: S_I = {db(dark).strip()} dB; (NEP·ℜ)² ="
         f" {db((nep * bpd.peak_responsivity()) ** 2).strip()} dB\n"
@@ -241,9 +239,8 @@ if __name__ == "__main__":
     )
     both = sweep(2, BOTH_INPUTS, dark)
     for r in both:
-        would = (
-            2 * Q_E * r["i"] + 10 ** (RIN / 10) * r["i"] ** 2
-        )  # all this light on one diode
+        # all this light on one diode
+        would = 2 * Q_E * r["i"] + 10 ** (RIN / 10) * r["i"] ** 2
         print(
             f"   {r['att']:4.0f}  {fmt_si(r['i'], 'A'):>9} {db(r['above_dark'])}  "
             f" {db(2 * Q_E * r['i'])}  "
@@ -252,9 +249,8 @@ if __name__ == "__main__":
         )
     a2, b2 = fit(both)
     top = max(both, key=lambda r: r["i"])
-    residue = (
-        10 ** (RIN / 10) * (top["ip"] - top["im"]) ** 2
-    )  # the CMRR leaves ℜ₊P₊ − ℜ₋P₋ of the RIN
+    # the CMRR leaves ℜ₊P₊ − ℜ₋P₋ of the RIN
+    residue = 10 ** (RIN / 10) * (top["ip"] - top["im"]) ** 2
     print(
         f"   fit a·I + b·I²: q = a/2 = {a2 / 2:.4g} C ({100 * (a2 / 2 / Q_E - 1):+.1f}"
         f" %); the I² term is {db(b2 * top['i'] ** 2).strip()} dB at"

@@ -31,9 +31,8 @@ scope = setup.add(
     Oscilloscope("OSC-1", timebase=100e-9, ch1_scale=20e-6, ch2_scale=0.5)
 )
 fg = setup.add(FunctionGenerator("FG-1"))
-psu = setup.add(
-    DCPowerSupply("PSU-1", ch1_voltage=im.v_pi / 2)
-)  # quadrature: the linear point
+# quadrature: the linear point
+psu = setup.add(DCPowerSupply("PSU-1", ch1_voltage=im.v_pi / 2))
 
 setup.chain(laser, im, pd, scope)  # optical path, then PD → OSC ch1
 setup.connect(psu.ch1, im.bias)  # DC bias

@@ -20,9 +20,8 @@ def test_bob_recovers_clock_and_delay(bench):
     r = EX["report"](**bench)
     s, true = r["sync"], r["truth"]
     assert s["clicks"] > 1000
-    assert (
-        abs(r["f error ppm"]) < 0.15
-    )  # ≈ 30 ppb rms from the 2.5 ns pulse, against tens of ppm
+    # ≈ 30 ppb rms from the 2.5 ns pulse, against tens of ppm
+    assert abs(r["f error ppm"]) < 0.15
     assert (
         s["frame"]["L"] == true["L"]
         and s["frame"]["significance"] > 4 * s["frame"]["noise"]
@@ -31,9 +30,8 @@ def test_bob_recovers_clock_and_delay(bench):
     assert r["assigned"] > 0.999 and s["delay"]["on ones"] > 0.98
     assert r["depth"] == pytest.approx(math.sin(math.pi / 4) / (math.pi / 4), abs=0.03)
     if bench["km"]:
-        assert (
-            true["delay"] > true["L"] / true["f"]
-        )  # Δ itself is beyond one frame: known mod P only
+        # Δ itself is beyond one frame: known mod P only
+        assert true["delay"] > true["L"] / true["f"]
 
 
 def test_nrz_carving_leaves_no_clock_line():

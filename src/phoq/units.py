@@ -14,9 +14,8 @@ K_B = 1.380649e-23  # Boltzmann constant [J/K]
 N_GROUP = 1.4682  # SMF-28 group index
 N_EFF = 1.4677  # SMF-28 effective (phase) index
 FIBER_DELAY = N_GROUP / C0  # [s/m], about 4.9 ns per meter
-N_AIR = (
-    1.00027  # refractive index of air near 1550 nm (phase and group differ by ~1e-6)
-)
+# refractive index of air near 1550 nm (phase and group differ by ~1e-6)
+N_AIR = 1.00027
 
 # ---- fiber connectors
 # --------------------------------------------------------------------------- End-face
@@ -25,9 +24,8 @@ N_AIR = (
 CONNECTORS = ("FC/UPC", "FC/APC", "FC/PC")
 DEFAULT_CONNECTOR = "FC/UPC"
 CONNECTOR_COLORS = {"FC/UPC": "#2563eb", "FC/PC": "#2563eb", "FC/APC": "#16a34a"}
-CONNECTOR_LOSS_DB = (
-    0.3  # one mated pair of matching connectors (typical; TIA-568 allows 0.75 dB)
-)
+# one mated pair of matching connectors (typical; TIA-568 allows 0.75 dB)
+CONNECTOR_LOSS_DB = 0.3
 RETURN_LOSS_DB = {
     "FC/PC": 40.0,
     "FC/UPC": 50.0,
@@ -37,9 +35,8 @@ RETURN_LOSS_DB = {
 # refracted by ≈ 3.8°: several dB lost depending on ferrule geometry. An assumed typical
 # value.
 MISMATCH_LOSS_DB = 5.0
-FRESNEL = (
-    (N_EFF - 1) / (N_EFF + 1)
-) ** 2  # a flat glass–air face reflects 3.6 % (−14.4 dB)
+# a flat glass–air face reflects 3.6 % (−14.4 dB)
+FRESNEL = ((N_EFF - 1) / (N_EFF + 1)) ** 2
 
 COMMON_WAVELENGTHS = (635e-9, 780e-9, 850e-9, 1310e-9, 1550e-9)
 

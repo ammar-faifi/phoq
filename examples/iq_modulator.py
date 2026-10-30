@@ -51,12 +51,10 @@ from phoq import (
 from phoq.engine import trace
 from phoq.units import fmt_si
 
-RATE = (
-    25e6  # symbols/s: 40 ns symbols, far slower than the detectors' 150 MHz at 10³ V/A
-)
-LEVELS = np.array(
-    [-1, -1 / 3, 1 / 3, 1]
-)  # square 16-QAM: i, q ∈ {−1, −1/3, 1/3, 1} (Table 2.4)
+# symbols/s: 40 ns symbols, far slower than the detectors' 150 MHz at 10³ V/A
+RATE = 25e6
+# square 16-QAM: i, q ∈ {−1, −1/3, 1/3, 1} (Table 2.4)
+LEVELS = np.array([-1, -1 / 3, 1 / 3, 1])
 
 
 def qam16(n: int = 1024, seed: int = 4) -> np.ndarray:
@@ -106,9 +104,8 @@ def build(
     setup.connect(tap.b1, iqm.p1)
     setup.connect(iqm.p2, voa.p1)
     setup.connect(voa.p2, hyb_s.a1)
-    setup.connect(
-        tap.b2, hyb_l.a1, length=2.0
-    )  # 2 m here, 1 m everywhere else: 4 m on every path
+    # 2 m here, 1 m everywhere else: 4 m on every path
+    setup.connect(tap.b2, hyb_l.a1, length=2.0)
     setup.connect(hyb_s.b1, mix_i.a1)
     setup.connect(hyb_s.b2, mix_q.a1)
     for ps, b, mix in ((ps_i, hyb_l.b1, mix_i), (ps_q, hyb_l.b2, mix_q)):
@@ -164,9 +161,8 @@ def lock_lo(setup: Setup) -> tuple[float, float]:
         lo = max((p for p in paths if not p.mods), key=lambda p: abs(p.amp))
         return sig.amp * np.conj(lo.amp)
 
-    setup["PS-I"].phase = float(
-        np.angle(z("BPD-I")) % (2 * math.pi)
-    )  # the shifter adds e^{jψ} to the LO
+    # the shifter adds e^{jψ} to the LO
+    setup["PS-I"].phase = float(np.angle(z("BPD-I")) % (2 * math.pi))
     setup["PS-Q"].phase = float((np.angle(z("BPD-Q")) + math.pi / 2) % (2 * math.pi))
     return setup["PS-I"].phase, setup["PS-Q"].phase
 
@@ -316,9 +312,8 @@ if __name__ == "__main__":
         b = build(**kw)
         r, m = measure(b), model(b)
         results[title] = r
-        evm = math.hypot(
-            m["evm"], r["evm_noise"]
-        )  # the model's error and the receiver's noise add
+        # the model's error and the receiver's noise add
+        evm = math.hypot(m["evm"], r["evm_noise"])
         print(
             f"  {title:25} {100 * r['evm']:5.1f} % ({100 * evm:4.1f} %) "
             f" {r['angle']:6.1f}° ({m['angle']:5.1f}°)  {r['gain']:5.3f}"

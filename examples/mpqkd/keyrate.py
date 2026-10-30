@@ -62,9 +62,8 @@ from .common import B_X, B_Z, B_ZERO, L0, LNU, LMU, MPQKDParams, pairing_rate_th
 
 E0 = 0.5  # error rate of vacuum events
 LEVELS = (L0, LNU, LMU)
-MIN_DECOY_X_PAIRS = (
-    100  # below this the decoy phase-error bound is reported as unresolved
-)
+# below this the decoy phase-error bound is reported as unresolved
+MIN_DECOY_X_PAIRS = 100
 
 
 # ---- small math ---------------------------------------------------------------------
@@ -118,9 +117,8 @@ class Counts:
     )
     z_sample: int = 0
     z_sample_errors: int = 0
-    interval_sum: float = (
-        0.0  # Σ (rear − front) over key pairs, for the phase-drift model
-    )
+    # Σ (rear − front) over key pairs, for the phase-drift model
+    interval_sum: float = 0.0
     linewidth: tuple[float, float] = (0.0, 0.0)  # announced laser linewidths [Hz]
     detuning: float = 0.0  # frequency offset between the lasers [Hz]
 
@@ -328,13 +326,11 @@ class Estimate:
     """What the accumulated counts say, as both stations compute it."""
 
     estimator: str
-    q11_lower: (
-        float  # decoy lower bound on the single-photon-pair fraction of the key pairs
-    )
+    # decoy lower bound on the single-photon-pair fraction of the key pairs
+    q11_lower: float
     e11_model: float  # model phase-error rate of the single-photon pair
-    e11_decoy: (
-        float  # rigorous decoy upper bound; NaN while unresolved (needs ~1e9+ pulses)
-    )
+    # rigorous decoy upper bound; NaN while unresolved (needs ~1e9+ pulses)
+    e11_decoy: float
     e11_used: float
     e_d: float  # misalignment from the phase walk
     eta_fit: float
@@ -377,9 +373,8 @@ def estimate(c: Counts, p: MPQKDParams) -> Estimate:
     for i in LEVELS:
         for j in LEVELS:
             if i == L0 or j == L0:
-                eg[i, j] = (
-                    E0 * gs[i, j]
-                )  # a vacuum pair's bit is independent of everything
+                # a vacuum pair's bit is independent of everything
+                eg[i, j] = E0 * gs[i, j]
             else:
                 eg[i, j] = gains(c.x_errors.astype(float), x_priors(p))[i, j]
     ey = decoy_ey11_upper(eg, totals_x)
@@ -398,9 +393,8 @@ def estimate(c: Counts, p: MPQKDParams) -> Estimate:
     n_xx = int(c.x_sifted[LMU, LMU])
     e_x = c.x_errors[LMU, LMU] / n_xx if n_xx else float("nan")
     e_x_m = x_error_model(eta * I[LMU], eta * I[LMU], e_d, p_dark) if eta > 0 else E0
-    if n_xx and math.isfinite(
-        e_x
-    ):  # more X errors than the model: inflate the phase walk
+    # more X errors than the model: inflate the phase walk
+    if n_xx and math.isfinite(e_x):
         sigma = math.sqrt(max(e_x * (1 - e_x), 0.25 / n_xx) / n_xx)
         if e_x - 2 * sigma > e_x_m:
             lo, hi = e_d, 0.5
@@ -452,9 +446,8 @@ def finite_key_length(
     dev = lambda m: math.sqrt(2 * m * ln) + ln
     z = c.z.astype(float)
     worst = z.copy()
-    worst[LNU, LNU] = max(
-        0.0, z[LNU, LNU] - dev(z[LNU, LNU])
-    )  # the term that pulls Y_11 down
+    # the term that pulls Y_11 down
+    worst[LNU, LNU] = max(0.0, z[LNU, LNU] - dev(z[LNU, LNU]))
     worst[LMU, LMU] = z[LMU, LMU] + dev(z[LMU, LMU])
     worst[L0, :] += dev(z[L0, :].sum()) / 3
     worst[:, L0] += dev(z[:, L0].sum()) / 3
@@ -501,9 +494,8 @@ def _class_tables(p: MPQKDParams, eta_arm: float):
         ]
     )
     p_click = float((s[:, None] * s[None, :] * click).sum())
-    w = (
-        s[:, None] * s[None, :] * click / p_click
-    )  # class distribution of a clicked round
+    # class distribution of a clicked round
+    w = s[:, None] * s[None, :] * click / p_click
     z_tab, x_tab = np.zeros((3, 3)), np.zeros((3, 3))
     for ai in LEVELS:
         for aj in LEVELS:
@@ -534,9 +526,8 @@ def theory(
     p_dark, click, p_click, w, z_tab, x_tab = _class_tables(p, eta_arm)
     r_p = pairing_rate_theory(p_click, p.l)
     key_share = 2 * w[L0, LMU] * w[LMU, L0]  # complementary (0,μ)&(μ,0) pairs …
-    wrong = (
-        2 * w[L0, L0] * w[LMU, LMU]
-    )  # … and both bright in the same pulse: a Z error
+    # … and both bright in the same pulse: a Z error
+    wrong = 2 * w[L0, L0] * w[LMU, LMU]
     e_z = wrong / (key_share + wrong)
     key_share += wrong
     y1 = single_click_photons(1, eta_arm, p_dark)

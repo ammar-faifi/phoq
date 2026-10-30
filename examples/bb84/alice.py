@@ -96,9 +96,8 @@ class Alice(Party):
         idx = np.asarray(msg.idx, dtype=np.int64)
         bob_basis = np.unpackbits(msg.basis, count=basis.size).astype(np.int8)
         same = basis == bob_basis
-        sent = np.zeros(
-            (3, 2), dtype=np.int64
-        )  # what she sent, where Bob chose the same basis
+        # what she sent, where Bob chose the same basis
+        sent = np.zeros((3, 2), dtype=np.int64)
         for k in range(3):
             for b in range(2):
                 sent[k, b] = np.count_nonzero((label == k) & (basis == b) & same)
@@ -107,9 +106,8 @@ class Alice(Party):
         x = keep & (basis_d == B_X)  # X detections: all bits disclosed for e₁
         zmu = keep & (basis_d == B_Z) & (label_d == I_MU)  # Z-μ detections: the key
         pos = np.flatnonzero(zmu)
-        sample = pos[
-            self.rng.random(pos.size) < p.sample_fraction
-        ]  # disclosed for E_μ^Z
+        # disclosed for E_μ^Z
+        sample = pos[self.rng.random(pos.size) < p.sample_fraction]
         st["sift"] = dict(
             sent=sent,
             keep=keep,

@@ -23,9 +23,8 @@ import math
 import numpy as np
 from scipy.signal import fftconvolve
 
-Block = tuple[
-    int, int, int
-]  # (pass, lo, hi) in the pass's permuted order, hi exclusive
+# (pass, lo, hi) in the pass's permuted order, hi exclusive
+Block = tuple[int, int, int]
 
 
 # ---- shared pieces -------------------------------------------------------------------
@@ -109,12 +108,10 @@ class CascadeCorrector:
         bit = int(self.perms[p][lo])
         self.key[bit] ^= 1
         self.corrected.append(bit)
-        self.active = {
-            b for b in self.active if self._odd(b)
-        }  # some searches just closed
-        for q in range(
-            self.started
-        ):  # cascade: earlier passes' blocks holding this bit
+        # some searches just closed
+        self.active = {b for b in self.active if self._odd(b)}
+        # cascade: earlier passes' blocks holding this bit
+        for q in range(self.started):
             top = self._top_block(q, bit)
             if self._odd(top) and not any(
                 b[0] == q and top[1] <= b[1] and b[2] <= top[2] for b in self.active
@@ -149,9 +146,8 @@ class CascadeCorrector:
                 return sorted(set(queries))
             if progressed:
                 continue
-            if (
-                self.active
-            ):  # cannot happen: every active block either flips, descends or asks
+            # cannot happen: every active block either flips, descends or asks
+            if self.active:
                 raise RuntimeError("cascade stalled")
             if self.started >= self.passes:
                 self.done = True
@@ -205,9 +201,8 @@ def toeplitz_hash(bits: np.ndarray, seed: int, m: int) -> np.ndarray:
     if m <= 0 or n == 0:
         return np.zeros(0, dtype=np.uint8)
     r = np.random.default_rng(seed).integers(0, 2, n + m - 1, dtype=np.uint8)
-    conv = fftconvolve(
-        r.astype(float), x.astype(float)
-    )  # sums are exact in float64 here
+    # sums are exact in float64 here
+    conv = fftconvolve(r.astype(float), x.astype(float))
     return (np.rint(conv[n - 1 : n - 1 + m]).astype(np.int64) & 1).astype(np.uint8)
 
 

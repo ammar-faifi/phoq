@@ -56,9 +56,8 @@ def test_operating_point_gives_seimetz_eq_2_16_to_2_18():
     phase = np.arctan2(
         np.cos(u_q * np.pi / (2 * iqm.v_pi)), np.cos(u_i * np.pi / (2 * iqm.v_pi))
     )
-    assert (
-        np.abs(np.angle(got[big] * np.exp(-1j * phase[big]))).max() < 5e-3
-    )  # Eq. (2.18)
+    # Eq. (2.18)
+    assert np.abs(np.angle(got[big] * np.exp(-1j * phase[big]))).max() < 5e-3
 
 
 @pytest.mark.parametrize(
@@ -76,9 +75,8 @@ def test_arcsin_drive_places_square_qam_exactly(levels):
         np.abs(iqm.field(vi, vq, b["bias_i"], b["bias_q"], b["bias_p"]) - sym / 2).max()
         < 2e-4
     )
-    assert np.abs(vi).max() == pytest.approx(
-        iqm.v_pi
-    )  # 2Vπ peak to peak, as Seimetz drives it
+    # 2Vπ peak to peak, as Seimetz drives it
+    assert np.abs(vi).max() == pytest.approx(iqm.v_pi)
 
 
 @pytest.mark.parametrize("er", [20.0, 30.0])
@@ -97,9 +95,8 @@ def test_carrier_left_at_the_operating_point_is_set_by_the_extinction(er):
     iqm = IQModulator(v_pi=5.0, v_pi_bias=6.0, v_pi_phase=9.5, extinction_db=er)
     b = iqm.operating_bias()
     carrier = abs(iqm.field(0.0, 0.0, b["bias_i"], b["bias_q"], b["bias_p"])) ** 2
-    assert carrier == pytest.approx(
-        (1 - iqm.contrast) / 4, rel=1e-9
-    )  # 1/(2(ER+1)): 33 dB below full at 30 dB
+    # 1/(2(ER+1)): 33 dB below full at 30 dB
+    assert carrier == pytest.approx((1 - iqm.contrast) / 4, rel=1e-9)
 
 
 def outer_fringe_bench():

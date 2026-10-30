@@ -201,9 +201,8 @@ def eavesdrop(
     """
     sw, im, awg = setup["EVE-SW"], setup["EVE-TX-IM"], setup["EVE-AWG"]
     awg.set_pattern("ch2", sw.voltage_for(np.repeat(attack, 2)), p.rate)
-    awg.set_pattern(
-        "ch1", [float(im.voltage_for(0.0))], 2 * p.rate
-    )  # dark while she listens
+    # dark while she listens
+    awg.set_pattern("ch1", [float(im.voltage_for(0.0))], 2 * p.rate)
     d = runner.acquire("EVE-TAGGER").clicks["ch1"]
     c0, c1 = d[0::2], d[1::2]
     occ = occupied(intercept(c0, c1, attack, inconclusive))

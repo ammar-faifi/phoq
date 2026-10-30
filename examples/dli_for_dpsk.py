@@ -52,9 +52,8 @@ N_BITS = 32  # pattern length (even parity, so the differential phase closes on 
 
 def dpsk_bits(n: int = N_BITS, seed: int = 11) -> np.ndarray:
     bits = np.random.default_rng(seed).integers(0, 2, n)
-    if (
-        bits.sum() % 2
-    ):  # even parity: the pattern repeats without a phase step at the seam
+    # even parity: the pattern repeats without a phase step at the seam
+    if bits.sum() % 2:
         bits[-1] ^= 1
     return bits
 
@@ -102,18 +101,15 @@ def build(linewidth: float = 100e3, bits: np.ndarray | None = None) -> Setup:
     setup.terminate_spares()  # the DLI's spare input
 
     bits = dpsk_bits() if bits is None else np.asarray(bits)
-    phase = math.pi * (
-        np.cumsum(bits) % 2
-    )  # differential encoding: φ_k = φ_{k−1} + π b_k
-    fg.set_pattern(
-        "ch1", pm.voltage_for(phase), rate=RATE
-    )  # aligned: symbol k meets pulse k
+    # differential encoding: φ_k = φ_{k−1} + π b_k
+    phase = math.pi * (np.cumsum(bits) % 2)
+    # aligned: symbol k meets pulse k
+    fg.set_pattern("ch1", pm.voltage_for(phase), rate=RATE)
     fg.set_pattern("ch2", bits.astype(float), rate=RATE)  # the bits, for the eye
     balance(setup, "LD-1", "PD-C", "DLI-ODL")
     lock(setup, "LD-1", "PD-C", "DLI-PS")
-    fg.ch2_delay = slot_delay(
-        setup, "LD-1", "PD-C"
-    )  # CH3 shows b_k in the slot that decodes it
+    # CH3 shows b_k in the slot that decodes it
+    fg.ch2_delay = slot_delay(setup, "LD-1", "PD-C")
     return setup
 
 
@@ -151,9 +147,8 @@ def decode(setup: Setup, seed: int = 1, timebase: float | None = None) -> dict:
     k, e_c, e_d, marker = (np.array(v) for v in zip(*out))
     decided = (e_d > e_c).astype(int)
     expected = (marker > 0.5).astype(int)
-    contrast = (
-        (e_c - e_d) / (e_c + e_d) * np.where(expected == 1, -1.0, 1.0)
-    )  # +1: right port only
+    # +1: right port only
+    contrast = (e_c - e_d) / (e_c + e_d) * np.where(expected == 1, -1.0, 1.0)
     return {
         "result": res,
         "slots": k.size,

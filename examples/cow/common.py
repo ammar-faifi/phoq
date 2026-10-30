@@ -83,27 +83,22 @@ class Topic:
 
 @dataclass
 class COWParams:
-    rate: float = (
-        434e6  # pulse clock C1: one slot τ = 2.30 ns; logical bits at half the rate
-    )
+    # pulse clock C1: one slot τ = 2.30 ns; logical bits at half the rate
+    rate: float = 434e6
     mu: float = 0.5  # photons per non-empty pulse into the fiber
     decoy: float = 0.1  # fraction f of decoy sequences
-    t_b: float = (
-        0.5  # Bob's tap to the data line (the paper's experiment: a 50/50 coupler)
-    )
-    distance: float = (
-        25e3  # Alice–Bob fiber [m]: ≈ 5 dB with its splices, as in the paper
-    )
+    # Bob's tap to the data line (the paper's experiment: a 50/50 coupler)
+    t_b: float = 0.5
+    # Alice–Bob fiber [m]: ≈ 5 dB with its splices, as in the paper
+    distance: float = 25e3
     efficiency: float = 0.10  # detectors, as in the paper …
     dark_count_rate: float = 25e3  # … 2.5·10⁻⁵ dark counts per ns
-    dead_time: float = (
-        0.0  # the paper's detectors needed 10 µs against afterpulsing, not modeled
-    )
+    # the paper's detectors needed 10 µs against afterpulsing, not modeled
+    dead_time: float = 0.0
     linewidth: float = 1e6  # Alice's laser [Hz] (a DFB; the paper does not say)
     extinction_db: float = 30.0  # intensity modulator: how dark an empty slot is
-    source: str = (
-        "cw"  # "cw" + carving modulator, or "gain-switched" (fresh phase every pulse)
-    )
+    # "cw" + carving modulator, or "gain-switched" (fresh phase every pulse)
+    source: str = "cw"
     pulse_width: float = 300e-12  # gain-switched pulses only
     sample_fraction: float = 0.1  # sifted bits disclosed to estimate the QBER
     wavelength: float = 1550e-9
@@ -122,19 +117,15 @@ class COWParams:
 class EveParams:
     """Eve's station: she buys the best parts and tells nobody."""
 
-    position: float = (
-        0.5  # where she cuts the fiber, as a fraction of the distance from Alice
-    )
-    efficiency: float = (
-        0.9  # her time-of-arrival detector (a superconducting nanowire, say) …
-    )
+    # where she cuts the fiber, as a fraction of the distance from Alice
+    position: float = 0.5
+    # her time-of-arrival detector (a superconducting nanowire, say) …
+    efficiency: float = 0.9
     dark_count_rate: float = 100.0  # … [Hz]; dead time not modeled, as for Bob's
-    linewidth: float = (
-        1e6  # her own CW laser [Hz]: Alice's wavelength, an unrelated phase
-    )
-    extinction_db: float = (
-        40.0  # her intensity modulator, better than Alice's: her re-sent pulses are
-    )
+    # her own CW laser [Hz]: Alice's wavelength, an unrelated phase
+    linewidth: float = 1e6
+    # her intensity modulator, better than Alice's: her re-sent pulses are
+    extinction_db: float = 40.0
     # brighter, and so is their leak into the pairs she leaves empty — the only QBER she
     # adds
 
@@ -618,9 +609,8 @@ def resend_mu(
     (1 + f)·μ per pair on average, is spread over the pulses she re-sends. With empty
     inconclusive pairs that is μ/q: brighter, rarer pulses.
     """
-    pulses = attacked * (
-        1 + p.decoy
-    )  # occupied slots among the attacked pairs, on average
+    # occupied slots among the attacked pairs, on average
+    pulses = attacked * (1 + p.decoy)
     if not clicks or not resent:
         return p.mu
     q = min(clicks / pulses, 0.999)
@@ -713,9 +703,8 @@ def describe(t: Tally) -> str:
     )
 
 
-WINDOW = (
-    10  # blocks in the running ("now") figures: a change on the line shows within them
-)
+# blocks in the running ("now") figures: a change on the line shows within them
+WINDOW = 10
 
 
 def window(recent) -> Tally:
@@ -788,18 +777,16 @@ def theory(setup: Setup, p: COWParams) -> dict:
     """
     net = trace(setup)
     im, alice = setup["ALICE-IM"], setup["ALICE-LD"]
-    scale = (
-        p.mu / net.port_power[fiber_input(setup)]
-    )  # photons per pulse per watt of traced power
+    # photons per pulse per watt of traced power
+    scale = p.mu / net.port_power[fiber_input(setup)]
     mu_b = scale * path_power(net, setup["DB"], alice)
     p_d = -math.expm1(-p.dark_count_rate * p.slot)
     leak = im.t_min / im.t_max * (2.0 if p.source == "cw" else 1.0)
     pa = 1 - (1 - p_d) * math.exp(-p.efficiency * mu_b)
     pb = 1 - (1 - p_d) * math.exp(-p.efficiency * leak * mu_b)
     det = 1 - (1 - pa) * (1 - pb)
-    m1, m2 = (
-        scale * alice.power * abs(q.amp) ** 2 for q in arms(setup)
-    )  # amplitudes without the drive
+    # amplitudes without the drive
+    m1, m2 = (scale * alice.power * abs(q.amp) ** 2 for q in arms(setup))
     balance = 2 * math.sqrt(m1 * m2) / (m1 + m2)
     v = balance * (
         math.exp(-math.pi * p.linewidth * p.slot) if p.source == "cw" else 0.0
@@ -854,24 +841,21 @@ def eve_theory(setup: Setup, p: COWParams, fraction: float) -> dict:
     """
     th, net = theory(setup, p), trace(setup)
     det, alice, p_ir, f_d = setup["EVE-D"], setup["ALICE-LD"], fraction, p.decoy
-    mu_d = (
-        p.mu / net.port_power[fiber_input(setup)] * path_power(net, det, alice)
-    )  # Alice's pulse at Eve's detector
+    # Alice's pulse at Eve's detector
+    mu_d = p.mu / net.port_power[fiber_input(setup)] * path_power(net, det, alice)
     leak_a, leak_e = (
         2 * im.t_min / im.t_max for im in (setup["ALICE-IM"], setup["EVE-TX-IM"])
     )  # a dark slot
     p_de = -math.expm1(-det.dark_count_rate * p.slot)
     q = 1 - (1 - p_de) * math.exp(-det.efficiency * mu_d)  # she clicks on a pulse …
-    q1 = 1 - (1 - p_de) * math.exp(
-        -det.efficiency * leak_a * mu_d
-    )  # … and on an empty slot
+    # … and on an empty slot
+    q1 = 1 - (1 - p_de) * math.exp(-det.efficiency * leak_a * mu_d)
     resent = (1 - f_d) * (q + q1) + f_d * 2 * q  # pulses she re-sends per attacked pair
     q_hat = resent / (1 + f_d)  # her clicks per occupied slot: what resend_mu inverts
     mu_e = -math.log1p(-q_hat) / det.efficiency / q_hat
     p_d = -math.expm1(-p.dark_count_rate * p.slot)
-    s = (
-        th["mu_B"] / mu_d * mu_e
-    )  # one of her pulses at DB: the loopback reference holds for her light too
+    # one of her pulses at DB: the loopback reference holds for her light too
+    s = th["mu_B"] / mu_d * mu_e
     pa, pb = (1 - (1 - p_d) * math.exp(-p.efficiency * n) for n in (s, leak_e * s))
     det_bit, err_bit = 1 - (1 - pa) * (1 - pb), pb * (1 - pa) + 0.5 * pa * pb
     det_dec, det_empty = 1 - (1 - pa) ** 2, 1 - (1 - pb) ** 2
@@ -887,9 +871,8 @@ def eve_theory(setup: Setup, p: COWParams, fraction: float) -> dict:
         + wrong * (det_bit - err_bit)
         + 0.5 * (both * det_dec + none * det_empty)
     )
-    decoy_att = (
-        2 * q * (1 - q) * det_bit + q * q * det_dec + (1 - q) ** 2 * det_empty
-    )  # an attacked decoy
+    # an attacked decoy
+    decoy_att = 2 * q * (1 - q) * det_bit + q * q * det_dec + (1 - q) ** 2 * det_empty
     sift0, decoy0 = (
         th["sifted / bit"] / (1 - f_d),
         (th["detected / bit"] - th["sifted / bit"]) / f_d,
@@ -899,12 +882,10 @@ def eve_theory(setup: Setup, p: COWParams, fraction: float) -> dict:
         -math.pi * setup["EVE-TX-LD"].linewidth * p.slot
     )
     im_e, sw = setup["EVE-TX-IM"], setup["EVE-SW"]
-    c = q + 2 * (1 - q) * math.sqrt(
-        im_e.t_min / im_e.t_max
-    )  # coherent share of a pair she attacked
-    x = 10 ** (
-        -sw.crosstalk_db / 20
-    )  # amplitude of Alice's diverted pulse through the bar state
+    # coherent share of a pair she attacked
+    c = q + 2 * (1 - q) * math.sqrt(im_e.t_min / im_e.t_max)
+    # amplitude of Alice's diverted pulse through the bar state
+    x = 10 ** (-sw.crosstalk_db / 20)
     xi = 2 * (1 - q) / (2 - q)
     return {
         "mu at Eve": mu_d,

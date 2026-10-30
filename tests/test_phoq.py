@@ -85,17 +85,15 @@ def test_power_budget_through_attenuator():
         Laser(mode="cw", power_dbm=0.0), Attenuator(attenuation_db=10), PowerMeter()
     )
     reading = s.run()["OPM-1"].power
-    expected_db = (
-        10 + 0.6 + 4 * CONNECTOR_LOSS_DB + 2 * 0.19e-3
-    )  # VOA + 4 mated pairs + 2 m fiber
+    # VOA + 4 mated pairs + 2 m fiber
+    expected_db = 10 + 0.6 + 4 * CONNECTOR_LOSS_DB + 2 * 0.19e-3
     assert 10 * math.log10(1e-3 / reading) == pytest.approx(expected_db, abs=0.01)
 
 
 def test_spool_delay_shows_on_scope():
     r = Setup.load(EXAMPLES / "delay_line.py").run()["OSC-1"]
-    rise = lambda ch: r.t[
-        np.flatnonzero(r[ch].data > 0.5 * r[ch].data.max())[0]
-    ]  # first rising edge
+    # first rising edge
+    rise = lambda ch: r.t[np.flatnonzero(r[ch].data > 0.5 * r[ch].data.max())[0]]
     assert rise("ch2") - rise("ch1") == pytest.approx(1e3 * FIBER_DELAY, rel=0.01)
 
 
@@ -216,9 +214,8 @@ def test_generator_shapes_and_pattern():
     volts = np.array([0.0, 1.5, 4.0, 0.25])
     fg.set_pattern("ch1", volts, rate=10e6)
     assert fg.ch1_shape == "pattern" and fg.ch1_vpp == 4.0 and fg.ch1_offset == 2.0
-    assert fg.voltage("ch1", np.arange(8) / 10e6) == pytest.approx(
-        np.tile(volts, 2)
-    )  # symbol k centered on k/f
+    # symbol k centered on k/f
+    assert fg.voltage("ch1", np.arange(8) / 10e6) == pytest.approx(np.tile(volts, 2))
     fg.ch1_enabled = False
     assert not fg.voltage("ch1", t).any() and fg.is_static("ch1")
     with pytest.raises(ValueError):
@@ -241,9 +238,8 @@ def test_generator_describes_pattern_levels():
     assert fg.describe("ch2") == "pattern 10 MHz · 2.00 Vpp · NO PATTERN LOADED"
     fg.set_pattern("ch1", [0.0, 1.5, 4.0, 0.25], rate=10e6)
     assert fg.describe("ch1") == "pattern 10 MHz · +0.00 … +4.00 V · 4 symbols"
-    fg.ch1_offset = (
-        -1.0
-    )  # the levels follow the amplitude and offset, as on the instrument
+    # the levels follow the amplitude and offset, as on the instrument
+    fg.ch1_offset = -1.0
     assert fg.describe("ch1") == "pattern 10 MHz · -3.00 … +1.00 V · 4 symbols"
     fg.set_pattern("ch2", sw.voltage_for(np.ones(6, dtype=bool)), rate=434e6)
     assert (
@@ -267,9 +263,8 @@ def test_intensity_modulator_transfer_curve():
     ) and im.t_max == pytest.approx(100 / 101)
     assert im.transmission(im.v_pi / 2) == pytest.approx(0.5)
     assert im.transmission(im.v_pi) == pytest.approx(1 / 101) and im.t_min == im.floor
-    assert im.transmission(0.0) / im.transmission(im.v_pi) == pytest.approx(
-        100
-    )  # ER by definition
+    # ER by definition
+    assert im.transmission(0.0) / im.transmission(im.v_pi) == pytest.approx(100)
     v = np.linspace(-im.v_pi, 2 * im.v_pi, 601)  # smooth, no kink at the null
     assert np.abs(np.diff(im.transmission(v), 2)).max() < 1e-3
     for target in (0.99, 0.7, 0.3, 0.05):
@@ -294,12 +289,10 @@ def test_dc_supply_biases_modulators():
         and im.static_voltage() == pytest.approx(im.v_pi / 2)
         and im.bias_voltage() == pytest.approx(im.v_pi / 2)
     )
-    assert s.run()["M"].power == pytest.approx(
-        0.5 / im.t_max * full, rel=1e-9
-    )  # quadrature: T = ½ exactly
-    assert im.voltage_for(1.0) == pytest.approx(
-        -im.v_pi / 2
-    )  # rf needed to cancel the bias
+    # quadrature: T = ½ exactly
+    assert s.run()["M"].power == pytest.approx(0.5 / im.t_max * full, rel=1e-9)
+    # rf needed to cancel the bias
+    assert im.voltage_for(1.0) == pytest.approx(-im.v_pi / 2)
     psu.ch1_enabled = False
     assert s.run()["M"].power == pytest.approx(full, rel=1e-9)  # output off → 0 V
     psu.ch1_enabled = True
@@ -340,14 +333,12 @@ def test_modulator_has_no_drive_of_its_own():
     )
     undriven = s.run()["OPM-1"].power
     expected_db = 4 * CONNECTOR_LOSS_DB + 2 * 0.19e-3
-    assert 10 * math.log10(1e-3 / undriven) == pytest.approx(
-        expected_db, abs=0.01
-    )  # 0 V → full transmission
+    # 0 V → full transmission
+    assert 10 * math.log10(1e-3 / undriven) == pytest.approx(expected_db, abs=0.01)
     fg = s.add(FunctionGenerator(ch1_shape="dc", ch1_offset=s["IM-1"].v_pi))
     s.connect(fg.ch1, s["IM-1"].rf)
-    assert s.run()["OPM-1"].power == pytest.approx(
-        undriven * db_to_t(30), rel=1e-6
-    )  # Vπ → extinction floor
+    # Vπ → extinction floor
+    assert s.run()["OPM-1"].power == pytest.approx(undriven * db_to_t(30), rel=1e-6)
 
 
 def test_optical_switch_routes_statically_and_pulse_by_pulse():
@@ -362,9 +353,8 @@ def test_optical_switch_routes_statically_and_pulse_by_pulse():
     bar, leak = r["M1"].power, r["M2"].power
     assert sw.info()["State"] == "bar" and sw.is_static()
     assert 10 * math.log10(bar / leak) == pytest.approx(40.0, abs=0.01)  # crosstalk
-    expected_db = (
-        1.0 + 4 * CONNECTOR_LOSS_DB + 2 * 0.19e-3
-    )  # insertion loss + 4 mated pairs + 2 m
+    # insertion loss + 4 mated pairs + 2 m
+    expected_db = 1.0 + 4 * CONNECTOR_LOSS_DB + 2 * 0.19e-3
     assert 10 * math.log10(1e-3 / (bar + leak)) == pytest.approx(expected_db, abs=0.01)
     psu = s.add(DCPowerSupply(ch1_voltage=2.0))
     s.connect(psu.ch1, sw.ctrl)
@@ -420,9 +410,8 @@ def test_phase_modulator_driven_by_generator_shifts_fringe():
         powers.append(s.run()["M1"].power)
     p = np.array(powers)
     assert (p.max() - p.min()) / (p.max() + p.min()) > 0.97  # a full-visibility fringe
-    assert p[:8] + p[8:] == pytest.approx(
-        2 * p.mean(), rel=1e-6
-    )  # P(φ) + P(φ+π) is constant
+    # P(φ) + P(φ+π) is constant
+    assert p[:8] + p[8:] == pytest.approx(2 * p.mean(), rel=1e-6)
 
 
 def test_scope_can_view_generator_output_and_chain_wires_rf():
@@ -502,9 +491,8 @@ def test_scope_bandwidth_sample_rate_and_memory():
     osc.bandwidth = 20e6
     square_slow = s.run()["OSC-1"]["ch1"].data
     assert np.ptp(square_full) == pytest.approx(2.0, rel=1e-3)
-    assert (
-        np.abs(np.diff(square_slow)).max() < 0.1 * np.abs(np.diff(square_full)).max()
-    )  # edges rounded off
+    # edges rounded off
+    assert np.abs(np.diff(square_slow)).max() < 0.1 * np.abs(np.diff(square_full)).max()
     assert square_slow.std() < 0.9 * square_full.std()  # harmonics removed
     osc.bandwidth = 1e9
     # Record memory caps the rate at slow timebases: 10 ms window / 2000 points = 200
@@ -687,9 +675,8 @@ def test_mpqkd_parties_agree_on_a_key():
     from phoq.parties import Experiment
 
     mpqkd = load_protocol(EXAMPLES / "mpqkd")
-    setup = mpqkd.build(
-        mpqkd.MPQKDParams(distance=10e3), rounds=200_000
-    )  # short link: a chunk fills fast
+    # short link: a chunk fills fast
+    setup = mpqkd.build(mpqkd.MPQKDParams(distance=10e3), rounds=200_000)
     workers = Experiment(setup, mpqkd.PARTIES, seed=8).run(blocks=6, echo=False)
     alice, charlie, bob = workers
     assert [w.name for w in workers] == [
@@ -712,15 +699,13 @@ def test_mpqkd_parties_agree_on_a_key():
         w.name: [l.split("key ")[-1] for l in w.lines if "final bits · key " in l]
         for w in (alice, bob)
     }
-    assert (
-        keys["ALICE"] and keys["ALICE"] == keys["BOB"]
-    )  # the consoles print the same key
+    # the consoles print the same key
+    assert keys["ALICE"] and keys["ALICE"] == keys["BOB"]
     # leak accounting: every disclosed parity and tag bit is counted, the same on both
     # sides
     assert a["leak EC [bits]"] == b["leak EC [bits]"] > 0
-    chunks = sum(
-        "bits reconciled" in l for l in bob.lines
-    )  # chunking depends on message timing; a failed tag discards a chunk
+    # chunking depends on message timing; a failed tag discards a chunk
+    chunks = sum("bits reconciled" in l for l in bob.lines)
     assert (
         chunks >= 1
         and a["leak verify [bits]"] == b["leak verify [bits]"] == 32 * chunks
@@ -751,9 +736,8 @@ def test_mpqkd_parties_agree_on_a_key():
         and leaked <= a["leak EC [bits]"] + a["leak verify [bits]"]
     )
     assert any("tag matches" in l for l in bob.lines)
-    assert (
-        charlie.net["sent"] == 2 * 6 and alice.net["recv"] >= 6 + 4 * 6 + 3
-    )  # clicks + 4 per block + ec/pa
+    # clicks + 4 per block + ec/pa
+    assert charlie.net["sent"] == 2 * 6 and alice.net["recv"] >= 6 + 4 * 6 + 3
 
 
 def test_cascade_reconciles_and_both_sides_count_the_same_leak():
@@ -769,13 +753,11 @@ def test_cascade_reconciles_and_both_sides_count_the_same_leak():
         b[flips] ^= 1
         corrected, ref, cor = mpqkd.cascade_in_process(a, b, seed=3, qber=max(q, 1e-3))
         assert np.array_equal(corrected, a) and len(cor.corrected) == int(flips.sum())
-        assert (
-            ref.leak == cor.leak > 0
-        )  # Alice counts what she sent, Bob what he received
+        # Alice counts what she sent, Bob what he received
+        assert ref.leak == cor.leak > 0
         if flips.any():
-            assert (
-                1.0 <= ref.leak / (n * h(flips.mean())) <= 2.5
-            )  # Cascade's usual efficiency
+            # Cascade's usual efficiency
+            assert 1.0 <= ref.leak / (n * h(flips.mean())) <= 2.5
             assert mpqkd.verification_tag(b, 9, 32) != mpqkd.verification_tag(a, 9, 32)
         assert mpqkd.verification_tag(corrected, 9, 32) == mpqkd.verification_tag(
             a, 9, 32
@@ -826,17 +808,15 @@ def test_mpqkd_keyrate_estimate_reproduces_the_theory():
         0 < th.rate_bounds < th.rate and 0 < th.q11_lower < th.q11 < 1 and th.e11 < 0.01
     )
     assert 0.2 < th.e_x < 0.3  # weak coherent X pairs: 1/4 plus the phase walk
-    est = mpqkd.estimate(
-        mpqkd.expected_counts(p, eta), p
-    )  # the stations' estimator on expectation values
+    # the stations' estimator on expectation values
+    est = mpqkd.estimate(mpqkd.expected_counts(p, eta), p)
     assert est.q11_lower == pytest.approx(th.q11_lower, rel=1e-4)
     assert est.e11_model == pytest.approx(
         th.e11, rel=0.01
     ) and est.eta_fit == pytest.approx(eta, rel=1e-4)
     assert est.e_x_model == pytest.approx(th.e_x, rel=1e-3)
-    assert math.isnan(
-        est.e11_decoy
-    )  # the X-type yield bound does not close at 2ν, 2μ (see keyrate.py)
+    # the X-type yield bound does not close at 2ν, 2μ (see keyrate.py)
+    assert math.isnan(est.e11_decoy)
 
     assert (
         mpqkd.final_length(1000, est, 30, 32)
@@ -931,9 +911,8 @@ def test_bb84_reference_run_has_positive_key_rate():
         and t.key_bits > 500
         and res.alice_key.size == res.bob_key.size
     )
-    assert (
-        res.qber < 0.04 and e["qber_x"][bb84.I_MU] < 0.04
-    )  # the 0.2 rad phase error: ≈ 1 %
+    # the 0.2 rad phase error: ≈ 1 %
+    assert res.qber < 0.04 and e["qber_x"][bb84.I_MU] < 0.04
     assert e["y0"] < 1e-4 and 0.01 < e["y1"] < 0.1 and e["e1"] < 0.08  # decoy bounds
     assert e["q1"] < e["q_mu"] and e["rate"] > 5e-4
     g = e["gains"]
@@ -963,9 +942,8 @@ def test_bb84_parties_agree_on_a_key():
         "sent [kB]": alice.result["sent [kB]"],
         "received [kB]": alice.result["received [kB]"],
     }
-    assert (
-        bob.net["sent"] == 6 and alice.net["sent"] == 3
-    )  # detect + errors per block; sift
+    # detect + errors per block; sift
+    assert bob.net["sent"] == 6 and alice.net["sent"] == 3
 
 
 def test_bb84_intercept_resend_kills_the_key(monkeypatch):
@@ -974,9 +952,8 @@ def test_bb84_intercept_resend_kills_the_key(monkeypatch):
     bb84 = load_protocol(EXAMPLES / "bb84")
     (eve,) = load_parties(EXAMPLES / "bb84" / "eve.py")
     assert eve.name == "EVE" and eve.stage == 1 and eve.fraction == 1.0
-    setup = bb84.build(
-        pulses=100_000
-    )  # an Eve party is loaded: build() adds her station
+    # an Eve party is loaded: build() adds her station
+    setup = bb84.build(pulses=100_000)
     assert "EVE-SW" in setup and "EVE-TAGGER" in setup
     alice, bob, w_eve = Experiment(setup, [*bb84.PARTIES, eve], seed=8).run(
         blocks=3, echo=False
@@ -985,9 +962,8 @@ def test_bb84_intercept_resend_kills_the_key(monkeypatch):
     assert not any("Traceback" in l for w in (alice, bob, w_eve) for l in w.lines)
     for w in (alice, bob):
         assert w.result["pulses"] == 300_000 and w.result["sifted"] > 300
-        assert (
-            0.18 < w.result["QBER X (μ)"] < 0.38
-        )  # intercept-resend: 25 % in the wrong basis
+        # intercept-resend: 25 % in the wrong basis
+        assert 0.18 < w.result["QBER X (μ)"] < 0.38
         assert w.result["e1 ≤"] > 0.2 and w.result["key rate [bit/pulse]"] == 0.0
     assert alice.result["key bits"] == bob.result["key bits"]
 
@@ -1014,13 +990,11 @@ def test_beamsplitter_is_the_old_name_of_coupler():
     s = Setup("old")
     s.add(Laser("LD-1"), Coupler("BS-1"))
     s.connect("LD-1.out", "BS-1.a1")
-    data = json.loads(
-        json.dumps(s.to_dict()).replace('"Coupler"', '"BeamSplitter"')
-    )  # an old save
+    # an old save
+    data = json.loads(json.dumps(s.to_dict()).replace('"Coupler"', '"BeamSplitter"'))
     loaded = Setup.from_dict(data)
-    assert (
-        type(loaded["BS-1"]) is Coupler and loaded.to_dict() == s.to_dict()
-    )  # saved anew as Coupler
+    # saved anew as Coupler
+    assert type(loaded["BS-1"]) is Coupler and loaded.to_dict() == s.to_dict()
     from phoq.core import Component
 
     assert (
@@ -1048,9 +1022,8 @@ def test_api_edits_the_python_objects():
             ).status_code
             == 200
         )
-        assert (
-            type(s["BS-9"]) is Coupler
-        )  # an old client's type name still adds a coupler
+        # an old client's type name still adds a coupler
+        assert type(s["BS-9"]) is Coupler
         s.remove("BS-9")
         assert (
             client.patch(
@@ -1084,18 +1057,15 @@ def test_api_edits_the_python_objects():
         with client.websocket_connect("/ws") as ws:
             kinds = {json.loads(ws.receive_text())["type"] for _ in range(3)}
         assert {"state", "report", "frame"} <= kinds
-        client.patch(
-            "/api/components/OSC-1", json={"params": {"trigger": "free"}}
-        )  # no light left for a sync
+        # no light left for a sync
+        client.patch("/api/components/OSC-1", json={"params": {"trigger": "free"}})
         assert client.post("/api/instruments/OSC-1/single").json() == {"armed": True}
         assert s["OSC-1"].armed and not s["OSC-1"].running
-        assert client.post("/api/instruments/OSC-1/single").json() == {
-            "armed": False
-        }  # pressed again: canceled
+        # pressed again: canceled
+        assert client.post("/api/instruments/OSC-1/single").json() == {"armed": False}
         client.post("/api/instruments/OSC-1/single")
-        with client.websocket_connect(
-            "/ws"
-        ) as ws:  # the capture is streamed once, then held
+        # the capture is streamed once, then held
+        with client.websocket_connect("/ws") as ws:
             frames = [
                 m["frame"]
                 for m in (json.loads(ws.receive_text()) for _ in range(12))

@@ -65,9 +65,8 @@ if __name__ == "__main__":
         setup = build(**kw)
         r = report(setup)
         pd, src = r["detectors"]["PD-1"], r["sources"]["LD-1"]
-        matings = len(kw.get("cords", (U,) * 4)) + kw.get(
-            "plugged", True
-        )  # laser–cord, sleeves, cord–PD
+        # laser–cord, sleeves, cord–PD
+        matings = len(kw.get("cords", (U,) * 4)) + kw.get("plugged", True)
         power = f"{w_to_dbm(pd['power']):.2f} dBm" if pd["power"] > 0 else "—"
         back = src["readouts"]["Back-reflection"].split(" · ")[0]
         strongest = src["readouts"].get("Strongest reflection", "")

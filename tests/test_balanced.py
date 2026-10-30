@@ -67,9 +67,8 @@ def bench(
     s.terminate(bs.a2)  # capped: an open flat port would send LO light back in
     q = float(im.voltage_for(0.5))
     if freq:
-        fg.set(
-            ch1_shape="sine", ch1_freq=freq, ch1_vpp=2.0, ch1_offset=q
-        )  # T swings ½(1 ± 0.7)
+        # T swings ½(1 ± 0.7)
+        fg.set(ch1_shape="sine", ch1_freq=freq, ch1_vpp=2.0, ch1_offset=q)
     else:
         fg.set(ch1_shape="dc", ch1_offset=q)
     if analyzer:
@@ -157,9 +156,8 @@ def test_cw_saturation_monitor_gain_and_monitor_saturation_match_the_manual(
 ):
     bpd = BalancedPhotodetector(preset=preset)
     bpd.gain = min(bpd.settings())
-    assert bpd.cw_saturation_power(wavelength) == pytest.approx(
-        manual, rel=0.04
-    )  # the manual rounds
+    # the manual rounds
+    assert bpd.cw_saturation_power(wavelength) == pytest.approx(manual, rel=0.04)
     # "conversion gain 10 V/mW" at peak responsivity; "Saturation of the MONITOR outputs
     # will occur at optical input power greater than 1 mW"
     assert bpd.monitor_gain * bpd.peak_responsivity() == pytest.approx(10e3, rel=1e-3)
@@ -213,9 +211,8 @@ def test_path_length_difference_limits_the_rejection_as_section_3_7_shows(freq):
         for port in ("inp_plus", "inp_minus")
     )
     dtau = minus - plus
-    assert dtau == pytest.approx(
-        1.468 / 299792458, rel=0.01
-    )  # 1 m of fiber, 1.47 m of air
+    # 1 m of fiber, 1.47 m of air
+    assert dtau == pytest.approx(1.468 / 299792458, rel=0.01)
     want = -20 * math.log10(2 * math.sin(math.pi * freq * dtau))
     assert rejection(freq, cords=(1.0, 2.0), cmrr=120.0) == pytest.approx(want, abs=0.1)
     if freq == 1e6:  # the figure's 30 dB line passes 1 MHz at about 1.5 m of air
@@ -254,17 +251,15 @@ def test_rf_noise_is_the_nep_plus_both_diodes_shot_noise(watts):
     assert rf.mean() == pytest.approx(
         bpd.gain * (i_plus - i_minus) * watts, abs=3 * rf.std() / math.sqrt(n / 40)
     )
-    if (
-        not watts
-    ):  # the monitors' own noise, "< 180 µV RMS", over 2 ms of their 1 MHz bandwidth
+    # the monitors' own noise, "< 180 µV RMS", over 2 ms of their 1 MHz bandwidth
+    if not watts:
         mon = bpd.detect({}, 5e-9, np.random.default_rng(4), n)["mon_plus"][n // 20 :]
         assert mon.std() == pytest.approx(180e-6, rel=0.02)
 
 
 def test_report_warns_of_saturation_damage_and_a_missing_gain():
-    s = bench(
-        power_dbm=0.0, minus=False, gain=1e4
-    )  # ~0.25 mW on one input: 2.5 V of 4.6 V
+    # ~0.25 mW on one input: 2.5 V of 4.6 V
+    s = bench(power_dbm=0.0, minus=False, gain=1e4)
     assert not [w for w in report(s)["warnings"] if "BPD" in w["text"]]
     s["BPD"].gain = 1e5
     w = [w["text"] for w in report(s)["warnings"]]
@@ -273,9 +268,8 @@ def test_report_warns_of_saturation_damage_and_a_missing_gain():
     assert any("has no" in t["text"] for t in report(s)["warnings"])
     assert report(s)["detectors"]["BPD"]["status"] == "No such gain"
     s["BPD"].gain = 1e3
-    s["LD"].power_dbm = (
-        15.0  # 2 mW on INPUT+: the monitor (1 mW), not yet the diode (20 mW)
-    )
+    # 2 mW on INPUT+: the monitor (1 mW), not yet the diode (20 mW)
+    s["LD"].power_dbm = 15.0
     w = [w["text"] for w in report(s)["warnings"]]
     assert any("MONITOR output would reach" in t for t in w) and not any(
         "absolute maximum" in t for t in w

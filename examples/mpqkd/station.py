@@ -61,9 +61,8 @@ class Station(Party):
     abstract = True
     tag = ""  # "ALICE" or "BOB": prefix of this station's instruments
     partner = ""
-    leader = (
-        False  # the leader picks the Z sample, starts error correction and sizes PA
-    )
+    # the leader picks the Z sample, starts error correction and sizes PA
+    leader = False
     params = MPQKDParams()  # public parameters, agreed in advance
 
     # ---- what differs between Alice and Bob ------------------------------------------
@@ -78,12 +77,10 @@ class Station(Party):
         p = self.params
         self.blocks: dict[int, dict] = {}
         self.counts = Counts()
-        self.pool: dict[int, dict] = (
-            {}
-        )  # block → sifted key bits waiting for error correction
-        self.chunks: dict[int, dict] = (
-            {}
-        )  # chunk → its Cascade state, corrected key, leak, tag
+        # block → sifted key bits waiting for error correction
+        self.pool: dict[int, dict] = {}
+        # chunk → its Cascade state, corrected key, leak, tag
+        self.chunks: dict[int, dict] = {}
         self.verified: list[int] = []  # chunks reconciled and verified, waiting for PA
         self.ec_active: int | None = None
         self.next_chunk = 0
@@ -140,9 +137,8 @@ class Station(Party):
     def receive(self, msg: Message) -> None:
         if msg.sender == "CHARLIE" and msg.topic == Topic.CLICKS:
             st = self.blocks.get(msg.block)
-            if (
-                st is not None
-            ):  # a block we never prepared (e.g. after a restart) is ignored
+            # a block we never prepared (e.g. after a restart) is ignored
+            if st is not None:
                 st["clicks"] = msg
                 self._pair(msg.block, st)
             return
@@ -189,9 +185,8 @@ class Station(Party):
         m = st["clicks"]
         F, R = simple_pairing(m.idx, self.params.l)  # [#2] identical at both stations
         level = st["prep"][0]
-        det_at = lambda rounds: m.det[
-            np.searchsorted(m.idx, rounds)
-        ]  # Charlie's L/R per clicked round
+        # Charlie's L/R per clicked round
+        det_at = lambda rounds: m.det[np.searchsorted(m.idx, rounds)]
         basis, lev = assign_basis(level[F], level[R])
         st.update(
             F=F,
@@ -225,13 +220,11 @@ class Station(Party):
         half = self.params.D // 2
         d = (phase[R].astype(int) - phase[F].astype(int)) % self.params.D
         flip = st["det_F"] != st["det_R"]  # (L,R) or (R,L): Bob's bit flips
-        st["kx_all"] = self.x_bit(
-            (d // half).astype(np.int8), flip
-        )  # every pair, used on X ones
+        # every pair, used on X ones
+        st["kx_all"] = self.x_bit((d // half).astype(np.int8), flip)
         st["theta_mine"] = (d % half).astype(np.int8)
-        self.net.send(
-            self.partner, Topic.THETA, block=block, theta=st["theta_mine"]
-        )  # [#4]
+        # [#4]
+        self.net.send(self.partner, Topic.THETA, block=block, theta=st["theta_mine"])
         self._align(block, st)
         self._reply_sample(block, st)
 
@@ -243,9 +236,8 @@ class Station(Party):
             (st["basis_mine"] == B_X) & (st["basis_partner"] == B_X) & st["match"]
         )
         st["kx"] = st["kx_all"][st["xx"]]
-        self.net.send(
-            self.partner, Topic.XBITS, block=block, bits=st["kx"]
-        )  # [#5] X bits: estimation only
+        # [#5] X bits: estimation only
+        self.net.send(self.partner, Topic.XBITS, block=block, bits=st["kx"])
         if self.leader:
             sel = np.flatnonzero(
                 self.rng.random(st["kz"].size) < self.params.sample_fraction
@@ -495,9 +487,8 @@ class Station(Party):
         self._amplify(chunks, seed, length, est)
 
     def _pa(self, msg: Message) -> None:
-        est = estimate(
-            self.counts, self.params
-        )  # from the same public numbers as the leader's
+        # from the same public numbers as the leader's
+        est = estimate(self.counts, self.params)
         n = sum(self.chunks[c]["n"] for c in msg.chunks)
         mine = final_length(
             n,
@@ -505,9 +496,8 @@ class Station(Party):
             sum(self.chunks[c]["leak"] for c in msg.chunks),
             self.params.verify_bits * len(msg.chunks),
         )
-        if abs(mine - msg.length) > max(
-            8, 0.25 * msg.length
-        ):  # our counts may lead by a block
+        # our counts may lead by a block
+        if abs(mine - msg.length) > max(8, 0.25 * msg.length):
             print(
                 f"⚠ PA: the leader sizes {msg.length} final bits, our own estimate says"
                 f" {mine}"

@@ -47,19 +47,16 @@ class Topic:
     BASIS = "basis"
     THETA = "theta"  # #4 Alice ↔ Bob: alignment angle of each X pair
     XBITS = "xbits"  # #5 Alice ↔ Bob: X-basis bits, disclosed for error estimation
-    SAMPLE = (  # #5 leader → partner: positions and bits of a Z sample to disclose
-        "sample"
-    )
+    # #5 leader → partner: positions and bits of a Z sample to disclose
+    SAMPLE = "sample"
     SAMPLE_REPLY = "sample-reply"  # #5 partner → leader: its bits at those positions
     # #6 leader → partner: the chunk to reconcile, Cascade seed, first parities
     EC_START = "ec-start"
     EC_QUERY = "ec-query"  # #6 partner → leader: parities wanted (pass, lo, hi)
-    EC_PARITY = (  # #6 leader → partner: those parities (each one a leaked bit)
-        "ec-parity"
-    )
-    EC_DONE = (  # #6 partner → leader: Cascade finished, verification tag of its key
-        "ec-done"
-    )
+    # #6 leader → partner: those parities (each one a leaked bit)
+    EC_PARITY = "ec-parity"
+    # #6 partner → leader: Cascade finished, verification tag of its key
+    EC_DONE = "ec-done"
     VERIFIED = "verified"  # #6 leader → partner: tag matched (or not: chunk dropped)
     # #6 leader → partner: Toeplitz seed and output length for the verified chunks
     PA = "pa"
@@ -76,9 +73,8 @@ class MPQKDParams:
     l: int = 1000  # maximal pairing interval (rounds)
     sample_fraction: float = 0.1  # share of key Z pairs disclosed to estimate E_Z
     chunk_bits: int = 1000  # sifted key bits reconciled and amplified together
-    cascade_passes: int = (
-        6  # the last passes cost 1–2 parities each and catch hidden error pairs
-    )
+    # the last passes cost 1–2 parities each and catch hidden error pairs
+    cascade_passes: int = 6
     verify_bits: int = 32  # universal-hash tag that confirms the corrected chunks agree
     estimator: str = "model"  # how e_11^X is sized: "model" (see keyrate.py) or "decoy"
     eps: float = 1e-10  # security parameter of the (labeled) finite-key estimate

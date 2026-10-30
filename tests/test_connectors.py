@@ -47,9 +47,8 @@ def test_mating_table():
     t, ra, rb = mating("FC/UPC", "FC/UPC")
     assert (t, ra, rb) == (db_to_t(CONNECTOR_LOSS_DB), db_to_t(50.0), db_to_t(50.0))
     assert mating("FC/APC", "FC/APC")[1] == db_to_t(RETURN_LOSS_DB["FC/APC"])
-    assert mating("FC/PC", "FC/UPC")[1] == db_to_t(
-        40.0
-    )  # the worse of the two flat faces
+    # the worse of the two flat faces
+    assert mating("FC/PC", "FC/UPC")[1] == db_to_t(40.0)
     t, r_apc, r_flat = mating("FC/APC", "FC/UPC")
     assert (
         t == db_to_t(MISMATCH_LOSS_DB) and r_apc == db_to_t(60.0) and r_flat == FRESNEL
@@ -91,9 +90,8 @@ def test_auto_cord_between_different_ports_is_a_hybrid():
 def test_apc_mated_to_upc_loses_power_reflects_and_warns():
     s = Setup("mismatch")
     ld = s.add(Laser("LD", mode="cw", power_dbm=0.0, connector="FC/APC"))
-    opm, cord = s.add(
-        PowerMeter("OPM"), Fiber("FIB-1")
-    )  # an FC/UPC cord: the classic mistake
+    # an FC/UPC cord: the classic mistake
+    opm, cord = s.add(PowerMeter("OPM"), Fiber("FIB-1"))
     s.connect(ld.out, cord.a)
     s.connect(cord.b, opm.inp)
     assert 10 * math.log10(reading(s) / 1e-3) == pytest.approx(
@@ -113,9 +111,8 @@ def test_apc_mated_to_upc_loses_power_reflects_and_warns():
         "FC/UPC",
         "FC/APC",
     )  # now the laser is the flat side
-    assert back_db(s) == pytest.approx(
-        10 * math.log10(FRESNEL), abs=0.05
-    )  # 3.6 % straight back
+    # 3.6 % straight back
+    assert back_db(s) == pytest.approx(10 * math.log10(FRESNEL), abs=0.05)
     assert "reflected back into LD.out" in report(s)["warnings"][0]["text"]
 
 
@@ -257,9 +254,8 @@ def through_sleeves(kinds, plugged=True, laser="FC/UPC"):
         cord = s.add(Fiber(f"FIB-{i}", connector_a=k, connector_b=k))
         if i > 1:
             sleeve = s.add(MatingSleeve(f"SLV-{i - 1}"))
-            s.connect(
-                prev, sleeve.p1
-            )  # cord ↔ sleeve: plugged straight in, no cord inserted
+            # cord ↔ sleeve: plugged straight in, no cord inserted
+            s.connect(prev, sleeve.p1)
             prev = sleeve.p2
         s.connect(prev, cord.a)
         prev = cord.b
@@ -277,9 +273,8 @@ def test_a_sleeve_is_one_mated_pair_between_two_cords():
     T, R = db_to_t(CONNECTOR_LOSS_DB), db_to_t(50.0)
     assert back_db(s) == pytest.approx(10 * math.log10(R * (1 + T**2 + T**4)), abs=0.05)
     sleeve = s["SLV-1"]
-    assert (
-        sleeve.ports["p1"].connector == sleeve.ports["p2"].connector == "FC/UPC"
-    )  # what the other side holds
+    # what the other side holds
+    assert sleeve.ports["p1"].connector == sleeve.ports["p2"].connector == "FC/UPC"
     assert sleeve.info() == {
         "Mating": "FIB-1.b (FC/UPC) ↔ FIB-2.a (FC/UPC)",
         "Insertion loss": "0.30 dB",
@@ -306,9 +301,8 @@ def test_mixed_polish_inside_sleeves_warns_once_per_sleeve():
     assert texts[1].startswith("FIB-3.b (FC/APC) is mated to FIB-4.a (FC/UPC) in SLV-3")
     loss = 3 * CONNECTOR_LOSS_DB + 2 * MISMATCH_LOSS_DB
     assert 10 * math.log10(reading(s) / 1e-3) == pytest.approx(-loss, abs=0.01)
-    assert (
-        "in SLV-2" in report(s)["sources"]["LD"]["readouts"]["Strongest reflection"]
-    )  # the Fresnel 3.6 %
+    # the Fresnel 3.6 %
+    assert "in SLV-2" in report(s)["sources"]["LD"]["readouts"]["Strongest reflection"]
     assert s["SLV-2"].info()["Insertion loss"] == f"{MISMATCH_LOSS_DB:.2f} dB"
 
 
@@ -346,9 +340,8 @@ def test_sleeves_between_bulkheads_get_cords_and_round_trip():
     assert reading(again) == pytest.approx(reading(s))
     s2 = Setup("two sleeves")
     a, b = s2.add(MatingSleeve("A"), MatingSleeve("B"))
-    assert isinstance(
-        s2.connect(a.p2, b.p1), Fiber
-    )  # two female sides need a cord between them
+    # two female sides need a cord between them
+    assert isinstance(s2.connect(a.p2, b.p1), Fiber)
 
 
 def test_connector_cascade_example():
@@ -410,9 +403,8 @@ def test_an_open_part_port_is_an_open_end():
     assert any(
         w["text"].startswith("Open connector BS.b2 emits") for w in r["warnings"]
     )
-    assert reading(s) == pytest.approx(
-        1e-3 * t**4 * half**2 * FRESNEL, rel=0.05
-    )  # ± the −50 dB caps' fringes
+    # ± the −50 dB caps' fringes
+    assert reading(s) == pytest.approx(1e-3 * t**4 * half**2 * FRESNEL, rel=0.05)
     s.terminate(bs.b2)
     assert reading(s) < 1e-3 * t**4 * half**2 * db_to_t(RETURN_LOSS_DB["FC/UPC"]) * 4
     angled = Setup("angled port")
@@ -448,9 +440,8 @@ def test_a_terminator_plugs_in_without_a_cord_and_reflects_as_its_mated_pair(cap
     from fastapi.testclient import TestClient
     from phoq.server import create_app
 
-    with TestClient(
-        create_app(s, web_dir=None)
-    ) as c:  # the lab draws a plug on the port it is mated to
+    # the lab draws a plug on the port it is mated to
+    with TestClient(create_app(s, web_dir=None)) as c:
         comps = {x["name"]: x for x in c.get("/api/state").json()["components"]}
         assert (
             comps["TRM"]["plug"]
@@ -492,9 +483,8 @@ def test_a_double_bounce_reaches_the_detector_at_the_product_of_its_gains():
     ]
     assert warned and "PD" in warned[0]
     capped = homodyne(vacuum_cap="FC/UPC")
-    assert not [
-        p for p in trace(capped).paths[capped["PD"]] if p.reflections == 2
-    ]  # r² ≈ −100 dB
+    # r² ≈ −100 dB
+    assert not [p for p in trace(capped).paths[capped["PD"]] if p.reflections == 2]
     assert not [
         w for w in report(capped)["warnings"] if "reflects light on" in w["text"]
     ]
@@ -528,9 +518,8 @@ def test_terminate_spares_caps_the_unused_ports_of_parts_only():
 
     assert [p.path for p in bench().spare_ports()] == ["BS.a2"]
     with TestClient(create_app(bench(), web_dir=None)) as c:
-        assert c.get("/api/state").json()["spares"] == [
-            "BS.a2"
-        ]  # the lab's count of open spare ports
+        # the lab's count of open spare ports
+        assert c.get("/api/state").json()["spares"] == ["BS.a2"]
         assert c.post("/api/terminate-spares").json() == {"ok": True, "caps": ["TRM-1"]}
         assert c.get("/api/state").json()["spares"] == []
         comps = {x["name"]: x for x in c.get("/api/state").json()["components"]}

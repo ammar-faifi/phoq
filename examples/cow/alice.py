@@ -60,9 +60,8 @@ class Alice(Party):
     # ---- physical layer --------------------------------------------------------------
     def prepare(self, block: int, n: int) -> None:
         p = self.params
-        kind = draw(
-            self.rng, n // 2, p
-        )  # the lab counts time slots: two per logical bit
+        # the lab counts time slots: two per logical bit
+        kind = draw(self.rng, n // 2, p)
         volts = self.hw.call("ALICE-IM", "voltage_for", carving(occupied(kind)))
         self.hw.call("ALICE-AWG", "set_pattern", "ch1", volts, 2 * p.rate)
         self.blocks[block] = dict(kind=kind)
@@ -99,9 +98,8 @@ class Alice(Party):
             monitor=monitor,
             doubles=int(msg.doubles),
         )
-        st["bits"] = sent.astype(
-            np.int8
-        )  # her bit at every detection (meaningless at decoys)
+        # her bit at every detection (meaningless at decoys)
+        st["bits"] = sent.astype(np.int8)
         self.net.send(
             "BOB",
             Topic.SIFT,

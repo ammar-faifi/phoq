@@ -80,9 +80,8 @@ def measure(data: np.ndarray, dt: float) -> dict:
     spec = np.abs(np.fft.rfft(data - data.mean()))
     spec[0] = 0.0
     k = int(np.argmax(spec))
-    if 0 < k < spec.size - 1 and spec[k] ** 2 > 0.2 * np.sum(
-        spec**2
-    ):  # one line dominates: periodic
+    # one line dominates: periodic
+    if 0 < k < spec.size - 1 and spec[k] ** 2 > 0.2 * np.sum(spec**2):
         a, b, c = spec[k - 1], spec[k], spec[k + 1]
         denom = a - 2 * b + c
         out["freq"] = (k + (0.5 * (a - c) / denom if denom else 0.0)) / (n * dt)
@@ -320,9 +319,8 @@ class Oscilloscope(Component):
 
     def __init__(self, name: str | None = None, **params):
         self.armed = False  # single shot: waiting for the first trigger
-        self.held: ScopeResult | None = (
-            None  # the sweep captured by the last single shot
-        )
+        # the sweep captured by the last single shot
+        self.held: ScopeResult | None = None
         super().__init__(name, **params)
 
     def _build(self):
@@ -426,9 +424,8 @@ class Oscilloscope(Component):
         dets = self._detectors(inputs)
         fs, n, dt = self.record()
         tb = self.timebase
-        k = max(
-            1, min(math.ceil(6 * self.bandwidth * dt), max(1, 200_000 // n))
-        )  # analog oversampling
+        # analog oversampling
+        k = max(1, min(math.ceil(6 * self.bandwidth * dt), max(1, 200_000 // n)))
         dts = dt / k
         edge = self.trigger == "edge"
         total = 2 * n if edge else n
@@ -452,9 +449,8 @@ class Oscilloscope(Component):
         driving = driving_generators(net, dets)
         signals, balanced = {}, {}
         for ch, (d, port) in inputs.items():
-            if isinstance(
-                d, BalancedPhotodetector
-            ):  # its outputs share one noise realization
+            # its outputs share one noise realization
+            if isinstance(d, BalancedPhotodetector):
                 if d not in balanced:
                     balanced[d] = d.detect(fields[d], dts, rng, t_sim.size)
                 raw = balanced[d][port]  # the scope's input is high-impedance
@@ -794,16 +790,14 @@ class PhotonCounter(Component):
         dt = 1.0 / rate
         delay = {d: getattr(self, f"{ch}_delay") for ch, d in inputs.items()}
         shift = 0.0
-        if (
-            self.compensate_delay and laser is not None
-        ):  # the earliest time stamp of pulse 0
+        # the earliest time stamp of pulse 0
+        if self.compensate_delay and laser is not None:
             stamps = [
                 t + delay[d] for d in inputs.values() for t in net.delays(d, laser)
             ]
             shift = min(stamps) if stamps else 0.0
-        offsets = {
-            d: -tau for d, tau in delay.items()
-        }  # bin k of a channel: stamps, less its delay
+        # bin k of a channel: stamps, less its delay
+        offsets = {d: -tau for d, tau in delay.items()}
         clicks = {ch: np.zeros(self.slots, dtype=bool) for ch in inputs}
         # a click near the end of a chunk (or of the previous record, when this one
         # continues it) keeps its detector dead into the next: the dead time does not
@@ -814,9 +808,8 @@ class PhotonCounter(Component):
         step = max(1, self.chunk // m)
         for a in range(0, self.slots, step):
             b = min(self.slots, a + step)
-            t = (
-                shift + (first + np.arange(a, b)) * dt - dt / 2
-            )  # bins centered on the pulses
+            # bins centered on the pulses
+            t = shift + (first + np.arange(a, b)) * dt - dt / 2
             if m > 1:
                 t = (t[:, None] + np.arange(m) * (dt / m)).ravel()
             fields = synthesize(net, set(inputs.values()), t, dt / m, rng, offsets)
@@ -839,9 +832,8 @@ class PhotonCounter(Component):
 # --------------------------------------------------------------------------------------
 FREQS = seq125(1e3, 20e9)
 RBWS = seq125(1.0, 10e6)
-DECIMATE = (
-    4  # the signal is computed at 4 f_s, anti-alias filtered and decimated to f_s
-)
+# the signal is computed at 4 f_s, anti-alias filtered and decimated to f_s
+DECIMATE = 4
 ZERO_PAD = 4  # FFT zero padding: a tone's level is right wherever it falls between bins
 MAX_SAMPLES = 4_000_000  # per sweep, after decimation
 ATTENUATIONS = tuple(10.0 * k for k in range(8))  # input attenuator steps [dB], generic
@@ -962,9 +954,8 @@ class SpectrumResult:
         y = 10 * np.log10(lin)
         k = int(np.argmax(lin))
         floor0 = float(np.median(lin[-max(1, lin.size // 10) :]))
-        below = np.flatnonzero(
-            lin[k:] < (lin[k] + floor0) / 2
-        )  # first fall to half height
+        # first fall to half height
+        below = np.flatnonzero(lin[k:] < (lin[k] + floor0) / 2)
         f0_guess = f[k] if center is None else center
         gamma0 = max(
             float(f[k + below[0]] - f0_guess) if below.size else f[-1] / 2, self.rbw
@@ -986,9 +977,8 @@ class SpectrumResult:
             math.log10(max(floor0, lin[k] * 1e-12)),
         ]
         p0 = list(np.clip(p0, lower, upper))
-        with (
-            warnings.catch_warnings()
-        ):  # a non-Lorentzian trace still gets its best fit
+        # a non-Lorentzian trace still gets its best fit
+        with warnings.catch_warnings():
             warnings.simplefilter("ignore", OptimizeWarning)
             if center is None:
                 span = f[-1] - f[0]
@@ -1054,14 +1044,12 @@ class SpectrumResult:
             )
             return dnu / (dnu**2 + u**2) * np.clip(s2, 0.0, None)
 
-        def model(
-            _, a, b, c
-        ):  # log10 of A, Δν and the floor: positive and well conditioned
+        # log10 of A, Δν and the floor: positive and well conditioned
+        def model(_, a, b, c):
             return 10 * np.log10(10**a * shape(10**b) + 10**c)
 
-        floor0 = float(
-            np.median(lin[np.argsort(np.abs(u))[-max(1, lin.size // 10) :]])
-        )  # the far end
+        # the far end
+        floor0 = float(np.median(lin[np.argsort(np.abs(u))[-max(1, lin.size // 10) :]]))
         span = float(np.max(np.abs(u)))
         best = None
         with warnings.catch_warnings():
@@ -1211,9 +1199,8 @@ class SpectrumResult:
             # linewidth
             try:
                 hwhm = self.fit_lorentzian(0.0)["hwhm"]
-                if (
-                    self.rbw <= hwhm <= self.stop
-                ):  # narrower is unresolved, wider is no line in this span
+                # narrower is unresolved, wider is no line in this span
+                if self.rbw <= hwhm <= self.stop:
                     meas["fit_hwhm"] = hwhm
             except RuntimeError, ValueError:
                 pass
@@ -1398,9 +1385,8 @@ class SpectrumAnalyzer(Component):
     )
 
     def __init__(self, name: str | None = None, **params):
-        self._trace: np.ndarray | None = (
-            None  # displayed trace in W, for trace average / max hold
-        )
+        # displayed trace in W, for trace average / max hold
+        self._trace: np.ndarray | None = None
         self._sweeps = 0
         self._dc_power = 0.0  # the last sweep's, for converting the reference level
         self._units = None  # the units the reference level is in; None while building
@@ -1516,9 +1502,8 @@ class SpectrumAnalyzer(Component):
         t = rng.uniform(0, 1e-3) + np.arange(-warm, (total + 2 * pad) * DECIMATE) * dts
         if isinstance(d, (Photodiode, BalancedPhotodetector, SinglePhotonDetector)):
             fields = synthesize(net, {d}, t, dts, rng)
-            if isinstance(
-                d, BalancedPhotodetector
-            ):  # a voltage source behind its output impedance
+            # a voltage source behind its output impedance
+            if isinstance(d, BalancedPhotodetector):
                 r = self.input_impedance
                 x = (
                     d.detect(fields[d], dts, rng, t.size)[port]
@@ -1526,9 +1511,8 @@ class SpectrumAnalyzer(Component):
                     / (r + d.output_impedance(port))
                 )
             elif isinstance(d, Photodiode):
-                x = (
-                    d.detect(fields[d], dts, rng, t.size) * self.input_impedance
-                )  # current → volts
+                # current → volts
+                x = d.detect(fields[d], dts, rng, t.size) * self.input_impedance
             else:
                 x = d.waveform(d.detect(fields[d], dts, rng, t.size), dts)
         else:  # a generator or supply output straight into the analyzer
@@ -1546,14 +1530,12 @@ class SpectrumAnalyzer(Component):
         dc = float(v.mean())
         v = v - dc  # AC-coupled input: the DC photocurrent is blocked
         self._dc_power = dc**2 / R if dc**2 > v.var() else 0.0  # the dBc/Hz reference
-        danl = (
-            10 ** ((self.noise_floor + self.input_attenuation() - 30) / 10) * R
-        )  # one-sided voltage PSD of the instrument [V²/Hz], raised by the attenuator
+        # one-sided voltage PSD of the instrument [V²/Hz], raised by the attenuator
+        danl = 10 ** ((self.noise_floor + self.input_attenuation() - 30) / 10) * R
         v = v + math.sqrt(danl * fs / 2) * rng.standard_normal(total)
 
-        w = np.hanning(n + 1)[
-            :-1
-        ]  # periodic Hann, equivalent noise bandwidth 1.5 f_s / N
+        # periodic Hann, equivalent noise bandwidth 1.5 f_s / N
+        w = np.hanning(n + 1)[:-1]
         segs = v[np.arange(k)[:, None] * hop + np.arange(n)[None, :]] * w
         nfft = n * ZERO_PAD
         power = (
@@ -1610,9 +1592,8 @@ class SpectrumAnalyzer(Component):
     def _detect(self, f: np.ndarray, power: np.ndarray, fd: np.ndarray) -> np.ndarray:
         """Power at each display frequency from the FFT bins in its bucket
         (detector mode)."""
-        out = np.interp(
-            fd, f, power
-        )  # sample detector, and buckets narrower than a bin
+        # sample detector, and buckets narrower than a bin
+        out = np.interp(fd, f, power)
         if self.detector == "sample" or fd.size < 2:
             return out
         half = (fd[1] - fd[0]) / 2

@@ -197,23 +197,20 @@ class Transfer(NamedTuple):
 class Component:
     """Base class for every piece of equipment."""
 
-    category: ClassVar[str] = (
-        "component"  # source | passive | modulator | detector | instrument | cord
-    )
+    # source | passive | modulator | detector | instrument | cord
+    category: ClassVar[str] = "component"
     prefix: ClassVar[str] = "X"
     label: ClassVar[str] = "Component"
     description: ClassVar[str] = ""
     inputs: ClassVar[tuple[str, ...]] = ()  # port order used by Setup.chain()
     outputs: ClassVar[tuple[str, ...]] = ()
     is_cord: ClassVar[bool] = False  # fiber patch cords join optical ports
-    is_adaptor: ClassVar[bool] = (
-        False  # a mating sleeve: the connectors in its two sides mate
-    )
+    # a mating sleeve: the connectors in its two sides mate
+    is_adaptor: ClassVar[bool] = False
     # plugs straight into a port or a sleeve, like a cord's end (a terminator)
     is_plug: ClassVar[bool] = False
-    spectral_curves: ClassVar[dict[str, str]] = (
-        {}
-    )  # datasheet curves a preset may give: name → unit
+    # datasheet curves a preset may give: name → unit
+    spectral_curves: ClassVar[dict[str, str]] = {}
     registry: ClassVar[dict[str, type[Component]]] = {}
     aliases: ClassVar[dict[str, str]] = {}  # a renamed class's old name → its name now
 
@@ -527,9 +524,8 @@ class Setup:
         ):
             from .passive import Fiber
 
-            if (
-                fiber is None
-            ):  # the patch cord a lab would take: its ends match the two ports
+            # the patch cord a lab would take: its ends match the two ports
+            if fiber is None:
                 from .units import DEFAULT_CONNECTOR
 
                 fiber = Fiber(

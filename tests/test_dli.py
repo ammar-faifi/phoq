@@ -59,7 +59,6 @@ def test_tagger_channel_delay_aligns_like_a_matched_cord():
         and tagged["qber"] < 0.005
     )
     unaligned = COW["build"]()
-    unaligned["CNT"].ch1_delay = (
-        0.0  # DM1/DM2 then land almost a slot late: wrong pairs counted
-    )
+    # DM1/DM2 then land almost a slot late: wrong pairs counted
+    unaligned["CNT"].ch1_delay = 0.0
     assert COW["monitor"](unaligned, batches=2)["V"] < 0.6

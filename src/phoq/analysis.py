@@ -91,9 +91,8 @@ class Task:
 def task(*sources, name: str | None = None, party: str | None = None):
     """Register a function to run on every click batch: ``@task`` or
     ``@task("TAGGER", party="CHARLIE")``."""
-    if (
-        sources and callable(sources[0]) and not isinstance(sources[0], str)
-    ):  # bare @task
+    # bare @task
+    if sources and callable(sources[0]) and not isinstance(sources[0], str):
         t = Task(sources[0], (), name, party)
         REGISTRY.append(t)
         return t
