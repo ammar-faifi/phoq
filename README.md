@@ -132,7 +132,7 @@ straight into a sleeve; between a sleeve and a part's bulkhead, or between two s
 connection costs:
 
 ```bash
-python examples/connector_cascade.py
+phoq run examples/connector_cascade.py
 ```
 
 ```
@@ -283,16 +283,25 @@ What the datasheets made the models learn:
 ## Command line
 
 ```bash
-phoq run examples/delay_line.py --plot traces.png   # headless
+phoq run examples/laser_noise.py --plot noise.png   # an example's analysis, headless
 ```
 
 ```bash
-phoq serve examples/mpqkd                  # API + 3D visualizer
+phoq serve examples/mpqkd                  # API + 3D visualizer, the parties as processes
 ```
 
 ```bash
 phoq export examples/basic_link.json --format python
 ```
+
+`phoq run` runs a script that has an `if __name__ == "__main__":` block as `python` would, so the
+options after its name are the script's (`python examples/laser_noise.py` works too). A package
+directory that defines `PARTIES`, such as `examples/mpqkd`, runs its protocol, each party as a
+process, under `phoq run` and `phoq serve` alike, as `--protocol` does; with `--protocol`,
+`--party` or `--analysis` the directory is just the setup. Any other setup, a `.py` that only
+defines `setup` or `build()` or a saved `.json`, is acquired once and its measurements printed.
+phoq's own options go before the file: `phoq run --plot traces.png examples/delay_line.py`
+acquires that script's setup once and saves the scope traces.
 
 `run`, `serve` and `export` accept a `.py` file that defines `setup` (or `build()`), or a saved
 `.json`. While serving, every edit made in the browser sets the attribute on the Python
@@ -453,7 +462,7 @@ phoq run --protocol mpqkd --blocks 20
 ```
 
 ```bash
-uv run python examples/mpqkd/sweep.py --plot sweep.png     # key rate vs fiber length, against the theory curve
+uv run phoq run examples/mpqkd/sweep.py --plot sweep.png   # key rate vs fiber length, against the theory curve
 ```
 
 ```bash
@@ -673,7 +682,7 @@ The DSP finds the frame from the known symbols and fits $`\mathrm{CH1} + j\,\mat
 In brackets, the model gives the same fit applied to `IQModulator.field()` of every symbol:
 
 ```
-python examples/iq_modulator.py
+phoq run examples/iq_modulator.py
 
   case                                   EVM        I/Q angle       Q/I gain            carrier  outer/inner
   operating point             5.5 % ( 5.5 %)    90.0° ( 90.0°)  1.002 (1.000)  -34.9 dB (-34.3 dB)  3.01 (3.00)
@@ -793,7 +802,7 @@ two pulses inside one bin then interfere as if they overlapped. `PhotonCounter(o
 synthesizes $m$ sub-bins per bin and adds their photons. A sub-bin of a quarter of the pulse width
 gets the overlap right to 2 %, an eighth to 0.5 %.
 
-**Validation.** `python examples/odl_validation.py` checks each equation above against phoq's
+**Validation.** `phoq run examples/odl_validation.py` checks each equation above against phoq's
 steady-state `report()` and against fields synthesized by the engine; `tests/test_odl.py` asserts
 the same checks. The DLI is the one in `examples/dli.py`, balanced at 105 ps on the dial:
 
@@ -900,7 +909,7 @@ The coupler's outputs carry $`P_\pm = \tfrac12(P_\mathrm{LO} + P_S) \pm \sqrt{P_
 The LO and its noise are the same on both inputs, while the beat has opposite signs:
 
 ```
-python examples/balanced_detection.py
+phoq run examples/balanced_detection.py
 
   INPUT+                       505 µW · -3.0 dBm
   INPUT−                       505 µW · -3.0 dBm
@@ -1201,7 +1210,7 @@ couplers, a 10 km spool, an attenuator that gives the short arm the spool's loss
 the analyzer at 0–2 MHz, RBW 5 kHz, average detector — and measures:
 
 ```bash
-python examples/linewidth_homodyne.py --plot dsh.png
+phoq run examples/linewidth_homodyne.py --plot dsh.png
 ```
 
 ```
@@ -1248,7 +1257,7 @@ hundreds of km a balanced pair would sit below the analyzer's floor, while the b
 $\sqrt{P_\mathrm{short}P_\mathrm{long}}$.
 
 ```bash
-python examples/linewidth_narrow.py --plot narrow.png
+phoq run examples/linewidth_narrow.py --plot narrow.png
 ```
 
 ```
@@ -1624,7 +1633,7 @@ writing $\varphi_k = \varphi_{k-1} + \pi b_k$, with the DLI and photodiodes on b
 the receiver of DPS-QKD:
 
 ```bash
-python examples/dli_for_dpsk.py --plot dpsk.png
+phoq run examples/dli_for_dpsk.py --plot dpsk.png
 ```
 
 ```
@@ -1648,7 +1657,7 @@ and the DLI on the 10 % side, three SNSPD-like detectors and a time tagger. The 
 Alice's and Bob's parties, is [`examples/cow`](#coherent-one-way-qkd-cow-up-to-the-sifted-key).
 
 ```bash
-python examples/dli_for_cow.py
+phoq run examples/dli_for_cow.py
 ```
 
 ```
@@ -1907,7 +1916,7 @@ The analysis uses only the time stamps, the agreed string and the nominal rate:
    give Δ only modulo two symbols.
 
 ```bash
-python examples/clock_sync.py --plot sync.png
+phoq run examples/clock_sync.py --plot sync.png
 ```
 
 | | patch cords only | 25 km of fiber |

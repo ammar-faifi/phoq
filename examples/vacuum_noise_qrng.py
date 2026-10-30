@@ -2,11 +2,11 @@
 oscilloscope.
 
     # noise check, correlations, min-entropy, extraction
-    uv run python examples/vacuum_noise_qrng.py
+    uv run phoq run examples/vacuum_noise_qrng.py
     # PSDs, autocorrelation, histogram
-    uv run python examples/vacuum_noise_qrng.py --plot qrng.png
+    uv run phoq run examples/vacuum_noise_qrng.py --plot qrng.png
     # the same with other noise
-    uv run python examples/vacuum_noise_qrng.py --seed 2
+    uv run phoq run examples/vacuum_noise_qrng.py --seed 2
     # the bench in 3D
     uv run phoq serve examples/vacuum_noise_qrng.py
 

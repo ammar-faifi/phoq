@@ -1,9 +1,9 @@
 """IQ modulation: 16-QAM from a dual-parallel MZM, read back by a homodyne receiver.
 
     # EVM, I/Q angle and carrier, four bias cases
-    uv run python examples/iq_modulator.py
+    uv run phoq run examples/iq_modulator.py
     # also save their constellations
-    uv run python examples/iq_modulator.py --plot iq.png
+    uv run phoq run examples/iq_modulator.py --plot iq.png
     # the bench in 3D
     uv run phoq serve examples/iq_modulator.py
 

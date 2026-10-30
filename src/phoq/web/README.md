@@ -12,7 +12,7 @@ From the project root:
 phoq serve examples/basic_link.py
 ```
 
-Then open http://127.0.0.1:8000. The FastAPI server serves this folder as well as the API.
+Then open http://127.0.0.1:8000. The FastAPI server serves this directory as well as the API.
 Other setups are in `examples/` (`delay_line.py`, `mzi_interference.py`, `modulated_link.py`,
 `mpqkd.py`), or
 pass your own script that defines `setup`. To use another server, open the page with

@@ -2,9 +2,9 @@
 spectrum analyzer.
 
     # dark, one input, both inputs, the fits
-    uv run python examples/laser_noise.py
+    uv run phoq run examples/laser_noise.py
     # noise against photocurrent, log–log
-    uv run python examples/laser_noise.py --plot noise.png
+    uv run phoq run examples/laser_noise.py --plot noise.png
     # the bench in 3D
     uv run phoq serve examples/laser_noise.py
 

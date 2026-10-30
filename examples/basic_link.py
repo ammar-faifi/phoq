@@ -1,6 +1,6 @@
 """Laser → patch cord → photodiode → oscilloscope.
 
-uv run python examples/basic_link.py                     # headless: print measurements
+uv run phoq run examples/basic_link.py    # headless: print measurements
 uv run phoq serve examples/basic_link.py  # live 3D visualizer
 """
 

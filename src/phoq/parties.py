@@ -335,7 +335,7 @@ def load_parties(source: str | Path) -> list[type[Party]]:
 def load_protocol(name: str):
     """A protocol package exposing ``PARTIES`` and ``build()``.
 
-    ``name`` is a directory or ``.py`` path, the name of a folder under ``./examples``
+    ``name`` is a directory or ``.py`` path, the name of a directory under ``./examples``
     (so ``--protocol mpqkd`` works from the repository root), or a dotted module name.
     """
     module, locator = locate(name)

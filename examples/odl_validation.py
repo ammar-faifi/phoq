@@ -1,7 +1,7 @@
 """Optical delay line (ODL): the model checked against its theory.
 
     # every check: theory against phoq
-    uv run python examples/odl_validation.py
+    uv run phoq run examples/odl_validation.py
     # a DLI for 100 ps pulses: turn DLI-ODL's dial in 3D
     uv run phoq serve examples/odl_validation.py
 

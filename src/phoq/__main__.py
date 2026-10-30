@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import argparse
+import ast
+import os
+import runpy
 import sys
 import webbrowser
 from pathlib import Path
@@ -40,7 +43,84 @@ def _parties_and_setup(args):
     return parties, setup
 
 
+def _main_guard(path: Path) -> bool:
+    """Whether a script has a module-level ``if __name__ == "__main__":`` block."""
+    try:
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+    except OSError, SyntaxError, ValueError:
+        return False
+    for node in tree.body:
+        test = node.test if isinstance(node, ast.If) else None
+        if isinstance(test, ast.Compare) and [type(op) for op in test.ops] == [ast.Eq]:
+            sides = {
+                s.id if isinstance(s, ast.Name) else s.value
+                for s in (test.left, *test.comparators)
+                if isinstance(s, (ast.Name, ast.Constant))
+            }
+            if sides == {"__name__", "__main__"}:
+                return True
+    return False
+
+
+def _run_script(path: str, argv: list[str]) -> None:
+    """Run a script as ``python path argv…`` does: as ``__main__``, with ``sys.argv``
+    set and the script's directory first on ``sys.path``."""
+    saved = sys.argv[:], sys.path[:]
+    sys.argv = [path, *argv]
+    sys.path.insert(0, os.path.dirname(os.path.abspath(path)))
+    try:
+        runpy.run_path(os.path.abspath(path), run_name="__main__")
+    finally:
+        sys.argv, sys.path[:] = saved
+
+
+def _package_protocol(args) -> None:
+    """A package directory that defines ``PARTIES`` runs its protocol, as with
+    ``--protocol``, unless ``--protocol``, ``--party`` or ``--analysis`` says what runs;
+    the directory stays the setup either way."""
+    from .loading import import_source
+
+    if not args.file or args.protocol or args.party or args.analysis:
+        return
+    directory = Path(args.file)
+    if (directory / "__init__.py").is_file() and hasattr(
+        import_source(directory), "PARTIES"
+    ):
+        args.protocol = args.file
+
+
+def _more_options(args) -> None:
+    """Options given after a setup that is no script: phoq run's own."""
+    p = argparse.ArgumentParser(prog=f"phoq run {args.file}", add_help=False)
+    p.add_argument("--presets", action="append", default=[], metavar="DIR")
+    more = _run_options(p).parse_args(args.args)
+    for key, value in vars(more).items():
+        if isinstance(value, list):
+            setattr(args, key, [*getattr(args, key), *value])
+        elif value is not None:
+            setattr(args, key, value)
+    if more.presets:
+        from . import presets
+
+        for d in more.presets:
+            presets.add_path(d)
+
+
 def cmd_run(args) -> None:
+    target = args.file
+    modes = args.protocol or args.party or args.analysis or args.instrument or args.plot
+    if target and target.endswith(".py") and not modes and _main_guard(Path(target)):
+        if args.seed is not None or args.blocks is not None:
+            sys.exit(
+                f"phoq run: {target} runs its own main block, which --seed and --blocks"
+                " do not reach; give the script's own options after its name"
+            )
+        _run_script(target, args.args)
+        return
+    if args.args:
+        _more_options(args)
+    _package_protocol(args)
+    blocks = 10 if args.blocks is None else args.blocks
     parties, setup = _parties_and_setup(args)
     print(setup.describe(), "\n")
     tasks = _tasks(args.analysis)
@@ -50,15 +130,15 @@ def cmd_run(args) -> None:
         print(
             f"parties: {', '.join(p.name for p in parties)}"
             + (f" · tasks: {', '.join(t.name for t in tasks)}" if tasks else "")
-            + f" — {args.blocks} blocks\n"
+            + f" — {blocks} blocks\n"
         )
-        Experiment(setup, parties, tasks, seed=args.seed).run(args.blocks)
+        Experiment(setup, parties, tasks, seed=args.seed).run(blocks)
         return
     if tasks:
         from .analysis import Session
 
-        print(f"analysis: {', '.join(t.name for t in tasks)} — {args.blocks} batches\n")
-        Session(setup, tasks, seed=args.seed).run(args.blocks)
+        print(f"analysis: {', '.join(t.name for t in tasks)} — {blocks} batches\n")
+        Session(setup, tasks, seed=args.seed).run(blocks)
         return
     results = setup.run(*args.instrument, seed=args.seed)
     print(results.summary())
@@ -87,6 +167,7 @@ def cmd_run(args) -> None:
 def cmd_serve(args) -> None:
     from .server import serve
 
+    _package_protocol(args)
     parties, setup = _parties_and_setup(args)
     if args.no_save:
         save = None
@@ -183,6 +264,54 @@ def cmd_presets(args) -> None:
         sys.exit(1)
 
 
+def _run_options(p: argparse.ArgumentParser) -> argparse.ArgumentParser:
+    """phoq run's own options: one acquisition, a protocol, or analysis tasks."""
+    p.add_argument(
+        "-i",
+        "--instrument",
+        action="append",
+        default=[],
+        help="only acquire these instruments (acquires a script's setup once)",
+    )
+    p.add_argument("--seed", type=int, default=None)
+    p.add_argument(
+        "--plot",
+        metavar="PNG",
+        help="save the oscilloscope traces as an image (acquires a script's setup once)",
+    )
+    p.add_argument(
+        "--analysis",
+        action="append",
+        default=[],
+        metavar="SCRIPT.py",
+        help="run the @task functions of this script on the counter batches",
+    )
+    p.add_argument(
+        "--protocol",
+        metavar="NAME",
+        help=(
+            "protocol package with PARTIES and build(): a path, a directory under"
+            " ./examples (mpqkd), or a module"
+        ),
+    )
+    p.add_argument(
+        "--party",
+        action="append",
+        default=[],
+        metavar="FILE.py",
+        help="a file defining a Party subclass (repeatable)",
+    )
+    p.add_argument(
+        "--blocks",
+        "--batches",
+        dest="blocks",
+        type=int,
+        default=None,
+        help="blocks of pulses to run (10)",
+    )
+    return p
+
+
 def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(
         prog="phoq",
@@ -207,56 +336,29 @@ def main(argv: list[str] | None = None) -> None:
     p = sub.add_parser(
         "run",
         parents=[common],
-        help="run a setup headlessly and print the measurements",
+        help="run a script as python does, a protocol's parties, or a setup once",
+        description=(
+            'A script with an `if __name__ == "__main__":` block runs as `python FILE'
+            " ARGS` would, ARGS going to the script. A package directory that defines"
+            " PARTIES runs its protocol. Any other setup is acquired once and its"
+            " measurements printed. phoq's own options go before FILE; after a setup"
+            " that is no script they may follow it."
+        ),
     )
+    _run_options(p)
     p.add_argument(
         "file",
         nargs="?",
         help=(
-            "setup: a .py defining `setup` or `build()`, a .json, or a package"
+            "a script, a .py defining `setup` or `build()`, a .json, or a package"
             " directory such as examples/mpqkd; optional with --protocol"
         ),
     )
     p.add_argument(
-        "-i",
-        "--instrument",
-        action="append",
-        default=[],
-        help="only acquire these instruments",
-    )
-    p.add_argument("--seed", type=int, default=None)
-    p.add_argument(
-        "--plot", metavar="PNG", help="save the oscilloscope traces as an image"
-    )
-    p.add_argument(
-        "--analysis",
-        action="append",
-        default=[],
-        metavar="SCRIPT.py",
-        help="run the @task functions of this script on the counter batches",
-    )
-    p.add_argument(
-        "--protocol",
-        metavar="NAME",
-        help=(
-            "protocol package with PARTIES and build(): a path, a folder under"
-            " ./examples (mpqkd), or a module"
-        ),
-    )
-    p.add_argument(
-        "--party",
-        action="append",
-        default=[],
-        metavar="FILE.py",
-        help="a file defining a Party subclass (repeatable)",
-    )
-    p.add_argument(
-        "--blocks",
-        "--batches",
-        dest="blocks",
-        type=int,
-        default=10,
-        help="blocks of pulses to run",
+        "args",
+        nargs=argparse.REMAINDER,
+        metavar="ARGS",
+        help="the script's own arguments (after a setup: the options above)",
     )
     p.set_defaults(fn=cmd_run)
 
@@ -266,7 +368,10 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument(
         "file",
         nargs="?",
-        help="setup: a .py, a .json or a package directory; omit for an empty table",
+        help=(
+            "setup: a .py, a .json or a package directory (one that defines PARTIES"
+            " starts its protocol, as with --protocol); omit for an empty table"
+        ),
     )
     p.add_argument("--host", default="127.0.0.1")
     p.add_argument("--port", type=int, default=8000)
@@ -279,7 +384,7 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument(
         "--web",
         metavar="DIR",
-        help="virtual lab folder (default: the one shipped in the package)",
+        help="virtual lab directory (default: the one shipped in the package)",
     )
     p.add_argument("--seed", type=int, default=None)
     p.add_argument(
@@ -293,7 +398,7 @@ def main(argv: list[str] | None = None) -> None:
         "--protocol",
         metavar="NAME",
         help=(
-            "protocol package with PARTIES and build(): a path, a folder under"
+            "protocol package with PARTIES and build(): a path, a directory under"
             " ./examples (mpqkd), or a module"
         ),
     )

@@ -2,9 +2,9 @@
 distance, next to the theory curve of the MP-QKD paper evaluated on this lab's
 parameters.
 
-    uv run python examples/mpqkd/sweep.py
-    uv run python examples/mpqkd/sweep.py --distances 50 100 150 200 --blocks 40
-    uv run python examples/mpqkd/sweep.py --plot sweep.png
+    uv run phoq run examples/mpqkd/sweep.py
+    uv run phoq run examples/mpqkd/sweep.py --distances 50 100 150 200 --blocks 40
+    uv run phoq run examples/mpqkd/sweep.py --plot sweep.png
 
 Each point runs Alice, Bob and Charlie as processes (``phoq.parties.Experiment``) for
 ``--blocks`` blocks of ``--rounds`` pulses and reads the stations' read-outs. Three

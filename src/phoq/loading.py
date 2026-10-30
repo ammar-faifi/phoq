@@ -56,7 +56,7 @@ def import_source(source: str | Path):
 
 
 def locate(name: str, search: tuple[str, ...] = ("examples",)) -> tuple[object, str]:
-    """Import a protocol or setup given as a path, a folder under ``search`` dirs, or a
+    """Import a protocol or setup given as a path, a directory under ``search`` dirs, or a
     dotted name.
 
     Returns ``(module, locator)``; passing the locator to :func:`import_source` in

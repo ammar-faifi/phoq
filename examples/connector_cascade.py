@@ -1,7 +1,7 @@
 """Patch cords cascaded through FC mating sleeves: what every connection costs.
 
     # compare polishes and cord counts
-    uv run python examples/connector_cascade.py
+    uv run phoq run examples/connector_cascade.py
     # the bench in 3D; change cords, unplug ends
     uv run phoq serve examples/connector_cascade.py
 

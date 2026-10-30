@@ -6,7 +6,7 @@ in its own process, with its own console in the virtual lab:
     uv run phoq serve examples/mpqkd --analysis examples/analysis_pairing.py
     uv run phoq run   examples/mpqkd --analysis examples/analysis_pairing.py --batches 5
 
-or simply `uv run python examples/analysis_pairing.py`. A batch is a `CounterResult`:
+or simply `uv run phoq run examples/analysis_pairing.py`. A batch is a `CounterResult`:
 click records per channel, `timestamps(ch)` in absolute seconds, `events()` as a
 time-ordered list, `rates`, `counts`, `coincidences(a, b)`. State kept in module globals
 persists between batches.

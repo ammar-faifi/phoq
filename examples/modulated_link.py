@@ -2,7 +2,7 @@
 by a function generator, with a scope watching the photocurrent next to the drive.
 
     # headless
-    uv run python examples/modulated_link.py
+    uv run phoq run examples/modulated_link.py
     # live 3D visualizer
     uv run phoq serve examples/modulated_link.py
 

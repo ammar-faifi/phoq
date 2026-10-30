@@ -2,9 +2,9 @@
 analyzer.
 
     # both lasers, a few delays each
-    uv run python examples/linewidth_narrow.py
+    uv run phoq run examples/linewidth_narrow.py
     # also plot the 100 Hz fit
-    uv run python examples/linewidth_narrow.py --plot narrow.png
+    uv run phoq run examples/linewidth_narrow.py --plot narrow.png
     # the 100 Hz bench in 3D
     uv run phoq serve examples/linewidth_narrow.py
 

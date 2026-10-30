@@ -1,9 +1,9 @@
 """Clock and frame synchronization from single-photon timestamps.
 
     # recover Alice's clock and the delay
-    uv run python examples/clock_sync.py
+    uv run phoq run examples/clock_sync.py
     # the spectrum, periodogram and correlations
-    uv run python examples/clock_sync.py --plot sync.png
+    uv run phoq run examples/clock_sync.py --plot sync.png
     # the bench in 3D
     uv run phoq serve examples/clock_sync.py
 

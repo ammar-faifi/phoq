@@ -1,9 +1,9 @@
 """Balanced detection: a weak heterodyne beat on a noisy local oscillator.
 
     # beat, LO-noise rejection, gain table
-    uv run python examples/balanced_detection.py
+    uv run phoq run examples/balanced_detection.py
     # also save the three scope traces
-    uv run python examples/balanced_detection.py --plot bpd.png
+    uv run phoq run examples/balanced_detection.py --plot bpd.png
     # the bench in 3D
     uv run phoq serve examples/balanced_detection.py
 

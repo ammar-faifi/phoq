@@ -2,9 +2,9 @@
 analyzer.
 
     # measure, then sweep the delay
-    uv run python examples/linewidth_homodyne.py
+    uv run phoq run examples/linewidth_homodyne.py
     # also save the spectrum and fit
-    uv run python examples/linewidth_homodyne.py --plot dsh.png
+    uv run phoq run examples/linewidth_homodyne.py --plot dsh.png
     # the bench in 3D, averaging live
     uv run phoq serve examples/linewidth_homodyne.py
 

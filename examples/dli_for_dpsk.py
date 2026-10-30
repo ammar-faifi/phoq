@@ -1,9 +1,9 @@
 """A delay-line interferometer as a DPSK demodulator, the receiver of DPS-QKD.
 
     # decode a 2 µs sweep at three linewidths
-    uv run python examples/dli_for_dpsk.py
+    uv run phoq run examples/dli_for_dpsk.py
     # also save the scope view
-    uv run python examples/dli_for_dpsk.py --plot dpsk.png
+    uv run phoq run examples/dli_for_dpsk.py --plot dpsk.png
     # the bench in 3D
     uv run phoq serve examples/dli_for_dpsk.py
 

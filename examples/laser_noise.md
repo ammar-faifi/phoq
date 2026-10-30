@@ -181,7 +181,7 @@ averages in log units reads noise low, which is the roughly 2 dB correction [RP]
 phoq needs none.
 
 ```
-python examples/laser_noise.py
+phoq run examples/laser_noise.py
 
 1. Dark: S_I = -236.2 dB; (NEP·ℜ)² = -236.2 dB                       (dB re 1 A²/Hz)
 

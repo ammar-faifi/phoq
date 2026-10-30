@@ -1,7 +1,7 @@
 """A delay-line interferometer as the monitoring line of coherent one-way QKD (COW).
 
     # visibility and data-line QBER at four sources
-    uv run python examples/dli_for_cow.py
+    uv run phoq run examples/dli_for_cow.py
     # the bench in 3D
     uv run phoq serve examples/dli_for_cow.py
 
