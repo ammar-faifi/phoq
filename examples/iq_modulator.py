@@ -163,9 +163,14 @@ def lock_lo(setup: Setup) -> tuple[float, float]:
         lo = max((p for p in paths if not p.mods), key=lambda p: abs(p.amp))
         return sig.amp * np.conj(lo.amp)
 
+    def wrapped(phase: float) -> float:
+        """In [0, 2π); float rounding leaves ~1e-16 rad where the lock reads 0."""
+        r = float(phase) % (2 * math.pi)
+        return 0.0 if min(r, 2 * math.pi - r) < 1e-12 else r
+
     # the shifter adds e^{jψ} to the LO
-    setup["PS-I"].phase = float(np.angle(z("BPD-I")) % (2 * math.pi))
-    setup["PS-Q"].phase = float((np.angle(z("BPD-Q")) + math.pi / 2) % (2 * math.pi))
+    setup["PS-I"].phase = wrapped(np.angle(z("BPD-I")))
+    setup["PS-Q"].phase = wrapped(np.angle(z("BPD-Q")) + math.pi / 2)
     return setup["PS-I"].phase, setup["PS-Q"].phase
 
 
