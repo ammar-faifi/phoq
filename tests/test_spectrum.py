@@ -196,6 +196,28 @@ def test_trace_average_max_hold_and_clearing():
     assert np.all(a.acquire(net, rng).level >= first)
 
 
+def test_trace_average_stops_counting_at_the_average_count():
+    """Past average_count sweeps the average runs on as in continuous sweep: each new
+    sweep weighs 1/average_count and the counter stays at the count."""
+    s = Setup("count")
+    a = s.add(
+        SpectrumAnalyzer(
+            "ESA", stop_freq=1e6, rbw=50e3, points=101, trace="average", average_count=3
+        )
+    )
+    net, rng = trace(s), np.random.default_rng(0)
+    shown = iter([1e-3, 2e-3, 3e-3, 4e-3, 5e-3])  # flat sweeps of 1 … 5 mW
+    a._detect = lambda f, power, fd: np.full(fd.size, next(shown))
+    got = [a.acquire(net, rng) for _ in range(5)]
+    assert [r.sweeps for r in got] == [1, 2, 3, 3, 3]
+    # the mean of the first three, then (2·2 + 4)/3 and (8/3·2 + 5)/3 mW
+    mw = [10 ** (r.level[0] / 10) for r in got]
+    assert mw == pytest.approx([1.0, 1.5, 2.0, 8 / 3, 31 / 9])
+    assert a.info()["Trace"] == "average of 3/3 sweeps"
+    frame = got[-1].to_json()
+    assert frame["trace"] == "average" and frame["average_count"] == 3
+
+
 def test_dbc_per_hz_reads_the_rin_of_the_detected_light():
     """Over the DC power read ahead of the DC block, the noise density is RIN + 2q/I +
     S_dark/I², times the detector's response: noise and DC share the gain and the 50 Ω
@@ -279,6 +301,8 @@ def test_the_lab_streams_and_clears_spectra():
             spec["instrument"] == "ESA"
             and spec["n"] == a.points
             and spec["meas"]["peak_level"] > 3
+            and (spec["trace"], spec["sweeps"], spec["average_count"])
+            == ("average", 1, 100)
         )
         assert (
             c.post("/api/instruments/ESA/clear").json() == {"ok": True}

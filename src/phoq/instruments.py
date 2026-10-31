@@ -875,6 +875,8 @@ class SpectrumResult:
     dc_power: float = 0.0
     units: str = "dBm"  # the screen's: dBm (in the RBW), dBm/Hz or dBc/Hz
     attenuation: float = 0.0  # input attenuation [dB]: the DANL rose by as much
+    trace: str = "write"  # trace mode: write, average or max hold
+    average_count: int = 1  # trace average: where the sweep count stops
 
     def psd(self) -> tuple[np.ndarray, np.ndarray]:
         """(frequency [Hz], one-sided power spectral density at the input [W/Hz])."""
@@ -1217,6 +1219,8 @@ class SpectrumResult:
             "detector": self.detector,
             "averages": self.averages,
             "sweeps": self.sweeps,
+            "trace": self.trace,
+            "average_count": self.average_count,
             "units": self.units,
             "span_unit": "dBc" if relative else "dBm",
             "dc_dbm": 10 * math.log10(dc / 1e-3) if dc > 1e-30 else None,
@@ -1298,8 +1302,20 @@ class SpectrumAnalyzer(Component):
         "write",
         choices=("write", "average", "max hold"),
         doc=(
-            "write: each sweep replaces the trace; average: running mean of the sweeps;"
-            " max hold: the largest seen"
+            "write: each sweep replaces the trace; average: running mean over the last"
+            " average count of sweeps; max hold: the largest seen"
+        ),
+    )
+    average_count = Param(
+        100,
+        label="Average count",
+        min=1,
+        max=10000,
+        presets=(1, 2, 5, 10, 20, 50, 100, 200, 500, 1000),
+        doc=(
+            "Sweeps in the trace average. Once that many are in, it runs on as an"
+            " analyzer's does in continuous sweep: each new sweep weighs 1/count and"
+            " the sweep counter stays at the count, so the trace still follows a change"
         ),
     )
     units = Param(
@@ -1439,10 +1455,11 @@ class SpectrumAnalyzer(Component):
 
     def ui_fields(self):
         atten = "max_mixer_level" if self.auto_attenuation else "attenuation"
+        count = ["average_count"] if self.trace == "average" else []
         return [
             "running", "start_freq", "stop_freq", "rbw", "averages", "detector",
-            "trace", "units", "ref_level", "auto_attenuation", atten, "db_per_div",
-            "points", "input_impedance", "noise_floor",
+            "trace", *count, "units", "ref_level", "auto_attenuation", atten,
+            "db_per_div", "points", "input_impedance", "noise_floor",
         ]  # fmt: skip
 
     def _input(self):
@@ -1480,7 +1497,9 @@ class SpectrumAnalyzer(Component):
             ),
             "DANL": f"{self.noise_floor + att:g} dBm/Hz, the attenuation included",
         }
-        if self.trace != "write":
+        if self.trace == "average":
+            out["Trace"] = f"average of {self._sweeps}/{self.average_count} sweeps"
+        elif self.trace != "write":
             out["Trace"] = f"{self.trace} of {self._sweeps} sweeps"
         return out
 
@@ -1555,8 +1574,10 @@ class SpectrumAnalyzer(Component):
             and self._trace is not None
             and self._trace.size == shown.size
         ):
-            self._trace = (self._trace * self._sweeps + shown) / (self._sweeps + 1)
-            self._sweeps += 1
+            # from average_count sweeps on, each new one weighs 1/average_count
+            n = min(self._sweeps, self.average_count - 1)
+            self._trace = (self._trace * n + shown) / (n + 1)
+            self._sweeps = n + 1
         elif (
             self.trace == "max hold"
             and self._trace is not None
@@ -1587,6 +1608,8 @@ class SpectrumAnalyzer(Component):
             self._dc_power,
             self.units,
             self.input_attenuation(),
+            self.trace,
+            self.average_count,
         )
 
     def _detect(self, f: np.ndarray, power: np.ndarray, fd: np.ndarray) -> np.ndarray:

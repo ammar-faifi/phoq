@@ -409,7 +409,9 @@ resolution bandwidth against frequency, in dBm into its input impedance.
   $A^2/2R_\mathrm{in}$ whatever the RBW, and white noise reads its density times the RBW.
 - **Display.** `points` frequencies from start to stop. Each display point takes the FFT bins in its
   bucket through the detector: *peak* (tones), *average* (noise) or *sample*. The trace mode
-  (*write*, *average*, *max hold*) combines sweeps.
+  (*write*, *average*, *max hold*) combines sweeps. *average* is the mean of the sweeps so far
+  until `average_count` of them are in; from then on each new sweep weighs 1/`average_count` and
+  the sweep counter stays at the count.
 - **Results and fits.** `SpectrumResult` keeps the display trace and the full-resolution bins
   (`psd()`): peak, median level, $N$ dB widths, integrated power, a Lorentzian fit, and
   `fit_self_homodyne(tau_d)` for a delayed self-homodyne at any delay. `SpectrumResult.average()`

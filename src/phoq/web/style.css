@@ -163,6 +163,7 @@ button.run:not(.on) { color: var(--bad); border-color: rgba(248, 113, 113, .5); 
 #scope-panel.esa #scope-meas { grid-template-columns: 1fr; }
 .meas.wide dl { grid-template-columns: auto 1fr auto 1fr; }
 .ctl { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 11.5px; }
+.ctl[hidden] { display: none; }
 .ctl select, .ctl input { padding: 3px 6px; font: 12px var(--mono); background: var(--panel-2); border: 1px solid var(--line-2); border-radius: 6px; }
 .ctl input { width: 64px; }
 .stepper { display: inline-flex; align-items: center; gap: 2px; }

@@ -1095,7 +1095,9 @@ span:
    bandwidth is about 1.06× its −3 dB width).
 5. **Averaging.** `averages` records, 50 % overlapped (Welch), are power-averaged in every sweep;
    the noise trace then fluctuates by about $4.3/\sqrt{K}$ dB. The trace can also be written fresh
-   each sweep, averaged over sweeps, or held at its maximum (`trace`).
+   each sweep, averaged over sweeps, or held at its maximum (`trace`). The sweep average counts up
+   to `average_count` (100) and then runs on, as an analyzer's does in continuous sweep: each new
+   sweep weighs 1/`average_count`, so the trace still follows a change on the bench.
 6. **Display.** `points` frequencies from `start_freq` to `stop_freq`. Each point takes the bins in
    its bucket through the `detector`: *peak* (the largest: tones read right even when a bucket is
    wider than the RBW), *average* (mean power: right for noise) or *sample*. The top line is

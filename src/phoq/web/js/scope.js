@@ -252,7 +252,8 @@ export class SpectrumDisplay {
     g.textAlign = 'left';
     g.font = '500 14px ui-monospace, Menlo, monospace';
     g.fillStyle = '#64748b';
-    const tr = f.sweeps > 1 ? ` · trace of ${f.sweeps} sweeps` : '';
+    const tr = f.trace === 'average' ? ` · average of ${f.sweeps}/${f.average_count} sweeps`
+      : f.sweeps > 1 ? ` · trace of ${f.sweeps} sweeps` : '';
     const dc = relative ? ` · DC ${f.dc_dbm != null ? `${f.dc_dbm.toFixed(1)} dBm` : 'none'}` : '';
     g.fillText(`${f.source ?? 'no input'} · ${f.detector} detector · ${f.averages} avg${tr}${dc}`, 14, 36);
     const m = f.meas ?? {};
@@ -348,7 +349,7 @@ export class ScopePanel {
       this.chEl.appendChild(row);
       return { row, on, src, scale };
     });
-    this.esa = Object.fromEntries(['src', 'start', 'stop', 'rbw', 'avg', 'det', 'trace', 'units', 'ref', 'ref-unit', 'atten', 'div'].map((k) => [k, $(`esa-${k}`)]));
+    this.esa = Object.fromEntries(['src', 'start', 'stop', 'rbw', 'avg', 'det', 'trace', 'count', 'units', 'ref', 'ref-unit', 'atten', 'div'].map((k) => [k, $(`esa-${k}`)]));
     this.label = this.el.querySelector('.scope-head .muted');
     const e = this.esa;
     e.start.onchange = () => set({ start_freq: Number(e.start.value) * 1e6 });
@@ -357,6 +358,7 @@ export class ScopePanel {
     e.avg.onchange = () => set({ averages: Number(e.avg.value) });
     e.det.onchange = () => set({ detector: e.det.value });
     e.trace.onchange = () => set({ trace: e.trace.value });
+    e.count.onchange = () => set({ average_count: Number(e.count.value) });
     e.units.onchange = () => set({ units: e.units.value });   // the server moves Ref with them
     e.ref.onchange = () => set({ ref_level: Number(e.ref.value) });
     e.atten.onchange = () => set(e.atten.value === 'auto' ? { auto_attenuation: true } : { auto_attenuation: false, attenuation: Number(e.atten.value) });
@@ -458,6 +460,8 @@ export class ScopePanel {
     fill(e.avg, 'averages', (v) => String(v));
     fill(e.det, 'detector', (v) => v);
     fill(e.trace, 'trace', (v) => v);
+    fill(e.count, 'average_count', (v) => String(v));
+    e.count.closest('label').hidden = p.trace !== 'average';
     fill(e.units, 'units', (v) => v);
     fill(e.div, 'db_per_div', (v) => `${v} dB/div`);
     if (document.activeElement !== e.start) e.start.value = Number((p.start_freq / 1e6).toPrecision(6));
@@ -516,7 +520,7 @@ export class ScopePanel {
         ['Lorentzian HWHM', m.fit_hwhm ? fmtSI(m.fit_hwhm, 'Hz') : '—'],
         ...(u === 'dBc/Hz' ? [['DC at input', lvl(frame.dc_dbm, 'dBm')]] : []),
         ['RBW', fmtSI(frame.rbw, 'Hz')],
-        ['Sweeps', String(frame.sweeps)],
+        ['Sweeps', frame.trace === 'average' ? `${frame.sweeps} / ${frame.average_count}` : String(frame.sweeps)],
       ];
       this.measEl.innerHTML = `<div class="meas wide" style="--c:#facc15"><h4>${esc(frame.instrument)} · ${esc(frame.source ?? 'no input')}</h4><dl>${rows.map(([a, b]) => `<dt>${a}</dt><dd>${b}</dd>`).join('')}</dl></div>`;
       return;
