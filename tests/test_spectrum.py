@@ -598,6 +598,32 @@ def test_average_spectrum_weighs_every_value_the_same(mode):
     assert a.acquire(trace(s), runner.rng).sweeps == 1  # nothing left to mix in
 
 
+@pytest.mark.parametrize("named", [("ESA",), ()])
+@pytest.mark.parametrize("mode", ["write", "average", "max hold"])
+def test_a_parameter_sweep_reads_each_value_on_its_own(mode, named):
+    """A running trace would carry the earlier values into each reading, and hold on to
+    the sweeps from before."""
+    s, a = tone(freq=200e3, vpp=3.0, stop_freq=1e6, rbw=50e3, trace=mode)
+    runner, fg = Runner(s, seed=1), s["FG"]
+    runner.acquire(a)  # at another setting
+    values = [2.0, 1.0, 0.5]
+    r = runner.sweep(fg, "ch1_vpp", values, lambda res: res["ESA"].peak[1], *named)
+    # 2.5 mW for 1 Vpp into 50 Ω, as the square of the voltage
+    expected = [10 * math.log10(2.5 * v**2) for v in values]
+    assert list(r.measured) == pytest.approx(expected, abs=0.05)
+    assert fg.ch1_vpp == 3.0
+    assert a.acquire(trace(s), runner.rng).sweeps == 1  # nothing left to mix in
+
+
+def test_a_parameter_sweep_leaves_a_trace_it_does_not_read():
+    s, a = tone(freq=200e3, stop_freq=1e6, rbw=50e3)
+    other = s.add(SpectrumAnalyzer("ESA-2", stop_freq=1e6, rbw=50e3, trace="average"))
+    runner = Runner(s, seed=1)
+    runner.acquire(other)
+    runner.sweep(s["FG"], "ch1_vpp", [2.0, 1.0], lambda res: res["ESA"].peak[1], a)
+    assert other.acquire(trace(s), runner.rng).sweeps == 2
+
+
 def test_average_spectrum_restores_the_stepped_parameter():
     ex = narrow()
     setup = ex["build"](100.0, 500)

@@ -1101,7 +1101,8 @@ span:
    `auto_vbw`, VBW = RBW: one record. Across sweeps, the trace can be written fresh each sweep,
    averaged, or held at its maximum (`trace`). The trace average counts sweeps up to `sweep_count`
    (100, R&S's Sweep Count) and then runs on, as an analyzer's does in continuous sweep: each new
-   sweep weighs 1/`sweep_count`, so the trace still follows a change on the bench.
+   sweep weighs 1/`sweep_count`, so the trace still follows a change on the bench. A parameter
+   sweep (`Runner.sweep`) clears the trace at each step, so each reading holds that value alone.
 6. **Display.** `points` frequencies from `start_freq` to `stop_freq`. Each point takes the bins in
    its bucket through the `detector`: *peak* (the largest: tones read right even when a bucket is
    wider than the RBW), *average* (mean power: right for noise) or *sample*. The top line is

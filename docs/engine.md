@@ -416,7 +416,8 @@ resolution bandwidth against frequency, in dBm into its input impedance.
   bucket through the detector: *peak* (tones), *average* (noise) or *sample*. The trace mode
   (*write*, *average*, *max hold*) combines sweeps. *average* is the mean of the sweeps so far
   until `sweep_count` of them are in; from then on each new sweep weighs 1/`sweep_count` and
-  the sweep counter stays at the count.
+  the sweep counter stays at the count. `Runner.sweep()` clears the trace at each step, so each
+  reading holds that value alone.
 - **Results and fits.** `SpectrumResult` keeps the display trace and the full-resolution bins
   (`psd()`): peak, median level, $N$ dB widths, integrated power, a Lorentzian fit, and
   `fit_self_homodyne(tau_d)` for a delayed self-homodyne at any delay. `SpectrumResult.average()`

@@ -70,13 +70,18 @@ class Runner:
         inst = self.setup[instrument] if isinstance(instrument, str) else instrument
         return inst.single(trace(self.setup), self.rng, attempts)
 
+    def _chosen(self, instruments: Iterable[Component | str]) -> list[Component]:
+        """The given instruments, by object or by name; all of them when none are
+        given."""
+        return [
+            self.setup[i] if isinstance(i, str) else i for i in instruments
+        ] or instruments_of(self.setup)
+
     def run(self, *instruments: Component | str) -> Results:
         """Acquire the given instruments (default: all of them) on one snapshot of the
         network."""
         net = trace(self.setup)
-        chosen = [
-            self.setup[i] if isinstance(i, str) else i for i in instruments
-        ] or instruments_of(self.setup)
+        chosen = self._chosen(instruments)
         return Results(
             {inst.name: inst.acquire(net, self.rng) for inst in chosen},
             report=report(self.setup, net),
@@ -92,19 +97,28 @@ class Runner:
     ) -> Sweep:
         """Run once per value of ``component.param`` and collect ``measure(results)``.
 
+        A spectrum analyzer it acquires starts each value on a cleared trace, and the
+        trace is left cleared: each reading is one sweep at that value, whatever the
+        trace mode, and no value carries into the next.
+
         Example: ``runner.sweep(voa, "attenuation_db", range(0, 40, 5), lambda r:
         r["OPM-1"].power)``
         """
         comp = self.setup[component] if isinstance(component, str) else component
         original = getattr(comp, param)
         values = list(values)
+        analyzers = [i for i in self._chosen(instruments) if hasattr(i, "clear_trace")]
         out = []
         try:
             for v in values:
                 setattr(comp, param, v)
+                for analyzer in analyzers:
+                    analyzer.clear_trace()
                 out.append(measure(self.run(*instruments)))
         finally:
             setattr(comp, param, original)
+            for analyzer in analyzers:
+                analyzer.clear_trace()
         return Sweep(comp.name, param, np.asarray(values), np.asarray(out, dtype=float))
 
     def average_spectrum(
