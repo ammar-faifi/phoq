@@ -188,17 +188,17 @@ phoq run examples/laser_noise.py
 2. One input (INPUT− unplugged)
      VOA         I S_I − dark     2qI  RIN·I²  RIN read
      13    27.8 µA  -224.8    -230.5  -226.1    -135.0
-     17    11.1 µA  -231.2    -234.5  -234.1    -134.8
-     21     4.4 µA  -236.9    -238.5  -242.1    -135.0
-     25    1.75 µA  -242.2    -242.5  -250.1    -139.2
-   fit: q = 1.544e-19 C (-3.6 %), RIN = -134.95 dBc/Hz (set -135); crossover 2q/RIN = 10.1 µA
+     17    11.1 µA  -231.3    -234.5  -234.1    -134.9
+     21     4.4 µA  -237.0    -238.5  -242.1    -135.2
+     25    1.75 µA  -241.6    -242.5  -250.1    -133.5
+   fit: q = 1.574e-19 C (-1.8 %), RIN = -135.03 dBc/Hz (set -135); crossover 2q/RIN = 10.1 µA
 
 3. Both inputs: the difference current
      VOA   I₊ + I₋ S_I − dark 2q(I₊+I₋) difference one input would read
-      0    1.09 mA  -214.3    -214.6    +0.24 dB         -194.2 (+20.1 dB)
-     12    68.9 µA  -226.6    -226.6    -0.08 dB         -217.6 (+9.0 dB)
-     24    4.35 µA  -238.2    -238.6    +0.37 dB         -237.0 (+1.2 dB)
-   fit: q = 1.605e-19 C (+0.2 %); dark-noise clearance at 1.09 mA: 21.8 dB
+      0    1.09 mA  -214.4    -214.6    +0.15 dB         -194.2 (+20.2 dB)
+     12    68.9 µA  -226.7    -226.6    -0.15 dB         -217.6 (+9.1 dB)
+     24    4.35 µA  -238.9    -238.6    -0.30 dB         -237.0 (+1.9 dB)
+   fit: q = 1.59e-19 C (-0.8 %); dark-noise clearance at 1.09 mA: 21.7 dB
 ```
 
 (Rows abridged; the script prints seven of each.)
@@ -206,14 +206,14 @@ phoq run examples/laser_noise.py
 What the three measurements show:
 
 - **One input** follows $`2qI + \mathrm{RIN}\,I^2`$, both parts intensity noise: the shot noise
-  leads below 10 µA, the excess noise above. The fit returns the excess RIN to 0.05 dB, and the
-  electron charge to 4 %; q is the harder term to pin down, since shot noise only leads at the low
+  leads below 10 µA, the excess noise above. The fit returns the excess RIN to 0.03 dB, and the
+  electron charge to 2 %; q is the harder term to pin down, since shot noise only leads at the low
   currents where the dark noise is comparable.
-- **Both inputs** stay on $`2q(I_+ + I_-)`$ within ±0.4 dB over more than two decades of current,
-  and give q to 0.2 %. At 1 mA the same light on one diode would read 20 dB higher: that is the
+- **Both inputs** stay on $`2q(I_+ + I_-)`$ within ±0.3 dB over more than two decades of current,
+  and give q to 1 %. At 1 mA the same light on one diode would read 20 dB higher: that is the
   laser's excess over the shot-noise limit, and balanced detection removes it.
 - **Dark-noise clearance**, the ratio of shot noise to the amplifier's own noise (as the
-  [article][rp-bal] defines it), is 21.8 dB at 1 mA. That is the margin a sub-shot-noise (squeezing)
+  [article][rp-bal] defines it), is 21.7 dB at 1 mA. That is the margin a sub-shot-noise (squeezing)
   or CV-QKD shot-noise-unit measurement would need.
 
 ![Noise against photocurrent: one input bends from the shot-noise line to the RIN line, both inputs stay on the shot-noise line](../docs/images/laser-noise.png)

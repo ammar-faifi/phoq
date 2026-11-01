@@ -393,8 +393,13 @@ resolution bandwidth against frequency, in dBm into its input impedance.
 - **Sample rate and record.** $`f_s = 2.56\,f_\mathrm{stop}`$. A periodic Hann window has an
   equivalent noise bandwidth of $1.5 f_s/N$, so the record is $N = 1.5 f_s/\mathrm{RBW}$ samples
   ($1.5/\mathrm{RBW}$ seconds), and the RBW is a noise bandwidth.
-- **Averaging.** $K$ = `averages` records, overlapped by half (Welch), are power-averaged per sweep.
-  A sweep is capped at 4 million samples: fewer averages first, then a coarser RBW.
+- **Averaging.** The video bandwidth sets $`K = 0.475\,\mathrm{RBW}/\mathrm{VBW} + 0.62`$ records
+  (rounded, `vbw_records()`), overlapped by half (Welch) and power-averaged per sweep. A one-pole
+  video filter after a Gaussian RBW filter averages about
+  $`(\sqrt2/\pi)\,\mathrm{RBW}/\mathrm{VBW} + 2/\pi`$ independent readings of noise, and $K$ Hann
+  records at 50 % overlap count as $(18/19)K + 0.05$ of them, so the trace scatters as a swept
+  analyzer's does at that VBW. Auto VBW is the RBW: one record. A sweep is capped at 4 million
+  samples: fewer records (a wider VBW, the *VBW used*) first, then a coarser RBW.
 - **Signal.** Simulated at $4f_s$, then low-passed and decimated by a polyphase FIR (`resample_poly`).
   Unlike the scope's point sampling, a signal above the span does not fold into it. A photodiode's
   current becomes a voltage across the input impedance; the input is AC-coupled, so the mean is
@@ -410,7 +415,7 @@ resolution bandwidth against frequency, in dBm into its input impedance.
 - **Display.** `points` frequencies from start to stop. Each display point takes the FFT bins in its
   bucket through the detector: *peak* (tones), *average* (noise) or *sample*. The trace mode
   (*write*, *average*, *max hold*) combines sweeps. *average* is the mean of the sweeps so far
-  until `average_count` of them are in; from then on each new sweep weighs 1/`average_count` and
+  until `sweep_count` of them are in; from then on each new sweep weighs 1/`sweep_count` and
   the sweep counter stays at the count.
 - **Results and fits.** `SpectrumResult` keeps the display trace and the full-resolution bins
   (`psd()`): peak, median level, $N$ dB widths, integrated power, a Lorentzian fit, and
@@ -544,7 +549,7 @@ with the time average of synthesized fields: 0.1085 mW against 0.1091 ± 0.0016 
 - Each acquisition, and each photon-counter chunk, draws a new laser phase walk: consecutive
   records are statistically independent, not continuous in phase.
 - The time grid's cost is samples × paths. Long records with many paths, or a narrow RBW over a wide
-  span, are slow; the analyzer reduces averages and then coarsens the RBW to stay under 4 million
-  samples per sweep.
+  span, are slow; the analyzer widens the VBW (fewer records) and then coarsens the RBW to stay
+  under 4 million samples per sweep.
 - `report()` is a steady-state estimate: it replaces driven modulators by their average and is not
   meant to reproduce single-record fluctuations.

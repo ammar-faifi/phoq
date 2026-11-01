@@ -248,14 +248,14 @@ export class SpectrumDisplay {
     g.fillText(`Ref ${f.ref_level.toFixed(1)} ${u}  Atten ${f.attenuation ?? 0} dB  ${f.db_per_div} dB/div`, 14, 15);
     g.textAlign = 'right';
     g.fillStyle = this.running ? '#facc15' : '#f87171';
-    g.fillText(this.running ? `RBW ${fmtSI(f.rbw, 'Hz')}` : 'STOP', W - 12, 15);
+    g.fillText(this.running ? `RBW ${fmtSI(f.rbw, 'Hz')}  VBW ${fmtSI(f.vbw, 'Hz')}` : 'STOP', W - 12, 15);
     g.textAlign = 'left';
     g.font = '500 14px ui-monospace, Menlo, monospace';
     g.fillStyle = '#64748b';
-    const tr = f.trace === 'average' ? ` · average of ${f.sweeps}/${f.average_count} sweeps`
+    const tr = f.trace === 'average' ? ` · average of ${f.sweeps}/${f.sweep_count} sweeps`
       : f.sweeps > 1 ? ` · trace of ${f.sweeps} sweeps` : '';
     const dc = relative ? ` · DC ${f.dc_dbm != null ? `${f.dc_dbm.toFixed(1)} dBm` : 'none'}` : '';
-    g.fillText(`${f.source ?? 'no input'} · ${f.detector} detector · ${f.averages} avg${tr}${dc}`, 14, 36);
+    g.fillText(`${f.source ?? 'no input'} · ${f.detector} detector${tr}${dc}`, 14, 36);
     const m = f.meas ?? {};
     g.font = '500 18px ui-monospace, Menlo, monospace';
     if (relative && !f.n) {
@@ -349,16 +349,16 @@ export class ScopePanel {
       this.chEl.appendChild(row);
       return { row, on, src, scale };
     });
-    this.esa = Object.fromEntries(['src', 'start', 'stop', 'rbw', 'avg', 'det', 'trace', 'count', 'units', 'ref', 'ref-unit', 'atten', 'div'].map((k) => [k, $(`esa-${k}`)]));
+    this.esa = Object.fromEntries(['src', 'start', 'stop', 'rbw', 'vbw', 'det', 'trace', 'count', 'units', 'ref', 'ref-unit', 'atten', 'div'].map((k) => [k, $(`esa-${k}`)]));
     this.label = this.el.querySelector('.scope-head .muted');
     const e = this.esa;
     e.start.onchange = () => set({ start_freq: Number(e.start.value) * 1e6 });
     e.stop.onchange = () => set({ stop_freq: Number(e.stop.value) });
     e.rbw.onchange = () => set({ rbw: Number(e.rbw.value) });
-    e.avg.onchange = () => set({ averages: Number(e.avg.value) });
+    e.vbw.onchange = () => set(e.vbw.value === 'auto' ? { auto_vbw: true } : { auto_vbw: false, vbw: Number(e.vbw.value) });
     e.det.onchange = () => set({ detector: e.det.value });
     e.trace.onchange = () => set({ trace: e.trace.value });
-    e.count.onchange = () => set({ average_count: Number(e.count.value) });
+    e.count.onchange = () => set({ sweep_count: Number(e.count.value) });
     e.units.onchange = () => set({ units: e.units.value });   // the server moves Ref with them
     e.ref.onchange = () => set({ ref_level: Number(e.ref.value) });
     e.atten.onchange = () => set(e.atten.value === 'auto' ? { auto_attenuation: true } : { auto_attenuation: false, attenuation: Number(e.atten.value) });
@@ -457,10 +457,14 @@ export class ScopePanel {
     };
     fill(e.stop, 'stop_freq', (v) => fmtSI(v, 'Hz'));
     fill(e.rbw, 'rbw', (v) => fmtSI(v, 'Hz'));
-    fill(e.avg, 'averages', (v) => String(v));
+    const vbwUsed = c.info?.['VBW used']?.split(' (')[0];   // "100 kHz (auto)": the VBW in use
+    const vbws = [...new Set([...(spec('vbw')?.presets ?? []), p.vbw])].sort((a, b) => a - b);
+    e.vbw.innerHTML = [`<option value="auto">Auto${p.auto_vbw && vbwUsed ? ` · ${esc(vbwUsed)}` : ''}</option>`,
+      ...vbws.map((v) => `<option value="${v}">${esc(fmtSI(v, 'Hz'))}</option>`)].join('');
+    e.vbw.value = p.auto_vbw ? 'auto' : String(p.vbw);
     fill(e.det, 'detector', (v) => v);
     fill(e.trace, 'trace', (v) => v);
-    fill(e.count, 'average_count', (v) => String(v));
+    fill(e.count, 'sweep_count', (v) => String(v));
     e.count.closest('label').hidden = p.trace !== 'average';
     fill(e.units, 'units', (v) => v);
     fill(e.div, 'db_per_div', (v) => `${v} dB/div`);
@@ -520,7 +524,8 @@ export class ScopePanel {
         ['Lorentzian HWHM', m.fit_hwhm ? fmtSI(m.fit_hwhm, 'Hz') : '—'],
         ...(u === 'dBc/Hz' ? [['DC at input', lvl(frame.dc_dbm, 'dBm')]] : []),
         ['RBW', fmtSI(frame.rbw, 'Hz')],
-        ['Sweeps', frame.trace === 'average' ? `${frame.sweeps} / ${frame.average_count}` : String(frame.sweeps)],
+        ['VBW', fmtSI(frame.vbw, 'Hz')],
+        ['Sweeps', frame.trace === 'average' ? `${frame.sweeps} / ${frame.sweep_count}` : String(frame.sweeps)],
       ];
       this.measEl.innerHTML = `<div class="meas wide" style="--c:#facc15"><h4>${esc(frame.instrument)} · ${esc(frame.source ?? 'no input')}</h4><dl>${rows.map(([a, b]) => `<dt>${a}</dt><dd>${b}</dd>`).join('')}</dl></div>`;
       return;

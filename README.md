@@ -1093,11 +1093,15 @@ span:
 4. **Scaling.** $P_k = 2|X_k|^2 / (R_\mathrm{in}(\sum w_n)^2)$ gives a tone its true power and noise
    $S\cdot\mathrm{RBW}$: the RBW here is a noise bandwidth (an analog Gaussian RBW filter's noise
    bandwidth is about 1.06× its −3 dB width).
-5. **Averaging.** `averages` records, 50 % overlapped (Welch), are power-averaged in every sweep;
-   the noise trace then fluctuates by about $4.3/\sqrt{K}$ dB. The trace can also be written fresh
-   each sweep, averaged over sweeps, or held at its maximum (`trace`). The sweep average counts up
-   to `average_count` (100) and then runs on, as an analyzer's does in continuous sweep: each new
-   sweep weighs 1/`average_count`, so the trace still follows a change on the bench.
+5. **Averaging.** Within a sweep, the video bandwidth (`vbw`) smooths the noise, as an analyzer's
+   video filter does: $K$ records, 50 % overlapped (Welch), are power-averaged, with
+   $`K = 0.475\,\mathrm{RBW}/\mathrm{VBW} + 0.62`$ (rounded), the count whose scatter matches a
+   one-pole video filter after a Gaussian RBW filter. FFT analyzers emulate the VBW the same way.
+   The noise trace then fluctuates by about $4.3/\sqrt{K}$ dB, and its level stays. With
+   `auto_vbw`, VBW = RBW: one record. Across sweeps, the trace can be written fresh each sweep,
+   averaged, or held at its maximum (`trace`). The trace average counts sweeps up to `sweep_count`
+   (100, R&S's Sweep Count) and then runs on, as an analyzer's does in continuous sweep: each new
+   sweep weighs 1/`sweep_count`, so the trace still follows a change on the bench.
 6. **Display.** `points` frequencies from `start_freq` to `stop_freq`. Each point takes the bins in
    its bucket through the `detector`: *peak* (the largest: tones read right even when a bucket is
    wider than the RBW), *average* (mean power: right for noise) or *sample*. The top line is
@@ -1122,7 +1126,8 @@ span:
    component, param, values)` steps a parameter (a phase shifter) and averages the sweeps.
 
 The cost of a sweep is about $`3.84\,f_\mathrm{stop}/\mathrm{RBW}\times(K+1)/2`$ samples (×4 before
-decimation), so a narrow RBW over a wide span is slow, as on a real analyzer.
+decimation), so a narrow RBW over a wide span is slow, as on a real analyzer, and so is a narrow
+VBW.
 
 ### Laser linewidth by delayed self-homodyne
 
@@ -1205,13 +1210,13 @@ gives $e^{-31}$.
 
 **Choosing the analyzer settings.** RBW ≤ Δν/10, so the RBW filter does not widen the line; a
 span of at least 20 Δν, so the wings and the floor are both on screen; the *average* detector and
-≥ 100 averages, because the beat is noise, not a tone. The review makes the same points about the
-analyzer's resolution and sweep time, and asks for repeated measurements reported with their mean
-and standard deviation (§4.1).
+a VBW of RBW/100 or less, or a trace average, because the beat is noise, not a tone. The review
+makes the same points about the analyzer's resolution and sweep time, and asks for repeated
+measurements reported with their mean and standard deviation (§4.1).
 
 **Try it.** `examples/linewidth_homodyne.py` builds the bench above — a 100 kHz laser, two 50:50
 couplers, a 10 km spool, an attenuator that gives the short arm the spool's loss, a photodiode and
-the analyzer at 0–2 MHz, RBW 5 kHz, average detector — and measures:
+the analyzer at 0–2 MHz, RBW 5 kHz, VBW 1 Hz, average detector — and measures:
 
 ```bash
 phoq run examples/linewidth_homodyne.py --plot dsh.png
@@ -1220,25 +1225,25 @@ phoq run examples/linewidth_homodyne.py --plot dsh.png
 ```
 laser linewidth 100 kHz (coherence time 3.18 µs); delay 49 µs = 15 τc, coherence left e^(−2πΔν·τd) = 4.3e-14
 
-  Lorentzian fit       Δν =  99.7 kHz  (-0.3 %)
-  −3 dB point          Δν =    96 kHz  (-4.0 %)
-  −20 dB point / √99   Δν =  97.4 kHz  (-2.6 %)
+  Lorentzian fit       Δν =  99.5 kHz  (-0.5 %)
+  −3 dB point          Δν =  95.8 kHz  (-4.2 %)
+  −20 dB point / √99   Δν =  97.6 kHz  (-2.4 %)
 
-The delay must beat the coherence time (1000 averages each):
+The delay must beat the coherence time (VBW 2 Hz each):
     spool        τd  τd/τc coherence        fit      −3 dB
-    0.3 km   1.47 µs    0.5       0.4    137 kHz    297 kHz
+    0.3 km   1.47 µs    0.5       0.4    137 kHz    298 kHz
     0.6 km   2.94 µs    0.9      0.16    141 kHz    202 kHz
-      1 km    4.9 µs    1.5     0.046    101 kHz    122 kHz
-      2 km   9.79 µs    3.1    0.0021    100 kHz     99 kHz
-     10 km     49 µs   15.4   4.3e-14    100 kHz   94.5 kHz
-     25 km    122 µs   38.5   3.9e-34    101 kHz   88.7 kHz
+      1 km    4.9 µs    1.5     0.046    101 kHz    121 kHz
+      2 km   9.79 µs    3.1    0.0021    100 kHz   98.3 kHz
+     10 km     49 µs   15.4   4.3e-14    100 kHz   94.4 kHz
+     25 km    122 µs   38.5   3.9e-34    101 kHz   90.7 kHz
 ```
 
 The measured spectrum matches $S_i(f)$ above in absolute level to within about 0.3 dB from 1 kHz
 to 1 MHz. Two lessons from the numbers: the −3 dB point of a noise-like trace scatters by several
-per cent even after thousands of averages (it is one crossing on a flat top), so fit the whole
-trace; and a delay shorter than about two coherence times reports the delay's sinc² instead of the
-laser (0.3 km: the −3 dB point sits at $0.443/\tau_d$ = 301 kHz). `phoq serve
+per cent even at VBW 2 Hz, over a thousand records a sweep (it is one crossing on a flat top), so
+fit the whole trace; and a delay shorter than about two coherence times reports the delay's sinc²
+instead of the laser (0.3 km: the −3 dB point sits at $0.443/\tau_d$ = 301 kHz). `phoq serve
 examples/linewidth_homodyne.py` shows the same bench live: the analyzer's trace keeps averaging,
 the window marks the −3 dB point and reports the Lorentzian half width.
 
@@ -1258,7 +1263,9 @@ methods, §4.2, rest on the same Eqs. (28)–(31)). Two conditions make it work:
 
 `examples/linewidth_narrow.py` measures both lasers. The short arm is left unattenuated: over
 hundreds of km a balanced pair would sit below the analyzer's floor, while the beat scales as
-$\sqrt{P_\mathrm{short}P_\mathrm{long}}$.
+$\sqrt{P_\mathrm{short}P_\mathrm{long}}$. The analyzer sits at the least VBW, 1 Hz, which at an RBW
+of 10 Hz is only five records a sweep, so the script averages 60 sweeps at each bias phase (10 at
+1 kHz), as a trace average would on the bench.
 
 ```bash
 phoq run examples/linewidth_narrow.py --plot narrow.png
@@ -1267,16 +1274,16 @@ phoq run examples/linewidth_narrow.py --plot narrow.png
 ```
 1 kHz laser, coherence time τc = 318 µs
     spool   loss  τd/τc  depth     RBW     span  short-delay fit     one θ Lorentzian     −3 dB
-    100 km   19 dB   1.54   0.05  100 Hz   20 kHz           995 Hz    977 Hz   1.03 kHz  1.21 kHz
-    200 km   38 dB   3.08   0.00  100 Hz   20 kHz           999 Hz     1 kHz     999 Hz    961 Hz
-    400 km   76 dB   6.15   0.00  100 Hz   20 kHz           992 Hz     1 kHz     992 Hz    971 Hz
+    100 km   19 dB   1.54   0.05  100 Hz   20 kHz           998 Hz     1 kHz   1.03 kHz  1.28 kHz
+    200 km   38 dB   3.08   0.00  100 Hz   20 kHz         1.02 kHz  1.01 kHz   1.02 kHz  1.04 kHz
+    400 km   76 dB   6.15   0.00  100 Hz   20 kHz         1.01 kHz  1.02 kHz   1.01 kHz  1.01 kHz
 
 100 Hz laser, coherence time τc = 3.18 ms
     spool   loss  τd/τc  depth     RBW     span  short-delay fit     one θ Lorentzian     −3 dB
-     50 km   10 dB   0.08   0.86   10 Hz 20.4 kHz           100 Hz   33.3 Hz     654 Hz  1.76 kHz
-    100 km   19 dB   0.15   0.74   10 Hz 10.2 kHz          99.1 Hz   69.2 Hz     369 Hz    867 Hz
-    200 km   38 dB   0.31   0.54   10 Hz  5.1 kHz          99.6 Hz   35.5 Hz     217 Hz    463 Hz
-    500 km   95 dB   0.77   0.22   10 Hz 2.04 kHz          99.5 Hz   63.4 Hz     129 Hz    192 Hz
+     50 km   10 dB   0.08   0.86   10 Hz 20.4 kHz           101 Hz     33 Hz     655 Hz  1.69 kHz
+    100 km   19 dB   0.15   0.74   10 Hz 10.2 kHz          99.9 Hz   69.5 Hz     369 Hz    874 Hz
+    200 km   38 dB   0.31   0.54   10 Hz  5.1 kHz          99.2 Hz   35.9 Hz     218 Hz    449 Hz
+    500 km   95 dB   0.77   0.22   10 Hz 2.04 kHz          98.5 Hz   63.1 Hz     128 Hz    193 Hz
 ```
 
 At 1 kHz every column agrees once the delay passes a few $\tau_c$. At 100 Hz only the short-delay
@@ -1311,10 +1318,10 @@ laser (excess RIN −135 dBc/Hz) → VOA → 50:50 ─┬─ 1 m → INPUT+    B
 | Measurement | Expected | phoq |
 | --- | --- | --- |
 | Dark | (NEP·ℜ)² = −236.2 dB re 1 A²/Hz | −236.2 dB |
-| One input: fit of a·I + b·I², 1.8–28 µA | b = RIN = −135 dBc/Hz, a = 2q | −134.95 dBc/Hz; q to −3.6 % |
-| Both inputs, 4 µA to 1.1 mA | the difference at 2q(I₊ + I₋) | within ±0.4 dB; q to +0.2 % |
-| The same 1.1 mA on one diode | 20 dB above the shot noise | 20.1 dB |
-| Dark-noise clearance at 1.1 mA | shot over amplifier noise | 21.8 dB |
+| One input: fit of a·I + b·I², 1.8–28 µA | b = RIN = −135 dBc/Hz, a = 2q | −135.03 dBc/Hz; q to −1.8 % |
+| Both inputs, 4 µA to 1.1 mA | the difference at 2q(I₊ + I₋) | within ±0.3 dB; q to −0.8 % |
+| The same 1.1 mA on one diode | 20 dB above the shot noise | 20.2 dB |
+| Dark-noise clearance at 1.1 mA | shot over amplifier noise | 21.7 dB |
 
 One input bends from the shot noise to the laser's intensity noise at 2q/RIN = 10 µA. The
 difference current stays at the shot noise, because the RIN reaches both diodes alike and cancels
@@ -1513,8 +1520,8 @@ The models above were compared with twelve references (October 2026):
     which phoq draws at detection; that is exact for coherent light, but excludes squeezed light.
     The docs now say "carries" where they said a diode "adds" shot noise.
   - Balanced photodetection: common noise cancels to the CMRR, while the two halves' shot noises are
-    uncorrelated and add. `examples/laser_noise.py` reproduces 2q(I₊ + I₋) to ±0.4 dB and q to
-    0.2 %.
+    uncorrelated and add. `examples/laser_noise.py` reproduces 2q(I₊ + I₋) to ±0.3 dB and q to
+    1 %.
   - [examples/laser_noise.md](examples/laser_noise.md) maps each article onto the code.
 - *T. Gehring et al., "Homodyne-based quantum random number generator at 2.9 Gbps secure against
   quantum side-information", Nat. Commun. 12, 605 (2021),

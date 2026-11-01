@@ -20,6 +20,7 @@ from phoq import (
     SpectrumResult,
 )
 from phoq.engine import trace
+from phoq.instruments import VBW_OFFSET, VBW_SLOPE, vbw_records
 from phoq.units import Q_E
 
 EXAMPLES = Path(__file__).resolve().parents[1] / "examples"
@@ -35,7 +36,10 @@ def tone(freq=1.234e6, vpp=1.0, **esa):
         ArbitraryWaveformGenerator("FG", ch1_shape="sine", ch1_freq=freq, ch1_vpp=vpp)
     )
     a = s.add(
-        SpectrumAnalyzer("ESA", **{"stop_freq": 5e6, "rbw": 10e3, "averages": 4, **esa})
+        SpectrumAnalyzer(
+            "ESA",
+            **{"stop_freq": 5e6, "rbw": 10e3, "auto_vbw": False, "vbw": 1e3, **esa},
+        )
     )
     s.connect(fg.ch1, a.inp)
     return s, a
@@ -60,7 +64,8 @@ def test_the_empty_input_shows_the_noise_floor_in_the_rbw():
             "ESA",
             stop_freq=5e6,
             rbw=10e3,
-            averages=200,
+            auto_vbw=False,
+            vbw=20.0,
             detector="average",
             noise_floor=-145.0,
             ref_level=-40.0,  # low enough for no input attenuation
@@ -73,10 +78,15 @@ def test_the_empty_input_shows_the_noise_floor_in_the_rbw():
     )
     assert r.source is None
     peak = sweep(
-        SpectrumAnalyzer("P", stop_freq=5e6, rbw=10e3, averages=20, detector="peak"), s
+        SpectrumAnalyzer(
+            "P", stop_freq=5e6, rbw=10e3, auto_vbw=False, vbw=200.0, detector="peak"
+        ),
+        s,
     )
     avg = sweep(
-        SpectrumAnalyzer("A", stop_freq=5e6, rbw=10e3, averages=20, detector="average"),
+        SpectrumAnalyzer(
+            "A", stop_freq=5e6, rbw=10e3, auto_vbw=False, vbw=200.0, detector="average"
+        ),
         s,
     )
     # the peak detector rides on the noise
@@ -111,7 +121,8 @@ def test_the_attenuator_raises_the_floor_and_leaves_a_tone_in_place():
     for atten in (0.0, 20.0):
         s, a = tone(
             vpp=0.01,
-            averages=50,
+            auto_vbw=False,
+            vbw=100.0,
             detector="average",
             auto_attenuation=False,
             attenuation=atten,
@@ -149,7 +160,8 @@ def test_shot_noise_of_a_photodiode():
             "ESA",
             stop_freq=50e6,
             rbw=100e3,
-            averages=200,
+            auto_vbw=False,
+            vbw=200.0,
             detector="average",
             noise_floor=-200,
         )
@@ -180,7 +192,8 @@ def test_trace_average_max_hold_and_clearing():
             "ESA",
             stop_freq=1e6,
             rbw=10e3,
-            averages=2,
+            auto_vbw=False,
+            vbw=5e3,
             trace="average",
             detector="average",
         )
@@ -196,13 +209,13 @@ def test_trace_average_max_hold_and_clearing():
     assert np.all(a.acquire(net, rng).level >= first)
 
 
-def test_trace_average_stops_counting_at_the_average_count():
-    """Past average_count sweeps the average runs on as in continuous sweep: each new
-    sweep weighs 1/average_count and the counter stays at the count."""
+def test_trace_average_stops_counting_at_the_sweep_count():
+    """Past sweep_count sweeps the average runs on as in continuous sweep: each new
+    sweep weighs 1/sweep_count and the counter stays at the count."""
     s = Setup("count")
     a = s.add(
         SpectrumAnalyzer(
-            "ESA", stop_freq=1e6, rbw=50e3, points=101, trace="average", average_count=3
+            "ESA", stop_freq=1e6, rbw=50e3, points=101, trace="average", sweep_count=3
         )
     )
     net, rng = trace(s), np.random.default_rng(0)
@@ -215,7 +228,95 @@ def test_trace_average_stops_counting_at_the_average_count():
     assert mw == pytest.approx([1.0, 1.5, 2.0, 8 / 3, 31 / 9])
     assert a.info()["Trace"] == "average of 3/3 sweeps"
     frame = got[-1].to_json()
-    assert frame["trace"] == "average" and frame["average_count"] == 3
+    assert frame["trace"] == "average" and frame["sweep_count"] == 3
+
+
+def swept_neff(ratio: float) -> float:
+    """Independent readings a swept analyzer's one-pole video filter averages after a
+    Gaussian RBW filter, for RBW/VBW = ``ratio``: (mean / std)² of the filtered power,
+    1 / ((1/√2) ∫ e^{−πx²/2} / (1 + (x·ratio)²) dx)."""
+    from scipy.special import erfc
+
+    a = math.pi / 2
+    return (
+        math.sqrt(2)
+        * ratio
+        / (math.pi * math.exp(a / ratio**2) * erfc(math.sqrt(a) / ratio))
+    )
+
+
+@pytest.mark.parametrize("vbw", [1e3, 300.0, 100.0])
+def test_the_vbw_smooths_the_noise_as_a_video_filter_does(vbw):
+    """The analyzer's own floor, white noise: each bin scatters as a swept analyzer's
+    trace does through a one-pole video filter, and its mean stays."""
+    s = Setup("floor")
+    a = s.add(SpectrumAnalyzer("ESA", stop_freq=5e6, rbw=10e3))
+    net, rng = trace(s), np.random.default_rng(2)
+
+    def bins():
+        r = a.acquire(net, rng)
+        return r.bin_power[(r.bin_freq > 50e3) & (r.bin_freq < 4.9e6)]
+
+    flat = np.concatenate([bins() for _ in range(10)])
+    a.set(auto_vbw=False, vbw=vbw)
+    smooth = np.concatenate([bins() for _ in range(10)])
+    neff = smooth.mean() ** 2 / smooth.var()
+    assert neff == pytest.approx(swept_neff(10e3 / vbw), rel=0.08)
+    assert smooth.mean() == pytest.approx(flat.mean(), rel=0.02)
+
+
+def test_auto_vbw_follows_the_rbw_and_a_capped_sweep_widens_it():
+    a = SpectrumAnalyzer("ESA", stop_freq=5e6, rbw=10e3)
+    rbw = a.record()[3]
+    assert a.record()[2] == 1 and a.video_bandwidth() == rbw
+    assert a.info()["VBW used"] == "10 kHz (auto)" and "vbw" not in a.ui_fields()
+    a.set(auto_vbw=False, vbw=100.0)
+    assert a.record()[2] == vbw_records(rbw, 100.0) == 48
+    assert a.video_bandwidth() == 100.0 and "vbw" in a.ui_fields()
+    # 50 MHz at RBW 100 kHz: 4 M samples hold 4165 records, VBW 1 Hz asks for 47501
+    a.set(stop_freq=50e6, rbw=100e3, vbw=1.0)
+    k, rbw = a.record()[2:]
+    assert k == 4165 < vbw_records(rbw, 1.0)
+    assert a.video_bandwidth() == pytest.approx(VBW_SLOPE * rbw / (k - VBW_OFFSET))
+    assert a.info()["VBW used"] == "11.4 Hz (by hand)"
+
+
+def test_old_averages_become_the_vbw_that_gives_as_many_records():
+    with pytest.warns(DeprecationWarning, match="averages=4 became vbw=1.41 kHz"):
+        a = SpectrumAnalyzer("ESA", stop_freq=5e6, rbw=10e3, averages=4)
+    assert not a.auto_vbw and a.record()[2] == 4
+    with pytest.warns(DeprecationWarning, match="record"):
+        assert a.averages == 4
+    saved = {
+        "components": [
+            {"name": "ESA", "type": "SpectrumAnalyzer", "params": {"averages": 40}}
+        ]
+    }
+    with pytest.warns(DeprecationWarning):
+        assert Setup.from_dict(saved)["ESA"].record()[2] == 40
+    r = sweep(a, Setup("empty"))
+    with pytest.warns(DeprecationWarning, match="records"):
+        assert r.averages == r.records == 4
+
+
+def test_average_count_is_now_the_sweep_count():
+    with pytest.warns(DeprecationWarning, match="sweep_count"):
+        a = SpectrumAnalyzer("ESA", trace="average", average_count=7)
+    assert a.sweep_count == 7
+    with pytest.warns(DeprecationWarning, match="sweep_count"):
+        a.average_count = 5
+    with pytest.warns(DeprecationWarning, match="sweep_count"):
+        assert a.average_count == a.sweep_count == 5
+    saved = {
+        "components": [
+            {"name": "ESA", "type": "SpectrumAnalyzer", "params": {"average_count": 3}}
+        ]
+    }
+    with pytest.warns(DeprecationWarning, match="sweep_count"):
+        assert Setup.from_dict(saved)["ESA"].sweep_count == 3
+    r = sweep(a, Setup("empty"))
+    with pytest.warns(DeprecationWarning, match="sweep_count"):
+        assert r.average_count == r.sweep_count == 5
 
 
 def test_dbc_per_hz_reads_the_rin_of_the_detected_light():
@@ -301,7 +402,7 @@ def test_the_lab_streams_and_clears_spectra():
             spec["instrument"] == "ESA"
             and spec["n"] == a.points
             and spec["meas"]["peak_level"] > 3
-            and (spec["trace"], spec["sweeps"], spec["average_count"])
+            and (spec["trace"], spec["sweeps"], spec["sweep_count"])
             == ("average", 1, 100)
         )
         assert (
@@ -313,7 +414,7 @@ def test_the_lab_streams_and_clears_spectra():
 
 def test_delayed_self_homodyne_measures_the_linewidth():
     ex = run_path(str(EXAMPLES / "linewidth_homodyne.py"))
-    r, fit, w3, w20 = ex["measure"](ex["build"](linewidth=100e3, averages=1000))
+    r, fit, w3, w20 = ex["measure"](ex["build"](linewidth=100e3, vbw=2.0))
     assert fit == pytest.approx(100e3, rel=0.03)  # the fit uses the whole trace
     # single crossings on a noise-like trace scatter more: the flat top hurts the −3 dB
     # point most
@@ -333,7 +434,7 @@ def test_delayed_self_homodyne_measures_the_linewidth():
     assert r.peak[1] == pytest.approx(10 * math.log10(peak / 1e-3), abs=0.5)
     # a delay shorter than the coherence time overestimates: the sinc² of the delay
     # takes over
-    short = ex["measure"](ex["build"](linewidth=100e3, spool_m=300.0, averages=300))[2]
+    short = ex["measure"](ex["build"](linewidth=100e3, spool_m=300.0))[2]
     assert short > 2 * 100e3
 
 
@@ -357,7 +458,12 @@ def test_sub_coherence_delay_matches_the_review_eq_28_to_31():
         pd = s.add(Photodiode("PD"))
         a = s.add(
             SpectrumAnalyzer(
-                "ESA", stop_freq=2e6, rbw=5e3, averages=200, detector="average"
+                "ESA",
+                stop_freq=2e6,
+                rbw=5e3,
+                auto_vbw=False,
+                vbw=10.0,
+                detector="average",
             )
         )
         s.connect(ld.out, bs1.a1)
@@ -414,7 +520,12 @@ def test_two_laser_heterodyne_width_is_the_sum_of_the_linewidths(nu_t, nu_r):
     bs, pd = s.add(Coupler("BS"), Photodiode("PD"))
     esa = s.add(
         SpectrumAnalyzer(
-            "ESA", stop_freq=3e6, rbw=5e3, averages=500, detector="average"
+            "ESA",
+            stop_freq=3e6,
+            rbw=5e3,
+            auto_vbw=False,
+            vbw=5.0,
+            detector="average",
         )
     )
     s.connect(a.out, bs.a1)
@@ -434,7 +545,7 @@ def narrow():
 @pytest.mark.parametrize("spool_km", [100, 500])
 def test_short_delay_fit_measures_a_100_hz_laser(spool_km):
     ex = narrow()
-    m = ex["measure"](ex["build"](100.0, spool_km, averages=300))
+    m = ex["measure"](ex["build"](100.0, spool_km), sweeps=ex["SWEEPS"])
     assert m["tau_d"] * math.pi * 100 < 1  # shorter than the coherence time
     assert m["fit"] == pytest.approx(100.0, rel=0.04)
     # the long-delay fit does not apply
@@ -445,7 +556,7 @@ def test_short_delay_fit_measures_a_100_hz_laser(spool_km):
 
 def test_long_delay_fits_agree_for_1_khz():
     ex = narrow()
-    m = ex["measure"](ex["build"](1e3, 400, averages=500))
+    m = ex["measure"](ex["build"](1e3, 400), sweeps=10)
     assert m["fringe_depth"] < 1e-4
     assert m["fit"] == pytest.approx(1e3, rel=0.04) and m[
         "lorentzian"
@@ -457,7 +568,7 @@ def test_spectrum_average_and_its_guards():
     net, rng = trace(s), np.random.default_rng(3)
     r1, r2 = a.acquire(net, rng), a.acquire(net, rng)
     avg = SpectrumResult.average([r1, r2])
-    assert avg.averages == r1.averages + r2.averages and avg.sweeps == 2
+    assert avg.records == r1.records + r2.records and avg.sweeps == 2
     assert np.allclose(avg.bin_power, (r1.bin_power + r2.bin_power) / 2)
     assert avg.peak[1] == pytest.approx(r1.peak[1], abs=0.1)
     a.rbw = 20e3
@@ -471,8 +582,8 @@ def test_spectrum_average_and_its_guards():
 
 def test_average_spectrum_restores_the_stepped_parameter():
     ex = narrow()
-    setup = ex["build"](100.0, 500, averages=20)
+    setup = ex["build"](100.0, 500)
     ps = setup["PS-1"]
     ps.phase = 0.3
     r = Runner(setup, seed=1).average_spectrum("ESA-1", ps, "phase", [0.0, math.pi / 2])
-    assert ps.phase == 0.3 and r.sweeps == 2 and r.averages == 40
+    assert ps.phase == 0.3 and r.sweeps == 2 and r.records == 10

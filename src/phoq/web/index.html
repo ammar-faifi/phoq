@@ -119,10 +119,10 @@
             <label class="ctl">Start <input id="esa-start" type="number" step="any" min="0" aria-label="Start frequency" /> MHz</label>
             <label class="ctl">Stop <select id="esa-stop" aria-label="Stop frequency"></select></label>
             <label class="ctl" title="Resolution bandwidth (noise bandwidth of the window)">RBW <select id="esa-rbw"></select></label>
-            <label class="ctl" title="Records power-averaged in each sweep">Avg <select id="esa-avg"></select></label>
+            <label class="ctl" title="Video bandwidth: smooths the noise within each sweep, without moving its level; Auto follows the RBW">VBW <select id="esa-vbw" aria-label="Video bandwidth"></select></label>
             <label class="ctl" title="peak for tones, average for noise">Detector <select id="esa-det"></select></label>
             <label class="ctl">Trace <select id="esa-trace"></select></label>
-            <label class="ctl" title="Sweeps in the trace average; from then on each new sweep weighs 1/count">Count <select id="esa-count" aria-label="Average count"></select></label>
+            <label class="ctl" title="Sweep count: the sweeps in the trace average; from then on each new sweep weighs 1/count">Count <select id="esa-count" aria-label="Sweep count"></select></label>
             <label class="ctl" title="dBm in the RBW, dBm/Hz, or dBc/Hz relative to the DC at the input">Units <select id="esa-units"></select></label>
             <label class="ctl">Ref <input id="esa-ref" type="number" step="any" aria-label="Reference level" /> <span id="esa-ref-unit">dBm</span></label>
             <label class="ctl" title="Input attenuation: Auto follows the reference level; each dB raises the noise floor by a dB">Atten <select id="esa-atten" aria-label="Input attenuation"></select></label>

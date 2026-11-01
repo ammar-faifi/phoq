@@ -29,7 +29,8 @@ def test_photodiode_reads_shot_thermal_and_intensity_noise(rin):
             "ESA",
             stop_freq=20e6,
             rbw=30e3,
-            averages=40,
+            auto_vbw=False,
+            vbw=300.0,
             detector="average",
             noise_floor=-200.0,
         )

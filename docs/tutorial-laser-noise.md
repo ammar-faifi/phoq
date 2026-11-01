@@ -76,9 +76,9 @@ Then wire it:
    port's own type plugs onto it. Section 9 shows why this matters.
 4. **The analyzer.** Click **Oscilloscope** in the top bar to open the instrument panel. It shows
    the analyzer, ESA-1; if the panel is collapsed to its title bar, click its **+**. Set Start
-   **0**, Stop **2 MHz**, RBW **10 kHz**, Avg **50**, Detector **average**, Trace **average**, Ref
-   **−60 dBm**, Scale **5 dB/div**. The green **RUN** in the title bar means it is acquiring. If
-   it reads **STOP**, click it.
+   **0**, Stop **2 MHz**, RBW **10 kHz**, VBW **100 Hz**, Detector **average**, Trace
+   **average**, Ref **−60 dBm**, Scale **5 dB/div**. The green **RUN** in the title bar means it
+   is acquiring. If it reads **STOP**, click it.
 
 The measurement box under the screen shows the **Median level**: on a noise floor, that is the
 noise power in one resolution bandwidth. Press **Clear trace** after every change so the
@@ -277,7 +277,8 @@ On the balanced bench at 0 dB, split 0.5, change the RBW:
 Noise power grows 10 dB per decade of RBW; the density stays put. To get the power spectral
 density, subtract 10·log₁₀(RBW), or set the analyzer's **Units** to **dBm/Hz**. A tone is the
 opposite: its level doesn't change with RBW. Set the RBW back to 10 kHz. Two other settings:
-- **Avg** smooths the trace without moving the level.
+- **VBW** smooths the trace without moving the level: the narrower it is against the RBW, the more
+  each sweep averages.
 - **Detector average** is the one for noise. **Peak** suits tones, and reads noise high whenever
   a display point spans several analyzer bins (at these settings each holds one, so they agree).
 

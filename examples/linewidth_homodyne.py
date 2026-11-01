@@ -37,7 +37,7 @@ LINEWIDTH = 100e3  # what the measurement should find
 
 
 def build(
-    linewidth: float = LINEWIDTH, spool_m: float = 10e3, averages: int = 200
+    linewidth: float = LINEWIDTH, spool_m: float = 10e3, vbw: float = 10.0
 ) -> Setup:
     setup = Setup("Delayed self-homodyne", seed=7)
     laser = setup.add(Laser("LD-1", mode="cw", power_dbm=0.0, linewidth=linewidth))
@@ -57,7 +57,8 @@ def build(
             "ESA-1",
             stop_freq=2e6,  # ≥ 20 Δν: the wings and the floor
             rbw=5e3,  # ≤ Δν / 10: the RBW does not widen the line
-            averages=averages,
+            auto_vbw=False,
+            vbw=vbw,  # ≤ RBW / 100: smooths the beat's noise (10 Hz: 238 records)
             detector="average",  # the beat is noise, not a tone
             trace="average",  # in the lab, sweeps keep averaging into the trace
             ref_level=-30.0,
@@ -96,7 +97,7 @@ if __name__ == "__main__":
     )
     args = ap.parse_args()
 
-    setup = build(averages=2000)
+    setup = build(vbw=1.0)
     laser, spool = setup["LD-1"], setup["SPL-1"]
     tau_c, tau_d = 1 / (math.pi * laser.linewidth), spool.delay
     print(
@@ -117,14 +118,14 @@ if __name__ == "__main__":
             f" ({100 * (value / laser.linewidth - 1):+.1f} %)"
         )
 
-    print("\nThe delay must beat the coherence time (1000 averages each):")
+    print("\nThe delay must beat the coherence time (VBW 2 Hz each):")
     print(
         f"  {'spool':>7} {'τd':>9} {'τd/τc':>6} {'coherence':>9} {'fit':>10}"
         f" {'−3 dB':>10}"
     )
 
     for km in (0.3, 0.6, 1, 2, 5, 10, 25, 50, 100, 150, 200, 250, 300):
-        s = build(spool_m=km * 1e3, averages=1000)
+        s = build(spool_m=km * 1e3, vbw=2.0)
         _, f_fit, f3, _ = measure(s)
         td = s["SPL-1"].delay
         coh = math.exp(-2 * math.pi * LINEWIDTH * td)

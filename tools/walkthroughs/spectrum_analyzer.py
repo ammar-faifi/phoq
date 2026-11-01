@@ -28,7 +28,7 @@ def bench():
     s = build(16.0, inputs=1)
     ld, esa = s["LD-1"], s["ESA-1"]
     ld.mode, ld.rep_rate, ld.mod_depth = "sine", 500e3, 0.002
-    esa.averages, esa.points, esa.detector, esa.trace = 10, 201, "average", "average"
+    esa.vbw, esa.points, esa.detector, esa.trace = 500.0, 201, "average", "average"
     return s
 
 
@@ -141,7 +141,8 @@ def capture() -> dict:
             "noise_std": math.sqrt(danl * fs / 2),
             "zero_pad": I.ZERO_PAD,
             "max_samples": I.MAX_SAMPLES,
-            "averages": int(esa.averages),
+            "records": k,
+            "vbw": esa.video_bandwidth(),
             "p0_before_dbm": 10 * math.log10(p0_before / 1e-3),
             "p0_after_dbm": 10 * math.log10(power[0] / 1e-3),
             "gain": bpd.gain,

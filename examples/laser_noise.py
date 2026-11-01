@@ -99,11 +99,12 @@ def build(
             start_freq=0.0,
             stop_freq=2e6,
             rbw=10e3,
-            averages=40,
+            auto_vbw=False,
+            vbw=100.0,  # RBW/100: 48 records a sweep
             detector="average",
             ref_level=-80.0,
         )
-    )  # 40 records × 80 RBWs in BAND: ±1.8 % a reading in theory, ±2.2 % measured
+    )  # 48 records × 80 RBWs in BAND: ±1.7 % a reading in theory, ±1.9 % measured
     setup.connect(laser.out, voa.p1)
     setup.connect(voa.p2, bs.a1)
     setup.connect(bs.b1, bpd.inp_plus, length=1.0)

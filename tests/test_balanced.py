@@ -74,7 +74,9 @@ def bench(
     else:
         fg.set(ch1_shape="dc", ch1_offset=q)
     if analyzer:
-        esa = s.add(SpectrumAnalyzer("ESA", stop_freq=5e6, rbw=10e3, averages=4))
+        esa = s.add(
+            SpectrumAnalyzer("ESA", stop_freq=5e6, rbw=10e3, auto_vbw=False, vbw=1e3)
+        )
         s.connect(bpd.rf, esa.inp)
     else:
         window = 10 / freq if freq else 10e-6  # ten periods of the modulation

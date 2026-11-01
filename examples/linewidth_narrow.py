@@ -44,6 +44,7 @@ from phoq.units import fmt_si
 
 LINEWIDTH = 100.0  # the laser `phoq serve` shows
 SPOOL_KM = 500.0
+SWEEPS = 60  # per bias phase at 100 Hz: 5 records each at VBW 1 Hz, 300 in all
 
 
 def build(
@@ -52,11 +53,11 @@ def build(
     *,
     stop_freq: float | None = None,
     rbw: float | None = None,
-    averages: int = 300,
 ) -> Setup:
     """The bench. The analyzer defaults to RBW = Δν/10 and a span of 20 Δν, widened to
     show at least five fringes (period 1/τd) when the delay is shorter than the
-    coherence time.
+    coherence time. Its VBW is the least, 1 Hz: at an RBW of 10 Hz that is only five
+    records a sweep, so :func:`measure` averages many sweeps, as on a bench.
     """
     setup = Setup("Narrow-linewidth self-homodyne", seed=7)
     laser = setup.add(Laser("LD-1", mode="cw", power_dbm=10.0, linewidth=linewidth))
@@ -70,7 +71,8 @@ def build(
             "ESA-1",
             stop_freq=stop_freq or span,
             rbw=rbw or linewidth / 10,
-            averages=averages,
+            auto_vbw=False,
+            vbw=1.0,
             detector="average",
             trace="average",
             ref_level=-40.0,
@@ -95,12 +97,20 @@ def arm_delay(setup: Setup) -> float:
     return abs(a - b)
 
 
-def measure(setup: Setup, seed: int = 1, phases=(0.0, math.pi / 2)) -> dict:
-    """Spectra at each bias phase, averaged; the short-delay fit, the plain Lorentzian
-    fit and the −3 dB point, plus what a single bias phase would have given."""
+def measure(
+    setup: Setup, seed: int = 1, phases=(0.0, math.pi / 2), sweeps: int = 1
+) -> dict:
+    """``sweeps`` sweeps at each bias phase, averaged; the short-delay fit, the plain
+    Lorentzian fit and the −3 dB point, plus what as many sweeps at the first phase
+    alone would have given."""
     runner, tau = Runner(setup, seed=seed), arm_delay(setup)
-    single = runner.acquire("ESA-1")
-    avg = runner.average_spectrum("ESA-1", "PS-1", "phase", phases)
+    setup["ESA-1"].trace = "write"  # each sweep on its own: they are averaged here
+
+    def at(thetas):
+        steps = [theta for theta in thetas for _ in range(sweeps)]
+        return runner.average_spectrum("ESA-1", "PS-1", "phase", steps)
+
+    single, avg = at(phases[:1]), at(phases)
     fit = avg.fit_self_homodyne(tau)
     return {
         "result": avg,
@@ -113,7 +123,7 @@ def measure(setup: Setup, seed: int = 1, phases=(0.0, math.pi / 2)) -> dict:
     }
 
 
-def report(linewidth: float, spools_km, averages: int) -> None:
+def report(linewidth: float, spools_km, sweeps: int) -> None:
     tau_c = 1 / (math.pi * linewidth)
     print(
         f"\n{fmt_si(linewidth, 'Hz')} laser, coherence time τc = {fmt_si(tau_c, 's')}"
@@ -123,8 +133,8 @@ def report(linewidth: float, spools_km, averages: int) -> None:
         f" {'short-delay fit':>15} {'one θ':>9} {'Lorentzian':>10} {'−3 dB':>9}"
     )
     for km in spools_km:
-        setup = build(linewidth, km, averages=averages)
-        m = measure(setup)
+        setup = build(linewidth, km)
+        m = measure(setup, sweeps=sweeps)
         r, loss = m["result"], setup["SPL-1"].loss_db(1550e-9)
         print(
             f"  {km:5g} km {loss:4.0f} dB {m['tau_d'] / tau_c:6.2f}"
@@ -149,8 +159,9 @@ if __name__ == "__main__":
     print(
         "a single bias phase; Lorentzian and −3 dB assume a delay much longer than τc."
     )
-    report(1e3, (100, 200, 400), averages=500)
-    report(100.0, (50, 100, 200, 500), averages=300)
+    # VBW 1 Hz: 48 records a sweep at RBW 100 Hz, 5 at 10 Hz
+    report(1e3, (100, 200, 400), sweeps=10)
+    report(100.0, (50, 100, 200, 500), sweeps=SWEEPS)
     for km in (1500, 3900):
         loss = FiberSpool(length=500e3).loss_db(1550e-9) * km / 500
         print(
@@ -168,7 +179,7 @@ if __name__ == "__main__":
         plt.style.use("dark_background")
 
         setup = build(100.0, 500)
-        m = measure(setup)
+        m = measure(setup, sweeps=SWEEPS)
         r, tau = m["result"], m["tau_d"]
         p = r.fit_self_homodyne(tau)
         f, psd = r.psd()

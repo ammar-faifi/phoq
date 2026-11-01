@@ -837,6 +837,24 @@ DECIMATE = 4
 ZERO_PAD = 4  # FFT zero padding: a tone's level is right wherever it falls between bins
 MAX_SAMPLES = 4_000_000  # per sweep, after decimation
 ATTENUATIONS = tuple(10.0 * k for k in range(8))  # input attenuator steps [dB], generic
+# records per sweep for a video bandwidth: K = VBW_SLOPE · RBW/VBW + VBW_OFFSET
+VBW_SLOPE, VBW_OFFSET = 0.475, 0.62
+AVERAGES_GONE = (
+    "SpectrumAnalyzer.averages is gone: the video bandwidth (vbw, auto_vbw) sets the"
+    " records per sweep, as on an analyzer"
+)
+COUNT_RENAMED = "average_count is now sweep_count, as R&S names it (Sweep Count)"
+
+
+def vbw_records(rbw: float, vbw: float) -> int:
+    """Records per sweep for a video bandwidth: the Hann records, overlapped by half,
+    whose power average scatters as a swept analyzer's trace does through a one-pole
+    video filter ``vbw`` after a Gaussian RBW filter of noise bandwidth ``rbw``.
+
+    That filter averages about (√2/π) RBW/VBW + 2/π independent readings of the noise,
+    and K records count as (18/19) K + 0.05 of them (Welch, Hann, 50 % overlap), so
+    K = 0.475 RBW/VBW + 0.62."""
+    return max(1, round(VBW_SLOPE * rbw / vbw + VBW_OFFSET))
 
 
 def unit_offset(units: str, rbw: float, dc_power: float) -> float | None:
@@ -860,12 +878,13 @@ class SpectrumResult:
     freq: np.ndarray  # display frequencies [Hz]
     level: np.ndarray  # displayed level [dBm in the RBW]
     rbw: float  # resolution (noise) bandwidth actually used [Hz]
+    vbw: float  # video bandwidth actually used [Hz]
     start: float
     stop: float
     ref_level: float  # top of the screen [units]
     db_per_div: float
     detector: str
-    averages: int  # records averaged in this sweep
+    records: int  # Hann records power-averaged in this sweep: the VBW sets how many
     sweeps: int  # sweeps in the displayed trace (trace average / max hold)
     bin_freq: np.ndarray  # FFT bins inside the span [Hz]
     bin_power: np.ndarray  # power in the RBW at each bin [W], this sweep
@@ -876,7 +895,27 @@ class SpectrumResult:
     units: str = "dBm"  # the screen's: dBm (in the RBW), dBm/Hz or dBc/Hz
     attenuation: float = 0.0  # input attenuation [dB]: the DANL rose by as much
     trace: str = "write"  # trace mode: write, average or max hold
-    average_count: int = 1  # trace average: where the sweep count stops
+    sweep_count: int = 1  # trace average: where the sweep counter stops
+
+    @property
+    def averages(self) -> int:
+        """The records of this sweep, under their former name (deprecated)."""
+        import warnings
+
+        warnings.warn(
+            "SpectrumResult.averages is now SpectrumResult.records",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.records
+
+    @property
+    def average_count(self) -> int:
+        """The sweep count, under its former name (deprecated)."""
+        import warnings
+
+        warnings.warn(COUNT_RENAMED, DeprecationWarning, stacklevel=2)
+        return self.sweep_count
 
     def psd(self) -> tuple[np.ndarray, np.ndarray]:
         """(frequency [Hz], one-sided power spectral density at the input [W/Hz])."""
@@ -1115,12 +1154,13 @@ class SpectrumResult:
             first.freq,
             level,
             first.rbw,
+            first.vbw,
             first.start,
             first.stop,
             first.ref_level,
             first.db_per_div,
             first.detector,
-            sum(r.averages for r in results),
+            sum(r.records for r in results),
             k,
             first.bin_freq,
             sum(r.bin_power for r in results) / k,
@@ -1137,8 +1177,9 @@ class SpectrumResult:
         off, unit = self._shown()
         return (
             f"{self.instrument}: {fmt_si(self.start, 'Hz')} …"
-            f" {fmt_si(self.stop, 'Hz')}, RBW {fmt_si(self.rbw, 'Hz')}, {self.averages}"
-            f" avg, {self.detector} detector, atten {self.attenuation:g} dB\n"
+            f" {fmt_si(self.stop, 'Hz')}, RBW {fmt_si(self.rbw, 'Hz')}, VBW"
+            f" {fmt_si(self.vbw, 'Hz')}, {self.detector} detector, atten"
+            f" {self.attenuation:g} dB\n"
             f"  {self.source or 'no input'}: peak"
             f" {l0 + off:.1f} {unit} at {fmt_si(f0, 'Hz')}, −3 dB {fmt_si(lo, 'Hz')} …"
             f" {fmt_si(hi, 'Hz')}, median {self.median_level + off:.1f} {unit},"
@@ -1213,14 +1254,15 @@ class SpectrumResult:
             "start": self.start,
             "stop": self.stop,
             "rbw": self.rbw,
+            "vbw": self.vbw,
             "ref_level": self.ref_level,
             "attenuation": self.attenuation,
             "db_per_div": self.db_per_div,
             "detector": self.detector,
-            "averages": self.averages,
+            "records": self.records,
             "sweeps": self.sweeps,
             "trace": self.trace,
-            "average_count": self.average_count,
+            "sweep_count": self.sweep_count,
             "units": self.units,
             "span_unit": "dBc" if relative else "dBm",
             "dc_dbm": 10 * math.log10(dc / 1e-3) if dc > 1e-30 else None,
@@ -1242,16 +1284,17 @@ class SpectrumAnalyzer(Component):
     frequency, in dBm into an AC-coupled input of ``input_impedance``.
 
     FFT method (README, "RF spectrum analyzer"): anti-alias filter and decimate to f_s =
-    2.56 f_stop, Hann records of N = 1.5 f_s / RBW samples, ``averages`` of them
-    power-averaged with 50 % overlap, then ``points`` display points through the
-    ``detector``. The input attenuator follows the reference level unless set by hand;
-    every dB of it raises the displayed noise floor by a dB.
+    2.56 f_stop, Hann records of N = 1.5 f_s / RBW samples, as many as the video
+    bandwidth asks (:func:`vbw_records`) power-averaged with 50 % overlap, then
+    ``points`` display points through the ``detector``. The input attenuator follows
+    the reference level unless set by hand; every dB of it raises the displayed noise
+    floor by a dB.
     """
 
     category = "instrument"
     prefix = "ESA"
     label = "RF spectrum analyzer"
-    description = "Electrical spectrum: RBW, averaging, dBm into 50 Ω"
+    description = "Electrical spectrum: RBW, VBW, averaging, dBm into 50 Ω"
     inputs = ("inp",)
 
     running = Param(True, label="Run")
@@ -1282,13 +1325,28 @@ class SpectrumAnalyzer(Component):
         log=True,
         doc="Noise bandwidth of the resolution filter: one record lasts 1.5 / RBW",
     )
-    averages = Param(
-        10,
-        label="Averages per sweep",
-        min=1,
-        max=2000,
-        presets=(1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000),
-        doc="Records power-averaged in every sweep (Welch, 50 % overlap)",
+    auto_vbw = Param(
+        True,
+        label="Auto VBW",
+        doc=(
+            "The video bandwidth follows the RBW, VBW = RBW: one record per sweep. Off:"
+            " the VBW set by hand"
+        ),
+    )
+    vbw = Param(
+        10e3,
+        unit="Hz",
+        label="Video bandwidth",
+        min=1.0,
+        max=10e6,
+        presets=RBWS,
+        log=True,
+        doc=(
+            "Used with auto VBW off. Smooths the noise within each sweep, as an"
+            " analyzer's video filter does: the trace scatters less as RBW/VBW grows,"
+            " and its level stays. phoq power-averages about 0.475 RBW/VBW + 0.62"
+            " records per sweep, the count that scatters as a one-pole video filter"
+        ),
     )
     detector = Param(
         "peak",
@@ -1302,13 +1360,13 @@ class SpectrumAnalyzer(Component):
         "write",
         choices=("write", "average", "max hold"),
         doc=(
-            "write: each sweep replaces the trace; average: running mean over the last"
-            " average count of sweeps; max hold: the largest seen"
+            "write: each sweep replaces the trace; average: running mean over the sweep"
+            " count; max hold: the largest seen"
         ),
     )
-    average_count = Param(
+    sweep_count = Param(
         100,
-        label="Average count",
+        label="Sweep count",
         min=1,
         max=10000,
         presets=(1, 2, 5, 10, 20, 50, 100, 200, 500, 1000),
@@ -1414,10 +1472,58 @@ class SpectrumAnalyzer(Component):
 
     def set(self, **params) -> SpectrumAnalyzer:
         """As Component.set, units first: they move the reference level, which a
-        ``ref_level`` given with them then overrides."""
+        ``ref_level`` given with them then overrides. ``averages`` (deprecated), the
+        records per sweep before the video bandwidth set them, becomes the VBW that
+        gives as many; ``average_count`` (deprecated) is ``sweep_count``."""
         if "units" in params:
             params = {"units": params.pop("units"), **params}
-        return super().set(**params)
+        averages = params.pop("averages", None)
+        count = params.pop("average_count", None)
+        super().set(**params)
+        if averages is not None:
+            self.averages = averages
+        if count is not None:
+            self.average_count = count
+        return self
+
+    @property
+    def average_count(self) -> int:
+        """The sweep count, under its former name (deprecated)."""
+        import warnings
+
+        warnings.warn(COUNT_RENAMED, DeprecationWarning, stacklevel=2)
+        return self.sweep_count
+
+    @average_count.setter
+    def average_count(self, count: int) -> None:
+        import warnings
+
+        warnings.warn(COUNT_RENAMED, DeprecationWarning, stacklevel=2)
+        self.sweep_count = count
+
+    @property
+    def averages(self) -> int:
+        """Records per sweep, now set by the video bandwidth (deprecated)."""
+        import warnings
+
+        warnings.warn(
+            f"{AVERAGES_GONE}; record()[2] reads them", DeprecationWarning, stacklevel=2
+        )
+        return self.record()[2]
+
+    @averages.setter
+    def averages(self, k: int) -> None:
+        import warnings
+
+        spec = self.param_specs()["vbw"]
+        vbw = VBW_SLOPE * self.record()[3] / (max(1, int(k)) - VBW_OFFSET)
+        self.set(auto_vbw=False, vbw=min(max(vbw, spec.min), spec.max))
+        warnings.warn(
+            f"{AVERAGES_GONE}: averages={k} became vbw={fmt_si(self.vbw, 'Hz')},"
+            f" {self.record()[2]} records per sweep",
+            DeprecationWarning,
+            stacklevel=2,
+        )
 
     def param_units(self) -> dict[str, str]:
         return {"ref_level": self.units}
@@ -1455,9 +1561,10 @@ class SpectrumAnalyzer(Component):
 
     def ui_fields(self):
         atten = "max_mixer_level" if self.auto_attenuation else "attenuation"
-        count = ["average_count"] if self.trace == "average" else []
+        vbw = [] if self.auto_vbw else ["vbw"]
+        count = ["sweep_count"] if self.trace == "average" else []
         return [
-            "running", "start_freq", "stop_freq", "rbw", "averages", "detector",
+            "running", "start_freq", "stop_freq", "rbw", "auto_vbw", *vbw, "detector",
             "trace", *count, "units", "ref_level", "auto_attenuation", atten,
             "db_per_div", "points", "input_impedance", "noise_floor",
         ]  # fmt: skip
@@ -1478,13 +1585,23 @@ class SpectrumAnalyzer(Component):
         """(sample rate, samples per record, records per sweep, effective RBW) for the
         settings.
 
-        The sweep is capped at MAX_SAMPLES: fewer averages first, then a coarser RBW."""
+        The video bandwidth sets the records per sweep (:func:`vbw_records`). The sweep
+        is capped at MAX_SAMPLES: fewer records (a wider VBW) first, then a coarser
+        RBW."""
         fs = 2.56 * self.stop_freq
         n = max(16, int(round(1.5 * fs / self.rbw)))
         n = min(n, MAX_SAMPLES)
         hop = n // 2
-        k = max(1, min(self.averages, (MAX_SAMPLES - n) // hop + 1))
-        return fs, n, k, 1.5 * fs / n
+        rbw = 1.5 * fs / n
+        k = vbw_records(rbw, rbw if self.auto_vbw else self.vbw)
+        return fs, n, max(1, min(k, (MAX_SAMPLES - n) // hop + 1)), rbw
+
+    def video_bandwidth(self) -> float:
+        """The VBW in use [Hz]: set by hand, or with auto VBW the RBW in use; wider when
+        a capped sweep has fewer records than the VBW asks for (:meth:`record`)."""
+        k, rbw = self.record()[2:]
+        vbw = rbw if self.auto_vbw else self.vbw
+        return vbw if k >= vbw_records(rbw, vbw) else VBW_SLOPE * rbw / (k - VBW_OFFSET)
 
     def info(self):
         fs, n, k, rbw = self.record()
@@ -1492,13 +1609,17 @@ class SpectrumAnalyzer(Component):
         out = {
             "Sweep": f"{fmt_si(fs, 'S/s')}, {k} × {fmt_si(n / fs, 's')} records",
             "RBW used": fmt_si(rbw, "Hz"),
+            "VBW used": (
+                f"{fmt_si(self.video_bandwidth(), 'Hz')}"
+                f" ({'auto' if self.auto_vbw else 'by hand'})"
+            ),
             "Input attenuation": (
                 f"{att:g} dB ({'auto' if self.auto_attenuation else 'by hand'})"
             ),
             "DANL": f"{self.noise_floor + att:g} dBm/Hz, the attenuation included",
         }
         if self.trace == "average":
-            out["Trace"] = f"average of {self._sweeps}/{self.average_count} sweeps"
+            out["Trace"] = f"average of {self._sweeps}/{self.sweep_count} sweeps"
         elif self.trace != "write":
             out["Trace"] = f"{self.trace} of {self._sweeps} sweeps"
         return out
@@ -1574,8 +1695,8 @@ class SpectrumAnalyzer(Component):
             and self._trace is not None
             and self._trace.size == shown.size
         ):
-            # from average_count sweeps on, each new one weighs 1/average_count
-            n = min(self._sweeps, self.average_count - 1)
+            # from sweep_count sweeps on, each new one weighs 1/sweep_count
+            n = min(self._sweeps, self.sweep_count - 1)
             self._trace = (self._trace * n + shown) / (n + 1)
             self._sweeps = n + 1
         elif (
@@ -1595,6 +1716,7 @@ class SpectrumAnalyzer(Component):
             fd,
             10 * np.log10(np.maximum(self._trace, 1e-30) / 1e-3),
             rbw,
+            self.video_bandwidth(),
             start,
             stop,
             self.ref_level,
@@ -1609,7 +1731,7 @@ class SpectrumAnalyzer(Component):
             self.units,
             self.input_attenuation(),
             self.trace,
-            self.average_count,
+            self.sweep_count,
         )
 
     def _detect(self, f: np.ndarray, power: np.ndarray, fd: np.ndarray) -> np.ndarray:
