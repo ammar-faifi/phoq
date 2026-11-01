@@ -1096,8 +1096,10 @@ span:
 5. **Averaging.** Within a sweep, the video bandwidth (`vbw`) smooths the noise, as an analyzer's
    video filter does: $K$ records, 50 % overlapped (Welch), are power-averaged, with
    $`K = 0.475\,\mathrm{RBW}/\mathrm{VBW} + 0.62`$ (rounded), the count whose scatter matches a
-   one-pole video filter after a Gaussian RBW filter. FFT analyzers emulate the VBW the same way.
-   The noise trace then fluctuates by about $4.3/\sqrt{K}$ dB, and its level stays. With
+   one-pole video filter on the power scale, after a Gaussian RBW filter. FFT analyzers emulate the
+   VBW the same way. The noise trace then fluctuates by about $4.3/\sqrt{K}$ dB, and its level
+   stays; an analyzer with its video filter on the log scale scatters 15–20 % more and reads noise
+   2.5 dB low (see [Checked against the literature](#checked-against-the-literature)). With
    `auto_vbw`, VBW = RBW: one record. Across sweeps, the trace can be written fresh each sweep,
    averaged, or held at its maximum (`trace`). The trace average counts sweeps up to `sweep_count`
    (100, R&S's Sweep Count) and then runs on, as an analyzer's does in continuous sweep: each new
@@ -1415,7 +1417,7 @@ errors (which cost Gehring 7.23 of their 10.74 bits), and drifts that would brea
 
 ### Checked against the literature
 
-The models above were compared with twelve references (October 2026):
+The models above were compared with fifteen references (October–November 2026):
 
 - *S. J. van Enk, "Coherent states, beam splitters and photons".* §8 and §12–14: a laser mode is
   a coherent state with Poissonian photon number $P(n) = e^{-|\alpha|^2}|\alpha|^{2n}/n!$ and mean
@@ -1550,6 +1552,44 @@ The models above were compared with twelve references (October 2026):
     bits exactly.
   - Not modeled: their NIST SP 800-90B assessment, SHA3-384 conditioning and SP 800-22 suite, which
     phoq replaces with a Toeplitz extractor and three quick checks.
+- *Agilent, "Spectrum and Signal Analyzer Measurements and Noise", application note 5966-4008E
+  (2012).*
+  - p. 8: the log of the average is not the average of the log, so averaging noise on a log scale
+    reads 2.51 dB low. phoq averages power: 400 sweeps of its noise floor read 0.02 dB from the true
+    level when averaged in watts, and 2.51 dB below that when averaged in dB.
+  - p. 19: noise scatters 4.35 dB/√N on the power scale and 5.57 dB/√N on the log scale. phoq's
+    trace scatters 5.58 dB at one record, where nothing is averaged yet, and 0.65 dB at 48 records,
+    which count as 45.5 independent readings: 4.35/√45.5 = 0.645 dB.
+  - pp. 15, 20, 22: the averaging scale is independent of the display scale, and the video filter
+    runs on a log scale on most analyzers, on a power scale on its PSA and X-Series. phoq shows dBm
+    and averages on the power scale only: in the video filter, the detector and the trace average.
+  - pp. 21–22: the rule σ = 9.3 dB·√(VBW/RBW), times about 0.8 on the power scale, runs high for a
+    one-pole filter. At RBW/VBW = 100 it gives 0.93 and 0.74 dB for the note's four-pole RBW filter,
+    where the exact variance and a simulation give 0.68 and 0.59 dB. So phoq's
+    $`K = 0.475\,\mathrm{RBW}/\mathrm{VBW} + 0.62`$ does not come from it. Nor does the 15–20 % in
+    [RF spectrum analyzer](#rf-spectrum-analyzer): the note's ratio of 5.57 to 4.35 is for
+    independent readings, and a one-pole filter's are correlated.
+  - Tests in `tests/test_spectrum.py` check the scatter and the power-scale trace average.
+  - Not modeled: log and voltage averaging (1.05 dB low, p. 6), and so how the 2.51 dB builds up
+    with RBW/VBW (Fig. 13, p. 15); peak-detected noise (pp. 17–18); channel power and ACP (pp.
+    14–16); noise subtraction and noise floor extension (p. 25).
+- *Keysight, "Spectrum Analyzer Basics: Fundamentals of Swept-Tuned, Superheterodyne Spectrum
+  Analyzers", white paper 3123-1730.EN (2026).* pp. 22–26, the display detectors: a bucket is
+  span/(points − 1), and phoq's *peak* takes its maximum, *sample* its value at the center, and
+  *average* the power mean of all its bins, which the paper calls power (RMS) averaging. Not
+  modeled: negative peak, normal and quasi-peak detection, voltage and log-power averaging, and the
+  sweep-time limit of a swept filter (pp. 20–21).
+- *Rohde & Schwarz, "Instrument Fundamentals: Spectrum Analyzers", seminar slides (PDF of March
+  2023).*
+  - Slides 11–13, the detectors: its RMS detector is a power average that reports the true noise
+    power, and phoq's *average* detector is that one. Its Average detector is a voltage average,
+    1.05 dB low, which phoq does not have. Its sample detector with a trace average runs on a log
+    scale, 2.51 dB low; phoq's stays on the power scale, so it reads 2.51 dB above that setting.
+  - Slides 22–24 and 29: a narrower VBW smooths the trace, leaves the level alone and slows the
+    sweep. phoq's scatter falls from 5.5 dB at one record to 0.65 dB at 48, with the mean power
+    within 0.01 dB, and the cost of a sweep grows with the records.
+  - Not modeled: the compression behind the reference-level advice (slides 9–10), and the Auto Peak
+    and negative peak detectors (slide 11).
 
 ## Quantum protocols
 

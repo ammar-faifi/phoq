@@ -395,11 +395,13 @@ resolution bandwidth against frequency, in dBm into its input impedance.
   ($1.5/\mathrm{RBW}$ seconds), and the RBW is a noise bandwidth.
 - **Averaging.** The video bandwidth sets $`K = 0.475\,\mathrm{RBW}/\mathrm{VBW} + 0.62`$ records
   (rounded, `vbw_records()`), overlapped by half (Welch) and power-averaged per sweep. A one-pole
-  video filter after a Gaussian RBW filter averages about
+  video filter on the power scale, after a Gaussian RBW filter, averages about
   $`(\sqrt2/\pi)\,\mathrm{RBW}/\mathrm{VBW} + 2/\pi`$ independent readings of noise, and $K$ Hann
   records at 50 % overlap count as $(18/19)K + 0.05$ of them, so the trace scatters as a swept
-  analyzer's does at that VBW. Auto VBW is the RBW: one record. A sweep is capped at 4 million
-  samples: fewer records (a wider VBW, the *VBW used*) first, then a coarser RBW.
+  analyzer's does at that VBW. An analyzer with its video filter on the log scale scatters 15–20 %
+  more (0.75 dB against 0.64 dB at RBW/VBW = 100) and reads noise 2.5 dB low; phoq has no such
+  mode. Auto VBW is the RBW: one record. A sweep is capped at 4 million samples: fewer records (a
+  wider VBW, the *VBW used*) first, then a coarser RBW.
 - **Signal.** Simulated at $4f_s$, then low-passed and decimated by a polyphase FIR (`resample_poly`).
   Unlike the scope's point sampling, a signal above the span does not fold into it. A photodiode's
   current becomes a voltage across the input impedance; the input is AC-coupled, so the mean is
@@ -540,11 +542,11 @@ with the time average of synthesized fields: 0.1085 mW against 0.1091 ± 0.0016 
   sub-bins shorter than the pulses (a quarter of the width: the overlap is right to 2 %). Channel
   delays are set by hand (`examples/dli_for_cow.py` computes its 9.8 ns from the traced paths); there
   is no arrival-time histogram to read them from.
-- Spectrum analyzer: FFT method only (no video bandwidth, swept-filter artifacts, spurs or local-
-  oscillator phase noise), a white noise floor, and an input attenuator that sets only that floor:
-  no mixer compression or overload, so a signal above the reference level still reads right. The
-  lab window shows a plain Lorentzian half width, which assumes a delay much longer than the
-  coherence time; the short-delay fit runs from Python.
+- Spectrum analyzer: FFT method on the power scale only (no log-scale video filter, swept-filter
+  artifacts, spurs or local-oscillator phase noise), a white noise floor, and an input attenuator
+  that sets only that floor: no mixer compression or overload, so a signal above the reference level
+  still reads right. The lab window shows a plain Lorentzian half width, which assumes a delay much
+  longer than the coherence time; the short-delay fit runs from Python.
 
 **Time and statistics**
 
