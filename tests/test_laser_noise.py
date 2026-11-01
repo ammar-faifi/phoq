@@ -31,7 +31,7 @@ def test_photodiode_reads_shot_thermal_and_intensity_noise(rin):
             rbw=30e3,
             auto_vbw=False,
             vbw=300.0,
-            detector="average",
+            detector="rms",
             noise_floor=-200.0,
         )
     )

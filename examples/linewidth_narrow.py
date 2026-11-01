@@ -73,7 +73,7 @@ def build(
             rbw=rbw or linewidth / 10,
             auto_vbw=False,
             vbw=1.0,
-            detector="average",
+            detector="rms",
             trace="average",
             ref_level=-40.0,
         )

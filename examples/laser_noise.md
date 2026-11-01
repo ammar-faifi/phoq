@@ -176,7 +176,7 @@ flowchart TD
 
 The script turns the analyzer's PSD back into the noise of the photocurrent. RF OUTPUT drives the
 analyzer's 50 Ω from 50 Ω, so the analyzer sees half of $`G\,i`$. The detector's pole $|H(f)|^2$ is
-divided out bin by bin. phoq's analyzer averages power, an rms detector. A real analyzer that
+divided out bin by bin. phoq's analyzer averages power, an RMS detector. A real analyzer that
 averages in log units reads noise low, which is the roughly 2 dB correction [RP][rp-int] mentions;
 phoq needs none.
 

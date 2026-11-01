@@ -1107,7 +1107,10 @@ span:
    sweep (`Runner.sweep`) clears the trace at each step, so each reading holds that value alone.
 6. **Display.** `points` frequencies from `start_freq` to `stop_freq`. Each point takes the bins in
    its bucket through the `detector`: *peak* (the largest: tones read right even when a bucket is
-   wider than the RBW), *average* (mean power: right for noise) or *sample*. The top line is
+   wider than the RBW), *RMS* (`rms`, the mean power: right for noise) or *sample*. An analyzer's
+   RMS detector takes its samples over its dwell on the point, so a slower sweep smooths it. phoq
+   has no sweep time: its samples are the bins in the bucket and the records of the sweep. R&S's
+   Average detector, a voltage average that reads noise 1.05 dB low, is not modeled. The top line is
    `ref_level`, in the display units (`units`), with `db_per_div` over ten divisions.
 7. **Instrument noise.** The displayed average noise level (`noise_floor`, dBm/Hz, at 0 dB input
    attenuation) is added at the input as white noise; the photodiode's shot noise $2qI$ and thermal
@@ -1213,14 +1216,14 @@ must exceed 7.3 µs, about 1.5 km of SMF-28 (19 µs, 3.9 km, by the six-coherenc
 gives $e^{-31}$.
 
 **Choosing the analyzer settings.** RBW ≤ Δν/10, so the RBW filter does not widen the line; a
-span of at least 20 Δν, so the wings and the floor are both on screen; the *average* detector and
+span of at least 20 Δν, so the wings and the floor are both on screen; the *RMS* detector and
 a VBW of RBW/100 or less, or a trace average, because the beat is noise, not a tone. The review
 makes the same points about the analyzer's resolution and sweep time, and asks for repeated
 measurements reported with their mean and standard deviation (§4.1).
 
 **Try it.** `examples/linewidth_homodyne.py` builds the bench above — a 100 kHz laser, two 50:50
 couplers, a 10 km spool, an attenuator that gives the short arm the spool's loss, a photodiode and
-the analyzer at 0–2 MHz, RBW 5 kHz, VBW 1 Hz, average detector — and measures:
+the analyzer at 0–2 MHz, RBW 5 kHz, VBW 1 Hz, RMS detector — and measures:
 
 ```bash
 phoq run examples/linewidth_homodyne.py --plot dsh.png
@@ -1576,15 +1579,18 @@ The models above were compared with fifteen references (October–November 2026)
 - *Keysight, "Spectrum Analyzer Basics: Fundamentals of Swept-Tuned, Superheterodyne Spectrum
   Analyzers", white paper 3123-1730.EN (2026).* pp. 22–26, the display detectors: a bucket is
   span/(points − 1), and phoq's *peak* takes its maximum, *sample* its value at the center, and
-  *average* the power mean of all its bins, which the paper calls power (RMS) averaging. Not
+  *RMS* the power mean of all its bins, which the paper calls power (RMS) averaging. Not
   modeled: negative peak, normal and quasi-peak detection, voltage and log-power averaging, and the
   sweep-time limit of a swept filter (pp. 20–21).
 - *Rohde & Schwarz, "Instrument Fundamentals: Spectrum Analyzers", seminar slides (PDF of March
   2023).*
   - Slides 11–13, the detectors: its RMS detector is a power average that reports the true noise
-    power, and phoq's *average* detector is that one. Its Average detector is a voltage average,
-    1.05 dB low, which phoq does not have. Its sample detector with a trace average runs on a log
-    scale, 2.51 dB low; phoq's stays on the power scale, so it reads 2.51 dB above that setting.
+    power. phoq's *RMS* detector computes the same formula, on the bins and records of a sweep
+    rather than samples over a pixel's dwell, and reads noise 0.01 dB from true. Its Average
+    detector is a voltage average, 1.05 dB low, which phoq does not have: that formula reads 1.01 dB
+    low on phoq's bins. A test in `tests/test_spectrum.py` checks both. Its sample detector with a
+    trace average runs on a log scale, 2.51 dB low; phoq's stays on the power scale, so it reads
+    2.51 dB above that setting.
   - Slides 22–24 and 29: a narrower VBW smooths the trace, leaves the level alone and slows the
     sweep. phoq's scatter falls from 5.5 dB at one record to 0.65 dB at 48, with the mean power
     within 0.01 dB, and the cost of a sweep grows with the records.

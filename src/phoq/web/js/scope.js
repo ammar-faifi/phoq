@@ -255,7 +255,7 @@ export class SpectrumDisplay {
     const tr = f.trace === 'average' ? ` · average of ${f.sweeps}/${f.sweep_count} sweeps`
       : f.sweeps > 1 ? ` · trace of ${f.sweeps} sweeps` : '';
     const dc = relative ? ` · DC ${f.dc_dbm != null ? `${f.dc_dbm.toFixed(1)} dBm` : 'none'}` : '';
-    g.fillText(`${f.source ?? 'no input'} · ${f.detector} detector${tr}${dc}`, 14, 36);
+    g.fillText(`${f.source ?? 'no input'} · ${f.detector.replace('rms', 'RMS')} detector${tr}${dc}`, 14, 36);
     const m = f.meas ?? {};
     g.font = '500 18px ui-monospace, Menlo, monospace';
     if (relative && !f.n) {
@@ -462,7 +462,7 @@ export class ScopePanel {
     e.vbw.innerHTML = [`<option value="auto">Auto${p.auto_vbw && vbwUsed ? ` · ${esc(vbwUsed)}` : ''}</option>`,
       ...vbws.map((v) => `<option value="${v}">${esc(fmtSI(v, 'Hz'))}</option>`)].join('');
     e.vbw.value = p.auto_vbw ? 'auto' : String(p.vbw);
-    fill(e.det, 'detector', (v) => v);
+    fill(e.det, 'detector', (v) => v.replace('rms', 'RMS'));
     fill(e.trace, 'trace', (v) => v);
     fill(e.count, 'sweep_count', (v) => String(v));
     e.count.closest('label').hidden = p.trace !== 'average';

@@ -66,7 +66,7 @@ def test_the_empty_input_shows_the_noise_floor_in_the_rbw():
             rbw=10e3,
             auto_vbw=False,
             vbw=20.0,
-            detector="average",
+            detector="rms",
             noise_floor=-145.0,
             ref_level=-40.0,  # low enough for no input attenuation
         )
@@ -85,7 +85,7 @@ def test_the_empty_input_shows_the_noise_floor_in_the_rbw():
     )
     avg = sweep(
         SpectrumAnalyzer(
-            "A", stop_freq=5e6, rbw=10e3, auto_vbw=False, vbw=200.0, detector="average"
+            "A", stop_freq=5e6, rbw=10e3, auto_vbw=False, vbw=200.0, detector="rms"
         ),
         s,
     )
@@ -123,7 +123,7 @@ def test_the_attenuator_raises_the_floor_and_leaves_a_tone_in_place():
             vpp=0.01,
             auto_vbw=False,
             vbw=100.0,
-            detector="average",
+            detector="rms",
             auto_attenuation=False,
             attenuation=atten,
         )
@@ -162,7 +162,7 @@ def test_shot_noise_of_a_photodiode():
             rbw=100e3,
             auto_vbw=False,
             vbw=200.0,
-            detector="average",
+            detector="rms",
             noise_floor=-200,
         )
     )
@@ -195,7 +195,7 @@ def test_trace_average_max_hold_and_clearing():
             auto_vbw=False,
             vbw=5e3,
             trace="average",
-            detector="average",
+            detector="rms",
         )
     )
     net, rng = trace(s), np.random.default_rng(2)
@@ -317,6 +317,60 @@ def test_average_count_is_now_the_sweep_count():
     r = sweep(a, Setup("empty"))
     with pytest.warns(DeprecationWarning, match="sweep_count"):
         assert r.average_count == r.sweep_count == 5
+
+
+def test_the_average_detector_is_now_rms():
+    with pytest.warns(DeprecationWarning, match="detector='rms'"):
+        a = SpectrumAnalyzer("ESA", detector="average")
+    assert a.detector == "rms"
+    a.detector = "peak"
+    with pytest.warns(DeprecationWarning, match="detector='rms'"):
+        a.detector = "average"
+    assert a.detector == "rms"
+    saved = {
+        "components": [
+            {
+                "name": "ESA",
+                "type": "SpectrumAnalyzer",
+                "params": {"detector": "average"},
+            }
+        ]
+    }
+    with pytest.warns(DeprecationWarning, match="detector='rms'"):
+        assert Setup.from_dict(saved)["ESA"].detector == "rms"
+    with pytest.raises(ValueError, match="not one of"):
+        a.detector = "voltage"
+
+
+def test_the_rms_detector_is_the_mean_power_of_its_bucket():
+    """R&S's RMS detector, V_rms²/R: the true noise power. V_ave²/R on the same bins,
+    its Average detector, reads about 1.05 dB low."""
+    s = Setup("floor")
+    a = s.add(
+        SpectrumAnalyzer(
+            "ESA",
+            stop_freq=50e6,
+            rbw=10e3,
+            points=101,
+            detector="rms",
+            noise_floor=-100.0,
+            auto_attenuation=False,
+            attenuation=0.0,
+        )
+    )
+    r = sweep(a, s)
+    edges = (r.freq[:-1] + r.freq[1:]) / 2
+    rms, ave = [], []
+    for lo, hi in zip(edges[:-1], edges[1:]):
+        p = r.bin_power[(r.bin_freq >= lo) & (r.bin_freq < hi)]
+        rms.append(p.mean())
+        ave.append(np.sqrt(p).mean() ** 2)
+    rms, ave = np.array(rms), np.array(ave)
+    assert 10 * np.log10(rms / 1e-3) == pytest.approx(r.level[1:-1], abs=1e-9)
+    assert 10 * math.log10(rms.mean() / 1e-3) == pytest.approx(
+        -100.0 + 10 * math.log10(r.rbw), abs=0.2
+    )
+    assert 10 * math.log10(ave.mean() / rms.mean()) == pytest.approx(-1.05, abs=0.1)
 
 
 def test_dbc_per_hz_reads_the_rin_of_the_detected_light():
@@ -463,7 +517,7 @@ def test_sub_coherence_delay_matches_the_review_eq_28_to_31():
                 rbw=5e3,
                 auto_vbw=False,
                 vbw=10.0,
-                detector="average",
+                detector="rms",
             )
         )
         s.connect(ld.out, bs1.a1)
@@ -525,7 +579,7 @@ def test_two_laser_heterodyne_width_is_the_sum_of_the_linewidths(nu_t, nu_r):
             rbw=5e3,
             auto_vbw=False,
             vbw=5.0,
-            detector="average",
+            detector="rms",
         )
     )
     s.connect(a.out, bs.a1)

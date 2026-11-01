@@ -59,7 +59,7 @@ def build(
             rbw=5e3,  # ≤ Δν / 10: the RBW does not widen the line
             auto_vbw=False,
             vbw=vbw,  # ≤ RBW / 100: smooths the beat's noise (10 Hz: 238 records)
-            detector="average",  # the beat is noise, not a tone
+            detector="rms",  # the beat is noise, not a tone
             trace="average",  # in the lab, sweeps keep averaging into the trace
             ref_level=-30.0,
         )

@@ -415,11 +415,12 @@ resolution bandwidth against frequency, in dBm into its input impedance.
   bins) and scaled as $P_k = 2|X_k|^2/(R_\mathrm{in}(\sum w_n)^2)$: a sine of amplitude $A$ reads
   $A^2/2R_\mathrm{in}$ whatever the RBW, and white noise reads its density times the RBW.
 - **Display.** `points` frequencies from start to stop. Each display point takes the FFT bins in its
-  bucket through the detector: *peak* (tones), *average* (noise) or *sample*. The trace mode
-  (*write*, *average*, *max hold*) combines sweeps. *average* is the mean of the sweeps so far
-  until `sweep_count` of them are in; from then on each new sweep weighs 1/`sweep_count` and
-  the sweep counter stays at the count. `Runner.sweep()` clears the trace at each step, so each
-  reading holds that value alone.
+  bucket through the detector: *peak* (tones), *RMS* (noise) or *sample*. *RMS* is the power mean
+  over the bins in the bucket and the $K$ records; a bucket too narrow to hold a bin keeps the
+  interpolated value, as *sample* does. The trace mode (*write*, *average*, *max hold*) combines
+  sweeps. *average* is the mean of the sweeps so far until `sweep_count` of them are in; from then
+  on each new sweep weighs 1/`sweep_count` and the sweep counter stays at the count.
+  `Runner.sweep()` clears the trace at each step, so each reading holds that value alone.
 - **Results and fits.** `SpectrumResult` keeps the display trace and the full-resolution bins
   (`psd()`): peak, median level, $N$ dB widths, integrated power, a Lorentzian fit, and
   `fit_self_homodyne(tau_d)` for a delayed self-homodyne at any delay. `SpectrumResult.average()`

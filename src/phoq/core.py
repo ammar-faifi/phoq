@@ -33,7 +33,8 @@ class Param:
 
     ``choices`` are enforced (for string options); ``presets`` are only suggested values
     that the visualizer offers in a drop-down. ``display=(unit, scale)`` shows e.g.
-    meters as nanometers.
+    meters as nanometers. ``renamed`` maps former choices to their new names: they still
+    work, with a deprecation warning.
     """
 
     def __init__(
@@ -46,6 +47,7 @@ class Param:
         min: float | None = None,
         max: float | None = None,
         choices=None,
+        renamed: dict[str, str] | None = None,
         presets=None,
         log: bool = False,
         display: tuple[str, float] | None = None,
@@ -57,6 +59,7 @@ class Param:
         self.min = min
         self.max = max
         self.choices = tuple(choices) if choices else None
+        self.renamed = renamed or {}
         self.presets = tuple(presets) if presets else None
         self.log = log
         self.display = display
@@ -102,6 +105,16 @@ class Param:
             raise TypeError(
                 f"{self.name}: expected {self.type}, got {value!r}"
             ) from None
+        if self.renamed and value in self.renamed:
+            import warnings
+
+            new = self.renamed[value]
+            warnings.warn(
+                f"{self.name}={value!r} is now {self.name}={new!r}",
+                DeprecationWarning,
+                stacklevel=3,
+            )
+            value = new
         if self.choices is not None and value not in self.choices:
             raise ValueError(
                 f"{self.name}: {value!r} is not one of {list(self.choices)}"

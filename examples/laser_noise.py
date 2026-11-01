@@ -101,7 +101,7 @@ def build(
             rbw=10e3,
             auto_vbw=False,
             vbw=100.0,  # RBW/100: 48 records a sweep
-            detector="average",
+            detector="rms",
             ref_level=-80.0,
         )
     )  # 48 records × 80 RBWs in BAND: ±1.7 % a reading in theory, ±1.9 % measured
@@ -128,7 +128,7 @@ def noise_density(setup: Setup, seed: int = 1, sweeps: int = 1) -> float:
     """S_I [A²/Hz]: the analyzer's PSD over BAND, referred to the photocurrent the
     amplifier sees. RF OUTPUT drives the analyzer's 50 Ω from 50 Ω, so the analyzer gets
     half of G·i; the detector's pole |H(f)|² is divided out bin by bin. The analyzer
-    averages power (an rms detector), so no correction for noise is needed, unlike a
+    averages power (an RMS detector), so no correction for noise is needed, unlike a
     log-averaging one (RP Photonics, "Intensity noise").
     """
     bpd, esa = setup["BPD-1"], setup["ESA-1"]

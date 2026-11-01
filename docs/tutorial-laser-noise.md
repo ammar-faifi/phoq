@@ -76,7 +76,7 @@ Then wire it:
    port's own type plugs onto it. Section 9 shows why this matters.
 4. **The analyzer.** Click **Oscilloscope** in the top bar to open the instrument panel. It shows
    the analyzer, ESA-1; if the panel is collapsed to its title bar, click its **+**. Set Start
-   **0**, Stop **2 MHz**, RBW **10 kHz**, VBW **100 Hz**, Detector **average**, Trace
+   **0**, Stop **2 MHz**, RBW **10 kHz**, VBW **100 Hz**, Detector **RMS**, Trace
    **average**, Ref **−60 dBm**, Scale **5 dB/div**. The green **RUN** in the title bar means it
    is acquiring. If it reads **STOP**, click it.
 
@@ -279,7 +279,7 @@ density, subtract 10·log₁₀(RBW), or set the analyzer's **Units** to **dBm/H
 opposite: its level doesn't change with RBW. Set the RBW back to 10 kHz. Two other settings:
 - **VBW** smooths the trace without moving the level: the narrower it is against the RBW, the more
   each sweep averages.
-- **Detector average** is the one for noise. **Peak** suits tones, and reads noise high whenever
+- **Detector RMS** is the one for noise. **Peak** suits tones, and reads noise high whenever
   a display point spans several analyzer bins (at these settings each holds one, so they agree).
 
 A real analyzer that averages in log units reads noise low, by about 2.5 dB, and needs a
@@ -339,7 +339,7 @@ The last two rows are the light's intensity noise; the first is not.
   The excess RIN describes the laser and survives attenuation; the measured RIN does not,
   because its shot-noise part 2q/I grows as you attenuate.
 - **The analyzer shows power in the RBW.** Subtract 10·log₁₀(RBW) for a density, and read noise
-  with the average detector.
+  with the RMS detector.
 - **Cap every spare port.** An open flat end turns phase noise into intensity noise.
 
 [oh-rin]: https://www.laserfocusworld.com/detectors-imaging/article/16548496/how-to-measure-relative-intensity-noise-in-lasers

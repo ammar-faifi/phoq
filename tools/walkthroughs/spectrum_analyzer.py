@@ -28,7 +28,7 @@ def bench():
     s = build(16.0, inputs=1)
     ld, esa = s["LD-1"], s["ESA-1"]
     ld.mode, ld.rep_rate, ld.mod_depth = "sine", 500e3, 0.002
-    esa.vbw, esa.points, esa.detector, esa.trace = 500.0, 201, "average", "average"
+    esa.vbw, esa.points, esa.detector, esa.trace = 500.0, 201, "rms", "average"
     return s
 
 
@@ -86,14 +86,14 @@ def capture() -> dict:
     start = min(esa.start_freq, stop * (1 - 1e-6))
     fd = np.linspace(start, stop, esa.points)
     modes = {}
-    for mode in ("sample", "peak", "average"):
+    for mode in ("sample", "peak", "rms"):
         esa.detector = mode
         modes[mode] = esa._detect(f, power, fd)
-    esa.detector = "average"
+    esa.detector = "rms"
 
     s2 = bench()
     res = s2["ESA-1"].acquire(trace(s2), np.random.default_rng(SEED))
-    mine = 10 * np.log10(np.maximum(modes["average"], 1e-30) / 1e-3)
+    mine = 10 * np.log10(np.maximum(modes["rms"], 1e-30) / 1e-3)
     assert np.allclose(mine, res.level, atol=1e-9), "replay differs from acquire()"
 
     # trace average (running) and the single sweeps behind it

@@ -1180,7 +1180,8 @@ class SpectrumResult:
         return (
             f"{self.instrument}: {fmt_si(self.start, 'Hz')} …"
             f" {fmt_si(self.stop, 'Hz')}, RBW {fmt_si(self.rbw, 'Hz')}, VBW"
-            f" {fmt_si(self.vbw, 'Hz')}, {self.detector} detector, atten"
+            f" {fmt_si(self.vbw, 'Hz')},"
+            f" {self.detector.replace('rms', 'RMS')} detector, atten"
             f" {self.attenuation:g} dB\n"
             f"  {self.source or 'no input'}: peak"
             f" {l0 + off:.1f} {unit} at {fmt_si(f0, 'Hz')}, −3 dB {fmt_si(lo, 'Hz')} …"
@@ -1352,10 +1353,11 @@ class SpectrumAnalyzer(Component):
     )
     detector = Param(
         "peak",
-        choices=("peak", "average", "sample"),
+        choices=("peak", "rms", "sample"),
+        renamed={"average": "rms"},
         doc=(
             "How the bins in each display point's bucket become one value: peak for"
-            " tones, average for noise"
+            " tones, RMS (the mean power, as R&S names it) for noise"
         ),
     )
     trace = Param(

@@ -123,7 +123,7 @@ footer { color: var(--muted); font-size: 13px; max-width: 90ch; }
     <h1>ESA Sweep, Line by Line</h1>
     <p class="lede">How phoq's RF spectrum analyzer turns a detector's voltage into the trace on its screen. The walk follows one sweep through <code>record()</code>, <code>acquire()</code>, <code>_signal()</code> and <code>_detect()</code> in the order they run. Every curve on the screen is the array that line produced on the bench below: the lines were replayed with the same random seed and checked against <code>acquire()</code> itself, to 10⁻¹³ dB.</p>
     <pre class="bench">laser 3 dBm, RIN −135 dBc/Hz, 0.2 % intensity sine at 500 kHz → VOA 16 dB → 50:50 → PDB450C INPUT+ (100 kV/A, 4 MHz) → ESA-1
-ESA-1: Start 0, Stop 2 MHz, RBW 10 kHz, VBW 500 Hz, 201 display points, detector average, trace average, Ref −80 dBm, attenuation auto, DANL −150 dBm/Hz</pre>
+ESA-1: Start 0, Stop 2 MHz, RBW 10 kHz, VBW 500 Hz, 201 display points, detector RMS, trace average, Ref −80 dBm, attenuation auto, DANL −150 dBm/Hz</pre>
   </header>
 
   <div class="main">
@@ -314,8 +314,8 @@ const S = [
     p: `np.interp reads the spectrum at each display frequency, interpolating between bins. That is the sample detector, and the fallback for any display point whose bucket holds no bin at all.`,
     c: [["mode", "sample"]] },
   { m: "_detect", a: 5, b: 6, sc: "zoom", mode: "sample", t: "Sample mode stops here",
-    p: `In sample mode, or with a single display point, that is the answer. This analyzer is set to average, so the code goes on.`,
-    c: [["detector", "average"]] },
+    p: `In sample mode, or with a single display point, that is the answer. This analyzer is set to RMS, so the code goes on.`,
+    c: [["detector", "rms"]] },
   { m: "_detect", a: 7, b: 10, sc: "zoom", mode: "edges", t: "One bucket per display point",
     p: `Each display point owns a bucket of the span, from halfway to its left neighbor to halfway to its right one: 10 kHz wide here, centered on the point.`,
     c: [["half", "5 kHz"], ["edges", "202"]] },
@@ -325,12 +325,12 @@ const S = [
   { m: "_detect", a: 17, b: 18, sc: "zoom", mode: "peak", t: "Peak detector",
     p: `Peak keeps the largest bin in each bucket. Right for tones, which it reads at full height, but on noise it reads high: across the span the median rises from −82.2 to −81.5 dBm.`,
     c: [["tone", "−47.2 dBm"], ["noise median", "−81.5 dBm"]] },
-  { m: "_detect", a: 19, b: 20, sc: "zoom", mode: "average", t: "Average detector",
-    p: `Average takes the mean power of the bins in the bucket: the noise power in the RBW, which is what a noise measurement wants. A tone narrower than the bucket gets diluted: here it reads −48.2 dBm, 1 dB under its peak.`,
+  { m: "_detect", a: 19, b: 20, sc: "zoom", mode: "rms", t: "RMS detector",
+    p: `RMS takes the mean power of the bins in the bucket: the noise power in the RBW, which is what a noise measurement wants. A tone narrower than the bucket gets diluted: here it reads −48.2 dBm, 1 dB under its peak.`,
     c: [["tone", "−48.2 dBm"], ["noise median", "−82.2 dBm"]] },
   { m: "_detect", a: 21, b: 21, sc: "modes", t: "Three detectors, one spectrum",
-    p: `_detect returns 201 values. The same spectrum, read three ways: sample and average agree on noise, peak sits higher; on the tone, peak and sample agree and average reads low.`,
-    c: [["sample", "−82.3 dBm"], ["peak", "−81.5 dBm"], ["average", "−82.2 dBm"]] },
+    p: `_detect returns 201 values. The same spectrum, read three ways: sample and RMS agree on noise, peak sits higher; on the tone, peak and sample agree and RMS reads low.`,
+    c: [["sample", "−82.3 dBm"], ["peak", "−81.5 dBm"], ["rms", "−82.2 dBm"]] },
   { m: "acquire", a: 29, b: 37, sc: "sweeps", t: "Trace average across sweeps",
     p: `With trace = average, the displayed trace is the running mean, in power, of this sweep and the earlier ones: (old·n + new)/(n + 1). n stops at sweep_count − 1, so once 100 sweeps are in, each new one weighs 1/100 and the counter stays at 100, as on an analyzer in continuous sweep: the trace still follows a change on the bench. After these 8 sweeps the trace has smoothed while its median stays put.`,
     c: [["sweeps", "8 / 100"]] },
@@ -647,7 +647,7 @@ const scenes = {
     } else dots(f, xs, ys, C.c4, 2.2);
     const key = s.mode === "edges" || s.mode === "counts" ? null : s.mode;
     if (key) {
-      const col = key === "peak" ? C.c3 : key === "average" ? C.tr : C.c2;
+      const col = key === "peak" ? C.c3 : key === "rms" ? C.tr : C.c2;
       const sel = pts.slice(0, Math.max(1, Math.ceil(pts.length * e)));
       clipTo(f); ctx.strokeStyle = col; ctx.lineWidth = 2.4;
       for (const [x, i] of sel) {
@@ -665,8 +665,8 @@ const scenes = {
     const e = ease(t);
     line(f, fd, D.modes.sample, C.c2, 1, e, 0.9);
     line(f, fd, D.modes.peak, C.c3, 1, Math.max(0, e * 1.3 - 0.15), 0.9);
-    line(f, fd, D.modes.average, C.tr, 1.4, Math.max(0, e * 1.6 - 0.4));
-    const rows = [["sample", C.c2], ["peak", C.c3], ["average", C.tr]];
+    line(f, fd, D.modes.rms, C.tr, 1.4, Math.max(0, e * 1.6 - 0.4));
+    const rows = [["sample", C.c2], ["peak", C.c3], ["rms", C.tr]];
     rows.forEach(([k, col], i) => label(`${k.padEnd(7)} median ${median(D.modes[k]).toFixed(2)}  tone ${D.modes[k][50].toFixed(1)}`, f.X(1.02e6), f.Y(-46 - i * 4.4), col, "left", sz(), 600));
   },
   sweeps(t) {
