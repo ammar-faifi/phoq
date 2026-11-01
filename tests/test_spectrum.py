@@ -580,6 +580,24 @@ def test_spectrum_average_and_its_guards():
         r1.fit_self_homodyne(0.0)
 
 
+@pytest.mark.parametrize("mode", ["write", "average", "max hold"])
+def test_average_spectrum_weighs_every_value_the_same(mode):
+    """The displayed trace agrees with the bins, whatever the trace mode: a running
+    trace would count the first value most, 3/4 of a trace average, all of a max hold,
+    and hold on to the sweeps from before."""
+    s, a = tone(freq=200e3, vpp=3.0, stop_freq=1e6, rbw=50e3, trace=mode)
+    runner, fg = Runner(s, seed=1), s["FG"]
+    runner.acquire(a)  # at another setting
+    r = runner.average_spectrum(a, fg, "ch1_vpp", [2.0, 1.0])
+    # 4 and 1 times the 2.5 mW of 1 Vpp into 50 Ω
+    expected = 10 * math.log10((4 + 1) / 2 * 2.5)
+    bins = 10 * math.log10(r.bin_power.max() / 1e-3)
+    assert r.peak[1] == pytest.approx(expected, abs=0.05)
+    assert bins == pytest.approx(expected, abs=0.05)
+    assert r.sweeps == 2 and fg.ch1_vpp == 3.0
+    assert a.acquire(trace(s), runner.rng).sweeps == 1  # nothing left to mix in
+
+
 def test_average_spectrum_restores_the_stepped_parameter():
     ex = narrow()
     setup = ex["build"](100.0, 500)

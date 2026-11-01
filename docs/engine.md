@@ -420,7 +420,8 @@ resolution bandwidth against frequency, in dBm into its input impedance.
 - **Results and fits.** `SpectrumResult` keeps the display trace and the full-resolution bins
   (`psd()`): peak, median level, $N$ dB widths, integrated power, a Lorentzian fit, and
   `fit_self_homodyne(tau_d)` for a delayed self-homodyne at any delay. `SpectrumResult.average()`
-  and `Runner.average_spectrum()` combine sweeps, e.g. over an interferometer's bias phase.
+  and `Runner.average_spectrum()` combine sweeps, e.g. over an interferometer's bias phase; the
+  latter clears the trace before each one, so a running trace does not weigh the first ones more.
 - **Cost.** About $4 \times N(K+1)/2$ simulated samples per sweep, times the number of paths: a
   narrow RBW over a wide span is slow, as on a real analyzer.
 

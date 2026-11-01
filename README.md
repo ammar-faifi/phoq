@@ -1123,7 +1123,8 @@ span:
    start of the span as a self-homodyne beat does, a Lorentzian fit (`fit_lorentzian()`).
    `fit_self_homodyne(tau_d)` fits the self-homodyne spectrum for any delay, below. Several
    sweeps combine with `SpectrumResult.average(results)`, and `Runner.average_spectrum(esa,
-   component, param, values)` steps a parameter (a phase shifter) and averages the sweeps.
+   component, param, values)` steps a parameter (a phase shifter) and averages the sweeps, each
+   on a cleared trace so that every value weighs the same whatever the trace mode.
 
 The cost of a sweep is about $`3.84\,f_\mathrm{stop}/\mathrm{RBW}\times(K+1)/2`$ samples (×4 before
 decimation), so a narrow RBW over a wide span is slow, as on a real analyzer, and so is a narrow

@@ -118,6 +118,10 @@ class Runner:
         the spectra (:meth:`~phoq.SpectrumResult.average`); the parameter is restored
         afterward.
 
+        Every sweep starts on a cleared trace and the trace is left cleared, so a trace
+        average or max hold on the analyzer neither weighs the first values more nor
+        mixes in other settings. Repeat a value for more sweeps at it.
+
         For a delayed self-homodyne, step a phase shifter in one arm over the bias
         phase: ``runner.average_spectrum(esa, ps, "phase", [0, math.pi / 2])``. The
         θ-dependent part of the beat varies as cos 2θ and sin 2θ, so two settings a
@@ -125,13 +129,16 @@ class Runner:
         """
         from .instruments import SpectrumResult
 
+        inst = self.setup[analyzer] if isinstance(analyzer, str) else analyzer
         comp = self.setup[component] if isinstance(component, str) else component
         original = getattr(comp, param)
         results = []
         try:
             for v in values:
                 setattr(comp, param, v)
-                results.append(self.acquire(analyzer))
+                inst.clear_trace()
+                results.append(self.acquire(inst))
         finally:
             setattr(comp, param, original)
+            inst.clear_trace()
         return SpectrumResult.average(results)

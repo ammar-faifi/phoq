@@ -104,7 +104,6 @@ def measure(
     Lorentzian fit and the −3 dB point, plus what as many sweeps at the first phase
     alone would have given."""
     runner, tau = Runner(setup, seed=seed), arm_delay(setup)
-    setup["ESA-1"].trace = "write"  # each sweep on its own: they are averaged here
 
     def at(thetas):
         steps = [theta for theta in thetas for _ in range(sweeps)]

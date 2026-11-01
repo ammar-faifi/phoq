@@ -1132,7 +1132,9 @@ class SpectrumResult:
     def average(cls, results) -> SpectrumResult:
         """Power-average sweeps taken with the same analyzer settings into one result
         (e.g. at several bias phases of an interferometer, for
-        :meth:`fit_self_homodyne`)."""
+        :meth:`fit_self_homodyne`). Each result weighs the same, and a running trace
+        average or max hold holds the sweeps before it too: clear the trace between
+        them, as :meth:`phoq.Runner.average_spectrum` does."""
         results = list(results)
         if not results:
             raise ValueError("nothing to average")
