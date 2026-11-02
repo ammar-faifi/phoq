@@ -249,10 +249,9 @@ class IntensityModulator(_Modulator):
         """rf voltage giving power transmission ``transmission``
         (clipped to [T_min, T_max]) on top of the bias."""
         t = np.clip(np.asarray(transmission, dtype=float), self.t_min, self.t_max)
-        return (
-            self.v_pi / np.pi * (np.arccos((2.0 * t - 1.0) / self.contrast) - self.phi0)
-            - self.bias_voltage()
-        )
+        # T_min and T_max can round to just outside the cosine's range
+        cos = np.clip((2.0 * t - 1.0) / self.contrast, -1.0, 1.0)
+        return self.v_pi / np.pi * (np.arccos(cos) - self.phi0) - self.bias_voltage()
 
     def info(self):
         out = super().info()
