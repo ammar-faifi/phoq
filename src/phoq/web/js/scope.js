@@ -551,6 +551,7 @@ export class ScopePanel {
       const left = Math.min(Math.max(0, start.left + e.clientX - start.x), start.pr.width - start.w);
       const top = Math.min(Math.max(0, start.top + e.clientY - start.y), start.pr.height - 40);
       Object.assign(this.el.style, { left: `${left}px`, top: `${top}px`, right: 'auto', bottom: 'auto' });
+      this.el.classList.add('moved');
     });
     handle.addEventListener('pointerup', () => { start = null; });
   }

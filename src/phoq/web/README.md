@@ -32,7 +32,7 @@ pass your own script that defines `setup`. To use another server, open the page 
 | AUTOSET / RUN | `Oscilloscope.autoset()` / the `running` parameter |
 | SINGLE | `Oscilloscope.arm()`: the scope waits for the first trigger, shows that one sweep and holds it (RUN resumes) |
 | BW / Sample in the scope window | the `bandwidth` and `sample_rate` parameters; the screen's status line shows the effective rate, bandwidth and record length |
-| Laptops (top bar) | one tab per laptop — a party's (`--protocol` / `--party`) or the lab PC (`--analysis`) — with its processes' output, status, read-outs and network counters, Stop / Restart (re-imports the script) / Clear; "Load script" attaches another file. Laptops sit along the front of the table and open their tab when clicked |
+| Laptops (top bar) | one tab per laptop — a party's (`--protocol` / `--party`) or the lab PC (`--analysis`) — with its processes' output, status, read-outs and network counters, Stop / Restart (re-imports the script) / Clear; "Load script" attaches another file. Drag the drawer's top edge to resize it (remembered in this browser). Laptops sit along the front of the table and open their tab when clicked |
 | Switch and Ethernet cables | the parties' classical channel (TCP on localhost); the switch is visual only, its port LEDs blink when a laptop sends or receives |
 | Export .py | downloads `setup.to_python()` |
 

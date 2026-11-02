@@ -392,8 +392,9 @@ goes on with the next batch.
 In the virtual lab every process lives on a laptop (its party's, or the lab PC for plain tasks):
 the **Laptops** drawer shows one tab per laptop with its processes' output, status, read-outs,
 Stop / Restart / Clear, and "Load script" to attach another file by path; clicking a laptop on
-the table opens it. The API is `GET /api/tasks`, `POST /api/tasks {path}` and
-`POST /api/tasks/{name}/{restart|stop|start|clear}`; the WebSocket streams `console` messages.
+the table opens it, and dragging the drawer's top edge resizes it. The API is `GET /api/tasks`,
+`POST /api/tasks {path}` and `POST /api/tasks/{name}/{restart|stop|start|clear}`; the WebSocket
+streams `console` messages.
 
 ## Parties and the classical channel
 

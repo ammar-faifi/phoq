@@ -40,7 +40,37 @@ export class ConsoleDrawer {
       const r = await lab.loadScript(input.value.trim());
       if (r) input.value = '';
     };
+    this.makeResizable($('con-resize'));
   }
+
+  /** Dragging the top edge sets the drawer's height, remembered in this browser; style.css keeps it in the view. */
+  makeResizable(handle) {
+    const view = document.getElementById('viewport');
+    const setHeight = (h) => view.style.setProperty('--console-drag', `${h}px`);
+    try {
+      const saved = Number(localStorage.getItem('phoq.consoleHeight'));
+      if (saved) setHeight(saved);
+    } catch { /* storage unavailable */ }
+    let start = null;
+    handle.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      start = { y: e.clientY, h: this.el.offsetHeight, follow: this.nearBottom() };
+      handle.setPointerCapture(e.pointerId);
+    });
+    handle.addEventListener('pointermove', (e) => {
+      if (!start) return;
+      setHeight(start.h + start.y - e.clientY);
+      if (start.follow) this.out.scrollTop = this.out.scrollHeight;
+    });
+    handle.addEventListener('lostpointercapture', () => {
+      start = null;
+      const h = this.el.offsetHeight;   // where it stopped, which the pointer may have gone past
+      setHeight(h);
+      try { localStorage.setItem('phoq.consoleHeight', h); } catch { /* storage unavailable */ }
+    });
+  }
+
+  nearBottom() { return this.out.scrollHeight - this.out.scrollTop - this.out.clientHeight < 40; }
 
   /** The laptops the server declares (parties first, then the lab PC). */
   setLaptops(list) {
@@ -123,7 +153,7 @@ export class ConsoleDrawer {
   renderActive(full, added = 0) {
     const p = this.procs.get(this.activeProc);
     if (!p) { this.out.textContent = ''; this.meta.innerHTML = ''; this.result.innerHTML = ''; return; }
-    const nearBottom = this.out.scrollHeight - this.out.scrollTop - this.out.clientHeight < 40;
+    const nearBottom = this.nearBottom();
     if (full || added === 0) this.out.textContent = p.lines.join('\n');
     else this.out.textContent += (this.out.textContent ? '\n' : '') + p.lines.slice(-added).join('\n');
     if (nearBottom || full) this.out.scrollTop = this.out.scrollHeight;
