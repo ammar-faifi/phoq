@@ -16,7 +16,7 @@ cv = load_protocol(Path(__file__).resolve().parents[1] / "examples" / "cow_vacuu
 bound = cv.bound
 
 # enough counts on every gain within a few blocks
-BRIGHT = cv.COWParams(mu=0.5, decoy1=0.25, decoy2=0.25)
+BRIGHT = cv.COWParams(mu=0.5)
 POINTS = [
     (0.02, 0.8, 0.5, 1e-8),
     (0.2, 0.25, 0.3, 1e-6),
@@ -156,11 +156,12 @@ def test_hardware_is_calibrated():
     setup = cv.build(p)
     assert cv.pulse_photons(setup, p) == pytest.approx(p.mu, rel=1e-9)
     assert 0.0 < setup["ALICE-VOA"].attenuation_db < 80.0
-    assert p.dark_count_rate == pytest.approx(4.34, abs=0.01)
+    assert p.dark_count_rate == pytest.approx(10.0, abs=0.01)
     arms = cv.common.arms
     short, long_ = arms(setup)
-    # the DLI: one slot, balanced by BOB-VOA
+    # the DLI: one slot, balanced by BOB-VOA, the delay line within its travel
     assert long_.delay - short.delay == pytest.approx(p.slot, abs=1e-15)
+    assert setup["BOB-ODL"].setting == pytest.approx(124e-12, abs=1e-12)
     assert abs(long_.amp) == pytest.approx(abs(short.amp), rel=1e-9)
     a, b = (cv.common.static_amplitude(q) for q in (short, long_))
     assert abs(np.angle(a / b)) < 1e-9  # a pair's pulses add on D_M0
@@ -172,11 +173,18 @@ def test_hardware_is_calibrated():
     assert dt + setup["TAGGER"].ch1_delay == pytest.approx(dm0, abs=1e-15)
 
 
+@pytest.mark.parametrize("rate", [434e6, 2e9])
+def test_a_slot_beyond_the_delay_lines_travel_is_refused(rate):
+    with pytest.raises(ValueError, match="BOB-ODL"):
+        cv.build(cv.COWParams(rate=rate))
+
+
 def test_the_four_states():
     kind = np.array([cv.BIT0, cv.BIT1, cv.DECOY1, cv.DECOY2])
     occ = cv.occupied(kind)
     assert occ.tolist() == [0, 1, 1, 0, 1, 1, 0, 0]  # bit 0: |0⟩|α⟩, as the paper
     assert cv.carving(occ)[:4].tolist() == [0, 0, 1, 0]
+    assert cv.params.probabilities == pytest.approx((0.25, 0.25, 0.25, 0.25))
     p = cv.COWParams(decoy1=0.1, decoy2=0.2)
     assert p.probabilities == pytest.approx((0.35, 0.35, 0.1, 0.2))
     drawn = np.bincount(cv.draw(np.random.default_rng(0), 100_000, p), minlength=4)
@@ -273,13 +281,14 @@ def test_the_default_link_reads_near_its_expected_bound():
 def test_the_default_operating_point():
     p = cv.COWParams()
     th = cv.theory(cv.build(p), p)
-    assert th["E_p^u"] == pytest.approx(0.278, abs=0.001)
+    assert th["E_p^u"] == pytest.approx(0.271, abs=0.001)
     assert th["E_b"] == pytest.approx(0.0021, abs=1e-4)
     assert th["Q"] == pytest.approx(9.4e-5, rel=0.01)
-    assert th["terms"]["beta"] == pytest.approx(0.181, abs=0.001)
-    assert th["terms"]["M0"] == pytest.approx(0.081, abs=0.001)
-    assert th["terms"]["M1"] == pytest.approx(0.016, abs=0.001)
-    assert th["coherence"] == pytest.approx(math.exp(-math.pi * 1e6 / 434e6))
+    assert th["terms"]["beta"] == pytest.approx(0.180, abs=0.001)
+    assert th["terms"]["M0"] == pytest.approx(0.080, abs=0.001)
+    assert th["terms"]["M1"] == pytest.approx(0.011, abs=0.001)
+    assert th["coherence"] == pytest.approx(math.exp(-math.pi * 1e6 / 1e9))
+    assert th["sifted / pair"] == pytest.approx(th["Q"] / 2)
 
 
 def cost_rows(th):
@@ -306,10 +315,10 @@ def test_what_the_real_bench_costs():
     expected = [
         (8.44e-3, 0.236, 7.91e-4),
         (4.15e-3, 0.239, 3.89e-4),
-        (1.67e-3, 0.250, 1.56e-4),
-        (1.52e-3, 0.253, 1.43e-4),
-        (1.38e-3, 0.259, 1.29e-4),
-        (9.35e-4, 0.272, 8.80e-5),
+        (1.70e-3, 0.250, 1.59e-4),
+        (1.61e-3, 0.251, 1.51e-4),
+        (1.45e-3, 0.257, 1.36e-4),
+        (9.89e-4, 0.270, 9.30e-5),
     ]
     for (ports, leak, v), (mu_want, e_want, q_want) in zip(cost_rows(th), expected):
         model = lambda m: cv.pair_gains(
@@ -360,15 +369,15 @@ def test_settings_show_in_the_terms_of_the_bound():
     assert broad["coherence"] < base["coherence"]
     assert broad["terms"]["M1"] > base["terms"]["M1"]
     none = expected(cv.COWParams(linewidth=10e9))
-    assert none["coherence"] < 1e-20
+    assert none["coherence"] < 1e-10
     assert none["E_p^u"] > 2 * base["E_p^u"]
     # the modulator's leak: a tenth of its power takes far less than nine tenths of the
     # term away, since the leak adds to the pulses in amplitude
     clean = expected(cv.COWParams(extinction_db=40.0))
     assert base["terms"]["M0"] / 10 < clean["terms"]["M0"] < base["terms"]["M0"] / 2
-    assert clean["E_p^u"] == pytest.approx(0.226, abs=0.002)
+    assert clean["E_p^u"] == pytest.approx(0.219, abs=0.002)
     # dark counts
-    dark = expected(cv.COWParams(p_d=100.0 / 434e6))
+    dark = expected(cv.COWParams(p_d=100.0 / 1e9))
     assert dark["terms"]["M1"] > 2 * base["terms"]["M1"]
     # too high a μ for the transmittance
     bright = expected(cv.COWParams(mu=5e-3))
@@ -383,14 +392,14 @@ def test_a_detuned_dli_counts_as_expected():
     setup = cv.build(p)
     setup["BOB-PS"].phase = setup["BOB-PS"].phase + math.radians(40)
     res = cv.run(p, blocks=6, seed=9, setup=setup)
-    assert res.expected["V"] == pytest.approx(math.cos(math.radians(40)) * 0.9928, 2e-3)
+    assert res.expected["V"] == pytest.approx(math.cos(math.radians(40)) * 0.9969, 2e-3)
     assert_gains_match(res.tally, res.expected["gains"])
 
 
 def test_no_shared_phase_counts_as_expected():
     """A very broad laser: the pair's pulses no longer interfere, as with a
     gain-switched source, and the data line does not change."""
-    p = cv.COWParams(mu=0.5, decoy1=0.25, decoy2=0.25, linewidth=10e9)
+    p = cv.COWParams(mu=0.5, linewidth=10e9)
     res = cv.run(p, blocks=6, seed=10)
     assert res.expected["V"] == pytest.approx(0.0, abs=1e-9)
     assert abs(res.tally.visibility) < 0.05
@@ -404,7 +413,7 @@ def test_counting_error_follows_the_spread():
     th = cv.theory(cv.build(p), p)
     rng = np.random.default_rng(3)
     share = dict(zip(cv.STATES, p.probabilities))
-    for blocks, spread in ((100, 0.076), (1000, 0.031), (5000, 0.012)):
+    for blocks, spread in ((100, 0.068), (1000, 0.022), (5000, 0.009)):
         sent = {s: int(200_000 * blocks * share[s]) for s in cv.STATES}
         readings, errors = [], []
         for _ in range(300):
@@ -417,7 +426,7 @@ def test_counting_error_follows_the_spread():
                 ]
             readings.append(cv.phase_error(p.mu, cv.gains_of(m)))
             errors.append(cv.counting_error(m, p.mu))
-        # the spread the plan quoted, and an error bar that is not smaller than it
+        # the spread the counts give, and an error bar that is not smaller than it
         assert np.std(readings) == pytest.approx(spread, rel=0.25)
         assert np.median(errors) == pytest.approx(np.std(readings), rel=1.0)
         assert np.median(errors) > 0.8 * np.std(readings)

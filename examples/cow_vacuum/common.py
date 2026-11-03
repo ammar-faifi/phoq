@@ -76,11 +76,11 @@ class Topic:
 
 @dataclass
 class COWParams:
-    rate: float = 434e6  # pulse clock: one slot τ = 2.30 ns, as in examples/cow
+    rate: float = 1e9  # pulse clock: one slot τ = 1 ns, 500 million pairs a second
     # photons per non-empty pulse into the fiber: near the best μ on this bench
     mu: float = 1e-3
-    decoy1: float = 0.1  # fraction of |α⟩|α⟩ pairs …
-    decoy2: float = 0.1  # … and of |0⟩|0⟩ pairs
+    decoy1: float = 0.25  # fraction of |α⟩|α⟩ pairs …
+    decoy2: float = 0.25  # … and of |0⟩|0⟩ pairs: the four states are equally likely
     # Bob's tap to the data line (a standard 50/50 coupler; the paper's model: 0.47)
     t_b: float = 0.5
     distance: float = 25e3  # Alice–Bob fiber [m]
@@ -136,7 +136,7 @@ def transmitter(setup: Setup, p: COWParams) -> Attenuator:
     """CW laser → intensity modulator (AWG CH1, two symbols per slot) → attenuators.
 
     A fixed 30 dB stands ahead of the VOA set to μ: the VOA's 80 dB alone would stop at
-    μ ≈ 2.6·10⁻³. The AWG's delay moves each pulse an eighth of a slot off center, so
+    μ ≈ 1.1·10⁻³. The AWG's delay moves each pulse an eighth of a slot off center, so
     that no pulse edge falls on the center of one of the tagger's two sub-bins per slot,
     which is where the field is sampled.
     """
@@ -171,9 +171,9 @@ def transmitter(setup: Setup, p: COWParams) -> Attenuator:
 def receiver(setup: Setup, p: COWParams, slots: int) -> Coupler:
     """Tap (t_B to D_T) → DLI → D_M0, D_M1, and a time tagger with one bin per slot.
 
-    The DLI's long arm must be one slot (0.47 m of fiber at 434 MHz) longer. Standard
-    cords give 0.5 m: 1 m + VOA + 1 m against 0.5 m + phase shifter + 0.5 m + delay line
-    + 0.5 m, so the delay line sits in the short arm and takes back the 145 ps the cords
+    The DLI's long arm must be one slot (0.20 m of fiber at 1 GHz) longer. The cords
+    give 0.25 m: 1 m + VOA + 0.5 m against 0.5 m + phase shifter + 0.25 m + delay line
+    + 0.5 m, so the delay line sits in the short arm and takes back the 224 ps the cords
     give too much; the VOA evens out the arms' losses.
     """
     tap = setup.add(Coupler("BOB-TAP", ratio=p.t_b))
@@ -181,10 +181,10 @@ def receiver(setup: Setup, p: COWParams, slots: int) -> Coupler:
     ps, odl = setup.add(PhaseShifter("BOB-PS"), OpticalDelayLine("BOB-ODL"))
     voa = setup.add(Attenuator("BOB-VOA", attenuation_db=0.0))
     setup.connect(bs1.b1, ps.p1, length=0.5)
-    setup.connect(ps.p2, odl.p1, length=0.5)
+    setup.connect(ps.p2, odl.p1, length=0.25)
     setup.connect(odl.p2, bs2.a1, length=0.5)
     setup.connect(bs1.b2, voa.p1, length=1.0)
-    setup.connect(voa.p2, bs2.a2, length=1.0)
+    setup.connect(voa.p2, bs2.a2, length=0.5)
     spd = dict(
         efficiency=p.efficiency,
         dark_count_rate=p.dark_count_rate,
