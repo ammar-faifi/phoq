@@ -272,6 +272,11 @@ def test_intensity_modulator_transfer_curve():
     im.phi0 = 0.4  # path imbalance shifts the curve
     assert im.transmission(-0.4 * im.v_pi / np.pi) == pytest.approx(im.t_max)
     assert im.transmission(im.voltage_for(0.3)) == pytest.approx(0.3)
+    # T_max and T_min can round to just outside the cosine's range
+    for extinction in (20.0, 22.0, 25.0, 28.0, 30.0, 35.0, 40.0, 60.0):
+        im = IntensityModulator(extinction_db=extinction)
+        want = (im.t_max, im.t_min)
+        assert im.transmission(im.voltage_for([1.0, 0.0])) == pytest.approx(want)
 
 
 def test_dc_supply_biases_modulators():

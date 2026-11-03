@@ -1421,7 +1421,7 @@ errors (which cost Gehring 7.23 of their 10.74 bits), and drifts that would brea
 
 ### Checked against the literature
 
-The models above were compared with fifteen references (October–November 2026):
+The models above were compared with sixteen references (October–November 2026):
 
 - *S. J. van Enk, "Coherent states, beam splitters and photons".* §8 and §12–14: a laser mode is
   a coherent state with Poissonian photon number $P(n) = e^{-|\alpha|^2}|\alpha|^{2n}/n!$ and mean
@@ -1556,6 +1556,24 @@ The models above were compared with fifteen references (October–November 2026)
     bits exactly.
   - Not modeled: their NIST SP 800-90B assessment, SHA3-384 conditioning and SP 800-22 suite, which
     phoq replaces with a Toeplitz extractor and three quick checks.
+- *R.-Q. Gao, Y.-M. Xie, J. Gu, W.-B. Liu, C.-X. Weng, B.-H. Li, H.-L. Yin and Z.-B. Chen, "Simple
+  security proof of coherent-one-way quantum key distribution", arXiv:2107.09329v5 (2023).*
+  - Appendix A: its gains, including those of the nonclassical $|0_x\rangle$, match an independent
+    calculation from coherent-state matrix elements of the no-click operators, and so does the
+    relation behind Eq. (5). Eq. (A5) follows from (A2)–(A4), and it brackets the true gains at every
+    point tested.
+  - Figs. 2, 3 and 5: `bound.optimum` gives $E_p^u$ from 0.174 at 0 km to 0.234 at 100 km (Fig. 3:
+    about 0.17 to 0.24, read off its axis), and the rate falling to 10⁻⁸ at 68, 89, 100, 76 and 88 km
+    (read off as 68, 90, 102, 76 and 88). The text's 0.005η² comes out as 0.0048η².
+  - Not stated in the paper: how the misalignment $e_a$ enters. Here it goes into both $E_b$ and the
+    |α,α⟩ monitoring gains, which gives those end points; on the data line alone it does not. Sec. III
+    also calls $T_0$ the earlier moment, where its states and Eq. (4) need the later one.
+  - Where the bench differs: the paper's gains put all of a pair's light into the interference, and
+    a passive one-slot DLI holds half of that in the pair's slot. Its proof assumes exact vacuum, and
+    a modulator leaks. `examples/cow_vacuum` counts what the hardware gives; see
+    [its section](#cow-with-a-vacuum-decoy-sequence-up-to-a-bound-on-the-phase-error-rate).
+  - `tests/test_cow_vacuum.py` repeats all of this. Not modeled: the zero-error attack or any other
+    attack on this variant, and finite-key effects.
 - *Agilent, "Spectrum and Signal Analyzer Measurements and Noise", application note 5966-4008E
   (2012).*
   - p. 8: the log of the average is not the average of the log, so averaging noise on a log scale
@@ -1936,6 +1954,153 @@ Bob's bit from one of her decoys is a coin toss and the QBER is 46 %. The net vi
 meaning anything as well: her decoys fill the slots where Alice sent nothing, the dark reference
 rises 7.5-fold, and net V₁₋₀ comes out near 2.
 
+### COW with a vacuum decoy sequence, up to a bound on the phase error rate
+
+`examples/cow_vacuum` runs the variant of Gao, Xie, Gu, Liu, Weng, Li, Yin & Chen, *Simple security
+proof of coherent-one-way quantum key distribution*, arXiv:2107.09329v5 (2023). The zero-error
+attack keeps the coherence between neighboring pulses that the visibility checks, so the paper stops
+relying on the visibility. Alice adds one state, and the security figure becomes an upper bound
+$E_p^u$ on the phase error rate, computed from what the monitoring line counts for each state she
+sent. The hardware does not change.
+
+The package stops at the sifted key, its bit error rate $E_b$ (the QBER) and $E_p^u$. Error
+correction and privacy amplification are not implemented, and the paper's key rate, Eq. (6), appears
+only in `bound.py`, to choose μ and to check its figures. No attack is simulated here.
+
+```bash
+phoq run --protocol cow_vacuum --blocks 20
+```
+
+```bash
+phoq serve --protocol cow_vacuum
+```
+
+**The states.** A pair takes two time slots: bit 0 is |0⟩|α⟩, bit 1 is |α⟩|0⟩, decoy sequence 1 is
+|α⟩|α⟩ and decoy sequence 2, the new one, is |0⟩|0⟩. The data detector D_T reads the bit from the
+time of arrival: T_0 is the slot where bit 0 has its pulse, and T_1 the other. (The paper's Sec. III
+calls T_0 the earlier moment, but its states and its Eq. (4) need it this way. Only the label
+differs.) A delay-line interferometer (DLI), one slot unbalanced, mixes a pair's two pulses in the
+pair's second slot, to D_M0 (constructive) and D_M1.
+
+**The bound.** The X-basis error rate of the paper's virtual protocol needs the gains of
+$|0_x\rangle \propto |0\rangle|\alpha\rangle + |\alpha\rangle|0\rangle$, which nobody can send. Its
+Eq. (A2) writes that state with the two decoy sequences and $|\beta,\beta\rangle$, the part of
+|α⟩|α⟩ with a photon in both pulses. Cauchy's inequality bounds the cross terms by gains Alice and
+Bob count, and $Q_{\beta\beta} \le 1$ is all that is known of the rest. `bound.terms` splits the
+resulting Eq. (7) into three parts that add up to $E_p^u$, each pointing at different settings:
+
+| Part | What it is | What raises it |
+| --- | --- | --- |
+| `beta` | the \|β,β⟩ terms, bounded with $Q_{\beta\beta} \le 1$ | too high a μ for the transmittance |
+| `M0` | what the \|α,α⟩ and \|0,0⟩ gains at D_M0 leave unexplained of a single pulse's | a modulator's leak, lost interference, dark counts |
+| `M1` | \|α,α⟩ and \|0,0⟩ clicks at D_M1, which should be dark | the laser's phase noise, the DLI's phase, dark counts |
+
+`beta` is most of it, and it grows with μ/η whatever Bob measures. So μ has to fall with the
+transmittance, which is where the paper's $R \propto \eta^2$ comes from. The bound also stands well
+above the error it bounds: at μ = 0.02 and η = 0.8 the true X-basis error rate is 0.003 and $E_p^u$
+is 0.169. The visibility does not see any of this: at `examples/cow`'s μ = 0.5, V on this bench is
+still 0.993, while Eq. (7) gives 11.7, which bounds nothing.
+
+**The bench.** The parts of `examples/cow` (434 MHz clock, 30 dB modulator, 25 km, 50/50 tap, the
+DLI in standard cords), with the paper's detectors: η_d = 80 % and $p_d$ = 10⁻⁸ per window, which at
+this clock is 4.3 Hz. The paper gives no clock rate, decoy shares or μ. Here each decoy sequence
+takes 10 % of the pairs and μ = 10⁻³, the best μ for this bench, 500 times below `examples/cow`'s.
+Another distance or modulator needs its own: `best_mu(setup, p)` finds it. Two things differ from
+`examples/cow`. A fixed 30 dB attenuator stands ahead of Alice's VOA, because −10 dBm and the VOA's
+80 dB limit stop at μ = 2.6·10⁻³. And the tagger runs two sub-bins per slot instead of four, with
+the AWG's delay moving each pulse an eighth of a slot off center, so that no pulse edge falls on a
+sub-bin's center. A block of 200,000 pairs takes 0.35 s on an idle core.
+
+**The protocol, per block:**
+
+1. Bob reduces each pair to one event: D_T in T_0 or T_1, or D_M0 or D_M1 in the pair's second slot.
+   If several clicked he takes one at random, the paper's squashing rule, and the monitoring
+   detectors' other slots are not used. He announces the pairs with a data-line event, but not the
+   slot, and the monitoring events with their detector.
+2. Alice flags the data-line events on decoys, which leave the key, discloses her bits at a random
+   10 % of the rest, and publishes the gains: per state she sent, the events at D_M0 and D_M1.
+3. Bob answers with his bits at the sample. Both laptops show the same tally: $E_p^u$ with its
+   counting error and its three parts, $E_b$, the sifted bits, the rare counts, and V, which is not
+   in the bound.
+
+**What the real bench costs.** The paper's gains put all of a pair's light into the interference:
+2μ(1 − t_B)η at D_M0 for |α,α⟩. A passive one-slot DLI holds half of that in the pair's second slot,
+and the rest meets the neighboring pairs' pulses. At 25 km, with μ chosen to maximize Eq. (6) at each
+step:
+
+| Model, adding one effect per row | μ | $E_p^u$ | $Q$ (sifted per bit pair) |
+| --- | --- | --- | --- |
+| The paper's model, this bench's fiber | 8.4·10⁻³ | 0.236 | 7.9·10⁻⁴ |
+| One-slot DLI | 4.2·10⁻³ | 0.239 | 3.9·10⁻⁴ |
+| The DLI's 3.9 dB excess loss | 1.7·10⁻³ | 0.250 | 1.6·10⁻⁴ |
+| 1 MHz laser | 1.5·10⁻³ | 0.253 | 1.4·10⁻⁴ |
+| 40 dB modulator | 1.4·10⁻³ | 0.259 | 1.3·10⁻⁴ |
+| 30 dB modulator | 9.4·10⁻⁴ | 0.272 | 8.8·10⁻⁵ |
+
+$E_p^u$ hardly moves because μ absorbs each loss, so the cost is in the sifted key: nine times less,
+about 15 kbit/s at the real clock. The reach falls too. Eq. (6) reaches 10⁻⁸ at 63 km here, or 68 km
+with a 40 dB modulator, against 103 km in the paper's model at $e_a$ = 0.
+
+Two of these steps go beyond the paper. It does not discuss the light a passive DLI leaves out of the
+pair's slot; the proof only asks for measured gains, so this package takes it as loss inside the
+monitoring line, which is its own reading. And the proof assumes exact vacuum: with a modulator's
+leak, Eq. (7) is a formula evaluated on counted gains, not a proven bound.
+
+**Which setting is wrong.** The expected reading of the default bench at μ = 10⁻³, and what one wrong
+setting does to it:
+
+| Setting | $E_p^u$ | `beta` | `M0` | `M1` | V |
+| --- | --- | --- | --- | --- | --- |
+| Default | 0.278 | 0.181 | 0.081 | 0.016 | 0.992 |
+| μ = 5·10⁻³ | 0.546 | 0.442 | 0.077 | 0.027 | 0.993 |
+| 40 dB modulator | 0.226 | 0.178 | 0.033 | 0.016 | 0.992 |
+| 25 dB modulator | 0.342 | 0.186 | 0.140 | 0.016 | 0.992 |
+| DLI 30° off its fringe | 0.369 | 0.176 | 0.107 | 0.087 | 0.859 |
+| 10 MHz laser | 0.326 | 0.179 | 0.093 | 0.054 | 0.930 |
+| No phase shared between pulses | 0.802 | 0.133 | 0.275 | 0.395 | 0.000 |
+| Dark counts at 100 Hz | 0.353 | 0.184 | 0.126 | 0.043 | 0.981 |
+
+The modulator's leak matters more than its power suggests, because it adds to a pulse in amplitude:
+√ε of the pulse's field against ε of its photons. The row with no shared phase uses a very broad
+laser (`linewidth=10e9`), which does to the monitoring line what a gain-switched source does.
+
+**Reading it.** The single-process reference `run()` keeps both records in one place and compares
+every figure with `theory()`, which computes the gains from the traced losses, the DLI's phase, the
+laser's coherence and the modulator's leak:
+
+```python
+cv = import_source("examples/cow_vacuum")
+print(cv.run(blocks=20, seed=4).summary())
+```
+
+```
+COW with vacuum decoys over 25 km, μ = 0.001, decoys 0.1 + 0.1, t_B = 0.5, 4,000,000 pairs (8,000,000 slots at 434 MHz)
+sifted 314: Q 9.817e-05 (expected 9.406e-05) · E_b 0.0032 on the whole sifted key (expected 0.0021)
+E_p^u 0.324 ± 0.337 (expected 0.278): |β,β⟩ 0.180, M0 0.068, M1 0.077 (expected 0.181, 0.081, 0.016)
+|α,α⟩ at D_M0 15, D_M1 1 · |0,0⟩ at D_M0 0, D_M1 0 · V 0.8750 (expected 0.9923, not in the bound)
+```
+
+The ± is the counting error: each of the eight counts moved by its Poisson σ, and by one count when
+it is zero. It is not a finite-key term. The paper's bound is asymptotic, and a block holds about 15
+sifted bits, 0.76 |α,α⟩ clicks at D_M0 and 0.003 at D_M1, so a short run is far from that limit and
+tends to read low while the rare gains count zero. The spread between runs is 0.14 after 20 blocks
+(7 s), 0.03 after 1,000 (6 minutes) and 0.012 after 5,000 (30 minutes).
+
+Over 2,000 blocks, four seeds of 500 (400 million pairs), every count is within 1.6σ of what
+`theory()` expects, and the seeds' readings of 0.212, 0.295, 0.277 and 0.312 spread by the 0.044
+expected at 500 blocks:
+
+| Quantity | Counted | Expected |
+| --- | --- | --- |
+| $Q$ | 9.45·10⁻⁵ | 9.41·10⁻⁵ |
+| $E_b$ on the whole sifted key | 0.0020 (59 of 30,231) | 0.0021 |
+| \|0,α⟩ events at D_M0, D_M1 | 1,599, 1,484 | 1,638, 1,439 |
+| \|α,0⟩ events at D_M0, D_M1 | 1,680, 1,501 | 1,637, 1,439 |
+| \|α,α⟩ events at D_M0, D_M1 | 1,489, 5 | 1,529, 5.9 |
+| \|0,0⟩ events at D_M0, D_M1 | 6, 0 | 3.5, 0.4 |
+| $E_p^u$ | 0.295 ± 0.018 | 0.278 |
+| `beta`, `M0`, `M1` | 0.179, 0.106, 0.011 | 0.181, 0.081, 0.016 |
+
 ### Clock and frame synchronization from time stamps
 
 Before any QKD post-processing, Bob must know which of Alice's symbols each click belongs to. His
@@ -2145,6 +2310,7 @@ examples/mpqkd/      Alice, Bob, Charlie (+ station/common), the original single
                      reference.py with its [CLASSICAL #N] notes, and a marimo notebook
 examples/bb84/       decoy-state BB84: Alice, Bob (+ common), Eve as a --party file
 examples/cow/        coherent one-way QKD up to the sifted key: Alice, Bob (+ common), Eve as a --party file
+examples/cow_vacuum/ COW with a vacuum decoy sequence up to the phase-error bound: Alice, Bob (+ common, bound)
 tests/               pytest suite
 docs/engine.md       how the engine computes: tracing, field synthesis, detectors, instruments
 docs/photon-counter.md  the time tagger's acquisition, dead time across records, long dead times
