@@ -10,6 +10,7 @@ import numpy as np
 import pytest
 
 from phoq.engine import trace
+from phoq.modulators import PhaseModulator
 from phoq.parties import Experiment, load_protocol
 from phoq.runner import Runner
 
@@ -227,6 +228,25 @@ def test_one_event_per_pair():
     assert table[cv.BIT0].tolist() == [0, 0, 3]
 
 
+def test_boundary_clicks_stay_away_from_the_key():
+    # D_T in pair 2. On D_M0, in first slots: pair 0 (a block's first, whose earlier pulse
+    # came in the block before), pair 2 (its own data-line event), pair 3 (the pair before
+    # has one) and pair 5; on D_M1: pair 6. A second slot, pair 4's, is an event instead.
+    clicks = clicks_of(7, dt=(5,), dm0=(0, 4, 6, 9, 10), dm1=(12,))
+    event, _ = cv.events(clicks, np.random.default_rng(1))
+    assert event.tolist() == [cv.NONE, cv.NONE, cv.T0, cv.NONE, cv.M0, cv.NONE, cv.NONE]
+    at_m0, at_m1 = cv.boundary_clicks(clicks, event)
+    assert at_m0.tolist() == [5] and at_m1.tolist() == [6]
+    # Alice counts those where both pulses were sent. Pair 5 is |α,α⟩, so both meet at its
+    # two boundaries; as |0,0⟩ it leaves both with one pulse; as a bit 0, only the later
+    kind = np.array([0, 0, 0, 0, cv.BIT0, cv.DECOY1, cv.BIT1])
+    assert cv.boundary_counts(kind, at_m0, at_m1).tolist() == [1, 1]
+    kind[5] = cv.DECOY2
+    assert cv.boundary_counts(kind, at_m0, at_m1).tolist() == [0, 0]
+    kind[5] = cv.BIT0
+    assert cv.boundary_counts(kind, at_m0, at_m1).tolist() == [0, 1]
+
+
 def test_the_click_window_reads_half_of_each_slot():
     # the other half of pair 0's first slot and of pair 1's second, on D_T, and of pair
     # 2's second on D_M0
@@ -276,6 +296,10 @@ def test_reference_run_matches_theory():
         e["E_p^u"], abs=4 * t.counting_error(0.5)
     )
     assert t.visibility == pytest.approx(e["V"], abs=0.005)
+    # healthy, the boundaries read what the pairs read, from as many clicks
+    assert e["V at boundaries"] == pytest.approx(e["V"], abs=2e-3)
+    assert t.boundary_visibility == pytest.approx(e["V at boundaries"], abs=0.005)
+    assert t.boundary.sum() == pytest.approx(t.monitor[cv.DECOY1, :2].sum(), rel=0.05)
     assert "E_p^u" in res.summary() and "not in the bound" in res.summary()
 
 
@@ -468,6 +492,8 @@ def test_a_detuned_dli_counts_as_expected():
     res = cv.run(p, blocks=6, seed=9, setup=setup)
     assert res.expected["V"] == pytest.approx(math.cos(math.radians(40)) * 0.9969, 2e-3)
     assert_gains_match(res.tally, res.expected["gains"])
+    # the DLI turns both visibilities alike
+    assert res.tally.boundary_visibility == pytest.approx(res.expected["V"], abs=0.03)
 
 
 def test_no_shared_phase_counts_as_expected():
@@ -477,8 +503,47 @@ def test_no_shared_phase_counts_as_expected():
     res = cv.run(p, blocks=6, seed=10)
     assert res.expected["V"] == pytest.approx(0.0, abs=1e-9)
     assert abs(res.tally.visibility) < 0.05
+    assert abs(res.tally.boundary_visibility) < 0.05
     assert_gains_match(res.tally, res.expected["gains"])
     assert res.e_b == pytest.approx(res.expected["E_b"], abs=1e-3)
+
+
+def test_a_phase_break_between_pairs_shows_only_at_the_boundaries():
+    """A phase modulator at Alice's output gives each pair a new random phase. A pair's
+    two pulses keep theirs, so the gains and E_p^u stay; only the boundaries see it."""
+    p = BRIGHT
+    setup = cv.build(p)
+    im, att, awg = setup["ALICE-IM"], setup["ALICE-ATT"], setup["ALICE-AWG"]
+    setup.remove(im.ports["p2"].peer.component)
+    pm = setup.add(PhaseModulator("ALICE-PM"))
+    setup.connect(im.p2, pm.p1)
+    setup.connect(pm.p2, att.p1)
+    setup.connect(awg.ch2, pm.rf)
+    awg.ch2_enabled = True
+    cv.calibrate(setup, p)
+    runner = Runner(setup, seed=12)
+    tagger = setup["TAGGER"]
+    tally = cv.Tally()
+    for _ in range(8):
+        kind = cv.draw(runner.rng, tagger.slots // cv.BINS_PER_PAIR, p)
+        awg.set_pattern(
+            "ch1", im.voltage_for(cv.carving(cv.occupied(kind))), 2 * p.rate
+        )
+        phase = runner.rng.uniform(0, 2 * math.pi, kind.size)
+        # four symbols of the AWG per pair
+        awg.set_pattern("ch2", np.repeat(pm.voltage_for(phase), 4), 2 * p.rate)
+        record = runner.acquire("TAGGER").clicks
+        event, _ = cv.events(record, runner.rng)
+        _, _, mon, det = cv.announcements(event)
+        tally.monitor += cv.monitor_table(kind, mon, det)
+        tally.boundary += cv.boundary_counts(kind, *cv.boundary_clicks(record, event))
+    th = cv.theory(setup, p)
+    assert_gains_match(tally, th["gains"])
+    assert tally.visibility == pytest.approx(th["V"], abs=0.005)
+    assert tally.phase_error(p.mu) == pytest.approx(
+        th["E_p^u"], abs=4 * tally.counting_error(p.mu)
+    )
+    assert abs(tally.boundary_visibility) < 0.05
 
 
 def test_the_hold_off_counts_as_expected():
@@ -544,6 +609,7 @@ def test_no_monitoring_clicks_read_nan():
     t = cv.Tally()
     assert math.isnan(t.phase_error(1e-3)) and math.isnan(t.counting_error(1e-3))
     assert math.isnan(t.e_b) and math.isnan(t.q) and math.isnan(t.visibility)
+    assert math.isnan(t.boundary_visibility)
     assert math.isnan(cv.readouts(t, cv.COWParams())["E_p^u"])
 
 
@@ -557,6 +623,7 @@ def test_parties_sift_the_same_key():
         assert w.result["pairs sent"] == 2_400_000
         assert 3 < w.result["sifted bits"] < 30
         assert w.result["E_p^u ±"] > 0
+        assert w.result["boundaries at D_M0"] > w.result["boundaries at D_M1"]
     trim = lambda r: {
         k: v for k, v in r.items() if k not in ("sent [kB]", "received [kB]")
     }  # noqa: E731

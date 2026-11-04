@@ -21,11 +21,12 @@ interferometer (DLI) one slot unbalanced to D_M0, the constructive port, and D_M
 
 The monitoring line is read in one window per pair, its second slot, where the pair's
 first pulse arrives through the long arm and its second through the short one. The light
-that a passive DLI puts in the other windows meets the neighboring pairs' pulses and is
-not used, so the window holds half of the light the paper's gains assume
+that a passive DLI puts in the other windows meets the neighboring pairs' pulses and
+stays out of the gains, so the window holds half of the light the paper's gains assume
 (``bound.paper_model``). The proof only asks for the measured gains, so these windows
 are taken as a monitoring line with that extra loss; that is this package's reading, not
-the paper's.
+the paper's. A click at one of those boundaries belongs to no state Alice sent, and
+gives a second visibility outside the bound, the one ``examples/cow`` counts in its V.
 
 A pulse fills half of its slot, and the tagger's bins are half a slot, so Bob's click
 window can be that half alone: it drops half of the dark counts and the modulator's leak
@@ -72,10 +73,11 @@ FIBER_INPUT = "SPL.p1"  # where μ is defined
 class Topic:
     """Message topics on the classical channel."""
 
-    # Bob → Alice: the pairs with a data-line event (not which slot), and the pairs with
-    # a monitoring event and their detector
+    # Bob → Alice: the pairs with a data-line event (not which slot), the pairs with a
+    # monitoring event and their detector, and the clicks at the boundaries between pairs
     DETECT = "detect"
-    # Alice → Bob: which data-line events are decoys, a sample of her bits, the gains
+    # Alice → Bob: which data-line events are decoys, a sample of her bits, the gains and
+    # the boundary counts
     SIFT = "sift"
     ERRORS = "errors"  # Bob → Alice: his bits at the sample
 
@@ -329,23 +331,29 @@ def align_tagger(setup: Setup) -> float:
 
 
 # ---- the data line and the monitoring line -------------------------------------------
+def read_slot(clicks: dict, channel: str, slot: int, click_window: bool) -> np.ndarray:
+    """A channel's clicks per pair in its first (0) or second (1) slot. A slot's first
+    bin holds the pulse, and without ``click_window`` Bob reads its second too."""
+    pulse = clicks[channel][2 * slot :: BINS_PER_PAIR]
+    if click_window:
+        return pulse
+    return pulse | clicks[channel][2 * slot + 1 :: BINS_PER_PAIR]
+
+
 def events(
     clicks: dict, rng: np.random.Generator, click_window: bool = True
 ) -> tuple[np.ndarray, int]:
     """One event per pair from its four windows: D_T in T_0 or T_1, D_M0 or D_M1 in the
-    pair's second slot. A slot's first bin holds the pulse, and without ``click_window``
-    Bob reads its second too. If several clicked, Bob takes one of them at random, the
-    paper's squashing rule; the monitoring detectors' other windows are not used. Returns
-    (NONE, T0, T1, M0 or M1 per pair; pairs where several clicked).
+    pair's second slot. If several clicked, Bob takes one of them at random, the paper's
+    squashing rule; the monitoring detectors' other windows stay out of the events.
+    Returns (NONE, T0, T1, M0 or M1 per pair; pairs where several clicked).
     """
-
-    def read(channel: str, slot: int) -> np.ndarray:
-        pulse = clicks[channel][2 * slot :: BINS_PER_PAIR]
-        if click_window:
-            return pulse
-        return pulse | clicks[channel][2 * slot + 1 :: BINS_PER_PAIR]
-
-    w = np.stack((read(DT, 1), read(DT, 0), read(DM0, 1), read(DM1, 1)))
+    w = np.stack(
+        [
+            read_slot(clicks, channel, slot, click_window)
+            for channel, slot in ((DT, 1), (DT, 0), (DM0, 1), (DM1, 1))
+        ]
+    )
     n = w.sum(axis=0)
     out = np.full(n.size, NONE, dtype=np.int8)
     one, many = np.flatnonzero(n == 1), np.flatnonzero(n > 1)
@@ -375,6 +383,44 @@ def monitor_table(kind: np.ndarray, pairs: np.ndarray, detector: np.ndarray):
         out[:, d] = np.bincount(sent[np.asarray(detector) == d], minlength=len(STATES))
     out[:, 2] = np.bincount(kind, minlength=len(STATES))
     return out
+
+
+def boundary_clicks(
+    clicks: dict, event: np.ndarray, click_window: bool = True
+) -> tuple[np.ndarray, np.ndarray]:
+    """Bob's monitoring clicks at the boundaries between pairs, a pair's first slot,
+    where its first pulse meets the second of the pair before: (pairs at D_M0, pairs at
+    D_M1). A click there depends on those two pulses, so he leaves out the boundaries
+    beside a data-line event, where announcing it would say something about that bit, and
+    a block's first, whose earlier pulse belongs to the block before."""
+    keyed = (event == T0) | (event == T1)
+    silent = keyed.copy()
+    silent[1:] |= keyed[:-1]
+    silent[0] = True
+    return tuple(
+        np.flatnonzero(read_slot(clicks, channel, 0, click_window) & ~silent)
+        for channel in (DM0, DM1)
+    )
+
+
+def boundary_counts(kind: np.ndarray, at_m0, at_m1) -> np.ndarray:
+    """Alice's reading of those clicks: [D_M0, D_M1] where both pulses were sent."""
+    occ = occupied(kind)
+    return np.array(
+        [
+            np.count_nonzero(
+                occ[2 * np.asarray(k, dtype=np.int64)]
+                & occ[2 * np.asarray(k, dtype=np.int64) - 1]
+            )
+            for k in (at_m0, at_m1)
+        ],
+        dtype=np.int64,
+    )
+
+
+def contrast(n0: float, n1: float) -> float:
+    """A visibility from what the constructive and the destructive port hold."""
+    return (n0 - n1) / (n0 + n1) if n0 + n1 else float("nan")
 
 
 def gains_of(monitor: np.ndarray) -> Gains:
@@ -414,6 +460,8 @@ class Tally:
     monitor: np.ndarray = field(
         default_factory=lambda: np.zeros((len(STATES), 3), dtype=np.int64)
     )
+    # clicks at D_M0, D_M1 at the boundaries where both pulses were sent
+    boundary: np.ndarray = field(default_factory=lambda: np.zeros(2, dtype=np.int64))
 
     def __iadd__(self, other: Tally) -> Tally:
         for name in (
@@ -428,6 +476,7 @@ class Tally:
         ):
             setattr(self, name, getattr(self, name) + getattr(other, name))
         self.monitor = self.monitor + other.monitor
+        self.boundary = self.boundary + other.boundary
         return self
 
     @property
@@ -448,8 +497,14 @@ class Tally:
     def visibility(self) -> float:
         """Of the |α,α⟩ pairs at D_M0 and D_M1: for debugging the DLI, not in the
         bound."""
-        n0, n1 = self.monitor[DECOY1, :2]
-        return (n0 - n1) / (n0 + n1) if n0 + n1 else float("nan")
+        return contrast(*self.monitor[DECOY1, :2])
+
+    @property
+    def boundary_visibility(self) -> float:
+        """Where a pair's first pulse meets the second of the pair before: for debugging
+        the DLI, and the one place a phase break between pairs shows. Not in the bound.
+        """
+        return contrast(*self.boundary)
 
     def phase_error(self, mu: float) -> float:
         return phase_error(mu, self.gains)
@@ -467,6 +522,7 @@ def account(
     mine: np.ndarray,
     theirs: np.ndarray,
     monitor: np.ndarray,
+    boundary: np.ndarray,
 ) -> Tally:
     """One block's public counts, once both stations hold each other's sample bits."""
     sifted = int(n_detected - decoy.sum())
@@ -480,6 +536,7 @@ def account(
         errors=int(np.count_nonzero(np.asarray(mine) != np.asarray(theirs))),
         key_bits=sifted - int(sample.size),
         monitor=np.asarray(monitor, dtype=np.int64),
+        boundary=np.asarray(boundary, dtype=np.int64),
     )
 
 
@@ -523,6 +580,9 @@ def readouts(t: Tally, p: COWParams, net_stats: dict | None = None) -> dict:
         "|0,0⟩ at D_M0": int(m[DECOY2, 0]),
         "|0,0⟩ at D_M1": int(m[DECOY2, 1]),
         "V (not in the bound)": t.visibility,
+        "boundaries at D_M0": int(t.boundary[0]),
+        "boundaries at D_M1": int(t.boundary[1]),
+        "V at boundaries (not in the bound)": t.boundary_visibility,
     }
     if net_stats:
         out["sent [kB]"] = net_stats["bytes_out"] / 1e3
@@ -693,7 +753,8 @@ def theory(setup: Setup, p: COWParams) -> dict:
     hold = max(0, spd.dead_bins(p.slot) - 1)
     args = (tau, ports, leak, coherence, p_d)
     g, q, e_b = pair_gains(p.mu, *args, p.probabilities, hold, p.click_window)
-    n0, n1 = g.qaa
+    opened = open_fractions(p.mu, *args, p.probabilities, hold)
+    both = windows(True, True, p.mu, *args, p.click_window)
     return {
         "tau": tau,
         "ports": ports,
@@ -701,14 +762,15 @@ def theory(setup: Setup, p: COWParams) -> dict:
         "coherence": coherence,
         "p_d": p_d,
         "hold": hold,
-        "open": open_fractions(p.mu, *args, p.probabilities, hold),
+        "open": opened,
         "gains": g,
         "Q": q,
         "E_b": e_b,
         "E_p^u": phase_error(p.mu, g),
         "terms": terms(p.mu, g),
         "sifted / pair": (1 - p.decoy1 - p.decoy2) * q,
-        "V": (n0 - n1) / (n0 + n1),
+        "V": contrast(*g.qaa),
+        "V at boundaries": contrast(both[M0] * opened[1], both[M1] * opened[2]),
     }
 
 

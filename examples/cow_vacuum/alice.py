@@ -3,11 +3,13 @@ intensity modulator's AWG, and leads the sifting once Bob has announced his even
 
 Per block, on the classical channel:
 
-    [#1] Bob's ``detect`` arrives: the pairs with a data-line event (not in which slot)
-         and the pairs with a monitoring event and their detector
+    [#1] Bob's ``detect`` arrives: the pairs with a data-line event (not in which slot),
+         the pairs with a monitoring event and their detector, and the clicks at the
+         boundaries between pairs
     → [#2] she flags the data-line events that were decoys, discloses a random sample of
            her bits at the others for E_b, and counts the monitoring events per state
-           she sent: the gains of Eq. (7) (``sift``)
+           she sent, the gains of Eq. (7), and the boundary clicks where both pulses were
+           sent (``sift``)
     → [#3] Bob's ``errors`` returns his bits at the sample → both tally the block.
 
 Error correction and privacy amplification are not implemented: the result is the sifted
@@ -29,6 +31,7 @@ from .common import (
     Tally,
     Topic,
     account,
+    boundary_counts,
     carving,
     describe,
     draw,
@@ -89,6 +92,7 @@ class Alice(Party):
         kept = np.flatnonzero(~decoy)  # positions among Bob's data-line events
         sample = kept[self.rng.random(kept.size) < self.params.sample_fraction]
         monitor = monitor_table(kind, msg.mon, msg.det)
+        boundary = boundary_counts(kind, msg.edge0, msg.edge1)
         # her bit at every event (meaningless at decoys)
         bits = sent.astype(np.int8)
         st.update(
@@ -96,6 +100,7 @@ class Alice(Party):
             decoy=decoy,
             sample=sample,
             monitor=monitor,
+            boundary=boundary,
             multi=int(msg.multi),
             bits=bits,
         )
@@ -107,6 +112,7 @@ class Alice(Party):
             sample=sample.astype(np.int32),
             sample_bits=bits[sample],
             monitor=monitor,
+            boundary=boundary,
         )
 
     def _finish(self, block: int, st: dict, msg: Message) -> None:
@@ -119,6 +125,7 @@ class Alice(Party):
             st["bits"][st["sample"]],
             np.asarray(msg.sample_bits),
             st["monitor"],
+            st["boundary"],
         )
         key = ~st["decoy"]
         key[st["sample"]] = False

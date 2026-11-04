@@ -1,9 +1,9 @@
 """Bob: the receiver. His tap sends t_B of the light to the data detector D_T, whose
 time of arrival is the bit, and the rest through a one-slot delay-line interferometer to
 D_M0 and D_M1. He reads his time tagger, reduces each pair to one event, announces the
-pairs with a data-line event and the monitoring events with their detector ([#1]), and
-answers Alice's sifting with his bits at her sample ([#3]). Bob needs no basis choice
-and no modulator: his tap is the basis choice.
+pairs with a data-line event, the monitoring events with their detector and the clicks
+at the boundaries between pairs ([#1]), and answers Alice's sifting with his bits at her
+sample ([#3]). Bob needs no basis choice and no modulator: his tap is the basis choice.
 """
 
 from __future__ import annotations
@@ -17,6 +17,7 @@ from .common import (
     Topic,
     account,
     announcements,
+    boundary_clicks,
     describe,
     events,
     readouts,
@@ -53,6 +54,7 @@ class Bob(Party):
     def measure(self, batch) -> None:
         event, multi = events(batch.clicks, self.rng, self.params.click_window)
         idx, bits, mon, det = announcements(event)
+        edge0, edge1 = boundary_clicks(batch.clicks, event, self.params.click_window)
         self.blocks[batch.seq] = dict(idx=idx, bits=bits, pairs=event.size, multi=multi)
         size = self.net.send(
             "ALICE",
@@ -61,6 +63,8 @@ class Bob(Party):
             idx=idx.astype(np.int32),
             mon=mon.astype(np.int32),
             det=det,
+            edge0=edge0.astype(np.int32),
+            edge1=edge1.astype(np.int32),
             multi=multi,
         )
         print(
@@ -88,6 +92,7 @@ class Bob(Party):
             mine,
             np.asarray(msg.sample_bits),
             msg.monitor,
+            msg.boundary,
         )
         key = ~decoy
         key[sample] = False

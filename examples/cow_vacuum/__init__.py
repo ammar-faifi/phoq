@@ -70,6 +70,8 @@ from .common import (
     account,
     announcements,
     best_mu,
+    boundary_clicks,
+    boundary_counts,
     build,
     calibrate,
     carving,
@@ -120,6 +122,8 @@ __all__ = [
     "announcements",
     "best_mu",
     "bound",
+    "boundary_clicks",
+    "boundary_counts",
     "build",
     "calibrate",
     "carving",
@@ -189,6 +193,11 @@ class COWResult:
                     f" D_M0 {m[DECOY2, 0]:,}, D_M1 {m[DECOY2, 1]:,} · V"
                     f" {t.visibility:.4f} (expected {e['V']:.4f}, not in the bound)"
                 ),
+                (
+                    f"boundaries where both pulses meet: D_M0 {t.boundary[0]:,}, D_M1"
+                    f" {t.boundary[1]:,} · V {t.boundary_visibility:.4f} (expected"
+                    f" {e['V at boundaries']:.4f}, not in the bound)"
+                ),
             ]
         )
 
@@ -210,9 +219,8 @@ def run(
     for _ in range(blocks):
         kind = draw(runner.rng, tagger.slots // BINS_PER_PAIR, p)
         awg.set_pattern("ch1", im.voltage_for(carving(occupied(kind))), 2 * p.rate)
-        event, multi = events(
-            runner.acquire("TAGGER").clicks, runner.rng, p.click_window
-        )
+        clicks = runner.acquire("TAGGER").clicks
+        event, multi = events(clicks, runner.rng, p.click_window)
         idx, bits, mon, det = announcements(event)
         sent = kind[idx]
         decoy = sent >= DECOY1
@@ -226,6 +234,7 @@ def run(
             sent[keep],
             bits[keep],
             monitor_table(kind, mon, det),
+            boundary_counts(kind, *boundary_clicks(clicks, event, p.click_window)),
         )
         alice_key.append(sent[keep].astype(np.int8))
         bob_key.append(bits[keep])

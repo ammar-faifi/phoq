@@ -2028,14 +2028,16 @@ on an idle core.
 **The protocol, per block:**
 
 1. Bob reduces each pair to one event, inside his click window: D_T in T_0 or T_1, or D_M0 or D_M1
-   in the pair's second slot. If several clicked he takes one at random, the paper's squashing rule,
-   and the monitoring detectors' other slots are not used. He announces the pairs with a data-line
-   event, but not the slot, and the monitoring events with their detector.
+   in the pair's second slot. If several clicked he takes one at random, the paper's squashing rule.
+   He announces the pairs with a data-line event, but not the slot, and the monitoring events with
+   their detector. He also announces the monitoring clicks at the boundaries, the pairs' first
+   slots, except beside a data-line event, where such a click would say something about that bit.
 2. Alice flags the data-line events on decoys, which leave the key, discloses her bits at a random
-   10 % of the rest, and publishes the gains: per state she sent, the events at D_M0 and D_M1.
+   10 % of the rest, and publishes the gains: per state she sent, the events at D_M0 and D_M1. She
+   also publishes the boundary clicks where both pulses were sent.
 3. Bob answers with his bits at the sample. Both laptops show the same tally: $E_p^u$ with its
-   counting error and its three parts, $E_b$, the sifted bits, the rare counts, and V, which is not
-   in the bound.
+   counting error and its three parts, $E_b$, the sifted bits, the rare counts, and V inside the
+   pairs and at the boundaries, neither of which is in the bound.
 
 **What the real bench costs.** The paper's gains put all of a pair's light into the interference:
 2μ(1 − t_B)η at D_M0 for |α,α⟩. A passive one-slot DLI holds half of that in the pair's second slot,
@@ -2095,6 +2097,21 @@ The modulator's leak matters more than its power suggests, because it adds to a 
 √ε of the pulse's field against ε of its photons. The row with no shared phase uses a very broad
 laser (`linewidth=10e9`), which does to the monitoring line what a gain-switched source does.
 
+**The boundaries between pairs.** A pair's first slot holds its first pulse and the second pulse of
+the pair before, and half of all monitoring clicks land in these slots. They stay out of Eq. (7),
+which needs a gain per state Alice sent. Half of the time a |0,0⟩ pair's first slot holds the pair
+before's pulse, so crediting these clicks to a pair would take $Q_{00}$ at D_M1 from 10⁻⁸ to
+4.6·10⁻⁶ with the paper's detectors, and $E_p^u$ from 0.271 to 0.755. `examples/cow` counts them in
+its V. Here they give a second V outside the bound, where both pulses were sent. On a healthy bench
+it reads what V reads, from as many clicks, so it doubles the statistics for aligning the DLI, and
+the settings above move both alike.
+
+It parts from V at a phase break between pairs. A phase modulator at Alice's output that gives each
+pair a new random phase keeps a pair's two pulses in step, so the gains, $E_p^u$ and V stay where
+they are, and only the boundaries see it: at μ = 0.5 with no hold-off, 12 blocks read V = 0.997
+inside the pairs and 0.020 at the boundaries (1,819 and 1,749 clicks). The paper's proof does not
+rely on this coherence, so the bound is not expected to react.
+
 **Reading it.** The single-process reference `run()` keeps both records in one place and compares
 every figure with `theory()`, which computes the gains from the traced losses, the DLI's phase, the
 laser's coherence and the modulator's leak:
@@ -2109,6 +2126,7 @@ COW with vacuum decoys over 25 km, μ = 0.0004, decoys 0.25 + 0.25, t_B = 0.5, 4
 sifted 19: Q 9.498e-06 (expected 9.623e-06) · E_b 0.0000 on the whole sifted key (expected 0.0114)
 E_p^u 0.408 ± 0.711 (expected 0.514): |β,β⟩ 0.195, M0 -0.101, M1 0.314 (expected 0.212, 0.197, 0.105)
 |α,α⟩ at D_M0 5, D_M1 2 · |0,0⟩ at D_M0 0, D_M1 0 · V 0.4286 (expected 0.9457, not in the bound)
+boundaries where both pulses meet: D_M0 5, D_M1 0 · V 1.0000 (expected 0.9457, not in the bound)
 ```
 
 The ± is the counting error: each of the eight counts moved by its Poisson σ, and by one count when
@@ -2118,18 +2136,20 @@ tends to read low while the rare gains count zero. The spread between runs is 0.
 (7 s), 0.054 after 1,000 (6 minutes) and 0.024 after 5,000 (30 minutes).
 
 Over 2,000 blocks, eight seeds of 250 (400 million pairs), every count is within 1.5σ of what
-`theory()` expects, and the seeds' readings spread by 0.16 against the 0.12 expected at 250 blocks:
+`theory()` expects, and the seeds' readings spread by 0.15 against the 0.12 expected at 250 blocks:
 
 | Quantity | Counted | Expected |
 | --- | --- | --- |
-| $Q$ | 9.41·10⁻⁶ | 9.62·10⁻⁶ |
-| $E_b$ on the whole sifted key | 0.0117 (22 of 1,882) | 0.0114 |
-| \|0,α⟩ events at D_M0, D_M1 | 115, 136 | 131, 123 |
-| \|α,0⟩ events at D_M0, D_M1 | 125, 114 | 131, 123 |
-| \|α,α⟩ events at D_M0, D_M1 | 483, 18 | 460, 12.8 |
-| \|0,0⟩ events at D_M0, D_M1 | 12, 17 | 12.0, 12.1 |
-| $E_p^u$ | 0.504 ± 0.038 | 0.514 |
-| `beta`, `M0`, `M1` | 0.224, 0.140, 0.140 | 0.212, 0.197, 0.105 |
+| $Q$ | 9.35·10⁻⁶ | 9.62·10⁻⁶ |
+| $E_b$ on the whole sifted key | 0.0096 (18 of 1,869) | 0.0114 |
+| \|0,α⟩ events at D_M0, D_M1 | 114, 113 | 131, 123 |
+| \|α,0⟩ events at D_M0, D_M1 | 132, 130 | 131, 123 |
+| \|α,α⟩ events at D_M0, D_M1 | 476, 15 | 460, 12.8 |
+| \|0,0⟩ events at D_M0, D_M1 | 13, 13 | 12.0, 12.1 |
+| Boundary clicks where both pulses meet, at D_M0, D_M1 | 470, 13 | 460, 12.8 |
+| V inside the pairs, at the boundaries | 0.939, 0.946 | 0.946, 0.946 |
+| $E_p^u$ | 0.506 ± 0.037 | 0.514 |
+| `beta`, `M0`, `M1` | 0.224, 0.164, 0.118 | 0.212, 0.197, 0.105 |
 
 ### Clock and frame synchronization from time stamps
 
