@@ -1995,24 +1995,33 @@ resulting Eq. (7) into three parts that add up to $E_p^u$, each pointing at diff
 | `M0` | what the \|α,α⟩ and \|0,0⟩ gains at D_M0 leave unexplained of a single pulse's | a modulator's leak, lost interference, dark counts |
 | `M1` | \|α,α⟩ and \|0,0⟩ clicks at D_M1, which should be dark | the laser's phase noise, the DLI's phase, dark counts |
 
-`beta` is most of it, and it grows with μ/η whatever Bob measures. So μ has to fall with the
-transmittance, which is where the paper's $R \propto \eta^2$ comes from. The bound also stands well
-above the error it bounds: at μ = 0.02 and η = 0.8 the true X-basis error rate is 0.003 and $E_p^u$
-is 0.169. The visibility does not see any of this: at `examples/cow`'s μ = 0.5, V on this bench is
-still 0.997, while Eq. (7) gives 11.4, which bounds nothing.
+With quiet detectors `beta` is most of it, and it grows with μ/η whatever Bob measures. So μ has to
+fall with the transmittance, which is where the paper's $R \propto \eta^2$ comes from. The bound also
+stands well above the error it bounds: at μ = 0.02 and η = 0.8 the true X-basis error rate is 0.003
+and $E_p^u$ is 0.169. The visibility does not see any of this: at `examples/cow`'s μ = 0.5, V on this
+bench is still 0.990, while Eq. (7) gives about 1,000, which bounds nothing.
 
-**The bench.** The parts of `examples/cow` (30 dB modulator, 25 km, 50/50 tap), with the paper's
-detectors: η_d = 80 % and $p_d$ = 10⁻⁸ per window, which at this clock is 10 Hz. The paper gives no
+**The bench.** The parts of `examples/cow` (30 dB modulator, 25 km, 50/50 tap), with InGaAs/InP
+SPADs: the MPD PDM-IR preset (`mpd/pdm-ir`), free-running, at 25 % PDE and 250 Hz of dark counts,
+which at this clock is $p_d$ = 2.5·10⁻⁷ per window, and a 40 µs hold-off. The datasheet quotes that
+PDE at 7 V of excess bias in fixed-gate mode, and those dark counts at 2 V and a 100 µs hold-off, so
+a unit at full PDE counts more. The paper's simulation has 80 %, 10⁻⁸ and no hold-off, and gives no
 clock rate, decoy shares or μ. Here the clock is 1 GHz, each of the four states takes 25 % of the
-pairs and μ = 10⁻³, the best μ for this bench, 500 times below `examples/cow`'s. Another distance or
-modulator needs its own: `best_mu(setup, p)` finds it. Three things differ from `examples/cow`. One
-slot is 1 ns, or 0.20 m of fiber, so the arms of the DLI differ by a 0.25 m cord instead of 0.5 m,
-and the delay line in the short arm takes back the 224 ps that gives too much. Its 330 ps of travel
-covers clocks from 889 MHz to 1.26 GHz; `build` refuses any other, which needs other cords. A fixed
-30 dB attenuator stands ahead of Alice's VOA, because −10 dBm and the VOA's 80 dB limit stop at
-μ = 1.1·10⁻³. And the tagger runs two sub-bins per slot instead of four, with the AWG's delay moving
-each pulse an eighth of a slot off center, so that no pulse edge falls on a sub-bin's center. A
-block of 200,000 pairs takes 0.35 s on an idle core.
+pairs and μ = 5·10⁻⁴, where $E_p^u$ is lowest on this bench, 1,000 times below `examples/cow`'s.
+Another distance, modulator or detector needs its own: `best_mu(setup, p)` finds it.
+
+A click blinds its detector for 40,000 slots, and every click counts, read or not. So `theory()`
+takes each detector's open fraction from its count rate: 77 % on D_T, 91 % on D_M0 and 96 % on D_M1,
+which counts 5.8, 2.4 and 0.9 kHz. D_M0 is the constructive port, and is hit about three times as
+often as D_M1 in every slot, not only those Bob reads.
+
+Three other things differ from `examples/cow`. One slot is 1 ns, or 0.20 m of fiber, so the arms of
+the DLI differ by a 0.25 m cord instead of 0.5 m, and the delay line in the short arm takes back the
+224 ps that gives too much. Its 330 ps of travel covers clocks from 889 MHz to 1.26 GHz; `build`
+refuses any other, which needs other cords. A fixed 30 dB attenuator stands ahead of Alice's VOA,
+because −10 dBm and the VOA's 80 dB limit stop at μ = 1.1·10⁻³. And the tagger runs two sub-bins per
+slot instead of four, with the AWG's delay moving each pulse an eighth of a slot off center, so that
+no pulse edge falls on a sub-bin's center. A block of 200,000 pairs takes 0.35 s on an idle core.
 
 **The protocol, per block:**
 
@@ -2029,7 +2038,8 @@ block of 200,000 pairs takes 0.35 s on an idle core.
 **What the real bench costs.** The paper's gains put all of a pair's light into the interference:
 2μ(1 − t_B)η at D_M0 for |α,α⟩. A passive one-slot DLI holds half of that in the pair's second slot,
 and the rest meets the neighboring pairs' pulses. At 25 km, with μ chosen to maximize Eq. (6) at each
-step:
+step, or to minimize $E_p^u$ where no μ gives a key, and with the paper's detectors down to the 30 dB
+modulator:
 
 | Model, adding one effect per row | μ | $E_p^u$ | $Q$ (sifted per bit pair) |
 | --- | --- | --- | --- |
@@ -2039,29 +2049,40 @@ step:
 | 1 MHz laser | 1.6·10⁻³ | 0.251 | 1.5·10⁻⁴ |
 | 40 dB modulator | 1.5·10⁻³ | 0.257 | 1.4·10⁻⁴ |
 | 30 dB modulator | 9.9·10⁻⁴ | 0.270 | 9.3·10⁻⁵ |
+| The SPADs' 25 % PDE | 3.2·10⁻⁴ | 0.310 | 9.3·10⁻⁶ |
+| Their 250 Hz of dark counts | 5.2·10⁻⁴ | 0.618 | 1.6·10⁻⁵ |
+| Their 40 µs hold-off | 4.9·10⁻⁴ | 0.623 | 1.1·10⁻⁵ |
 
-$E_p^u$ hardly moves because μ absorbs each loss, so the cost is in the sifted key: 8.5 times less,
-about 23 kbit/s at the real clock. The reach falls too. Eq. (6) reaches 10⁻⁸ at 63 km here, or 68 km
-with a 40 dB modulator, against 103 km in the paper's model at $e_a$ = 0.
+Down to the 30 dB modulator $E_p^u$ hardly moves because μ absorbs each loss, so the cost is in the
+sifted key: 8.5 times less, about 23 kbit/s at the real clock. Eq. (6) reaches 10⁻⁸ at 63 km there,
+or 68 km with a 40 dB modulator, against 103 km in the paper's model at $e_a$ = 0.
 
-Two of these steps go beyond the paper. It does not discuss the light a passive DLI leaves out of the
-pair's slot; the proof only asks for measured gains, so this package takes it as loss inside the
-monitoring line, which is its own reading. And the proof assumes exact vacuum: with a modulator's
-leak, Eq. (7) is a formula evaluated on counted gains, not a proven bound.
+The SPADs' dark counts end the key on this bench. The |0,0⟩ gain enters Eq. (7) through its square
+root, and μ cannot rise to drown it without raising `beta`, so at 25 km no μ brings $E_p^u$ below
+0.62. It stays below 1/2 only up to 15 km, and Eq. (6) reaches 10⁻⁸ only to 0.25 km, or 3 km with a
+40 dB modulator. The hold-off adds 0.005 to the bound. What it takes is 23 % of the sifted key, which
+leaves 2.9 kbit/s at the default μ.
 
-**Which setting is wrong.** The expected reading of the default bench at μ = 10⁻³, and what one wrong
-setting does to it:
+Three of these steps go beyond the paper. It does not discuss the light a passive DLI leaves out of
+the pair's slot; the proof only asks for measured gains, so this package takes it as loss inside the
+monitoring line, which is its own reading. The proof assumes exact vacuum: with a modulator's leak,
+Eq. (7) is a formula evaluated on counted gains, not a proven bound. And its detectors have no
+memory: with a hold-off, a click depends on Bob's earlier clicks, and Eq. (7) is again only evaluated.
+
+**Which setting is wrong.** The expected reading of the default bench at μ = 5·10⁻⁴, and what one
+wrong setting does to it:
 
 | Setting | $E_p^u$ | `beta` | `M0` | `M1` | V |
 | --- | --- | --- | --- | --- | --- |
-| Default | 0.271 | 0.180 | 0.080 | 0.011 | 0.996 |
-| μ = 5·10⁻³ | 0.532 | 0.438 | 0.076 | 0.018 | 0.997 |
-| 40 dB modulator | 0.219 | 0.176 | 0.032 | 0.011 | 0.996 |
-| 25 dB modulator | 0.335 | 0.184 | 0.139 | 0.011 | 0.996 |
-| DLI 30° off its fringe | 0.365 | 0.174 | 0.106 | 0.085 | 0.863 |
-| 10 MHz laser | 0.297 | 0.179 | 0.086 | 0.033 | 0.969 |
-| No phase shared between pulses | 0.800 | 0.131 | 0.275 | 0.394 | 0.000 |
-| Dark counts at 100 Hz | 0.308 | 0.182 | 0.102 | 0.025 | 0.992 |
+| Default | 0.623 | 0.236 | 0.238 | 0.149 | 0.917 |
+| μ = 2.5·10⁻³ | 0.890 | 0.649 | 0.121 | 0.120 | 0.975 |
+| 40 dB modulator | 0.600 | 0.236 | 0.216 | 0.149 | 0.917 |
+| 25 dB modulator | 0.653 | 0.237 | 0.267 | 0.148 | 0.917 |
+| DLI 30° off its fringe | 0.710 | 0.231 | 0.257 | 0.223 | 0.788 |
+| 10 MHz laser | 0.643 | 0.235 | 0.242 | 0.166 | 0.890 |
+| No phase shared between pulses | 1.115 | 0.188 | 0.379 | 0.548 | 0.000 |
+| Dark counts at 600 Hz, the datasheet's maximum | 0.785 | 0.219 | 0.322 | 0.243 | 0.824 |
+| Hold-off of 100 µs, the datasheet's | 0.630 | 0.244 | 0.229 | 0.157 | 0.910 |
 
 The modulator's leak matters more than its power suggests, because it adds to a pulse in amplitude:
 √ε of the pulse's field against ε of its photons. The row with no shared phase uses a very broad
@@ -2077,32 +2098,32 @@ print(cv.run(blocks=20, seed=4).summary())
 ```
 
 ```
-COW with vacuum decoys over 25 km, μ = 0.001, decoys 0.25 + 0.25, t_B = 0.5, 4,000,000 pairs (8,000,000 slots at 1000 MHz)
-sifted 200: Q 1.000e-04 (expected 9.406e-05) · E_b 0.0050 on the whole sifted key (expected 0.0021)
-E_p^u 0.199 ± 0.229 (expected 0.271): |β,β⟩ 0.187, M0 0.012, M1 0.000 (expected 0.180, 0.080, 0.011)
-|α,α⟩ at D_M0 41, D_M1 0 · |0,0⟩ at D_M0 0, D_M1 0 · V 1.0000 (expected 0.9964, not in the bound)
+COW with vacuum decoys over 25 km, μ = 0.0005, decoys 0.25 + 0.25, t_B = 0.5, 4,000,000 pairs (8,000,000 slots at 1000 MHz)
+sifted 23: Q 1.150e-05 (expected 1.165e-05) · E_b 0.0435 on the whole sifted key (expected 0.0184)
+E_p^u 0.622 ± 0.325 (expected 0.623): |β,β⟩ 0.218, M0 0.279, M1 0.125 (expected 0.236, 0.238, 0.149)
+|α,α⟩ at D_M0 5, D_M1 0 · |0,0⟩ at D_M0 1, D_M1 1 · V 1.0000 (expected 0.9166, not in the bound)
 ```
 
 The ± is the counting error: each of the eight counts moved by its Poisson σ, and by one count when
-it is zero. It is not a finite-key term. The paper's bound is asymptotic, and a block holds about 9
-sifted bits, 1.9 |α,α⟩ clicks at D_M0 and 0.004 at D_M1, so a short run is far from that limit and
-tends to read low while the rare gains count zero. The spread between runs is 0.13 after 20 blocks
-(7 s), 0.021 after 1,000 (6 minutes) and 0.009 after 5,000 (30 minutes).
+it is zero. It is not a finite-key term. The paper's bound is asymptotic, and a block holds about
+1.2 sifted bits, 0.29 |α,α⟩ clicks at D_M0 and 0.012 at D_M1, so a short run is far from that limit
+and tends to read low while the rare gains count zero. The spread between runs is 0.41 after 20
+blocks (7 s), 0.047 after 1,000 (6 minutes) and 0.021 after 5,000 (30 minutes).
 
-Over 1,000 blocks, four seeds of 250 (200 million pairs), every count is within 1.4σ of what
-`theory()` expects. The seeds read 0.258, 0.244, 0.227 and 0.262, closer together than the 0.046
-expected at 250 blocks, as four seeds are about 5 % of the time:
+Over 1,000 blocks, four seeds of 250 (200 million pairs), every count is within 2.2σ of what
+`theory()` expects. The seeds read 0.566, 0.565, 0.521 and 0.654, which spread by 0.056 against the
+0.10 expected at 250 blocks:
 
 | Quantity | Counted | Expected |
 | --- | --- | --- |
-| $Q$ | 9.42·10⁻⁵ | 9.41·10⁻⁵ |
-| $E_b$ on the whole sifted key | 0.0019 (18 of 9,423) | 0.0021 |
-| \|0,α⟩ events at D_M0, D_M1 | 544, 467 | 521, 458 |
-| \|α,0⟩ events at D_M0, D_M1 | 508, 467 | 521, 458 |
-| \|α,α⟩ events at D_M0, D_M1 | 1,991, 1 | 1,949, 3.6 |
-| \|0,0⟩ events at D_M0, D_M1 | 4, 1 | 4.4, 0.5 |
-| $E_p^u$ | 0.259 ± 0.019 | 0.271 |
-| `beta`, `M0`, `M1` | 0.179, 0.072, 0.008 | 0.180, 0.080, 0.011 |
+| $Q$ | 1.20·10⁻⁵ | 1.17·10⁻⁵ |
+| $E_b$ on the whole sifted key | 0.0175 (21 of 1,198) | 0.0184 |
+| \|0,α⟩ events at D_M0, D_M1 | 94, 100 | 85, 81 |
+| \|α,0⟩ events at D_M0, D_M1 | 85, 77 | 85, 81 |
+| \|α,α⟩ events at D_M0, D_M1 | 275, 7 | 287, 12.5 |
+| \|0,0⟩ events at D_M0, D_M1 | 13, 10 | 11.9, 12.0 |
+| $E_p^u$ | 0.589 ± 0.040 | 0.623 |
+| `beta`, `M0`, `M1` | 0.218, 0.266, 0.105 | 0.236, 0.238, 0.149 |
 
 ### Clock and frame synchronization from time stamps
 

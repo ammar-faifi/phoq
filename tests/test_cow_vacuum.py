@@ -11,12 +11,15 @@ import pytest
 
 from phoq.engine import trace
 from phoq.parties import Experiment, load_protocol
+from phoq.runner import Runner
 
 cv = load_protocol(Path(__file__).resolve().parents[1] / "examples" / "cow_vacuum")
 bound = cv.bound
 
-# enough counts on every gain within a few blocks
-BRIGHT = cv.COWParams(mu=0.5)
+# enough counts on every gain within a few blocks, which a hold-off would cap
+BRIGHT = cv.COWParams(mu=0.5, dead_time=0.0)
+# the detectors of the paper's simulation: η_d, p_d = 10⁻⁸ per window, no hold-off
+PAPER_DETECTORS = dict(efficiency=0.8, dark_count_rate=10.0, dead_time=0.0)
 POINTS = [
     (0.02, 0.8, 0.5, 1e-8),
     (0.2, 0.25, 0.3, 1e-6),
@@ -156,7 +159,10 @@ def test_hardware_is_calibrated():
     setup = cv.build(p)
     assert cv.pulse_photons(setup, p) == pytest.approx(p.mu, rel=1e-9)
     assert 0.0 < setup["ALICE-VOA"].attenuation_db < 80.0
-    assert p.dark_count_rate == pytest.approx(10.0, abs=0.01)
+    for name in ("DT", "DM0", "DM1"):
+        spd = setup[name]  # the preset's PDE and dark counts, the hold-off set here
+        assert spd.efficiency_at(p.wavelength) == pytest.approx(0.25)
+        assert (spd.dark_count_rate, spd.dead_time) == (250.0, 40e-6)
     arms = cv.common.arms
     short, long_ = arms(setup)
     # the DLI: one slot, balanced by BOB-VOA, the delay line within its travel
@@ -269,10 +275,11 @@ def test_four_sub_bins_read_as_two():
 
 
 def test_the_default_link_reads_near_its_expected_bound():
-    res = cv.run(blocks=6, seed=6)
+    res = cv.run(blocks=12, seed=6)
     t, e = res.tally, res.expected
     assert_gains_match(t, e["gains"])
-    assert t.sifted == pytest.approx(6 * 200_000 * e["sifted / pair"], rel=0.5)
+    sifted = 12 * 200_000 * e["sifted / pair"]
+    assert abs(t.sifted - sifted) < 4 * math.sqrt(sifted)
     assert abs(t.phase_error(cv.params.mu) - e["E_p^u"]) < 2 * t.counting_error(
         cv.params.mu
     )
@@ -281,37 +288,49 @@ def test_the_default_link_reads_near_its_expected_bound():
 def test_the_default_operating_point():
     p = cv.COWParams()
     th = cv.theory(cv.build(p), p)
-    assert th["E_p^u"] == pytest.approx(0.271, abs=0.001)
-    assert th["E_b"] == pytest.approx(0.0021, abs=1e-4)
-    assert th["Q"] == pytest.approx(9.4e-5, rel=0.01)
-    assert th["terms"]["beta"] == pytest.approx(0.180, abs=0.001)
-    assert th["terms"]["M0"] == pytest.approx(0.080, abs=0.001)
-    assert th["terms"]["M1"] == pytest.approx(0.011, abs=0.001)
+    assert th["E_p^u"] == pytest.approx(0.623, abs=0.001)
+    assert th["E_b"] == pytest.approx(0.0184, abs=1e-4)
+    assert th["Q"] == pytest.approx(1.17e-5, rel=0.01)
+    assert th["terms"]["beta"] == pytest.approx(0.236, abs=0.001)
+    assert th["terms"]["M0"] == pytest.approx(0.238, abs=0.001)
+    assert th["terms"]["M1"] == pytest.approx(0.149, abs=0.001)
     assert th["coherence"] == pytest.approx(math.exp(-math.pi * 1e6 / 1e9))
     assert th["sifted / pair"] == pytest.approx(th["Q"] / 2)
+    assert th["open"] == pytest.approx([0.767, 0.906, 0.963], abs=0.001)
 
 
-def cost_rows(th):
-    """The steps from the paper's model to this bench, as in the README."""
-    tau, (m0, m1) = th["tau"], th["ports"]
+def with_detectors(setup, **values):
+    for name in ("DT", "DM0", "DM1"):
+        setup[name].set(**values)
+    return setup
+
+
+def cost_rows(paper, th):
+    """The steps from the paper's model to this bench, as in the README: (tau, ports,
+    leak, coherence, p_d, hold)."""
+    tau, bench, p_d = paper["tau"], paper["ports"], paper["p_d"]
     lossless = (tau / 2, tau / 2, tau / 2)
     side = (tau / 4, tau / 4, tau / 4)
     ports = lambda a: (cv.Port(*a), cv.Port(a[0], a[1], -a[2]))  # noqa: E731
-    bench = (m0, m1)
     v = th["coherence"]
+    spads = (th["tau"], th["ports"], 1e-3, v)
     return [
-        (ports(lossless), 0.0, 1.0),
-        (ports(side), 0.0, 1.0),
-        (bench, 0.0, 1.0),
-        (bench, 0.0, v),
-        (bench, 1e-4, v),
-        (bench, 1e-3, v),
+        (tau, ports(lossless), 0.0, 1.0, p_d, 0),
+        (tau, ports(side), 0.0, 1.0, p_d, 0),
+        (tau, bench, 0.0, 1.0, p_d, 0),
+        (tau, bench, 0.0, v, p_d, 0),
+        (tau, bench, 1e-4, v, p_d, 0),
+        (tau, bench, 1e-3, v, p_d, 0),
+        (*spads, p_d, 0),
+        (*spads, th["p_d"], 0),
+        (*spads, th["p_d"], th["hold"]),
     ]
 
 
 def test_what_the_real_bench_costs():
     p = cv.COWParams()
     th = cv.theory(cv.build(p), p)
+    paper = cv.theory(with_detectors(cv.build(p), **PAPER_DETECTORS), p)
     expected = [
         (8.44e-3, 0.236, 7.91e-4),
         (4.15e-3, 0.239, 3.89e-4),
@@ -319,20 +338,34 @@ def test_what_the_real_bench_costs():
         (1.61e-3, 0.251, 1.51e-4),
         (1.45e-3, 0.257, 1.36e-4),
         (9.89e-4, 0.270, 9.30e-5),
+        (3.15e-4, 0.310, 9.28e-6),  # 25 % PDE
+        (5.18e-4, 0.618, 1.57e-5),  # 250 Hz: no key at any μ …
+        (4.88e-4, 0.623, 1.14e-5),  # … and the hold-off adds little to the bound
     ]
-    for (ports, leak, v), (mu_want, e_want, q_want) in zip(cost_rows(th), expected):
+    rows = cost_rows(paper, th)
+    for i, (row, (mu_want, e_want, q_want)) in enumerate(zip(rows, expected)):
         model = lambda m: cv.pair_gains(
-            m, th["tau"], ports, leak, v, p.p_d
+            m, *row[:5], p.probabilities, row[5]
         )  # noqa: E731
-        mu = bound.best_mu(model)[0]
+        mu, rate = bound.best_mu(model)
         g, q, _ = model(mu)
         assert mu == pytest.approx(mu_want, rel=0.02)
         assert bound.phase_error(mu, g) == pytest.approx(e_want, abs=0.002)
         assert q == pytest.approx(q_want, rel=0.02)
-    # the default μ sits at the bench's own optimum, which falls with the transmittance
+        assert (rate > 0) == (i < 7)
+        if rate < 0:  # nothing to maximize: the lowest bound instead
+            for other in (mu / 1.5, mu * 1.5):
+                assert bound.phase_error(other, model(other)[0]) > bound.phase_error(
+                    mu, g
+                )
+    # the default μ sits at the bench's own lowest bound
     assert cv.best_mu(cv.build(p), p) == pytest.approx(p.mu, rel=0.1)
-    far = cv.COWParams(distance=50e3)
-    assert cv.best_mu(cv.build(far), far) < p.mu / 2
+    # with key to maximize, the best μ falls with the transmittance
+    near, far = (
+        cv.best_mu(with_detectors(cv.build(q), **PAPER_DETECTORS), q)
+        for q in (p, cv.COWParams(distance=50e3))
+    )
+    assert far < near / 2
 
 
 def test_the_lossless_model_is_the_papers():
@@ -351,9 +384,9 @@ def test_the_lossless_model_is_the_papers():
 
 
 # ---- what wrong settings do to the bound ---------------------------------------------
-def expected(p=None, detune=0.0):
+def expected(p=None, detune=0.0, **detectors):
     p = p or cv.COWParams()
-    setup = cv.build(p)
+    setup = with_detectors(cv.build(p), **detectors)
     setup["BOB-PS"].phase = setup["BOB-PS"].phase + detune
     return cv.theory(setup, p)
 
@@ -363,28 +396,38 @@ def test_settings_show_in_the_terms_of_the_bound():
     # the DLI off its fringe: |α,α⟩ clicks reach D_M1
     off = expected(detune=math.radians(30))
     assert off["E_p^u"] > base["E_p^u"] + 0.05
-    assert off["terms"]["M1"] > 5 * base["terms"]["M1"]
+    assert off["terms"]["M1"] > base["terms"]["M1"] + 0.05
     # a broad laser: no phase shared between the pulses
     broad = expected(cv.COWParams(linewidth=10e6))
     assert broad["coherence"] < base["coherence"]
     assert broad["terms"]["M1"] > base["terms"]["M1"]
     none = expected(cv.COWParams(linewidth=10e9))
     assert none["coherence"] < 1e-10
-    assert none["E_p^u"] > 2 * base["E_p^u"]
+    assert none["E_p^u"] > 1
     # the modulator's leak: a tenth of its power takes far less than nine tenths of the
-    # term away, since the leak adds to the pulses in amplitude
-    clean = expected(cv.COWParams(extinction_db=40.0))
-    assert base["terms"]["M0"] / 10 < clean["terms"]["M0"] < base["terms"]["M0"] / 2
+    # term away, since the leak adds to the pulses in amplitude; quiet detectors show it
+    quiet = cv.COWParams(mu=1e-3, dead_time=0.0)
+    leaky = expected(quiet, **PAPER_DETECTORS)
+    clean = expected(
+        cv.COWParams(mu=1e-3, dead_time=0.0, extinction_db=40.0), **PAPER_DETECTORS
+    )
+    assert leaky["terms"]["M0"] / 10 < clean["terms"]["M0"] < leaky["terms"]["M0"] / 2
     assert clean["E_p^u"] == pytest.approx(0.219, abs=0.002)
-    # dark counts
-    dark = expected(cv.COWParams(p_d=100.0 / 1e9))
-    assert dark["terms"]["M1"] > 2 * base["terms"]["M1"]
+    # dark counts: the datasheet's maximum, and what the part would need
+    dark = expected(dark_count_rate=600.0)
+    assert dark["terms"]["M0"] > base["terms"]["M0"] + 0.05
+    assert dark["terms"]["M1"] > base["terms"]["M1"] + 0.05
+    assert expected(dark_count_rate=10.0)["E_p^u"] < 0.4
     # too high a μ for the transmittance
-    bright = expected(cv.COWParams(mu=5e-3))
+    bright = expected(cv.COWParams(mu=2.5e-3))
     assert bright["terms"]["beta"] > 2 * base["terms"]["beta"]
-    assert bright["E_p^u"] > 0.5  # bounds nothing useful
     far_too_bright = expected(cv.COWParams(mu=0.5))
     assert far_too_bright["E_p^u"] > 1
+    # the hold-off costs sifted key far more than it moves the bound
+    longer = expected(cv.COWParams(dead_time=100e-6))
+    free = expected(cv.COWParams(dead_time=0.0))
+    assert longer["Q"] < base["Q"] < 0.8 * free["Q"]
+    assert abs(longer["E_p^u"] - free["E_p^u"]) < 0.02
 
 
 def test_a_detuned_dli_counts_as_expected():
@@ -399,12 +442,40 @@ def test_a_detuned_dli_counts_as_expected():
 def test_no_shared_phase_counts_as_expected():
     """A very broad laser: the pair's pulses no longer interfere, as with a
     gain-switched source, and the data line does not change."""
-    p = cv.COWParams(mu=0.5, linewidth=10e9)
+    p = cv.COWParams(mu=0.5, dead_time=0.0, linewidth=10e9)
     res = cv.run(p, blocks=6, seed=10)
     assert res.expected["V"] == pytest.approx(0.0, abs=1e-9)
     assert abs(res.tally.visibility) < 0.05
     assert_gains_match(res.tally, res.expected["gains"])
     assert res.e_b == pytest.approx(res.expected["E_b"], abs=1e-3)
+
+
+def test_the_hold_off_counts_as_expected():
+    """Where it bites: a short hold-off at a high μ, so that every detector is blind most
+    of the time and each block still holds hundreds of clicks. Each detector counts all
+    its clicks, read or not, so D_M0 is blind more often than D_M1."""
+    p = cv.COWParams(mu=0.5, dead_time=1e-6)
+    setup = cv.build(p)
+    th = cv.theory(setup, p)
+    assert th["open"][0] < th["open"][1] < th["open"][2] < 0.7
+    runner = Runner(setup, seed=11)
+    im, awg, tagger = setup["ALICE-IM"], setup["ALICE-AWG"], setup["TAGGER"]
+    clicks, monitor, blocks = np.zeros(3), np.zeros((4, 3), dtype=np.int64), 8
+    for _ in range(blocks):
+        kind = cv.draw(runner.rng, tagger.slots // 2, p)
+        awg.set_pattern(
+            "ch1", im.voltage_for(cv.carving(cv.occupied(kind))), 2 * p.rate
+        )
+        record = runner.acquire("TAGGER").clicks
+        clicks += [record[ch].sum() for ch in (cv.DT, cv.DM0, cv.DM1)]
+        _, _, mon, det = cv.announcements(cv.events(record, runner.rng)[0])
+        monitor += cv.monitor_table(kind, mon, det)
+    for n, o in zip(clicks, th["open"]):
+        # free clicks per slot (1/o − 1)/hold, of which a share o find the detector open
+        mean = (1 / o - 1) / th["hold"] * o * blocks * tagger.slots
+        assert abs(n - mean) < 4 * math.sqrt(mean)
+    tally = cv.Tally(monitor=monitor)
+    assert_gains_match(tally, th["gains"])
 
 
 # ---- the counting error --------------------------------------------------------------
@@ -413,7 +484,7 @@ def test_counting_error_follows_the_spread():
     th = cv.theory(cv.build(p), p)
     rng = np.random.default_rng(3)
     share = dict(zip(cv.STATES, p.probabilities))
-    for blocks, spread in ((100, 0.068), (1000, 0.022), (5000, 0.009)):
+    for blocks, spread in ((100, 0.176), (1000, 0.047), (5000, 0.021)):
         sent = {s: int(200_000 * blocks * share[s]) for s in cv.STATES}
         readings, errors = [], []
         for _ in range(300):
@@ -447,16 +518,16 @@ def test_no_monitoring_clicks_read_nan():
 # ---- the two parties -----------------------------------------------------------------
 def test_parties_sift_the_same_key():
     setup = cv.build(slots=400_000)
-    alice, bob = Experiment(setup, cv.PARTIES, seed=8).run(blocks=4, echo=False)
-    assert [w.name for w in (alice, bob)] == ["ALICE", "BOB"] and bob.batches == 4
+    alice, bob = Experiment(setup, cv.PARTIES, seed=8).run(blocks=12, echo=False)
+    assert [w.name for w in (alice, bob)] == ["ALICE", "BOB"] and bob.batches == 12
     for w in (alice, bob):
         assert not any("Traceback" in line for line in w.lines)
-        assert w.result["pairs sent"] == 800_000
-        assert 20 < w.result["sifted bits"] < 120
+        assert w.result["pairs sent"] == 2_400_000
+        assert 3 < w.result["sifted bits"] < 30
         assert w.result["E_p^u ±"] > 0
     trim = lambda r: {
         k: v for k, v in r.items() if k not in ("sent [kB]", "received [kB]")
     }  # noqa: E731
     assert trim(alice.result) == pytest.approx(trim(bob.result), nan_ok=True)
     # detect + errors per block; sift
-    assert bob.net["sent"] == 8 and alice.net["sent"] == 4
+    assert bob.net["sent"] == 24 and alice.net["sent"] == 12

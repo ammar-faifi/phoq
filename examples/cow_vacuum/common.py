@@ -55,6 +55,8 @@ from .bound import Gains, phase_error, terms
 
 BIT0, BIT1, DECOY1, DECOY2 = 0, 1, 2, 3  # what Alice sends in a pair of slots
 STATES = (BIT0, BIT1, DECOY1, DECOY2)  # in the order of bound.Gains
+# which of a pair's two pulses each state sends
+PULSES = ((False, True), (True, False), (True, True), (False, False))
 # tagger channels: data line, monitoring constructive / destructive
 DT, DM0, DM1 = "ch1", "ch2", "ch3"
 # a pair's event: the window Bob keeps, or none
@@ -77,16 +79,15 @@ class Topic:
 @dataclass
 class COWParams:
     rate: float = 1e9  # pulse clock: one slot τ = 1 ns, 500 million pairs a second
-    # photons per non-empty pulse into the fiber: near the best μ on this bench
-    mu: float = 1e-3
+    # photons per non-empty pulse into the fiber: where E_p^u is lowest on this bench
+    mu: float = 5e-4
     decoy1: float = 0.25  # fraction of |α⟩|α⟩ pairs …
     decoy2: float = 0.25  # … and of |0⟩|0⟩ pairs: the four states are equally likely
     # Bob's tap to the data line (a standard 50/50 coupler; the paper's model: 0.47)
     t_b: float = 0.5
     distance: float = 25e3  # Alice–Bob fiber [m]
-    efficiency: float = 0.8  # η_d, as in the paper's simulation …
-    p_d: float = 1e-8  # … and its dark-count probability per window
-    dead_time: float = 0.0  # not modeled, as in the paper
+    detector: str = "mpd/pdm-ir"  # InGaAs/InP SPADs: the preset's PDE and dark counts …
+    dead_time: float = 40e-6  # … at this hold-off; the paper has none
     linewidth: float = 1e6  # Alice's laser [Hz] (a DFB; the paper does not say)
     extinction_db: float = 30.0  # intensity modulator: how dark an empty slot is
     sample_fraction: float = 0.1  # sifted bits disclosed to estimate E_b
@@ -101,11 +102,6 @@ class COWParams:
     def probabilities(self) -> tuple[float, float, float, float]:
         bit = (1 - self.decoy1 - self.decoy2) / 2
         return (bit, bit, self.decoy1, self.decoy2)
-
-    @property
-    def dark_count_rate(self) -> float:
-        """The detectors' dark-count rate [Hz] that gives p_d per slot."""
-        return -math.log1p(-self.p_d) * self.rate
 
 
 # ---- encoding ------------------------------------------------------------------------
@@ -185,11 +181,7 @@ def receiver(setup: Setup, p: COWParams, slots: int) -> Coupler:
     setup.connect(odl.p2, bs2.a1, length=0.5)
     setup.connect(bs1.b2, voa.p1, length=1.0)
     setup.connect(voa.p2, bs2.a2, length=0.5)
-    spd = dict(
-        efficiency=p.efficiency,
-        dark_count_rate=p.dark_count_rate,
-        dead_time=p.dead_time,
-    )
+    spd = dict(preset=p.detector, dead_time=p.dead_time)
     dt, dm0, dm1 = (
         setup.add(SinglePhotonDetector(n, **spd)) for n in ("DT", "DM0", "DM1")
     )
@@ -565,6 +557,42 @@ def windows(
     return [1 - (1 - p_d) * math.exp(-n) for n in photons]
 
 
+def open_fractions(
+    mu: float,
+    tau: float,
+    ports: tuple[Port, Port],
+    leak: float,
+    coherence: float,
+    p_d: float,
+    shares: tuple[float, float, float, float],
+    hold: int,
+) -> list[float]:
+    """The share of the slots in which D_T, D_M0 and D_M1 are out of their hold-off, of
+    ``hold`` slots after a click: 1/(1 + p̄·hold), with p̄ a detector's clicks per slot
+    if it were never blind. Every click counts, read or not: a monitoring detector's
+    other slot holds a pair's first pulse and the second of the pair before, which meet
+    at the DLI like any two. So the constructive port is blind more often."""
+    args = (mu, tau, ports, leak, coherence, p_d)
+    first = shares[BIT1] + shares[DECOY1]
+    second = shares[BIT0] + shares[DECOY1]
+    read = [(w, windows(a, b, *args)) for w, (a, b) in zip(shares, PULSES)]
+    other = [
+        (
+            (second if a else 1 - second) * (first if b else 1 - first),
+            windows(a, b, *args),
+        )
+        for a, b in PULSES
+    ]
+    return [
+        1 / (1 + hold * x)
+        for x in (
+            sum(w * (c[T0] + c[T1]) for w, c in read) / 2,
+            sum(w * c[M0] for w, c in read + other) / 2,
+            sum(w * c[M1] for w, c in read + other) / 2,
+        )
+    ]
+
+
 def one_event(clicks: list[float]) -> list[float]:
     """The probability that a pair's event is each window, under the rule of ``events``:
     of the windows that clicked, one at random."""
@@ -585,19 +613,21 @@ def pair_gains(
     leak: float = 0.0,
     coherence: float = 1.0,
     p_d: float = 1e-8,
+    shares: tuple[float, float, float, float] = (0.25, 0.25, 0.25, 0.25),
+    hold: int = 0,
 ) -> tuple[Gains, float, float]:
     """(Gains, Q, E_b) of a bench: ``tau`` detected photons on the data line per photon
     at the fiber input, ``ports`` the two monitoring detectors, ``leak`` the modulator's
-    t_min/t_max and ``coherence`` the fringe contrast of the laser over one slot."""
+    t_min/t_max, ``coherence`` the fringe contrast of the laser over one slot, and
+    ``shares`` and ``hold`` what ``open_fractions`` needs. The hold-off spans thousands
+    of pairs, so a pair finds a detector open whatever Alice sent it."""
     args = (mu, tau, ports, leak, coherence, p_d)
+    t, m0, m1 = open_fractions(*args, shares, hold)
     e0, e1, e_a, e_v = (
-        one_event(windows(first, second, *args))
-        for first, second in (
-            (False, True),
-            (True, False),
-            (True, True),
-            (False, False),
+        one_event(
+            [c * o for c, o in zip(windows(first, second, *args), (t, t, m0, m1))]
         )
+        for first, second in PULSES
     )
     right, wrong = (e0[T0] + e1[T1]) / 2, (e0[T1] + e1[T0]) / 2
     gains = Gains(
@@ -606,10 +636,11 @@ def pair_gains(
     return gains, right + wrong, wrong / (right + wrong)
 
 
-def monitoring_port(setup: Setup, detector: str, per_watt: float, eta: float) -> Port:
+def monitoring_port(setup: Setup, detector: str, per_watt: float) -> Port:
     """A monitoring detector as traced: the arms' losses and the DLI's phase."""
     alice = setup["ALICE-LD"]
     short, long_ = arms(setup, detector)
+    eta = setup[detector].efficiency_at(alice.wavelength)
     s, l = (eta * per_watt * alice.power * abs(q.amp) ** 2 for q in (short, long_))
     phase = np.angle(static_amplitude(long_)) - np.angle(static_amplitude(short))
     return Port(s, l, math.sqrt(s * l) * math.cos(phase))
@@ -618,27 +649,37 @@ def monitoring_port(setup: Setup, detector: str, per_watt: float, eta: float) ->
 def theory(setup: Setup, p: COWParams) -> dict:
     """Expected figures from the calibrated hardware.
 
-    The traced losses give the detected photons per photon at the fiber input, on the
-    data line and through each arm of the DLI, whose phase comes from the trace too. The
-    laser's phase walk over one slot keeps a fringe contrast e^{−πΔντ}. ``windows`` and
-    ``one_event`` turn these into the gains, and Eq. (7) into E_p^u.
+    The traced losses and the detectors' PDE give the detected photons per photon at the
+    fiber input, on the data line and through each arm of the DLI, whose phase comes from
+    the trace too. The laser's phase walk over one slot keeps a fringe contrast
+    e^{−πΔντ}. ``windows``, ``open_fractions`` and ``one_event`` turn these into the
+    gains, and Eq. (7) into E_p^u.
     """
-    net, alice, im = trace(setup), setup["ALICE-LD"], setup["ALICE-IM"]
+    net, alice, im, spd = (
+        trace(setup),
+        setup["ALICE-LD"],
+        setup["ALICE-IM"],
+        setup["DT"],
+    )
     # photons at the fiber input per watt of traced power
     per_watt = 1 / net.port_power[FIBER_INPUT]
-    tau = p.efficiency * per_watt * path_power(net, setup["DT"], alice)
-    ports = tuple(
-        monitoring_port(setup, d, per_watt, p.efficiency) for d in ("DM0", "DM1")
-    )
+    tau = spd.efficiency_at(alice.wavelength) * per_watt * path_power(net, spd, alice)
+    ports = tuple(monitoring_port(setup, d, per_watt) for d in ("DM0", "DM1"))
     leak = im.t_min / im.t_max
     coherence = math.exp(-math.pi * alice.linewidth * p.slot)
-    g, q, e_b = pair_gains(p.mu, tau, ports, leak, coherence, p.p_d)
+    p_d = -math.expm1(-spd.dark_count_rate * p.slot)
+    hold = max(0, spd.dead_bins(p.slot) - 1)
+    args = (tau, ports, leak, coherence, p_d)
+    g, q, e_b = pair_gains(p.mu, *args, p.probabilities, hold)
     n0, n1 = g.qaa
     return {
         "tau": tau,
         "ports": ports,
         "leak": leak,
         "coherence": coherence,
+        "p_d": p_d,
+        "hold": hold,
+        "open": open_fractions(p.mu, *args, p.probabilities, hold),
         "gains": g,
         "Q": q,
         "E_b": e_b,
@@ -650,11 +691,18 @@ def theory(setup: Setup, p: COWParams) -> dict:
 
 
 def best_mu(setup: Setup, p: COWParams) -> float:
-    """The μ that maximizes Eq. (6) on this calibrated bench. It falls with the
-    transmittance, so another distance or modulator needs its own."""
+    """The μ that maximizes Eq. (6) on this calibrated bench, or with no key at any μ,
+    gives the lowest E_p^u. Another distance, modulator or detector needs its own."""
     th = theory(setup, p)
     return bound.best_mu(
         lambda mu: pair_gains(
-            mu, th["tau"], th["ports"], th["leak"], th["coherence"], p.p_d
+            mu,
+            th["tau"],
+            th["ports"],
+            th["leak"],
+            th["coherence"],
+            th["p_d"],
+            p.probabilities,
+            th["hold"],
         )
     )[0]

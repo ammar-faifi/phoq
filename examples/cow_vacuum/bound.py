@@ -114,6 +114,8 @@ def key_rate(q: float, e_p: float, e_b: float, f: float = F) -> float:
 def best_mu(model, f: float = F, low: float = 1e-7, high: float = 1.0):
     """The μ that maximizes Eq. (6) for ``model(mu) → (Gains, Q, E_b)``, and that rate.
     A coarse scan first: the rate is positive on a narrow hump near the end of a link.
+    With no key at any μ there is nothing to maximize: the μ with the lowest E_p^u, and
+    its rate, which is below zero.
     """
 
     def rate(log_mu: float) -> float:
@@ -121,13 +123,19 @@ def best_mu(model, f: float = F, low: float = 1e-7, high: float = 1.0):
         g, q, e_b = model(mu)
         return key_rate(q, phase_error(mu, g), e_b, f)
 
+    def lowest(log_mu: float) -> float:
+        mu = 10.0**log_mu
+        return -phase_error(mu, model(mu)[0])
+
     grid = np.linspace(math.log10(low), math.log10(high), 61)
-    i = int(np.argmax([rate(x) for x in grid]))
+    rates = [rate(x) for x in grid]
+    aim = rate if max(rates) > 0 else lowest
+    i = int(np.argmax(rates if aim is rate else [aim(x) for x in grid]))
     a, b = grid[max(i - 1, 0)], grid[min(i + 1, grid.size - 1)]
     r = minimize_scalar(
-        lambda x: -rate(x), bounds=(a, b), method="bounded", options=dict(xatol=1e-4)
+        lambda x: -aim(x), bounds=(a, b), method="bounded", options=dict(xatol=1e-4)
     )
-    return float(10.0**r.x), float(-r.fun)
+    return float(10.0**r.x), rate(r.x)
 
 
 # ---- the paper's simulation ----------------------------------------------------------
