@@ -20,6 +20,7 @@ import numpy as np
 
 from phoq.parties import Message, Party
 from .common import (
+    BINS_PER_PAIR,
     BIT0,
     BIT1,
     DECOY1,
@@ -57,8 +58,8 @@ class Alice(Party):
     # ---- physical layer --------------------------------------------------------------
     def prepare(self, block: int, n: int) -> None:
         p = self.params
-        # the lab counts time slots: two per pair
-        kind = draw(self.rng, n // 2, p)
+        # the lab counts the tagger's bins
+        kind = draw(self.rng, n // BINS_PER_PAIR, p)
         volts = self.hw.call("ALICE-IM", "voltage_for", carving(occupied(kind)))
         self.hw.call("ALICE-AWG", "set_pattern", "ch1", volts, 2 * p.rate)
         self.blocks[block] = dict(kind=kind)

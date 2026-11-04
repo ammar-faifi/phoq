@@ -27,6 +27,10 @@ not used, so the window holds half of the light the paper's gains assume
 are taken as a monitoring line with that extra loss; that is this package's reading, not
 the paper's.
 
+A pulse fills half of its slot, and the tagger's bins are half a slot, so Bob's click
+window can be that half alone: it drops half of the dark counts and the modulator's leak
+in the other half, while a click outside the window still starts a detector's hold-off.
+
 Everything here is public: the parameters are agreed beforehand and both stations run
 these functions on disclosed data. Alice's sequence and Bob's bits only pass through
 them inside their owner's process.
@@ -61,7 +65,7 @@ PULSES = ((False, True), (True, False), (True, True), (False, False))
 DT, DM0, DM1 = "ch1", "ch2", "ch3"
 # a pair's event: the window Bob keeps, or none
 NONE, T0, T1, M0, M1 = -1, 0, 1, 2, 3
-SUB_BINS = 2  # tagger sub-bins per slot, one per half-slot symbol of the modulator
+BINS_PER_PAIR = 4  # the tagger's bins are half a slot, one per symbol of the modulator
 FIBER_INPUT = "SPL.p1"  # where μ is defined
 
 
@@ -80,7 +84,7 @@ class Topic:
 class COWParams:
     rate: float = 1e9  # pulse clock: one slot τ = 1 ns, 500 million pairs a second
     # photons per non-empty pulse into the fiber: where E_p^u is lowest on this bench
-    mu: float = 5e-4
+    mu: float = 4e-4
     decoy1: float = 0.25  # fraction of |α⟩|α⟩ pairs …
     decoy2: float = 0.25  # … and of |0⟩|0⟩ pairs: the four states are equally likely
     # Bob's tap to the data line (a standard 50/50 coupler; the paper's model: 0.47)
@@ -88,6 +92,8 @@ class COWParams:
     distance: float = 25e3  # Alice–Bob fiber [m]
     detector: str = "mpd/pdm-ir"  # InGaAs/InP SPADs: the preset's PDE and dark counts …
     dead_time: float = 40e-6  # … at this hold-off; the paper has none
+    # Bob reads the half of a slot with the pulse, not all of it
+    click_window: bool = True
     linewidth: float = 1e6  # Alice's laser [Hz] (a DFB; the paper does not say)
     extinction_db: float = 30.0  # intensity modulator: how dark an empty slot is
     sample_fraction: float = 0.1  # sifted bits disclosed to estimate E_b
@@ -95,7 +101,7 @@ class COWParams:
 
     @property
     def slot(self) -> float:
-        """Time between pulses = the DLI's imbalance = one tagger bin [s]."""
+        """Time between pulses = the DLI's imbalance = two tagger bins [s]."""
         return 1.0 / self.rate
 
     @property
@@ -132,9 +138,7 @@ def transmitter(setup: Setup, p: COWParams) -> Attenuator:
     """CW laser → intensity modulator (AWG CH1, two symbols per slot) → attenuators.
 
     A fixed 30 dB stands ahead of the VOA set to μ: the VOA's 80 dB alone would stop at
-    μ ≈ 1.1·10⁻³. The AWG's delay moves each pulse an eighth of a slot off center, so
-    that no pulse edge falls on the center of one of the tagger's two sub-bins per slot,
-    which is where the field is sampled.
+    μ ≈ 1.1·10⁻³.
     """
     laser = setup.add(
         Laser(
@@ -151,7 +155,6 @@ def transmitter(setup: Setup, p: COWParams) -> Attenuator:
             "ALICE-AWG",
             ch1_shape="dc",
             ch1_offset=float(im.voltage_for(1.0)),
-            ch1_delay=p.slot / 8,
             ch2_enabled=False,
         )
     )
@@ -165,7 +168,7 @@ def transmitter(setup: Setup, p: COWParams) -> Attenuator:
 
 
 def receiver(setup: Setup, p: COWParams, slots: int) -> Coupler:
-    """Tap (t_B to D_T) → DLI → D_M0, D_M1, and a time tagger with one bin per slot.
+    """Tap (t_B to D_T) → DLI → D_M0, D_M1, and a time tagger with two bins per slot.
 
     The DLI's long arm must be one slot (0.20 m of fiber at 1 GHz) longer. The cords
     give 0.25 m: 1 m + VOA + 0.5 m against 0.5 m + phase shifter + 0.25 m + delay line
@@ -188,9 +191,8 @@ def receiver(setup: Setup, p: COWParams, slots: int) -> Coupler:
     tagger = setup.add(
         PhotonCounter(
             "TAGGER",
-            slots=slots,
-            bin_rate=p.rate,
-            oversample=SUB_BINS,
+            slots=2 * slots,
+            bin_rate=2 * p.rate,
             sync_source="ALICE-LD",
         )
     )
@@ -327,15 +329,23 @@ def align_tagger(setup: Setup) -> float:
 
 
 # ---- the data line and the monitoring line -------------------------------------------
-def events(clicks: dict, rng: np.random.Generator) -> tuple[np.ndarray, int]:
+def events(
+    clicks: dict, rng: np.random.Generator, click_window: bool = True
+) -> tuple[np.ndarray, int]:
     """One event per pair from its four windows: D_T in T_0 or T_1, D_M0 or D_M1 in the
-    pair's second slot. If several clicked, Bob takes one of them at random, the paper's
-    squashing rule; the monitoring detectors' other windows are not used. Returns
+    pair's second slot. A slot's first bin holds the pulse, and without ``click_window``
+    Bob reads its second too. If several clicked, Bob takes one of them at random, the
+    paper's squashing rule; the monitoring detectors' other windows are not used. Returns
     (NONE, T0, T1, M0 or M1 per pair; pairs where several clicked).
     """
-    w = np.stack(
-        (clicks[DT][1::2], clicks[DT][0::2], clicks[DM0][1::2], clicks[DM1][1::2])
-    )
+
+    def read(channel: str, slot: int) -> np.ndarray:
+        pulse = clicks[channel][2 * slot :: BINS_PER_PAIR]
+        if click_window:
+            return pulse
+        return pulse | clicks[channel][2 * slot + 1 :: BINS_PER_PAIR]
+
+    w = np.stack((read(DT, 1), read(DT, 0), read(DM0, 1), read(DM1, 1)))
     n = w.sum(axis=0)
     out = np.full(n.size, NONE, dtype=np.int8)
     one, many = np.flatnonzero(n == 1), np.flatnonzero(n > 1)
@@ -539,12 +549,16 @@ def windows(
     leak: float,
     coherence: float,
     p_d: float,
+    click_window: bool = False,
 ) -> list[float]:
     """Click probabilities in a pair's four windows (T_0, T_1, M0, M1), which of its
-    pulses being sent. A slot is a half that is carved (μ photons, or the modulator's
-    leak ε·μ) and a half that is always dark (ε·μ). The carved halves of the two pulses
-    meet at the DLI's output, and so do the dark halves."""
-    a, b, dark = (mu if first else leak * mu), (mu if second else leak * mu), leak * mu
+    pulses being sent, with ``p_d`` the dark-count probability per slot. A slot is a half
+    that is carved (μ photons, or the modulator's leak ε·μ) and a half that is always
+    dark (ε·μ). The carved halves of the two pulses meet at the DLI's output, and so do
+    the dark halves. A click window reads the carved half alone."""
+    a, b = (mu if first else leak * mu), (mu if second else leak * mu)
+    dark = 0.0 if click_window else leak * mu
+    quiet = math.sqrt(1 - p_d) if click_window else 1 - p_d
     photons = [tau * (b + dark), tau * (a + dark)]
     for port in ports:
         cross = 2 * coherence * port.cross
@@ -554,7 +568,7 @@ def windows(
             + cross * math.sqrt(a * b)
             + (port.long + port.short + cross) * dark
         )
-    return [1 - (1 - p_d) * math.exp(-n) for n in photons]
+    return [1 - quiet * math.exp(-n) for n in photons]
 
 
 def open_fractions(
@@ -569,9 +583,10 @@ def open_fractions(
 ) -> list[float]:
     """The share of the slots in which D_T, D_M0 and D_M1 are out of their hold-off, of
     ``hold`` slots after a click: 1/(1 + p̄·hold), with p̄ a detector's clicks per slot
-    if it were never blind. Every click counts, read or not: a monitoring detector's
-    other slot holds a pair's first pulse and the second of the pair before, which meet
-    at the DLI like any two. So the constructive port is blind more often."""
+    if it were never blind. Every click counts, read or not, whatever the click window: a
+    monitoring detector's other slot holds a pair's first pulse and the second of the
+    pair before, which meet at the DLI like any two. So the constructive port is blind
+    more often."""
     args = (mu, tau, ports, leak, coherence, p_d)
     first = shares[BIT1] + shares[DECOY1]
     second = shares[BIT0] + shares[DECOY1]
@@ -615,17 +630,24 @@ def pair_gains(
     p_d: float = 1e-8,
     shares: tuple[float, float, float, float] = (0.25, 0.25, 0.25, 0.25),
     hold: int = 0,
+    click_window: bool = False,
 ) -> tuple[Gains, float, float]:
     """(Gains, Q, E_b) of a bench: ``tau`` detected photons on the data line per photon
     at the fiber input, ``ports`` the two monitoring detectors, ``leak`` the modulator's
-    t_min/t_max, ``coherence`` the fringe contrast of the laser over one slot, and
-    ``shares`` and ``hold`` what ``open_fractions`` needs. The hold-off spans thousands
-    of pairs, so a pair finds a detector open whatever Alice sent it."""
+    t_min/t_max, ``coherence`` the fringe contrast of the laser over one slot, ``shares``
+    and ``hold`` what ``open_fractions`` needs, and ``click_window`` as in ``windows``.
+    The hold-off spans thousands of pairs, so a pair finds a detector open whatever Alice
+    sent it."""
     args = (mu, tau, ports, leak, coherence, p_d)
     t, m0, m1 = open_fractions(*args, shares, hold)
     e0, e1, e_a, e_v = (
         one_event(
-            [c * o for c, o in zip(windows(first, second, *args), (t, t, m0, m1))]
+            [
+                c * o
+                for c, o in zip(
+                    windows(first, second, *args, click_window), (t, t, m0, m1)
+                )
+            ]
         )
         for first, second in PULSES
     )
@@ -670,7 +692,7 @@ def theory(setup: Setup, p: COWParams) -> dict:
     p_d = -math.expm1(-spd.dark_count_rate * p.slot)
     hold = max(0, spd.dead_bins(p.slot) - 1)
     args = (tau, ports, leak, coherence, p_d)
-    g, q, e_b = pair_gains(p.mu, *args, p.probabilities, hold)
+    g, q, e_b = pair_gains(p.mu, *args, p.probabilities, hold, p.click_window)
     n0, n1 = g.qaa
     return {
         "tau": tau,
@@ -704,5 +726,6 @@ def best_mu(setup: Setup, p: COWParams) -> float:
             th["p_d"],
             p.probabilities,
             th["hold"],
+            p.click_window,
         )
     )[0]

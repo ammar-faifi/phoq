@@ -165,6 +165,9 @@ def test_hardware_is_calibrated():
         assert (spd.dark_count_rate, spd.dead_time) == (250.0, 40e-6)
     arms = cv.common.arms
     short, long_ = arms(setup)
+    # the tagger: two bins per slot, each one symbol of the modulator
+    tagger = setup["TAGGER"]
+    assert (tagger.slots, tagger.bin_rate) == (800_000, 2 * p.rate)
     # the DLI: one slot, balanced by BOB-VOA, the delay line within its travel
     assert long_.delay - short.delay == pytest.approx(p.slot, abs=1e-15)
     assert setup["BOB-ODL"].setting == pytest.approx(124e-12, abs=1e-12)
@@ -198,10 +201,11 @@ def test_the_four_states():
 
 
 def clicks_of(pairs, dt=(), dm0=(), dm1=()):
-    out = {ch: np.zeros(2 * pairs, dtype=bool) for ch in (cv.DT, cv.DM0, cv.DM1)}
-    out[cv.DT][list(dt)] = True
-    out[cv.DM0][list(dm0)] = True
-    out[cv.DM1][list(dm1)] = True
+    """A record with clicks in the half of the given slots that holds the pulse."""
+    bins = cv.BINS_PER_PAIR * pairs
+    out = {ch: np.zeros(bins, dtype=bool) for ch in (cv.DT, cv.DM0, cv.DM1)}
+    for ch, slots in ((cv.DT, dt), (cv.DM0, dm0), (cv.DM1, dm1)):
+        out[ch][2 * np.array(slots, dtype=int)] = True
     return out
 
 
@@ -221,6 +225,18 @@ def test_one_event_per_pair():
     assert table[cv.DECOY1].tolist() == [1, 0, 1]
     assert table[cv.DECOY2].tolist() == [0, 1, 1]
     assert table[cv.BIT0].tolist() == [0, 0, 3]
+
+
+def test_the_click_window_reads_half_of_each_slot():
+    # the other half of pair 0's first slot and of pair 1's second, on D_T, and of pair
+    # 2's second on D_M0
+    clicks = clicks_of(3)
+    clicks[cv.DT][[1, 7]] = True
+    clicks[cv.DM0][11] = True
+    rng = np.random.default_rng(1)
+    assert cv.events(clicks, rng)[0].tolist() == [cv.NONE] * 3
+    event, multi = cv.events(clicks, rng, click_window=False)
+    assert event.tolist() == [cv.T1, cv.T0, cv.M0] and multi == 0
 
 
 def test_several_clicks_give_one_at_random():
@@ -263,12 +279,11 @@ def test_reference_run_matches_theory():
     assert "E_p^u" in res.summary() and "not in the bound" in res.summary()
 
 
-def test_four_sub_bins_read_as_two():
-    """The pulses sit off center so that two sub-bins sample each once: with four, and
-    the pulses centered as in examples/cow, the gains are the same."""
+def test_sub_bins_read_as_one():
+    """A bin is one symbol of the modulator, sampled at its center. With two sub-bins,
+    which sample away from that center, the gains are the same."""
     setup = cv.build(BRIGHT)
-    setup["TAGGER"].oversample = 4
-    setup["ALICE-AWG"].ch1_delay = 0.0
+    setup["TAGGER"].oversample = 2
     res = cv.run(BRIGHT, blocks=8, seed=4, setup=setup)
     assert_gains_match(res.tally, res.expected["gains"])
     assert res.tally.q == pytest.approx(res.expected["Q"], rel=0.03)
@@ -288,15 +303,15 @@ def test_the_default_link_reads_near_its_expected_bound():
 def test_the_default_operating_point():
     p = cv.COWParams()
     th = cv.theory(cv.build(p), p)
-    assert th["E_p^u"] == pytest.approx(0.623, abs=0.001)
-    assert th["E_b"] == pytest.approx(0.0184, abs=1e-4)
-    assert th["Q"] == pytest.approx(1.17e-5, rel=0.01)
-    assert th["terms"]["beta"] == pytest.approx(0.236, abs=0.001)
-    assert th["terms"]["M0"] == pytest.approx(0.238, abs=0.001)
-    assert th["terms"]["M1"] == pytest.approx(0.149, abs=0.001)
+    assert th["E_p^u"] == pytest.approx(0.514, abs=0.001)
+    assert th["E_b"] == pytest.approx(0.0114, abs=1e-4)
+    assert th["Q"] == pytest.approx(9.62e-6, rel=0.01)
+    assert th["terms"]["beta"] == pytest.approx(0.212, abs=0.001)
+    assert th["terms"]["M0"] == pytest.approx(0.197, abs=0.001)
+    assert th["terms"]["M1"] == pytest.approx(0.105, abs=0.001)
     assert th["coherence"] == pytest.approx(math.exp(-math.pi * 1e6 / 1e9))
     assert th["sifted / pair"] == pytest.approx(th["Q"] / 2)
-    assert th["open"] == pytest.approx([0.767, 0.906, 0.963], abs=0.001)
+    assert th["open"] == pytest.approx([0.803, 0.922, 0.968], abs=0.001)
 
 
 def with_detectors(setup, **values):
@@ -307,7 +322,7 @@ def with_detectors(setup, **values):
 
 def cost_rows(paper, th):
     """The steps from the paper's model to this bench, as in the README: (tau, ports,
-    leak, coherence, p_d, hold)."""
+    leak, coherence, p_d, hold, click window)."""
     tau, bench, p_d = paper["tau"], paper["ports"], paper["p_d"]
     lossless = (tau / 2, tau / 2, tau / 2)
     side = (tau / 4, tau / 4, tau / 4)
@@ -315,15 +330,16 @@ def cost_rows(paper, th):
     v = th["coherence"]
     spads = (th["tau"], th["ports"], 1e-3, v)
     return [
-        (tau, ports(lossless), 0.0, 1.0, p_d, 0),
-        (tau, ports(side), 0.0, 1.0, p_d, 0),
-        (tau, bench, 0.0, 1.0, p_d, 0),
-        (tau, bench, 0.0, v, p_d, 0),
-        (tau, bench, 1e-4, v, p_d, 0),
-        (tau, bench, 1e-3, v, p_d, 0),
-        (*spads, p_d, 0),
-        (*spads, th["p_d"], 0),
-        (*spads, th["p_d"], th["hold"]),
+        (tau, ports(lossless), 0.0, 1.0, p_d, 0, False),
+        (tau, ports(side), 0.0, 1.0, p_d, 0, False),
+        (tau, bench, 0.0, 1.0, p_d, 0, False),
+        (tau, bench, 0.0, v, p_d, 0, False),
+        (tau, bench, 1e-4, v, p_d, 0, False),
+        (tau, bench, 1e-3, v, p_d, 0, False),
+        (*spads, p_d, 0, False),
+        (*spads, th["p_d"], 0, False),
+        (*spads, th["p_d"], th["hold"], False),
+        (*spads, th["p_d"], th["hold"], True),
     ]
 
 
@@ -341,11 +357,12 @@ def test_what_the_real_bench_costs():
         (3.15e-4, 0.310, 9.28e-6),  # 25 % PDE
         (5.18e-4, 0.618, 1.57e-5),  # 250 Hz: no key at any μ …
         (4.88e-4, 0.623, 1.14e-5),  # … and the hold-off adds little to the bound
+        (3.81e-4, 0.514, 9.25e-6),  # the click window: half the dark counts
     ]
     rows = cost_rows(paper, th)
     for i, (row, (mu_want, e_want, q_want)) in enumerate(zip(rows, expected)):
         model = lambda m: cv.pair_gains(
-            m, *row[:5], p.probabilities, row[5]
+            m, *row[:5], p.probabilities, *row[5:]
         )  # noqa: E731
         mu, rate = bound.best_mu(model)
         g, q, _ = model(mu)
@@ -412,22 +429,36 @@ def test_settings_show_in_the_terms_of_the_bound():
         cv.COWParams(mu=1e-3, dead_time=0.0, extinction_db=40.0), **PAPER_DETECTORS
     )
     assert leaky["terms"]["M0"] / 10 < clean["terms"]["M0"] < leaky["terms"]["M0"] / 2
-    assert clean["E_p^u"] == pytest.approx(0.219, abs=0.002)
+    assert clean["E_p^u"] == pytest.approx(0.211, abs=0.002)
     # dark counts: the datasheet's maximum, and what the part would need
     dark = expected(dark_count_rate=600.0)
     assert dark["terms"]["M0"] > base["terms"]["M0"] + 0.05
     assert dark["terms"]["M1"] > base["terms"]["M1"] + 0.05
     assert expected(dark_count_rate=10.0)["E_p^u"] < 0.4
     # too high a μ for the transmittance
-    bright = expected(cv.COWParams(mu=2.5e-3))
+    bright = expected(cv.COWParams(mu=2e-3))
     assert bright["terms"]["beta"] > 2 * base["terms"]["beta"]
     far_too_bright = expected(cv.COWParams(mu=0.5))
     assert far_too_bright["E_p^u"] > 1
     # the hold-off costs sifted key far more than it moves the bound
     longer = expected(cv.COWParams(dead_time=100e-6))
     free = expected(cv.COWParams(dead_time=0.0))
-    assert longer["Q"] < base["Q"] < 0.8 * free["Q"]
+    assert longer["Q"] < base["Q"] < 0.85 * free["Q"]
     assert abs(longer["E_p^u"] - free["E_p^u"]) < 0.02
+
+
+def test_what_the_click_window_buys():
+    window, whole = (expected(cv.COWParams(click_window=w)) for w in (True, False))
+    # half of the dark counts and of the leak: half of the data line's errors …
+    assert window["E_b"] == pytest.approx(whole["E_b"] / 2, rel=0.05)
+    # … with the light that matters all in the window
+    assert window["Q"] == pytest.approx(whole["Q"], rel=0.03)
+    assert window["E_p^u"] < whole["E_p^u"] - 0.1
+    # a click outside it still starts the hold-off
+    assert window["open"] == pytest.approx(whole["open"])
+    # no window at the μ of that bench: the figures of the whole slot
+    p = cv.COWParams(mu=5e-4, click_window=False)
+    assert expected(p)["E_p^u"] == pytest.approx(0.623, abs=0.001)
 
 
 def test_a_detuned_dli_counts_as_expected():
@@ -462,7 +493,7 @@ def test_the_hold_off_counts_as_expected():
     im, awg, tagger = setup["ALICE-IM"], setup["ALICE-AWG"], setup["TAGGER"]
     clicks, monitor, blocks = np.zeros(3), np.zeros((4, 3), dtype=np.int64), 8
     for _ in range(blocks):
-        kind = cv.draw(runner.rng, tagger.slots // 2, p)
+        kind = cv.draw(runner.rng, tagger.slots // cv.BINS_PER_PAIR, p)
         awg.set_pattern(
             "ch1", im.voltage_for(cv.carving(cv.occupied(kind))), 2 * p.rate
         )
@@ -470,9 +501,10 @@ def test_the_hold_off_counts_as_expected():
         clicks += [record[ch].sum() for ch in (cv.DT, cv.DM0, cv.DM1)]
         _, _, mon, det = cv.announcements(cv.events(record, runner.rng)[0])
         monitor += cv.monitor_table(kind, mon, det)
+    slots = blocks * tagger.slots / 2
     for n, o in zip(clicks, th["open"]):
         # free clicks per slot (1/o − 1)/hold, of which a share o find the detector open
-        mean = (1 / o - 1) / th["hold"] * o * blocks * tagger.slots
+        mean = (1 / o - 1) / th["hold"] * o * slots
         assert abs(n - mean) < 4 * math.sqrt(mean)
     tally = cv.Tally(monitor=monitor)
     assert_gains_match(tally, th["gains"])
@@ -484,7 +516,7 @@ def test_counting_error_follows_the_spread():
     th = cv.theory(cv.build(p), p)
     rng = np.random.default_rng(3)
     share = dict(zip(cv.STATES, p.probabilities))
-    for blocks, spread in ((100, 0.176), (1000, 0.047), (5000, 0.021)):
+    for blocks, spread in ((100, 0.191), (1000, 0.054), (5000, 0.024)):
         sent = {s: int(200_000 * blocks * share[s]) for s in cv.STATES}
         readings, errors = [], []
         for _ in range(300):

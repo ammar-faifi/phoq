@@ -20,8 +20,8 @@ what the monitoring line counts for each state she sent. Physical layer (one
 Alice's intensity modulator carves her CW laser into pulses of μ photons, or blocks a
 slot: bit 0 is (0, μ), bit 1 (μ, 0), decoy 1 (μ, μ) and decoy 2 (0, 0). Bob reads the
 bit from the time of arrival on DT; the delay-line interferometer, one slot unbalanced,
-mixes the two pulses of a pair in its second slot. Each pair gives Bob at most one
-event.
+mixes the two pulses of a pair in its second slot. Bob reads only the half of a slot
+that holds the pulse, and each pair gives him at most one event.
 
 Parties, each in its own file and its own process, talking over an authenticated public
 channel:
@@ -49,6 +49,7 @@ from .alice import Alice
 from .bob import Bob
 from .bound import Gains, phase_error, terms
 from .common import (
+    BINS_PER_PAIR,
     BIT0,
     BIT1,
     DECOY1,
@@ -95,6 +96,7 @@ __all__ = [
     "Alice",
     "Bob",
     "PARTIES",
+    "BINS_PER_PAIR",
     "BIT0",
     "BIT1",
     "COWParams",
@@ -206,9 +208,11 @@ def run(
     im, awg, tagger = setup["ALICE-IM"], setup["ALICE-AWG"], setup["TAGGER"]
     tally, alice_key, bob_key = Tally(), [], []
     for _ in range(blocks):
-        kind = draw(runner.rng, tagger.slots // 2, p)
+        kind = draw(runner.rng, tagger.slots // BINS_PER_PAIR, p)
         awg.set_pattern("ch1", im.voltage_for(carving(occupied(kind))), 2 * p.rate)
-        event, multi = events(runner.acquire("TAGGER").clicks, runner.rng)
+        event, multi = events(
+            runner.acquire("TAGGER").clicks, runner.rng, p.click_window
+        )
         idx, bits, mon, det = announcements(event)
         sent = kind[idx]
         decoy = sent >= DECOY1

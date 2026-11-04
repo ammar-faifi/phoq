@@ -46,11 +46,12 @@ class Bob(Party):
             f"receiver up · data line t_B={self.params.t_b}: second slot → 0, first → 1"
             f" · monitoring DLI one slot ({self.params.slot * 1e9:.2f} ns) unbalanced,"
             " read in each pair's second slot"
+            + (" · click window half a slot" if self.params.click_window else "")
         )
 
     # ---- physical layer --------------------------------------------------------------
     def measure(self, batch) -> None:
-        event, multi = events(batch.clicks, self.rng)
+        event, multi = events(batch.clicks, self.rng, self.params.click_window)
         idx, bits, mon, det = announcements(event)
         self.blocks[batch.seq] = dict(idx=idx, bits=bits, pairs=event.size, multi=multi)
         size = self.net.send(
