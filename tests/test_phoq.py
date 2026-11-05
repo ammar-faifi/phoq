@@ -987,6 +987,24 @@ def test_save_load_and_python_export_roundtrip(tmp_path):
     assert namespace["setup"].to_dict() == s.to_dict()
 
 
+def test_load_prefers_the_setup_a_script_chose_over_build(tmp_path):
+    build = (
+        "from phoq import Setup\n"
+        "def build(name='default'):\n"
+        "    return Setup(name)\n"
+    )
+    both = tmp_path / "both.py"
+    both.write_text(build + "setup = build('chosen')\n")
+    assert Setup.load(both).name == "chosen"
+    only = tmp_path / "only.py"
+    only.write_text(build)
+    assert Setup.load(only).name == "default"
+    # something else called setup does not hide build()
+    other = tmp_path / "other.py"
+    other.write_text(build + "setup = 'not a bench'\n")
+    assert Setup.load(other).name == "default"
+
+
 def test_beamsplitter_is_the_old_name_of_coupler():
     """Scripts and setups saved before the rename still work: the old name hands over a
     Coupler."""

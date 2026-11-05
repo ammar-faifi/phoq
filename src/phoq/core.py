@@ -747,7 +747,8 @@ class Setup:
     @classmethod
     def load(cls, path: str | Path) -> Setup:
         """Load a setup from a ``.json`` file, a Python script, or a package directory
-        that defines ``setup`` or ``build()``."""
+        that defines ``setup`` or ``build()``. In a file with both, ``setup`` is the one
+        its author chose and ``build()`` only holds the defaults, so ``setup`` wins."""
         path = Path(path)
         if path.suffix == ".json":
             return cls.from_dict(json.loads(path.read_text()))
@@ -757,11 +758,12 @@ class Setup:
             namespace = vars(import_source(path))
         else:
             namespace = runpy.run_path(str(path), run_name="__lab__")
-        if callable(namespace.get("build")):
-            setup = namespace["build"]()
-        else:
-            setup = namespace.get("setup") or next(
-                (v for v in namespace.values() if isinstance(v, Setup)), None
+        setup = namespace.get("setup")
+        if not isinstance(setup, Setup):
+            setup = (
+                namespace["build"]()
+                if callable(namespace.get("build"))
+                else next((v for v in namespace.values() if isinstance(v, Setup)), None)
             )
         if not isinstance(setup, Setup):
             raise ValueError(

@@ -303,8 +303,8 @@ defines `setup` or `build()` or a saved `.json`, is acquired once and its measur
 phoq's own options go before the file: `phoq run --plot traces.png examples/delay_line.py`
 acquires that script's setup once and saves the scope traces.
 
-`run`, `serve` and `export` accept a `.py` file that defines `setup` (or `build()`), or a saved
-`.json`. While serving, every edit made in the browser sets the attribute on the Python
+`run`, `serve` and `export` accept a `.py` file that defines `setup` or `build()` (`setup` wins if
+it has both), or a saved `.json`. While serving, every edit made in the browser sets the attribute on the Python
 instance and is autosaved. The default target is `<script>.json` next to the script; change it
 with `--save PATH`, or turn it off with `--no-save`. Serve that JSON to carry on, or press
 **Export .py** to get the setup back as a Python script (`setup.to_python()`).
