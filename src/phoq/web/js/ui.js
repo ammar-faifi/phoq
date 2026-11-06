@@ -1,6 +1,6 @@
 // Side panels: toolbox (from the Python catalog), inspector (from each component's Param specs),
 // warnings, toasts, help and the server-connection banner. Every edit goes to the API.
-import { fmtSI, fmtParam, esc, wavelengthColor, fmtTable, TABLE, TABLE_PRESETS, TABLE_LIMITS, connectorCss } from './util.js';
+import { fmtSI, fmtParam, esc, wavelengthColor, fmtTable, TABLE, TABLE_PRESETS, TABLE_LIMITS, connectorCss, EditGuard } from './util.js';
 import { suggestTableSize } from './layout.js';
 
 const svg = (body) => `<svg viewBox="0 0 32 32" width="28" height="28" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
@@ -42,6 +42,7 @@ export class UI {
     this.lab = lab;
     const $ = (id) => document.getElementById(id);
     this.body = $('inspector-body');
+    this.guard = new EditGuard(this.body, () => this.render());
     this.warnEl = $('warnings');
     this.toastEl = $('toasts');
     this.help = $('help');
@@ -217,6 +218,7 @@ export class UI {
     const lab = this.lab;
     const comp = lab.state?.components.find((c) => c.name === lab.selected);
     if (!comp) { this.renderOverview(); return; }
+    if (this.guard.hold()) { this.updateReadouts(); return; }
     const focused = document.activeElement?.closest?.('#inspector-body') ? document.activeElement.dataset.key : null;
     let html = `<div class="insp-head"><div class="ico">${ICONS[comp.type] ?? GENERIC}</div><div><b>${esc(comp.name)}</b><small>${esc(comp.label)} · <code>${esc(comp.type)}</code></small></div></div>`;
     html += this.presetHtml(comp);
@@ -235,7 +237,7 @@ export class UI {
       <p class="hint-py">Python: <code>setup[${esc(JSON.stringify(comp.name))}]</code></p>`;
     this.body.innerHTML = html;
     this.bind(comp);
-    if (focused) this.body.querySelector(`[data-key="${focused}"]`)?.focus();
+    if (focused) this.guard.refocus(this.body.querySelector(`[data-key="${focused}"]`));
     this.updateReadouts();
   }
 

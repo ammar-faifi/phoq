@@ -91,3 +91,41 @@ export const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 export const snapToHole = (v) => Math.round((v - GRID / 2) / GRID) * GRID + GRID / 2;
 
 export const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+/**
+ * Holds a panel's rebuild while the user works in one of its controls. The lab's state
+ * arrives on every change on the server, a party's AWG pattern each block among them, and a
+ * rebuild would close an open dropdown or drop what is being typed: it is made once the
+ * control is changed or left instead.
+ */
+export class EditGuard {
+  constructor(root, rebuild) {
+    this.root = root;
+    this.active = null;   // the control in use
+    this.stale = false;   // a rebuild waits for it
+    this.quiet = false;   // the rebuild giving the focus back is not the user
+    const start = (e) => { if (!this.quiet && e.target.matches?.('select, input, textarea')) this.active = e.target; };
+    const done = () => {
+      this.active = null;
+      if (this.stale) { this.stale = false; rebuild(); }
+    };
+    for (const ev of ['pointerdown', 'keydown', 'focusin']) root.addEventListener(ev, start);
+    root.addEventListener('change', done);
+    // once the focus has settled: on another control here, that one is in use instead
+    root.addEventListener('focusout', () => setTimeout(() => { if (document.activeElement !== this.active) done(); }));
+  }
+
+  /** Whether a rebuild has to wait; it is then made when the control is changed or left. */
+  hold() {
+    const busy = !!this.active && this.active === document.activeElement && this.root.contains(this.active);
+    if (busy) this.stale = true;
+    return busy;
+  }
+
+  /** Give the focus back after a rebuild without counting it as the user's. */
+  refocus(el) {
+    this.quiet = true;
+    el?.focus();
+    this.quiet = false;
+  }
+}

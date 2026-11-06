@@ -1,6 +1,6 @@
 // Oscilloscope display and window. Traces and measurements are computed by the Python server and
 // streamed as frames; this file only draws them and turns knob changes into API calls.
-import { fmtSI, CH_COLORS, esc, clamp } from './util.js';
+import { fmtSI, CH_COLORS, esc, clamp, EditGuard } from './util.js';
 
 const DIVX = 10, DIVY = 8, PRE_DIV = 1;
 const UNIT_OF = { Photodiode: 'A', SinglePhotonDetector: 'V', ArbitraryWaveformGenerator: 'V', DCPowerSupply: 'V' };
@@ -281,6 +281,7 @@ export class ScopePanel {
     this.lab = lab;
     const $ = (id) => document.getElementById(id);
     this.el = $('scope-panel');
+    this.guard = new EditGuard(this.el, () => this.sync());
     this.select = $('scope-select');
     this.canvas = $('scope-canvas');
     this.ctx = this.canvas.getContext('2d');
@@ -377,6 +378,7 @@ export class ScopePanel {
 
   /** Rebuild the controls from the latest server state. */
   sync() {
+    if (this.guard.hold()) return;
     const state = this.lab.state;
     const scopes = state?.components.filter((c) => c.type === 'Oscilloscope' || c.type === 'SpectrumAnalyzer') ?? [];
     if (!scopes.some((s) => s.name === this.current)) this.current = scopes[0]?.name ?? null;
