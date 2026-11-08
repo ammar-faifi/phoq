@@ -28,7 +28,8 @@ are taken as a monitoring line with that extra loss; that is this package's read
 the paper's. A click at one of those boundaries belongs to no state Alice sent, and
 gives a second visibility outside the bound, the one ``examples/cow`` counts in its V.
 
-A pulse fills half of its slot, and the tagger's bins are half a slot, so Bob's click
+Bob reads his tagger as a bench does: a time stamp per click, which he folds onto
+Alice's slots (``phoq.timing.fold``). A pulse fills half of its slot, so his click
 window can be that half alone: it drops half of the dark counts and the modulator's leak
 in the other half, while a click outside the window still starts a detector's hold-off.
 
@@ -53,6 +54,7 @@ from phoq.instruments import PhotonCounter
 from phoq.modulators import IntensityModulator
 from phoq.passive import Attenuator, Coupler, FiberSpool, OpticalDelayLine, PhaseShifter
 from phoq.sources import Laser
+from phoq.timing import fold
 from phoq.units import fmt_si, photon_energy
 
 from . import bound
@@ -66,7 +68,8 @@ PULSES = ((False, True), (True, False), (True, True), (False, False))
 DT, DM0, DM1 = "ch1", "ch2", "ch3"
 # a pair's event: the window Bob keeps, or none
 NONE, T0, T1, M0, M1 = -1, 0, 1, 2, 3
-BINS_PER_PAIR = 4  # the tagger's bins are half a slot, one per symbol of the modulator
+# the lab counts a block in the tagger's bins: half a slot, one symbol of the modulator
+BINS_PER_PAIR = 4
 FIBER_INPUT = "SPL.p1"  # where μ is defined
 
 
@@ -170,7 +173,9 @@ def transmitter(setup: Setup, p: COWParams) -> Attenuator:
 
 
 def receiver(setup: Setup, p: COWParams, slots: int) -> Coupler:
-    """Tap (t_B to D_T) → DLI → D_M0, D_M1, and a time tagger with two bins per slot.
+    """Tap (t_B to D_T) → DLI → D_M0, D_M1 → time tagger. The tagger's bins are half a
+    slot, one symbol of the modulator each: the simulation samples the light there and
+    stamps a click at its bin's center.
 
     The DLI's long arm must be one slot (0.20 m of fiber at 1 GHz) longer. The cords
     give 0.25 m: 1 m + VOA + 0.5 m against 0.5 m + phase shifter + 0.25 m + delay line
@@ -331,28 +336,43 @@ def align_tagger(setup: Setup) -> float:
 
 
 # ---- the data line and the monitoring line -------------------------------------------
-def read_slot(clicks: dict, channel: str, slot: int, click_window: bool) -> np.ndarray:
-    """A channel's clicks per pair in its first (0) or second (1) slot. A slot's first
-    bin holds the pulse, and without ``click_window`` Bob reads its second too."""
-    pulse = clicks[channel][2 * slot :: BINS_PER_PAIR]
+def slot_clicks(
+    stamps: np.ndarray, start: float, slots: int, tau: float, click_window: bool = True
+) -> np.ndarray:
+    """Which of ``slots`` slots of length ``tau`` a channel clicked in, from its time
+    stamps, ``start`` being where Bob's clock puts the center of the first slot's pulse.
+    A pulse fills the first half of its slot, so a slot is centered a quarter slot after
+    its pulse, and the click window keeps the stamps in that first half."""
+    slot, phase = fold(stamps, start + tau / 4, tau)
     if click_window:
-        return pulse
-    return pulse | clicks[channel][2 * slot + 1 :: BINS_PER_PAIR]
+        slot = slot[phase < 0]
+    out = np.zeros(slots, dtype=bool)
+    out[slot[(slot >= 0) & (slot < slots)]] = True
+    return out
 
 
-def events(
-    clicks: dict, rng: np.random.Generator, click_window: bool = True
-) -> tuple[np.ndarray, int]:
+def read_tagger(batch, block: int, p: COWParams, t0: float = 0.0) -> dict:
+    """Bob's reading of block ``block`` from his tagger's time stamps: per channel, which
+    of the block's slots clicked. ``t0`` is where the tagger stamps the center of the
+    session's first pulse. Its delay compensation puts that at zero, which stands in for
+    the sync a bench runs once per session."""
+    slots = round(batch.duration / p.slot)
+    start = t0 + block * slots * p.slot
+    return {
+        ch: slot_clicks(batch.timestamps(ch), start, slots, p.slot, p.click_window)
+        for ch in (DT, DM0, DM1)
+    }
+
+
+def events(clicked: dict, rng: np.random.Generator) -> tuple[np.ndarray, int]:
     """One event per pair from its four windows: D_T in T_0 or T_1, D_M0 or D_M1 in the
-    pair's second slot. If several clicked, Bob takes one of them at random, the paper's
+    pair's second slot, ``clicked`` holding each channel's slots as ``read_tagger``
+    gives them. If several clicked, Bob takes one of them at random, the paper's
     squashing rule; the monitoring detectors' other windows stay out of the events.
     Returns (NONE, T0, T1, M0 or M1 per pair; pairs where several clicked).
     """
     w = np.stack(
-        [
-            read_slot(clicks, channel, slot, click_window)
-            for channel, slot in ((DT, 1), (DT, 0), (DM0, 1), (DM1, 1))
-        ]
+        [clicked[DT][1::2], clicked[DT][0::2], clicked[DM0][1::2], clicked[DM1][1::2]]
     )
     n = w.sum(axis=0)
     out = np.full(n.size, NONE, dtype=np.int8)
@@ -385,9 +405,7 @@ def monitor_table(kind: np.ndarray, pairs: np.ndarray, detector: np.ndarray):
     return out
 
 
-def boundary_clicks(
-    clicks: dict, event: np.ndarray, click_window: bool = True
-) -> tuple[np.ndarray, np.ndarray]:
+def boundary_clicks(clicked: dict, event: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """Bob's monitoring clicks at the boundaries between pairs, a pair's first slot,
     where its first pulse meets the second of the pair before: (pairs at D_M0, pairs at
     D_M1). A click there depends on those two pulses, so he leaves out the boundaries
@@ -397,10 +415,7 @@ def boundary_clicks(
     silent = keyed.copy()
     silent[1:] |= keyed[:-1]
     silent[0] = True
-    return tuple(
-        np.flatnonzero(read_slot(clicks, channel, 0, click_window) & ~silent)
-        for channel in (DM0, DM1)
-    )
+    return tuple(np.flatnonzero(clicked[ch][0::2] & ~silent) for ch in (DM0, DM1))
 
 
 def boundary_counts(kind: np.ndarray, at_m0, at_m1) -> np.ndarray:

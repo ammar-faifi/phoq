@@ -1636,7 +1636,10 @@ print(mpqkd.run(mpqkd.MPQKDParams(distance=100e3, mu=0.4), rounds=2_000_000, see
 
 AWG patterns are indexed by pulse number. `PhotonCounter(compensate_delay=True)` removes the
 time of flight, so `clicks[k]` belongs to pulse `k` of the patterns; `chN_delay` lines up a
-channel whose detector sits behind a different length of fiber.
+channel whose detector sits behind a different length of fiber. A bench has no such record: its
+tagger hands the station's software a time stamp per click, and the software folds the stamps onto
+Alice's slots, t = t₀ + nτ + φ, with `phoq.timing.fold`. A protocol here reads its tagger the same
+way. `examples/cow_vacuum` does; the other examples still read `clicks`.
 
 ### BB84 with decoy states, and an eavesdropper
 
@@ -2010,13 +2013,19 @@ clock rate, decoy shares or μ. Here the clock is 1 GHz, each of the four states
 pairs and μ = 4·10⁻⁴, where $E_p^u$ is lowest on this bench, 1,250 times below `examples/cow`'s.
 Another distance, modulator or detector needs its own: `best_mu(setup, p)` finds it.
 
-The tagger's bins are half a slot, 0.5 ns, one per symbol of the modulator, so Bob's click window can
-be the half of each slot that holds the pulse. He reads those bins alone, which drops half of the
-dark counts and the modulator's leak in the other half. A click outside the window still blinds its
-detector for 40,000 slots, because every click counts, read or not. So `theory()` takes each
-detector's open fraction from its count rate: 80 % on D_T, 92 % on D_M0 and 97 % on D_M1, which count
-4.9, 2.0 and 0.8 kHz. D_M0 is the constructive port, and is hit about three times as often as D_M1
-in every slot, not only those Bob reads.
+Bob reads his tagger as a bench does, from a time stamp per click. He folds the stamps onto Alice's
+slots (`phoq.timing.fold`), which tells him each click's slot and where in the slot it fell, so his
+click window can be the half of each slot that holds the pulse. That drops half of the dark counts
+and the modulator's leak in the other half. A click outside the window still blinds its detector for
+40,000 slots, because every click counts, read or not. So `theory()` takes each detector's open
+fraction from its count rate: 80 % on D_T, 92 % on D_M0 and 97 % on D_M1, which count 4.9, 2.0 and
+0.8 kHz. D_M0 is the constructive port, and is hit about three times as often as D_M1 in every slot,
+not only those Bob reads.
+
+The stamps are still partly the simulator's. The tagger's bins, half a slot each, one symbol of the
+modulator, are where the light is sampled, and a click is stamped at its bin's center. And the
+tagger's delay compensation puts the center of the first pulse at time zero on its clock, so Bob
+never has to find t₀, which a bench does once per session from its clicks or a sync channel.
 
 Two other things differ from `examples/cow`. One slot is 1 ns, or 0.20 m of fiber, so the arms of the
 DLI differ by a 0.25 m cord instead of 0.5 m, and the delay line in the short arm takes back the

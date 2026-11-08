@@ -20,8 +20,9 @@ what the monitoring line counts for each state she sent. Physical layer (one
 Alice's intensity modulator carves her CW laser into pulses of μ photons, or blocks a
 slot: bit 0 is (0, μ), bit 1 (μ, 0), decoy 1 (μ, μ) and decoy 2 (0, 0). Bob reads the
 bit from the time of arrival on DT; the delay-line interferometer, one slot unbalanced,
-mixes the two pulses of a pair in its second slot. Bob reads only the half of a slot
-that holds the pulse, and each pair gives him at most one event.
+mixes the two pulses of a pair in its second slot. Bob folds his time tagger's stamps
+onto Alice's slots and reads only the half of a slot that holds the pulse; each pair
+gives him at most one event.
 
 Parties, each in its own file and its own process, talking over an authenticated public
 channel:
@@ -86,7 +87,9 @@ from .common import (
     open_fractions,
     pair_gains,
     pulse_photons,
+    read_tagger,
     readouts,
+    slot_clicks,
     theory,
     windows,
 )
@@ -140,8 +143,10 @@ __all__ = [
     "params",
     "phase_error",
     "pulse_photons",
+    "read_tagger",
     "readouts",
     "run",
+    "slot_clicks",
     "terms",
     "theory",
     "windows",
@@ -216,11 +221,11 @@ def run(
     runner = Runner(setup, seed=seed)
     im, awg, tagger = setup["ALICE-IM"], setup["ALICE-AWG"], setup["TAGGER"]
     tally, alice_key, bob_key = Tally(), [], []
-    for _ in range(blocks):
+    for block in range(blocks):
         kind = draw(runner.rng, tagger.slots // BINS_PER_PAIR, p)
         awg.set_pattern("ch1", im.voltage_for(carving(occupied(kind))), 2 * p.rate)
-        clicks = runner.acquire("TAGGER").clicks
-        event, multi = events(clicks, runner.rng, p.click_window)
+        clicked = read_tagger(runner.acquire("TAGGER"), block, p)
+        event, multi = events(clicked, runner.rng)
         idx, bits, mon, det = announcements(event)
         sent = kind[idx]
         decoy = sent >= DECOY1
@@ -234,7 +239,7 @@ def run(
             sent[keep],
             bits[keep],
             monitor_table(kind, mon, det),
-            boundary_counts(kind, *boundary_clicks(clicks, event, p.click_window)),
+            boundary_counts(kind, *boundary_clicks(clicked, event)),
         )
         alice_key.append(sent[keep].astype(np.int8))
         bob_key.append(bits[keep])

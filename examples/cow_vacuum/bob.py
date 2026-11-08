@@ -1,9 +1,10 @@
 """Bob: the receiver. His tap sends t_B of the light to the data detector D_T, whose
 time of arrival is the bit, and the rest through a one-slot delay-line interferometer to
-D_M0 and D_M1. He reads his time tagger, reduces each pair to one event, announces the
-pairs with a data-line event, the monitoring events with their detector and the clicks
-at the boundaries between pairs ([#1]), and answers Alice's sifting with his bits at her
-sample ([#3]). Bob needs no basis choice and no modulator: his tap is the basis choice.
+D_M0 and D_M1. He folds his time tagger's stamps onto Alice's slots, reduces each pair
+to one event, announces the pairs with a data-line event, the monitoring events with
+their detector and the clicks at the boundaries between pairs ([#1]), and answers
+Alice's sifting with his bits at her sample ([#3]). Bob needs no basis choice and no
+modulator: his tap is the basis choice.
 """
 
 from __future__ import annotations
@@ -20,6 +21,7 @@ from .common import (
     boundary_clicks,
     describe,
     events,
+    read_tagger,
     readouts,
 )
 
@@ -52,9 +54,10 @@ class Bob(Party):
 
     # ---- physical layer --------------------------------------------------------------
     def measure(self, batch) -> None:
-        event, multi = events(batch.clicks, self.rng, self.params.click_window)
+        clicked = read_tagger(batch, batch.seq, self.params)
+        event, multi = events(clicked, self.rng)
         idx, bits, mon, det = announcements(event)
-        edge0, edge1 = boundary_clicks(batch.clicks, event, self.params.click_window)
+        edge0, edge1 = boundary_clicks(clicked, event)
         self.blocks[batch.seq] = dict(idx=idx, bits=bits, pairs=event.size, multi=multi)
         size = self.net.send(
             "ALICE",

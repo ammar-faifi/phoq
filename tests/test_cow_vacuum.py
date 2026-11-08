@@ -202,12 +202,30 @@ def test_the_four_states():
 
 
 def clicks_of(pairs, dt=(), dm0=(), dm1=()):
-    """A record with clicks in the half of the given slots that holds the pulse."""
-    bins = cv.BINS_PER_PAIR * pairs
-    out = {ch: np.zeros(bins, dtype=bool) for ch in (cv.DT, cv.DM0, cv.DM1)}
+    """Bob's reading of a block with clicks in the given slots."""
+    out = {ch: np.zeros(2 * pairs, dtype=bool) for ch in (cv.DT, cv.DM0, cv.DM1)}
     for ch, slots in ((cv.DT, dt), (cv.DM0, dm0), (cv.DM1, dm1)):
-        out[ch][2 * np.array(slots, dtype=int)] = True
+        out[ch][np.array(slots, dtype=int)] = True
     return out
+
+
+def test_time_stamps_fold_onto_the_slots():
+    """A pulse fills the first half of its slot, from a quarter slot before its center
+    to a quarter after; the slot runs on to the next pulse's half. Stamps outside the
+    block are dropped."""
+    tau, start = 1e-9, 3.7e-6  # where Bob's clock puts the center of the first pulse
+
+    def read(offset, window=True):
+        """One stamp ``offset`` slots after the first pulse's center."""
+        t = np.array([start + offset * tau])
+        return cv.slot_clicks(t, start, 4, tau, window).tolist()
+
+    first, second = [True, False, False, False], [False, True, False, False]
+    assert read(-0.24) == read(0.24) == first
+    assert read(0.26) == read(0.74) == [False] * 4
+    assert read(0.26, False) == read(0.74, False) == first
+    assert read(0.76) == read(1.0) == second
+    assert read(-0.26, False) == read(3.76) == [False] * 4
 
 
 def test_one_event_per_pair():
@@ -248,14 +266,23 @@ def test_boundary_clicks_stay_away_from_the_key():
 
 
 def test_the_click_window_reads_half_of_each_slot():
-    # the other half of pair 0's first slot and of pair 1's second, on D_T, and of pair
-    # 2's second on D_M0
-    clicks = clicks_of(3)
-    clicks[cv.DT][[1, 7]] = True
-    clicks[cv.DM0][11] = True
+    # stamps in the other half of pair 0's first slot and of pair 1's second, on D_T,
+    # and of pair 2's second on D_M0
+    tau, start = 1e-9, 3.7e-6
+    stamps = {
+        cv.DT: start + tau * np.array([0.3, 3.7]),
+        cv.DM0: start + tau * np.array([5.5]),
+        cv.DM1: np.array([]),
+    }
+
+    def clicked(window):
+        return {
+            ch: cv.slot_clicks(t, start, 6, tau, window) for ch, t in stamps.items()
+        }
+
     rng = np.random.default_rng(1)
-    assert cv.events(clicks, rng)[0].tolist() == [cv.NONE] * 3
-    event, multi = cv.events(clicks, rng, click_window=False)
+    assert cv.events(clicked(True), rng)[0].tolist() == [cv.NONE] * 3
+    event, multi = cv.events(clicked(False), rng)
     assert event.tolist() == [cv.T1, cv.T0, cv.M0] and multi == 0
 
 
@@ -524,7 +551,7 @@ def test_a_phase_break_between_pairs_shows_only_at_the_boundaries():
     runner = Runner(setup, seed=12)
     tagger = setup["TAGGER"]
     tally = cv.Tally()
-    for _ in range(8):
+    for block in range(8):
         kind = cv.draw(runner.rng, tagger.slots // cv.BINS_PER_PAIR, p)
         awg.set_pattern(
             "ch1", im.voltage_for(cv.carving(cv.occupied(kind))), 2 * p.rate
@@ -532,11 +559,11 @@ def test_a_phase_break_between_pairs_shows_only_at_the_boundaries():
         phase = runner.rng.uniform(0, 2 * math.pi, kind.size)
         # four symbols of the AWG per pair
         awg.set_pattern("ch2", np.repeat(pm.voltage_for(phase), 4), 2 * p.rate)
-        record = runner.acquire("TAGGER").clicks
-        event, _ = cv.events(record, runner.rng)
+        clicked = cv.read_tagger(runner.acquire("TAGGER"), block, p)
+        event, _ = cv.events(clicked, runner.rng)
         _, _, mon, det = cv.announcements(event)
         tally.monitor += cv.monitor_table(kind, mon, det)
-        tally.boundary += cv.boundary_counts(kind, *cv.boundary_clicks(record, event))
+        tally.boundary += cv.boundary_counts(kind, *cv.boundary_clicks(clicked, event))
     th = cv.theory(setup, p)
     assert_gains_match(tally, th["gains"])
     assert tally.visibility == pytest.approx(th["V"], abs=0.005)
@@ -557,14 +584,16 @@ def test_the_hold_off_counts_as_expected():
     runner = Runner(setup, seed=11)
     im, awg, tagger = setup["ALICE-IM"], setup["ALICE-AWG"], setup["TAGGER"]
     clicks, monitor, blocks = np.zeros(3), np.zeros((4, 3), dtype=np.int64), 8
-    for _ in range(blocks):
+    for block in range(blocks):
         kind = cv.draw(runner.rng, tagger.slots // cv.BINS_PER_PAIR, p)
         awg.set_pattern(
             "ch1", im.voltage_for(cv.carving(cv.occupied(kind))), 2 * p.rate
         )
-        record = runner.acquire("TAGGER").clicks
-        clicks += [record[ch].sum() for ch in (cv.DT, cv.DM0, cv.DM1)]
-        _, _, mon, det = cv.announcements(cv.events(record, runner.rng)[0])
+        batch = runner.acquire("TAGGER")
+        # every click, read or not
+        clicks += [batch.timestamps(ch).size for ch in (cv.DT, cv.DM0, cv.DM1)]
+        clicked = cv.read_tagger(batch, block, p)
+        _, _, mon, det = cv.announcements(cv.events(clicked, runner.rng)[0])
         monitor += cv.monitor_table(kind, mon, det)
     slots = blocks * tagger.slots / 2
     for n, o in zip(clicks, th["open"]):

@@ -29,6 +29,7 @@ from phoq import (
 )
 from phoq.engine import synthesize, trace
 from phoq.parties import load_parties, load_protocol
+from phoq.timing import fold
 from phoq.units import CONNECTOR_LOSS_DB, FIBER_DELAY, db_to_t, photon_energy
 
 EXAMPLES = Path(__file__).resolve().parents[1] / "examples"
@@ -560,6 +561,19 @@ def test_counter_batches_are_continuous_in_time():
         and s["CNT-1"].acquire(trace(s), runner.rng, start=5).start == 5
     )
     assert a.to_json()["t0"] == 0.0 and "seq" in a.to_json()
+
+
+def test_time_stamps_fold_onto_the_laser_clock():
+    """Folded on the laser's clock, a click of pulse k lands in slot k at its center;
+    any stamp goes to the slot centered nearest to it."""
+    batch = Runner(_click_setup(), seed=1).acquire("CNT-1")
+    slot, phase = fold(batch.timestamps("ch1"), 0.0, 1 / 100e6)
+    assert slot.size > 100
+    assert np.array_equal(slot, np.flatnonzero(batch.clicks["ch1"]))
+    assert np.abs(phase).max() < 1e-18
+    slot, phase = fold([3.0 + 0.4e-9, 3.0 - 0.4e-9, 3.0 + 7.6e-9], 3.0, 1e-9)
+    assert slot.tolist() == [0, 0, 8]
+    assert phase == pytest.approx([0.4e-9, -0.4e-9, -0.4e-9], abs=1e-15)
 
 
 def test_analysis_tasks_run_in_worker_processes(tmp_path):
