@@ -17,8 +17,8 @@ channel (TCP sockets, see :mod:`phoq.parties`):
   intensities and phases, then pair, sift and estimate errors from Charlie's
   announcements, reconcile the sifted key (Cascade), verify it and distill the secret
   key (Toeplitz hashing sized by the MP-QKD key-rate formula, :mod:`.keyrate`).
-* :class:`Charlie` (:mod:`.charlie`) reads the time tagger and announces each round's
-  outcome.
+* :class:`Charlie` (:mod:`.charlie`) folds the time tagger's stamps onto the rounds and
+  announces each round's outcome.
 
 ``PARTIES`` and ``build()`` make this a protocol package: ``phoq serve --protocol
 mpqkd``. The single-process reference ``run()`` (one god's-eye view of both records) is
@@ -54,6 +54,7 @@ from .common import (
     calibrate_mu,
     draw_levels,
     pairing_rate_theory,
+    read_tagger,
     sift_and_map,
     simple_pairing,
     transmissions,
@@ -100,6 +101,7 @@ __all__ = [
     "build",
     "calibrate_mu",
     "prepare",
+    "read_tagger",
     "run",
     "simple_pairing",
     "pairing_rate_theory",
@@ -191,8 +193,10 @@ def run(
     setup["TAGGER"].slots = rounds
     runner = Runner(setup, seed=seed)
     states = prepare(setup, p, rounds, runner.rng)
-    clicks = runner.acquire("TAGGER").clicks
-    left, right = clicks["ch1"], clicks["ch2"]
+    # the run is the session: Alice's first pulse is where the tagger's clock stands
+    t0 = setup["TAGGER"].position / p.rep_rate
+    clicked = read_tagger(runner.acquire("TAGGER"), 0, p, t0)
+    left, right = clicked["ch1"], clicked["ch2"]
     C = left ^ right
     detector = np.where(left, DET_L, DET_R)
     click_idx = np.flatnonzero(C)

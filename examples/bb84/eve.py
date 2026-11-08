@@ -90,9 +90,8 @@ class Eve(Party):
         if st is None:
             return
         attack, basis = st["attack"], st["basis"]
-        c0, c1 = common.middle_slot(batch.clicks["ch1"]), common.middle_slot(
-            batch.clicks["ch2"]
-        )
+        clicked = common.read_tagger(batch, batch.seq, self.params)
+        c0, c1 = clicked["ch1"], clicked["ch2"]
         idx = np.flatnonzero((c0 | c1) & attack)
         both = c0[idx] & c1[idx]
         bits = np.where(c1[idx] & ~c0[idx], 1, 0).astype(np.int8)

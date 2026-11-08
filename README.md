@@ -414,7 +414,7 @@ reasons as for analysis tasks). The framework drives them block by block (`Exper
 ```
 prepare(block, n)   every station programs its transmitter for the next n pulses   [physical]
       ↓             the lab records the block
-measure(batch)      the party owning the tagger gets the clicks                      [physical]
+measure(batch)      the party owning the tagger gets its time stamps                 [physical]
       ↓
 receive(message)    whatever the parties say to each other                           [classical]
 ```
@@ -1638,8 +1638,12 @@ AWG patterns are indexed by pulse number. `PhotonCounter(compensate_delay=True)`
 time of flight, so `clicks[k]` belongs to pulse `k` of the patterns; `chN_delay` lines up a
 channel whose detector sits behind a different length of fiber. A bench has no such record: its
 tagger hands the station's software a time stamp per click, and the software folds the stamps onto
-Alice's slots, t = t₀ + nτ + φ, with `phoq.timing.fold`. A protocol here reads its tagger the same
-way. `examples/cow_vacuum` does; the other examples still read `clicks`.
+Alice's slots, t = t₀ + nτ + φ, with `phoq.timing.fold`. Every station here reads its tagger that
+way, Eve's included, and no protocol reads `clicks`: each protocol's `read_tagger` marks the slots
+holding a stamp whose phase φ falls in the station's click window (`phoq.timing.clicked_slots`).
+The stamps are still partly the simulator's. A click is stamped at the center of its bin, and the
+delay compensation puts Alice's first pulse at t₀ = 0 on the tagger's clock, so no station has to
+find t₀, which a bench does once per session from its clicks or a sync channel.
 
 ### BB84 with decoy states, and an eavesdropper
 
@@ -1649,11 +1653,12 @@ pulses and three decoy intensities: Alice's pulsed laser → intensity modulator
 per pulse) → unbalanced Mach–Zehnder interferometer with a phase modulator in the long arm
 (φ ∈ {0, π} for Z, {π/2, 3π/2} for X between the early and the late time slot) → VOA calibrated to
 μ → fiber spool → Bob's matching interferometer (phase shifter for the stabilization, phase
-modulator for θ = 0 or π/2) → two SPDs → time tagger with three bins per pulse. In the middle
-bin the late half of the early slot interferes with the early half of the late slot: DET-0 clicks
-for φ − θ = 0, DET-1 for π, and the satellite bins are ignored. `build()` calibrates μ at the
-fiber input and the interferometer phase, then adds the residual phase error of an imperfectly
-stabilized interferometer (0.2 rad ≈ 1 % QBER).
+modulator for θ = 0 or π/2) → two SPDs → time tagger with three bins per pulse. In the middle of
+the three output slots the late half of the early slot interferes with the early half of the late
+slot: DET-0 clicks for φ − θ = 0, DET-1 for π. Bob folds his tagger's time stamps onto Alice's
+pulses and keeps those in the middle slot; the satellites on either side are ignored. `build()`
+calibrates μ at the fiber input and the interferometer phase, then adds the residual phase error of
+an imperfectly stabilized interferometer (0.2 rad ≈ 1 % QBER).
 
 ```bash
 phoq run --protocol bb84 --blocks 20
@@ -1802,8 +1807,8 @@ to show it.
 
 **The protocol, per block** (the paper's steps 2–4):
 
-1. Bob announces which bits gave a data-line click, but not in which slot, and the slots where DM1
-   and DM2 fired.
+1. Bob folds his tagger's time stamps onto Alice's slots. He announces which bits gave a data-line
+   click, but not in which slot, and the slots where DM1 and DM2 fired.
 2. Alice flags the detections that were decoys, which leave the key, and discloses her bits at a
    random 10 % of the rest. She counts DM1 and DM2 clicks where pulses j−1 and j were both sent:
    V_d inside decoys, V₁₋₀ across 1-0 boundaries. She measures each detector's dark-count

@@ -48,6 +48,7 @@ from phoq.instruments import PhotonCounter
 from phoq.modulators import IntensityModulator, OpticalSwitch
 from phoq.passive import Attenuator, Coupler, FiberSpool, OpticalDelayLine, PhaseShifter
 from phoq.sources import Laser
+from phoq.timing import clicked_slots
 from phoq.units import fmt_si, photon_energy
 
 BIT0, BIT1, DECOY = 0, 1, 2  # what Alice sends in a pair of slots
@@ -509,6 +510,19 @@ def calibrate_eve(setup: Setup, p: COWParams) -> None:
 
 
 # ---- the data line and the monitoring line -------------------------------------------
+def read_tagger(batch, block: int, p: COWParams, t0: float = 0.0) -> dict:
+    """A station's reading of block ``block`` from its tagger's time stamps: per
+    channel, which of the block's slots clicked. ``t0`` is where the tagger stamps the
+    center of the session's first pulse. Its delay compensation puts that at zero, which
+    stands in for the sync a bench runs once per session."""
+    slots = round(batch.duration / p.slot)
+    start = t0 + block * slots * p.slot
+    return {
+        ch: clicked_slots(batch.timestamps(ch), start, p.slot, slots)
+        for ch in batch.sources
+    }
+
+
 def decode(
     db: np.ndarray, rng: np.random.Generator
 ) -> tuple[np.ndarray, np.ndarray, int]:

@@ -18,8 +18,8 @@ channel:
 
 * :class:`Alice` (:mod:`.alice`) draws intensity, basis and bit per pulse and leads the
   sifting.
-* :class:`Bob` (:mod:`.bob`) draws his basis per pulse, announces his detections and
-  answers.
+* :class:`Bob` (:mod:`.bob`) draws his basis per pulse, folds his tagger's time stamps
+  onto Alice's pulses, announces his detections and answers.
 * :class:`Eve` (``eve.py``, loaded with ``--party``) intercepts a fraction of the
   pulses.
 
@@ -62,6 +62,7 @@ from .common import (
     measurement_phase,
     middle_slot,
     phase_for,
+    read_tagger,
     readouts,
 )
 
@@ -95,6 +96,7 @@ __all__ = [
     "phase_for",
     "measurement_phase",
     "middle_slot",
+    "read_tagger",
     "prepare",
     "run",
     "params",
@@ -172,8 +174,10 @@ def run(
     setup["TAGGER"].slots = BINS * pulses
     runner = Runner(setup, seed=seed)
     states = prepare(setup, p, pulses, runner.rng)
-    clicks = runner.acquire("TAGGER").clicks
-    c0, c1 = middle_slot(clicks["ch1"]), middle_slot(clicks["ch2"])
+    # the run is the session: Alice's first pulse is where the tagger's clock stands
+    t0 = setup["TAGGER"].position / setup["TAGGER"].bin_rate
+    clicked = read_tagger(runner.acquire("TAGGER"), 0, p, t0)
+    c0, c1 = clicked["ch1"], clicked["ch2"]
     idx = np.flatnonzero(c0 | c1)
     both = c0[idx] & c1[idx]
     bob_bits = np.where(c1[idx] & ~c0[idx], 1, 0).astype(np.int8)

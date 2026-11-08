@@ -23,3 +23,18 @@ def fold(t, t0: float, period: float) -> tuple[np.ndarray, np.ndarray]:
     x = (np.asarray(t, dtype=float) - t0) / period
     n = np.floor(x + 0.5)
     return n.astype(np.int64), (x - n) * period
+
+
+def clicked_slots(
+    t, t0: float, period: float, slots: int, window: tuple[float, float] | None = None
+) -> np.ndarray:
+    """Which of ``slots`` slots, slot n centered on t0 + n·period, hold a time stamp.
+    With ``window`` = (lo, hi), only the stamps whose phase lies in lo ≤ φ < hi count:
+    the station's click window. Stamps outside slots 0 … slots − 1 belong to another
+    block."""
+    n, phase = fold(t, t0, period)
+    if window is not None:
+        n = n[(phase >= window[0]) & (phase < window[1])]
+    out = np.zeros(slots, dtype=bool)
+    out[n[(n >= 0) & (n < slots)]] = True
+    return out

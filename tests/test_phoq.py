@@ -29,7 +29,7 @@ from phoq import (
 )
 from phoq.engine import synthesize, trace
 from phoq.parties import load_parties, load_protocol
-from phoq.timing import fold
+from phoq.timing import clicked_slots, fold
 from phoq.units import CONNECTOR_LOSS_DB, FIBER_DELAY, db_to_t, photon_energy
 
 EXAMPLES = Path(__file__).resolve().parents[1] / "examples"
@@ -574,6 +574,60 @@ def test_time_stamps_fold_onto_the_laser_clock():
     slot, phase = fold([3.0 + 0.4e-9, 3.0 - 0.4e-9, 3.0 + 7.6e-9], 3.0, 1e-9)
     assert slot.tolist() == [0, 0, 8]
     assert phase == pytest.approx([0.4e-9, -0.4e-9, -0.4e-9], abs=1e-15)
+
+
+def test_a_click_window_keeps_the_stamps_inside_it():
+    """``clicked_slots`` marks the slots that hold a stamp. With a window only the
+    stamps whose phase lies in it count, and stamps of other blocks are dropped."""
+    t0, tau = 2.0, 1e-9
+    t = t0 + tau * np.array([-0.4, 0.3, 1.45, 2.0, 3.6, -0.6])
+
+    def marked(window=None):
+        return clicked_slots(t, t0, tau, 4, window).tolist()
+
+    assert marked() == [True, True, True, False]
+    assert marked((-tau / 4, tau / 4)) == [False, False, True, False]
+    assert marked((tau / 4, tau / 2)) == [True, True, False, False]
+
+
+def test_stations_read_from_their_stamps_what_the_bins_hold():
+    """Folded onto Alice's slots, a station's time stamps (each protocol's
+    ``read_tagger``) mark exactly the slots whose bins clicked: BB84's middle bins,
+    COW's slots and MP-QKD's rounds, in the second block as in the first."""
+    bb84, cow, mpqkd = (load_protocol(EXAMPLES / n) for n in ("bb84", "cow", "mpqkd"))
+    middle = slice(bb84.MIDDLE, None, bb84.BINS)  # the interference bin of each pulse
+    cases = (
+        (bb84, bb84.build(pulses=20_000, eve=False), middle),
+        (cow, cow.build(slots=20_000, eve=False), slice(None)),
+        (mpqkd, mpqkd.build(rounds=20_000), slice(None)),
+    )
+    for proto, setup, bins in cases:
+        runner = Runner(setup, seed=2)
+        for block in range(2):
+            batch = runner.acquire("TAGGER")
+            read = proto.read_tagger(batch, block, proto.params)
+            assert read.keys() == batch.clicks.keys()
+            assert sum(int(s.sum()) for s in read.values()) > 200
+            for ch, s in read.items():
+                assert np.array_equal(s, batch.clicks[ch][bins]), (proto.__name__, ch)
+
+
+def test_a_second_reference_run_on_one_setup_reads_its_clicks():
+    """The tagger's clock runs on from one run to the next. Each run's session starts
+    where it stands, so a second run on the same setup reads as many clicks."""
+    bb84, mpqkd = (load_protocol(EXAMPLES / n) for n in ("bb84", "mpqkd"))
+    setup = bb84.build(pulses=60_000, eve=False)
+    first, second = (
+        int(bb84.run(pulses=60_000, seed=s, setup=setup).tally.detected.sum())
+        for s in (1, 2)
+    )
+    assert first > 300 and second == pytest.approx(first, rel=0.2)
+    setup = mpqkd.build(rounds=60_000)
+    first, second = (
+        mpqkd.run(rounds=60_000, l_values=(10,), seed=s, setup=setup).single_clicks
+        for s in (1, 2)
+    )
+    assert first > 300 and second == pytest.approx(first, rel=0.2)
 
 
 def test_analysis_tasks_run_in_worker_processes(tmp_path):

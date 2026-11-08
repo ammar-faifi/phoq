@@ -16,7 +16,8 @@ Alice's intensity modulator carves her CW laser into pulses of μ photons, or bl
 slot: bit 0 is (μ, 0), bit 1 (0, μ), a decoy (μ, μ). Bob reads the bit from the time of
 arrival on DB; the delay-line interferometer, one slot unbalanced, checks that
 neighboring non-empty pulses are still coherent. The tagger runs one bin per slot, its
-DB channel delayed to line up with DM1/DM2.
+DB channel delayed to line up with DM1/DM2, and Bob folds its time stamps onto Alice's
+slots.
 
 With an eavesdropper (``--party examples/cow/eve.py``) the spool is cut in two and Eve's
 station spliced in between (``common.eavesdropper``)::
@@ -75,6 +76,7 @@ from .common import (
     interfering,
     monitor_counts,
     occupied,
+    read_tagger,
     readouts,
     resend_attenuation,
     resend_mu,
@@ -115,6 +117,7 @@ __all__ = [
     "interfering",
     "monitor_counts",
     "occupied",
+    "read_tagger",
     "readouts",
     "resend_attenuation",
     "resend_mu",
@@ -194,16 +197,19 @@ def eavesdrop(
     attack: np.ndarray,
     att0: float,
     inconclusive: str = "empty",
+    block: int = 0,
+    t0: float = 0.0,
 ) -> dict:
     """One block of Eve's, as ``eve.py`` runs it: switch the attacked bits into her
     detector, record her tagger, re-prepare what she saw and program her transmitter
-    before Bob records.
+    before Bob records. ``block`` and ``t0`` place her record on Alice's slots, as in
+    ``read_tagger``.
     """
     sw, im, awg = setup["EVE-SW"], setup["EVE-TX-IM"], setup["EVE-AWG"]
     awg.set_pattern("ch2", sw.voltage_for(np.repeat(attack, 2)), p.rate)
     # dark while she listens
     awg.set_pattern("ch1", [float(im.voltage_for(0.0))], 2 * p.rate)
-    d = runner.acquire("EVE-TAGGER").clicks["ch1"]
+    d = read_tagger(runner.acquire("EVE-TAGGER"), block, p, t0)["ch1"]
     c0, c1 = d[0::2], d[1::2]
     occ = occupied(intercept(c0, c1, attack, inconclusive))
     clicks = int(np.count_nonzero(c0 & attack) + np.count_nonzero(c1 & attack))
@@ -237,20 +243,27 @@ def run(
     tally, alice_key, bob_key = Tally(), [], []
     att0 = setup["EVE-TX-VOA"].attenuation_db if eve is not None else None
     seen = dict(bits=0, attacked=0, clicks=0)
-    for _ in range(blocks):
+    # the run is the session: Alice's first pulse is where each tagger's clock stands
+    t0 = {
+        name: setup[name].position / setup[name].bin_rate
+        for name in ("TAGGER", "EVE-TAGGER")
+        if name in setup
+    }
+    for block in range(blocks):
         kind = draw(runner.rng, tagger.slots // 2, p)
         awg.set_pattern("ch1", im.voltage_for(carving(occupied(kind))), 2 * p.rate)
         if eve is not None:
-            block = eavesdrop(
-                setup, runner, p, runner.rng.random(kind.size) < eve, att0, inconclusive
+            attack = runner.rng.random(kind.size) < eve
+            got = eavesdrop(
+                setup, runner, p, attack, att0, inconclusive, block, t0["EVE-TAGGER"]
             )
-            seen = {k: seen[k] + block[k] for k in seen} | dict(mu_e=block["mu_e"])
-        clicks = runner.acquire("TAGGER").clicks
-        idx, bits, doubles = decode(clicks[DB], runner.rng)
+            seen = {k: seen[k] + got[k] for k in seen} | dict(mu_e=got["mu_e"])
+        clicked = read_tagger(runner.acquire("TAGGER"), block, p, t0["TAGGER"])
+        idx, bits, doubles = decode(clicked[DB], runner.rng)
         sent = kind[idx]
         decoy = sent == DECOY
         monitor = monitor_counts(
-            kind, np.flatnonzero(clicks[DM1]), np.flatnonzero(clicks[DM2])
+            kind, np.flatnonzero(clicked[DM1]), np.flatnonzero(clicked[DM2])
         )
         keep = np.flatnonzero(~decoy)
         tally += account(

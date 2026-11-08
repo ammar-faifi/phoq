@@ -25,6 +25,7 @@ from phoq.instruments import PhotonCounter
 from phoq.modulators import IntensityModulator, PhaseModulator
 from phoq.passive import Attenuator, Coupler, FiberSpool
 from phoq.sources import Laser
+from phoq.timing import clicked_slots
 from phoq.units import photon_energy
 
 B_ZERO, B_Z, B_X, B_MIXED = (
@@ -149,6 +150,21 @@ def calibrate_mu(setup: Setup, mu: float) -> dict[str, float]:
             )
         out[tag] = voa.attenuation_db
     return out
+
+
+# ---- Charlie's tagger ----------------------------------------------------------------
+def read_tagger(batch, block: int, p: MPQKDParams, t0: float = 0.0) -> dict:
+    """Charlie's reading of block ``block`` from his tagger's time stamps: per channel,
+    which of the block's rounds clicked. ``t0`` is where the tagger stamps the center of
+    the session's first pulses, Alice's and Bob's arriving together. Its delay
+    compensation puts that at zero, which stands in for the sync a bench runs once per
+    session."""
+    rounds = round(batch.duration * p.rep_rate)
+    start = t0 + block * rounds / p.rep_rate
+    return {
+        ch: clicked_slots(batch.timestamps(ch), start, 1 / p.rep_rate, rounds)
+        for ch in batch.sources
+    }
 
 
 # ---- post-processing (ported from examples/mpqkd/reference.py) -----------------------

@@ -1,9 +1,9 @@
 """Bob: the receiver. His tap sends t_B of the light to the data detector DB, whose time
 of arrival is the bit, and the rest through a one-slot delay-line interferometer to DM1
-and DM2. He reads his time tagger, announces which bits clicked and when his monitoring
-detectors fired ([#1]), and answers Alice's sifting with his bits at her sample ([#3]).
-Bob needs no basis choice and no modulator: the data line is a plain time-of-arrival
-measurement.
+and DM2. He folds his time tagger's stamps onto Alice's slots, announces which bits
+clicked and when his monitoring detectors fired ([#1]), and answers Alice's sifting with
+his bits at her sample ([#3]). Bob needs no basis choice and no modulator: the data line
+is a plain time-of-arrival measurement.
 """
 
 from __future__ import annotations
@@ -24,6 +24,7 @@ from .common import (
     account,
     decode,
     describe,
+    read_tagger,
     readouts,
     window,
 )
@@ -56,12 +57,11 @@ class Bob(Party):
 
     # ---- physical layer --------------------------------------------------------------
     def measure(self, batch) -> None:
-        idx, bits, doubles = decode(batch.clicks[DB], self.rng)
-        dm1, dm2 = (
-            np.flatnonzero(batch.clicks[ch]).astype(np.int32) for ch in (DM1, DM2)
-        )
+        clicked = read_tagger(batch, batch.seq, self.params)
+        idx, bits, doubles = decode(clicked[DB], self.rng)
+        dm1, dm2 = (np.flatnonzero(clicked[ch]).astype(np.int32) for ch in (DM1, DM2))
         self.blocks[batch.seq] = dict(
-            idx=idx, bits=bits, n=batch.slots // 2, doubles=doubles
+            idx=idx, bits=bits, n=clicked[DB].size // 2, doubles=doubles
         )
         size = self.net.send(
             "ALICE",

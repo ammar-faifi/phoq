@@ -9,7 +9,8 @@ between them, and her intensity modulator picks μ, ν or (nearly) vacuum pulse 
 Bob's matching interferometer, with θ = 0 (Z) or π/2 (X) in its long arm, overlaps the
 late half of the early slot with the early half of the late slot: in the middle of the
 three output slots DET-0 clicks for φ − θ = 0 and DET-1 for φ − θ = π, and the two
-satellite slots carry no information. The time tagger runs three bins per pulse.
+satellite slots carry no information. The time tagger runs three bins per pulse, and a
+station folds its time stamps onto Alice's pulses and keeps those in the middle slot.
 
 Everything here is public: the parameters are agreed beforehand, and the estimates are
 the same deterministic functions both stations run on the same disclosed counts. Private
@@ -32,6 +33,7 @@ from phoq.instruments import PhotonCounter
 from phoq.modulators import IntensityModulator, OpticalSwitch, PhaseModulator
 from phoq.passive import Attenuator, Coupler, FiberSpool, PhaseShifter
 from phoq.sources import Laser
+from phoq.timing import clicked_slots
 from phoq.units import FIBER_DELAY, photon_energy
 
 B_Z, B_X = 0, 1  # bases
@@ -113,9 +115,28 @@ def measurement_phase(basis) -> np.ndarray:
     return np.asarray(basis, dtype=float) * (np.pi / 2)
 
 
-def middle_slot(clicks: np.ndarray) -> np.ndarray:
-    """The interference bin of every pulse from a time-tagger click record."""
-    return clicks[MIDDLE::BINS]
+def middle_slot(
+    stamps: np.ndarray, start: float, pulses: int, p: BB84Params
+) -> np.ndarray:
+    """Which of ``pulses`` pulses gave a channel a click in the middle time slot, from
+    its time stamps, ``start`` being where the station's clock puts the middle slot of
+    the first pulse. The early and late slots, one slot to either side, are the
+    satellites."""
+    window = (-p.slot / 2, p.slot / 2)
+    return clicked_slots(stamps, start, 1 / p.rep_rate, pulses, window)
+
+
+def read_tagger(batch, block: int, p: BB84Params, t0: float = 0.0) -> dict:
+    """A station's reading of block ``block`` from its tagger's time stamps: per
+    channel, which of the block's pulses clicked in the middle time slot. ``t0`` is
+    where the tagger stamps the early slot of the session's first pulse. Its delay
+    compensation puts that at zero, which stands in for the sync a bench runs once per
+    session."""
+    pulses = round(batch.duration * p.rep_rate)
+    start = t0 + MIDDLE * p.slot + block * pulses / p.rep_rate
+    return {
+        ch: middle_slot(batch.timestamps(ch), start, pulses, p) for ch in batch.sources
+    }
 
 
 # ---- the hardware (physical layer) ---------------------------------------------------

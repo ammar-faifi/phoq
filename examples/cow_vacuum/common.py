@@ -54,7 +54,7 @@ from phoq.instruments import PhotonCounter
 from phoq.modulators import IntensityModulator
 from phoq.passive import Attenuator, Coupler, FiberSpool, OpticalDelayLine, PhaseShifter
 from phoq.sources import Laser
-from phoq.timing import fold
+from phoq.timing import clicked_slots
 from phoq.units import fmt_si, photon_energy
 
 from . import bound
@@ -343,12 +343,8 @@ def slot_clicks(
     stamps, ``start`` being where Bob's clock puts the center of the first slot's pulse.
     A pulse fills the first half of its slot, so a slot is centered a quarter slot after
     its pulse, and the click window keeps the stamps in that first half."""
-    slot, phase = fold(stamps, start + tau / 4, tau)
-    if click_window:
-        slot = slot[phase < 0]
-    out = np.zeros(slots, dtype=bool)
-    out[slot[(slot >= 0) & (slot < slots)]] = True
-    return out
+    window = (-tau / 2, 0.0) if click_window else None
+    return clicked_slots(stamps, start + tau / 4, tau, slots, window)
 
 
 def read_tagger(batch, block: int, p: COWParams, t0: float = 0.0) -> dict:

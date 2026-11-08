@@ -221,10 +221,12 @@ def run(
     runner = Runner(setup, seed=seed)
     im, awg, tagger = setup["ALICE-IM"], setup["ALICE-AWG"], setup["TAGGER"]
     tally, alice_key, bob_key = Tally(), [], []
+    # the run is the session: Alice's first pulse is where the tagger's clock stands
+    t0 = tagger.position / tagger.bin_rate
     for block in range(blocks):
         kind = draw(runner.rng, tagger.slots // BINS_PER_PAIR, p)
         awg.set_pattern("ch1", im.voltage_for(carving(occupied(kind))), 2 * p.rate)
-        clicked = read_tagger(runner.acquire("TAGGER"), block, p)
+        clicked = read_tagger(runner.acquire("TAGGER"), block, p, t0)
         event, multi = events(clicked, runner.rng)
         idx, bits, mon, det = announcements(event)
         sent = kind[idx]

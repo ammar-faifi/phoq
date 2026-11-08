@@ -113,7 +113,8 @@ class Eve(Party):
         attack = self.blocks.pop(batch.seq, None)
         if attack is None:
             return
-        p, d = self.params, batch.clicks["ch1"]
+        p = self.params
+        d = common.read_tagger(batch, batch.seq, p)["ch1"]
         c0, c1 = d[0::2], d[1::2]
         sent = common.intercept(c0, c1, attack, self.inconclusive)
         occ = common.occupied(sent)

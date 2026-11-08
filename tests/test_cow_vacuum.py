@@ -228,6 +228,15 @@ def test_time_stamps_fold_onto_the_slots():
     assert read(-0.26, False) == read(3.76) == [False] * 4
 
 
+def test_a_second_run_on_one_setup_reads_its_clicks():
+    """The tagger's clock runs on from one run to the next. Each run's session starts
+    where it stands, so a second run on the same setup reads as many clicks."""
+    setup = cv.build(BRIGHT, 40_000)
+    first, second = (cv.run(BRIGHT, blocks=1, seed=s, setup=setup) for s in (1, 2))
+    assert first.tally.detected > 200
+    assert second.tally.detected == pytest.approx(first.tally.detected, rel=0.2)
+
+
 def test_one_event_per_pair():
     rng = np.random.default_rng(1)
     # pair 0: the second slot on D_T; pair 1: the first; pairs 2, 3: the monitoring

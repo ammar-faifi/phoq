@@ -1,7 +1,7 @@
-"""Bob: the receiver. He programs his measurement basis pulse by pulse, reads his time
-tagger, announces which pulses clicked ([#1]), and answers Alice's sifting with his bits
-at the disclosed positions ([#3]). Only the middle time slot of every pulse carries
-information; a double click there gets a random bit."""
+"""Bob: the receiver. He programs his measurement basis pulse by pulse, folds his time
+tagger's stamps onto Alice's pulses, announces which pulses clicked ([#1]), and answers
+Alice's sifting with his bits at the disclosed positions ([#3]). Only the middle time
+slot of every pulse carries information; a double click there gets a random bit."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ from .common import (
     estimate,
     key_from,
     measurement_phase,
-    middle_slot,
+    read_tagger,
     readouts,
 )
 
@@ -55,15 +55,15 @@ class Bob(Party):
         st = self.blocks.get(batch.seq)
         if st is None:
             return
-        c0, c1 = middle_slot(batch.clicks["ch1"]), middle_slot(batch.clicks["ch2"])
+        clicked = read_tagger(batch, batch.seq, self.params)
+        c0, c1 = clicked["ch1"], clicked["ch2"]
         idx = np.flatnonzero(c0 | c1)
         both = c0[idx] & c1[idx]
         bits = np.where(c1[idx] & ~c0[idx], 1, 0).astype(np.int8)
         bits[both] = self.rng.integers(0, 2, size=int(both.sum()), dtype=np.int8)
         st.update(idx=idx, bits=bits, n=int(c0.size), doubles=int(both.sum()))
-        satellites = int(batch.counts["ch1"] + batch.counts["ch2"]) - int(
-            c0.sum() + c1.sum()
-        )
+        stamps = sum(batch.timestamps(ch).size for ch in ("ch1", "ch2"))
+        satellites = stamps - int(c0.sum() + c1.sum())
         size = self.net.send(
             "ALICE",
             Topic.DETECT,
