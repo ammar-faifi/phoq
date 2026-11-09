@@ -49,8 +49,8 @@ body {
   padding-right: max(16px, env(safe-area-inset-right, 0px));
   padding-block: 20px 28px;
 }
-.wrap { max-width: 1440px; margin: 0 auto; display: grid; gap: 18px; }
-header.top { display: grid; gap: 6px; }
+.wrap { max-width: 1440px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; }
+header.top { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
 .eyebrow { font-family: var(--font-mono); font-size: 12px; letter-spacing: .06em; color: var(--muted); text-transform: uppercase; }
 h1 { font-family: var(--font-display); font-weight: 600; font-size: clamp(26px, 3.4vw, 38px); line-height: 1.1; margin: 0; text-wrap: balance; letter-spacing: .01em; }
 .lede { margin: 0; max-width: 78ch; color: var(--muted); }
