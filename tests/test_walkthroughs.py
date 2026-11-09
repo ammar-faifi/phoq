@@ -1,6 +1,6 @@
-"""The instrument walkthroughs the lab's Help window links to: each page embeds the
-source of the methods it walks through, and that source must still be the code's
-(rebuild with ``uv run python tools/walkthroughs/build.py``)."""
+"""The walkthroughs the lab's Help window links to: each page embeds the source of the
+methods it walks through, and that source must still be the code's (rebuild with
+``uv run python tools/walkthroughs/build.py``)."""
 
 import importlib
 import inspect
@@ -9,8 +9,16 @@ from pathlib import Path
 
 import pytest
 
-WEB = Path(__file__).resolve().parents[1] / "src" / "phoq" / "web"
-PAGES = ("spectrum-analyzer.html", "oscilloscope.html", "photon-counter.html")
+from phoq.loading import import_source
+
+ROOT = Path(__file__).resolve().parents[1]
+WEB = ROOT / "src" / "phoq" / "web"
+PAGES = (
+    "spectrum-analyzer.html",
+    "oscilloscope.html",
+    "photon-counter.html",
+    "time-stamps.html",
+)
 
 
 def _data(page: str) -> dict:
@@ -23,7 +31,10 @@ def _data(page: str) -> dict:
 
 def _source(ref: str) -> str:
     module, qual = ref.split(":")
-    obj = importlib.import_module(module)
+    if "/" in module:  # example code, imported from the repository
+        obj = import_source(ROOT / module)
+    else:
+        obj = importlib.import_module(module)
     for part in qual.split("."):
         obj = getattr(obj, part)
     return inspect.getsource(obj.fget if isinstance(obj, property) else obj)

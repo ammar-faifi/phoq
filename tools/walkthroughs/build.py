@@ -1,14 +1,14 @@
-"""Build the instrument walkthroughs the virtual lab links from its Help (?) window.
+"""Build the walkthroughs the virtual lab links from its Help (?) window.
 
     uv run python tools/walkthroughs/build.py
     uv run python tools/walkthroughs/build.py --fragments out/
 
-Each walkthrough steps through an instrument's acquire() and the methods it calls, line
-by line, beside a screen that draws what each line produced. ``<name>.py`` replays those
-lines on a demo bench, checks the replay against acquire() itself and returns every
-intermediate array; ``<name>.html`` is the page, with ``/*DATA*/`` where the data go.
-The methods' source is embedded as it is now, so rebuild after changing them
-(tests/test_walkthroughs.py fails until you do).
+Each walkthrough steps through code line by line, an instrument's acquire() and the
+methods it calls or a station reading its tagger, beside a screen that draws what each
+line produced. ``<name>.py`` replays those lines on a demo bench, checks the replay
+against the code itself and returns every intermediate array; ``<name>.html`` is the
+page, with ``/*DATA*/`` where the data go. The methods' source is embedded as it is
+now, so rebuild after changing them (tests/test_walkthroughs.py fails until you do).
 """
 
 import argparse
@@ -18,19 +18,27 @@ import json
 from pathlib import Path
 from runpy import run_path
 
+from phoq.loading import import_source
+
 HERE = Path(__file__).resolve().parent
-WEB = HERE.parents[1] / "src" / "phoq" / "web" / "walkthroughs"
+ROOT = HERE.parents[1]
+WEB = ROOT / "src" / "phoq" / "web" / "walkthroughs"
 PAGES = {  # capture module and template → published page
     "spectrum_analyzer": "spectrum-analyzer.html",
     "oscilloscope": "oscilloscope.html",
     "photon_counter": "photon-counter.html",
+    "time_stamps": "time-stamps.html",
 }
 
 
 def source(ref: str) -> str:
-    """The source of ``"module:Qual.name"``; a property's getter for a property."""
+    """The source of ``"module:Qual.name"``; a property's getter for a property. A module
+    given as a path, ``examples/cow_vacuum``, is imported from the repository."""
     module, qual = ref.split(":")
-    obj = importlib.import_module(module)
+    if "/" in module:
+        obj = import_source(ROOT / module)
+    else:
+        obj = importlib.import_module(module)
     for part in qual.split("."):
         obj = getattr(obj, part)
     return inspect.getsource(obj.fget if isinstance(obj, property) else obj)
@@ -66,7 +74,7 @@ def main() -> None:
         data["src"] = {key: source(ref) for key, ref in mod["REFS"].items()}
         filled = fill((HERE / f"{name}.html").read_text(encoding="utf-8"), data)
         (WEB / page).write_text(document(filled), encoding="utf-8")
-        print(f"{WEB / page}: replay matches acquire()")
+        print(f"{WEB / page}: replay matches the code")
         if args.fragments:
             out = Path(args.fragments)
             out.mkdir(parents=True, exist_ok=True)

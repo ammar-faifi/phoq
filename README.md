@@ -523,12 +523,14 @@ detector dead time across records, and what long dead times do to the clicks.
 
 ## Theory: modulators, delay lines, balanced detection and the instruments
 
-The virtual lab's Help (?) window links three animated walkthroughs of the instruments' code.
-Each steps through one acquisition line by line, beside a screen that draws the array each line
-produces on a real bench: the RF spectrum analyzer's sweep, the oscilloscope's front end, edge
-trigger, ADC and measurements, and the photon counter's clicks, dead time and coincidences.
-`phoq serve` serves them at `/walkthroughs/`. After changing those methods, rebuild the pages with
-`uv run python tools/walkthroughs/build.py`; `tests/test_walkthroughs.py` fails until you do.
+The virtual lab's Help (?) window links four animated walkthroughs. Three step through one
+acquisition of an instrument line by line, beside a screen that draws the array each line produces
+on a real bench: the RF spectrum analyzer's sweep, the oscilloscope's front end, edge trigger, ADC
+and measurements, and the photon counter's clicks, dead time and coincidences. The fourth follows
+COW vacuum's Bob as he folds his tagger's time stamps onto Alice's slots, from `read_tagger` through
+`phoq.timing.fold` to one event per pair. `phoq serve` serves them at `/walkthroughs/`. After
+changing those methods, rebuild the pages with `uv run python tools/walkthroughs/build.py`;
+`tests/test_walkthroughs.py` fails until you do.
 
 ### Electro-optic modulators
 
@@ -1643,7 +1645,8 @@ way, Eve's included, and no protocol reads `clicks`: each protocol's `read_tagge
 holding a stamp whose phase φ falls in the station's click window (`phoq.timing.clicked_slots`).
 The stamps are still partly the simulator's. A click is stamped at the center of its bin, and the
 delay compensation puts Alice's first pulse at t₀ = 0 on the tagger's clock, so no station has to
-find t₀, which a bench does once per session from its clicks or a sync channel.
+find t₀, which a bench does once per session from its clicks or a sync channel. The lab's Help (?)
+window walks through COW vacuum's reading line by line, under "Time stamps".
 
 ### BB84 with decoy states, and an eavesdropper
 
@@ -2379,7 +2382,7 @@ tests/               pytest suite
 docs/engine.md       how the engine computes: tracing, field synthesis, detectors, instruments
 docs/photon-counter.md  the time tagger's acquisition, dead time across records, long dead times
 docs/images/         README screenshots of the virtual lab
-tools/walkthroughs/  builds src/phoq/web/walkthroughs, the instrument walkthroughs the lab's Help links
+tools/walkthroughs/  builds src/phoq/web/walkthroughs, the walkthroughs the lab's Help links
 .github/workflows/   ci.yml (tests on push / PR), publish.yml (PyPI on a version tag)
 ```
 

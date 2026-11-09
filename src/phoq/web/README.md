@@ -66,6 +66,6 @@ js/scene.js         renderer, camera, lights, table, shelf
 js/textures.js      procedural canvas textures
 js/util.js          formatting helpers
 walkthroughs/       animated walkthroughs of the spectrum analyzer, oscilloscope and photon
-                    counter code, linked from the Help (?) window; built by
-                    tools/walkthroughs/build.py, do not edit by hand
+                    counter code and of a station folding its time stamps, linked from the
+                    Help (?) window; built by tools/walkthroughs/build.py, do not edit by hand
 ```
