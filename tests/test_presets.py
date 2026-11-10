@@ -28,6 +28,7 @@ SHIPPED = {
     "hamamatsu/koheras-mikro-a15",
     "hamamatsu/koheras-mikro-e15",
     "mpd/pdm-ir",
+    "mpd/pdm-ir-sff",
     "thorlabs/det08cfc",
     "thorlabs/dx25cf",
     "thorlabs/dx25hf",
@@ -232,6 +233,37 @@ def test_silicon_spad_on_a_1550_nm_link_is_blind():
     assert "photons per pulse, above the absolute maximum of 10000" in " ".join(
         w["text"] for w in report(setup)["warnings"]
     )
+
+
+def test_pdm_ir_desktop_and_small_form_factor_differ_only_in_dark_counts():
+    """MPD PDM-IR datasheet v2.1: the SMF-28 desktop instrument (DI) and small form
+    factor (SFF) share the 10 µm SPAD's rows, and p. 3 gives the SFF twice the DCR:
+    0.5 kcps typ and 1.2 max against 0.25 and 0.6, at 2 V, a 100 µs hold-off and, for
+    the SFF, a 25 °C case."""
+    di, sff = presets.get("mpd/pdm-ir"), presets.get("mpd/pdm-ir-sff")
+    assert (di.part_number, sff.part_number) == ("$PI-010-SM-DI", "$PI-010-SM")
+    assert sff.source["revision"] == di.source["revision"] == "v2.1, February 2025"
+    assert sff.source["document"] == di.source["document"]
+    differ = {
+        k for k in di.params | sff.params if di.params.get(k) != sff.params.get(k)
+    }
+    assert differ == {"dark_count_rate"}
+    dcr = {
+        p.id: (p.params["dark_count_rate"], p.provenance["dark_count_rate"].max)
+        for p in (di, sff)
+    }
+    assert dcr == {"mpd/pdm-ir": (250.0, 600.0), "mpd/pdm-ir-sff": (500.0, 1200.0)}
+    # one PDE-vs-wavelength plot for both (p. 1)
+    di_pde, sff_pde = di.curves["efficiency"], sff.curves["efficiency"]
+    assert (sff_pde.wavelength, sff_pde.value) == (di_pde.wavelength, di_pde.value)
+    for p in (di, sff):  # every value names its datasheet page
+        specs = [v.spec for v in p.provenance.values()]
+        specs += [c.provenance.spec for c in p.curves.values()]
+        assert all(s.startswith("p. ") for s in specs), p.id
+
+    spad = SinglePhotonDetector("SPD", preset="mpd/pdm-ir-sff")
+    assert spad.dark_count_rate == 500.0 and spad.connector == "FC/PC"
+    assert spad.efficiency_at(1550e-9) == pytest.approx(0.25)
 
 
 def test_curve_schema_is_checked(tmp_path):
