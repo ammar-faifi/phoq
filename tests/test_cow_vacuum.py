@@ -20,7 +20,9 @@ bound = cv.bound
 # enough counts on every gain within a few blocks, which a hold-off would cap
 BRIGHT = cv.COWParams(mu=0.5, dead_time=0.0)
 # the detectors of the paper's simulation: η_d, p_d = 10⁻⁸ per window, no hold-off
-PAPER_DETECTORS = dict(efficiency=0.8, dark_count_rate=10.0, dead_time=0.0)
+PAPER_DETECTORS = dict(
+    efficiency=0.8, dark_count_rate=10.0, dead_time=0.0, timing_jitter=0.0
+)
 POINTS = [
     (0.02, 0.8, 0.5, 1e-8),
     (0.2, 0.25, 0.3, 1e-6),
@@ -339,14 +341,51 @@ def test_reference_run_matches_theory():
     assert "E_p^u" in res.summary() and "not in the bound" in res.summary()
 
 
-def test_sub_bins_read_as_one():
-    """A bin is one symbol of the modulator, sampled at its center. With two sub-bins,
-    which sample away from that center, the gains are the same."""
+def test_one_sample_per_bin_reads_as_its_model():
+    """A bin is one symbol of the modulator. With one sample per bin instead of the
+    bench's two sub-bins, every click sits at its bin's center, a quarter slot from the
+    window's edges, and the jitter's tail alone leaves it."""
     setup = cv.build(BRIGHT)
-    setup["TAGGER"].oversample = 2
+    setup["TAGGER"].oversample = 1
     res = cv.run(BRIGHT, blocks=8, seed=4, setup=setup)
+    assert res.expected["spill"][0].beyond == pytest.approx(0.0016, abs=1e-4)
     assert_gains_match(res.tally, res.expected["gains"])
     assert res.tally.q == pytest.approx(res.expected["Q"], rel=0.03)
+
+
+def test_the_jitter_spills_a_pulse_over_its_half_slot():
+    """The PDM-IR's 200 ps FWHM on a flat-topped 0.5 ns half slot: 6.8 % of its clicks
+    land beyond each end, and a 500 ps jitter reaches the next window."""
+    assert cv.SUB_BINS == 2 and cv.build().components  # the bench resolves the half
+    spill = cv.jitter_spill(200e-12, 0.5e-9)
+    assert spill.beyond == pytest.approx(0.0678, abs=1e-4)
+    assert spill.far < 1e-9
+    rng = np.random.default_rng(1)
+    for fwhm in (200e-12, 500e-12):
+        got = cv.jitter_spill(fwhm, 0.5e-9)
+        x = rng.uniform(0, 0.5e-9, 2_000_000)
+        x = x + rng.normal(0, fwhm / 2.3548200450309493, x.size)
+        assert got.beyond == pytest.approx((x < 0).mean(), abs=1e-3)
+        far = ((x >= -1e-9) & (x < -0.5e-9)).mean()
+        assert got.far == pytest.approx(far, abs=1e-4)
+    assert cv.jitter_spill(0.0, 0.5e-9) == cv.Spill()
+
+
+@pytest.mark.parametrize("window", [True, False])
+def test_a_wide_jitter_counts_as_expected(window):
+    """500 ps FWHM: 17 % of a pulse's clicks beyond each end of its half slot. In the
+    click window they are lost, and a few reach the neighboring windows; read whole, the
+    early ones land in the slot before, the other bit's."""
+    p = cv.COWParams(mu=0.5, dead_time=0.0, click_window=window)
+    setup = cv.build(p)
+    for d in ("DT", "DM0", "DM1"):
+        setup[d].timing_jitter = 500e-12
+    res = cv.run(p, blocks=12, seed=3, setup=setup)
+    assert_gains_match(res.tally, res.expected["gains"])
+    assert res.tally.q == pytest.approx(res.expected["Q"], rel=0.03)
+    errors = res.expected["E_b"] * res.tally.sifted
+    assert abs(res.e_b * res.tally.sifted - errors) < 4 * math.sqrt(errors)
+    assert res.expected["E_b"] > (0.10 if not window else 0.004)
 
 
 def test_the_default_link_reads_near_its_expected_bound():
@@ -363,12 +402,13 @@ def test_the_default_link_reads_near_its_expected_bound():
 def test_the_default_operating_point():
     p = cv.COWParams()
     th = cv.theory(cv.build(p), p)
-    assert th["E_p^u"] == pytest.approx(0.514, abs=0.001)
-    assert th["E_b"] == pytest.approx(0.0114, abs=1e-4)
-    assert th["Q"] == pytest.approx(9.62e-6, rel=0.01)
-    assert th["terms"]["beta"] == pytest.approx(0.212, abs=0.001)
-    assert th["terms"]["M0"] == pytest.approx(0.197, abs=0.001)
-    assert th["terms"]["M1"] == pytest.approx(0.105, abs=0.001)
+    assert th["E_p^u"] == pytest.approx(0.557, abs=0.001)
+    assert th["E_b"] == pytest.approx(0.0132, abs=1e-4)
+    assert th["Q"] == pytest.approx(8.35e-6, rel=0.01)
+    assert th["terms"]["beta"] == pytest.approx(0.229, abs=0.001)
+    assert th["terms"]["M0"] == pytest.approx(0.209, abs=0.001)
+    assert th["terms"]["M1"] == pytest.approx(0.119, abs=0.001)
+    assert th["spill"] == (cv.jitter_spill(200e-12, 0.5e-9),) * 3
     assert th["coherence"] == pytest.approx(math.exp(-math.pi * 1e6 / 1e9))
     assert th["sifted / pair"] == pytest.approx(th["Q"] / 2)
     assert th["open"] == pytest.approx([0.803, 0.922, 0.968], abs=0.001)
@@ -399,7 +439,8 @@ def cost_rows(paper, th):
         (*spads, p_d, 0, False),
         (*spads, th["p_d"], 0, False),
         (*spads, th["p_d"], th["hold"], False),
-        (*spads, th["p_d"], th["hold"], True),
+        (*spads, th["p_d"], th["hold"], False, th["spill"]),
+        (*spads, th["p_d"], th["hold"], True, th["spill"]),
     ]
 
 
@@ -417,7 +458,8 @@ def test_what_the_real_bench_costs():
         (3.15e-4, 0.310, 9.28e-6),  # 25 % PDE
         (5.18e-4, 0.618, 1.57e-5),  # 250 Hz: no key at any μ …
         (4.88e-4, 0.623, 1.14e-5),  # … and the hold-off adds little to the bound
-        (3.81e-4, 0.514, 9.25e-6),  # the click window: half the dark counts
+        (4.12e-4, 0.678, 1.01e-5),  # 200 ps of jitter: clicks in the other bit's slot
+        (3.71e-4, 0.557, 7.86e-6),  # the click window: half the dark counts
     ]
     rows = cost_rows(paper, th)
     for i, (row, (mu_want, e_want, q_want)) in enumerate(zip(rows, expected)):
@@ -508,7 +550,10 @@ def test_settings_show_in_the_terms_of_the_bound():
 
 
 def test_what_the_click_window_buys():
-    window, whole = (expected(cv.COWParams(click_window=w)) for w in (True, False))
+    sharp = dict(timing_jitter=0.0)
+    window, whole = (
+        expected(cv.COWParams(click_window=w), **sharp) for w in (True, False)
+    )
     # half of the dark counts and of the leak: half of the data line's errors …
     assert window["E_b"] == pytest.approx(whole["E_b"] / 2, rel=0.05)
     # … with the light that matters all in the window
@@ -518,7 +563,13 @@ def test_what_the_click_window_buys():
     assert window["open"] == pytest.approx(whole["open"])
     # no window at the μ of that bench: the figures of the whole slot
     p = cv.COWParams(mu=5e-4, click_window=False)
-    assert expected(p)["E_p^u"] == pytest.approx(0.623, abs=0.001)
+    assert expected(p, **sharp)["E_p^u"] == pytest.approx(0.623, abs=0.001)
+    # with the detectors' 200 ps the window also drops the clicks the jitter moves into
+    # the other bit's slot, and keeps 1 − 2 × 6.8 % of the signal
+    window, whole = (expected(cv.COWParams(click_window=w)) for w in (True, False))
+    assert whole["E_b"] > 5 * window["E_b"]
+    assert window["Q"] == pytest.approx(whole["Q"] * (1 - 2 * 0.0678), rel=0.03)
+    assert window["E_p^u"] < whole["E_p^u"] - 0.1
 
 
 def test_a_detuned_dli_counts_as_expected():

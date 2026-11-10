@@ -32,6 +32,8 @@ Bob reads his tagger as a bench does: a time stamp per click, which he folds ont
 Alice's slots (``phoq.timing.fold``). A pulse fills half of its slot, so his click
 window can be that half alone: it drops half of the dark counts and the modulator's leak
 in the other half, while a click outside the window still starts a detector's hold-off.
+The detectors' timing jitter stamps some of a pulse's clicks outside the window, and 
+some of the leak's inside it.
 
 Everything here is public: the parameters are agreed beforehand and both stations run
 these functions on disclosed data. Alice's sequence and Bob's bits only pass through
@@ -45,6 +47,7 @@ from dataclasses import dataclass, field
 from typing import NamedTuple
 
 import numpy as np
+from scipy.special import ndtr
 
 from phoq.core import Setup
 from phoq.detectors import SinglePhotonDetector
@@ -55,7 +58,7 @@ from phoq.modulators import IntensityModulator
 from phoq.passive import Attenuator, Coupler, FiberSpool, OpticalDelayLine, PhaseShifter
 from phoq.sources import Laser
 from phoq.timing import clicked_slots
-from phoq.units import fmt_si, photon_energy
+from phoq.units import GAUSS_FWHM, fmt_si, photon_energy
 
 from . import bound
 from .bound import Gains, phase_error, terms
@@ -70,6 +73,9 @@ DT, DM0, DM1 = "ch1", "ch2", "ch3"
 NONE, T0, T1, M0, M1 = -1, 0, 1, 2, 3
 # the lab counts a block in the tagger's bins: half a slot, one symbol of the modulator
 BINS_PER_PAIR = 4
+# sub-bins per bin: a click is stamped where in its half slot the photon arrived, and the
+# detector's timing jitter blurs that, as on a bench
+SUB_BINS = 2
 FIBER_INPUT = "SPL.p1"  # where μ is defined
 
 
@@ -174,8 +180,8 @@ def transmitter(setup: Setup, p: COWParams) -> Attenuator:
 
 def receiver(setup: Setup, p: COWParams, slots: int) -> Coupler:
     """Tap (t_B to D_T) → DLI → D_M0, D_M1 → time tagger. The tagger's bins are half a
-    slot, one symbol of the modulator each: the simulation samples the light there and
-    stamps a click at its bin's center.
+    slot, one symbol of the modulator each, sampled on ``SUB_BINS`` sub-bins: a click is
+    stamped where in its bin the photon arrived, plus the detector's timing jitter.
 
     The DLI's long arm must be one slot (0.20 m of fiber at 1 GHz) longer. The cords
     give 0.25 m: 1 m + VOA + 0.5 m against 0.5 m + phase shifter + 0.25 m + delay line
@@ -201,6 +207,7 @@ def receiver(setup: Setup, p: COWParams, slots: int) -> Coupler:
             slots=2 * slots,
             bin_rate=2 * p.rate,
             sync_source="ALICE-LD",
+            oversample=SUB_BINS,
         )
     )
     setup.connect(tap.b1, dt.inp)
@@ -611,6 +618,45 @@ class Port(NamedTuple):
     cross: float  # Re(long* · short): +√(short·long) on a constructive port
 
 
+class Spill(NamedTuple):
+    """What a detector's timing jitter does to a half slot's detections."""
+
+    beyond: float = 0.0  # the share stamped beyond each of its ends …
+    far: float = 0.0  # … of which in the half slot two halves away, the next window
+
+
+NO_SPILL = (Spill(), Spill(), Spill())
+
+
+def jitter_spill(fwhm: float, width: float, resolved: bool = True) -> Spill:
+    """The ``Spill`` of a detector's timing jitter, a Gaussian of ``fwhm``, on half slots
+    of ``width``. With the tagger's sub-bins (``resolved``) the photons arrive anywhere
+    in the flat-topped half; with one sample per bin every click sits at its bin's
+    center, and only the Gaussian's tail beyond the half's edge spills."""
+    if fwhm <= 0:
+        return Spill()
+    sigma = fwhm / GAUSS_FWHM
+    u = width / sigma
+    if not resolved:
+        return Spill(float(ndtr(-u / 2)), float(ndtr(-1.5 * u) - ndtr(-2.5 * u)))
+
+    def below(x: float) -> float:  # ∫ Φ(−v) dv from 0 to x, over σ
+        return x * ndtr(-x) - math.exp(-x * x / 2) / math.sqrt(2 * math.pi)
+
+    beyond = (below(u) - below(0.0)) / u
+    far = (2 * below(2 * u) - below(u) - below(3 * u)) / u
+    return Spill(float(beyond), float(far))
+
+
+def spills(setup: Setup, p: COWParams) -> tuple[Spill, Spill, Spill]:
+    """``jitter_spill`` of D_T, D_M0 and D_M1 on this bench."""
+    resolved = setup["TAGGER"].oversample > 1
+    return tuple(
+        jitter_spill(setup[d].timing_jitter, p.slot / 2, resolved)
+        for d in ("DT", "DM0", "DM1")
+    )
+
+
 def windows(
     first: bool,
     second: bool,
@@ -621,25 +667,72 @@ def windows(
     coherence: float,
     p_d: float,
     click_window: bool = False,
+    spill: tuple[Spill, Spill, Spill] = NO_SPILL,
+    before: float = 0.5,
+    after: float = 0.5,
 ) -> list[float]:
     """Click probabilities in a pair's four windows (T_0, T_1, M0, M1), which of its
     pulses being sent, with ``p_d`` the dark-count probability per slot. A slot is a half
     that is carved (μ photons, or the modulator's leak ε·μ) and a half that is always
     dark (ε·μ). The carved halves of the two pulses meet at the DLI's output, and so do
-    the dark halves. A click window reads the carved half alone."""
+    the dark halves. A click window reads the carved half alone.
+
+    ``spill`` is what the timing jitter of D_T, D_M0 and D_M1 does (``jitter_spill``).
+    A click window keeps 1 − 2·beyond of its carved half, takes beyond − far of each dark
+    half beside it, and far of the windows on either side. Read whole, a slot loses
+    beyond of its light to the slot before and takes beyond of the next slot's. Where
+    that brings in the pair before's second pulse or the next pair's first, sent with
+    probabilities ``before`` and ``after``, the click probability is the average."""
     a, b = (mu if first else leak * mu), (mu if second else leak * mu)
-    dark = 0.0 if click_window else leak * mu
+    eps = leak * mu
     quiet = math.sqrt(1 - p_d) if click_window else 1 - p_d
-    photons = [tau * (b + dark), tau * (a + dark)]
-    for port in ports:
-        cross = 2 * coherence * port.cross
-        photons.append(
-            port.long * a
-            + port.short * b
-            + cross * math.sqrt(a * b)
-            + (port.long + port.short + cross) * dark
+    prevs = ((mu, before), (eps, 1 - before))
+    nexts = ((mu, after), (eps, 1 - after))
+
+    def click(n_of) -> float:
+        """Averaged over the pair before's second pulse and the next pair's first."""
+        miss = sum(
+            wp * wn * math.exp(-n_of(prev, nxt))
+            for prev, wp in prevs
+            for nxt, wn in nexts
         )
-    return [1 - quiet * math.exp(-n) for n in photons]
+        return 1 - quiet * miss
+
+    def photons(carved, dark, earlier, later, s: Spill) -> float:
+        """Detected photons of a window, from its carved half, a dark half's interfering
+        leak, and the carved halves of the slots before and after it."""
+        if click_window:
+            return (
+                (1 - 2 * s.beyond) * carved
+                + 2 * (s.beyond - s.far) * dark
+                + s.far * (earlier + later)
+            )
+        return (1 - s.beyond) * carved + dark + s.beyond * later
+
+    s_t = spill[0]
+    out = [
+        click(lambda prev, nxt: tau * photons(b, eps, a, nxt, s_t)),
+        click(lambda prev, nxt: tau * photons(a, eps, prev, b, s_t)),
+    ]
+    for port, s_m in zip(ports, spill[1:]):
+        cross = 2 * coherence * port.cross
+
+        def meet(first_, second_):  # a slot at the DLI: long arm, then short arm
+            return (
+                port.long * first_
+                + port.short * second_
+                + cross * math.sqrt(first_ * second_)
+            )
+
+        dark = (port.long + port.short + cross) * eps
+        out.append(
+            click(
+                lambda prev, nxt: photons(
+                    meet(a, b), dark, meet(prev, a), meet(b, nxt), s_m
+                )
+            )
+        )
+    return out
 
 
 def open_fractions(
@@ -702,21 +795,26 @@ def pair_gains(
     shares: tuple[float, float, float, float] = (0.25, 0.25, 0.25, 0.25),
     hold: int = 0,
     click_window: bool = False,
+    spill: tuple[Spill, Spill, Spill] = NO_SPILL,
 ) -> tuple[Gains, float, float]:
     """(Gains, Q, E_b) of a bench: ``tau`` detected photons on the data line per photon
     at the fiber input, ``ports`` the two monitoring detectors, ``leak`` the modulator's
     t_min/t_max, ``coherence`` the fringe contrast of the laser over one slot, ``shares``
-    and ``hold`` what ``open_fractions`` needs, and ``click_window`` as in ``windows``.
-    The hold-off spans thousands of pairs, so a pair finds a detector open whatever Alice
-    sent it."""
+    and ``hold`` what ``open_fractions`` needs, and ``click_window`` and ``spill`` as in
+    ``windows``. The hold-off spans thousands of pairs, so a pair finds a detector open
+    whatever Alice sent it; the jitter moves clicks, not their number, so it leaves the
+    hold-off as it is."""
     args = (mu, tau, ports, leak, coherence, p_d)
     t, m0, m1 = open_fractions(*args, shares, hold)
+    # the pair before's second pulse is sent, and the next pair's first
+    before, after = shares[BIT0] + shares[DECOY1], shares[BIT1] + shares[DECOY1]
     e0, e1, e_a, e_v = (
         one_event(
             [
                 c * o
                 for c, o in zip(
-                    windows(first, second, *args, click_window), (t, t, m0, m1)
+                    windows(first, second, *args, click_window, spill, before, after),
+                    (t, t, m0, m1),
                 )
             ]
         )
@@ -745,8 +843,9 @@ def theory(setup: Setup, p: COWParams) -> dict:
     The traced losses and the detectors' PDE give the detected photons per photon at the
     fiber input, on the data line and through each arm of the DLI, whose phase comes from
     the trace too. The laser's phase walk over one slot keeps a fringe contrast
-    e^{−πΔντ}. ``windows``, ``open_fractions`` and ``one_event`` turn these into the
-    gains, and Eq. (7) into E_p^u.
+    e^{−πΔντ}. The detectors' timing jitter moves a share of each half slot's clicks
+    across its edges (``spills``). ``windows``, ``open_fractions`` and ``one_event`` turn
+    these into the gains, and Eq. (7) into E_p^u.
     """
     net, alice, im, spd = (
         trace(setup),
@@ -763,9 +862,12 @@ def theory(setup: Setup, p: COWParams) -> dict:
     p_d = -math.expm1(-spd.dark_count_rate * p.slot)
     hold = max(0, spd.dead_bins(p.slot) - 1)
     args = (tau, ports, leak, coherence, p_d)
-    g, q, e_b = pair_gains(p.mu, *args, p.probabilities, hold, p.click_window)
+    spill = spills(setup, p)
+    g, q, e_b = pair_gains(p.mu, *args, p.probabilities, hold, p.click_window, spill)
     opened = open_fractions(p.mu, *args, p.probabilities, hold)
-    both = windows(True, True, p.mu, *args, p.click_window)
+    shares = p.probabilities
+    before, after = shares[BIT0] + shares[DECOY1], shares[BIT1] + shares[DECOY1]
+    both = windows(True, True, p.mu, *args, p.click_window, spill, before, after)
     return {
         "tau": tau,
         "ports": ports,
@@ -773,6 +875,7 @@ def theory(setup: Setup, p: COWParams) -> dict:
         "coherence": coherence,
         "p_d": p_d,
         "hold": hold,
+        "spill": spill,
         "open": opened,
         "gains": g,
         "Q": q,
@@ -800,5 +903,6 @@ def best_mu(setup: Setup, p: COWParams) -> float:
             p.probabilities,
             th["hold"],
             p.click_window,
+            th["spill"],
         )
     )[0]

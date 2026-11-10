@@ -11,9 +11,11 @@ sin(πfw)/(πfw) with w = 5 ns. The lines at odd multiples of 100 MHz follow tha
 down, and every multiple of 200 MHz, where it is zero, is gone.
 
 The randomly placed clicks also leave a pedestal, which the envelope scales the same way,
-so a line stands above its own stretch of pedestal by the same margin at any frequency.
-The margin grows with the click rate against the RBW. At the preset's shortest hold-off,
-1 µs, and a 4 µs wait, the SPAD counts 200 kHz and every line stands about 10 dB clear.
+so a line stands above its own stretch of pedestal by nearly the same margin at any
+frequency. The SPAD's timing jitter takes exp(−(2πfσ)²) off the lines alone: for the
+preset's 200 ps FWHM, 0.01 dB at 100 MHz and 1.5 dB at 1.1 GHz. The margin grows with
+the click rate against the RBW. At the preset's shortest hold-off, 1 µs, and a 4 µs wait,
+the SPAD counts 200 kHz and every line stands about 10 dB clear, 8.4 dB at 1.1 GHz.
 At a 40 µs hold-off it counts 5 kHz, and at this RBW the comb drowns. A narrower RBW
 digs one line out, as examples/spad_tones.py does.
 """

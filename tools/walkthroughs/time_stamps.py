@@ -2,7 +2,9 @@
 tagger through read_tagger, CounterResult.timestamps, slot_clicks and phoq.timing's
 clicked_slots and fold, then events, replayed line by line on a bright COW-vacuum link,
 every intermediate array kept. Alice's carving and the AWG's pattern lookup show where a
-slot's center sits. The replay is checked against read_tagger() and events() themselves.
+slot's center sits. The bench is COW vacuum's own: two sub-bins per tagger bin and the
+PDM-IR's 200 ps of timing jitter, so the stamps spread over the slot. The replay is
+checked against read_tagger() and events() themselves.
 """
 
 import copy
@@ -54,11 +56,11 @@ def capture() -> dict:
     tau = p.slot
     flags, ch_data = {}, {}
     for ch in (c.DT, c.DM0, c.DM1):
-        # CounterResult.timestamps: no jitter and no sub-bins on this bench, so no
-        # times inside the bins, as the walk says
-        assert ch not in batch.fine
+        # CounterResult.timestamps: the bin's center, plus each click's own time in it
         k = np.flatnonzero(batch.clicks[ch])
         t = (batch.start + k) / batch.rate
+        fine = batch.fine[ch] if ch in batch.fine else np.zeros(k.size)
+        t = t + fine
         # slot_clicks
         window = (-tau / 2, 0.0) if p.click_window else None
         t0_fold, period = start + tau / 4, tau
@@ -74,6 +76,7 @@ def capture() -> dict:
         flags[ch] = out
         ch_data[ch] = dict(
             k=[int(v) for v in k],
+            fine=[round(float(v) * 1e12, 1) for v in fine],
             n=[int(v) for v in n],
             phi=[round(float(v) * 1e12, 3) for v in phase],
             kept=int(inside.sum()),
@@ -101,9 +104,10 @@ def capture() -> dict:
     idx, bits, mon, det_of = c.announcements(event)
     edge0, edge1 = c.boundary_clicks(clicked, event)
 
-    # D_T's first stamp, followed through
+    # D_T's first stamp in the click window, followed through
     first = ch_data[c.DT]
-    n0 = first["n"][0]
+    i0 = next(i for i, ph in enumerate(first["phi"]) if -500 <= ph < 0)
+    n0 = first["n"][i0]
     pair = n0 // 2
     lo = max(0, pair - 4)
     return {
@@ -127,6 +131,8 @@ def capture() -> dict:
             "distance": p.distance,
             "eff": det.efficiency,
             "dcr": det.dark_count_rate,
+            "jitter": det.timing_jitter,
+            "sub_bins": tagger.oversample,
             "flagged": {ch: int(f.sum()) for ch, f in flags.items()},
             "ev": {
                 name: int(np.count_nonzero(event == v))
@@ -150,13 +156,21 @@ def capture() -> dict:
         },
         "ch": ch_data,
         "worked": {
-            "bin": int(batch.start + first["k"][0]),
-            "t": float((batch.start + first["k"][0]) / batch.rate),
+            "index": i0,
+            "bin": int(batch.start + first["k"][i0]),
+            "fine": first["fine"][i0],
+            "t": float((batch.start + first["k"][i0]) / batch.rate)
+            + first["fine"][i0] * 1e-12,
             "x": float(
-                ((batch.start + first["k"][0]) / batch.rate - (start + tau / 4)) / tau
+                (
+                    (batch.start + first["k"][i0]) / batch.rate
+                    + first["fine"][i0] * 1e-12
+                    - (start + tau / 4)
+                )
+                / tau
             ),
             "n": n0,
-            "phi": first["phi"][0],
+            "phi": first["phi"][i0],
             "pair": pair,
             "sent": STATES[int(kind[pair])],
             "bit": int(bits[np.searchsorted(idx, pair)]) if pair in idx else None,

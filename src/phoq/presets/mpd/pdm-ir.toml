@@ -32,6 +32,7 @@ efficiency = { value = 0.25, from = "datasheet-typ", spec = "p. 3, Photon detect
 dark_count_rate = { value = 250.0, from = "datasheet-typ", spec = "p. 3, DCR, SMF-28 DI, V_EX = 2 V, SPAD temperature 'Low', free running, hold-off 100 µs", max = 600.0, note = "Rises with V_EX and as the hold-off is shortened (afterpulsing, not modeled)" }
 ref_wavelength = { value = 1550e-9, from = "datasheet-condition", spec = "p. 3, PDE is specified at λ = 1550 nm" }
 dead_time = { value = 100e-6, from = "datasheet-typ", spec = "p. 3, Hold-off time at which the DCR is specified; software-selectable 1 µs … 3 ms in 10 ns steps", min = 1e-6, max = 3e-3 }
+timing_jitter = { value = 200e-12, from = "datasheet-typ", spec = "p. 3, Timing jitter (FWHM), V_EX = 4 V (all working modes), 10 µm SPAD", min = 130e-12, note = "At V_EX = 7 V (fixed-gate mode only): 100 ps typ, 70 ps min (p. 3). The model's jitter is a Gaussian: the IRF's exponential decay (60 ps typ, 100 ps max, p. 3) and the secondary bump above 6 V (note 3, p. 3) are not modeled" }
 
 [curves.efficiency]
 from = "datasheet-graph"
@@ -41,8 +42,7 @@ wavelength_nm = [800, 825, 850, 875, 900, 925, 950, 975, 1000, 1025, 1050, 1075,
 value = [0.0008, 0.0019, 0.0043, 0.0082, 0.0183, 0.0579, 0.0788, 0.0983, 0.1146, 0.1305, 0.1487, 0.1666, 0.1907, 0.214, 0.2404, 0.2617, 0.2901, 0.3157, 0.3437, 0.3538, 0.3647, 0.3662, 0.367, 0.3685, 0.3546, 0.3616, 0.3623, 0.3631, 0.3483, 0.3134, 0.2575, 0.1899, 0.1289, 0.0866, 0.0447, 0.0198, 0.0035]
 
 [unsupported]
-timing_jitter_fwhm_s = { typ = 200e-12, note = "p. 3, V_EX = 4 V, all modes; 100 ps typ at 7 V in fixed-gate mode. Not set by this preset: give the detector timing_jitter = 200e-12 to model it" }
-irf_decay_time_s = { typ = 60e-12, max = 100e-12, note = "p. 3, V_EX = 4 V; longer below 975 nm" }
+irf_decay_time_s = { typ = 60e-12, max = 100e-12, note = "p. 3, V_EX = 4 V; longer below 975 nm. The model's timing jitter is a Gaussian, without this tail" }
 gating = "p. 3: gate width 1 ns … 1.5 ms (p. 1's feature list says 1 ns to 10 µs), gate repetition up to 100 MHz, internal or external trigger with programmable delays. Only free-running operation is modeled"
 afterpulsing = "Not specified beyond the DCR-vs-hold-off curves (p. 2); not modeled"
 spad_temperature_k = { min = 225, max = 243, note = "p. 3, four software-selectable values; not modeled" }
