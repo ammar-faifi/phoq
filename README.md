@@ -340,6 +340,13 @@ the laser feeding it, as a calibrated AWG would. Use *laser* to set `chN_delay` 
 channel to look at the drive. Patterns are data, not parameters: they are not saved in the JSON
 setup and have to be loaded by code.
 
+The generator's edges are ideal unless you give it a `rise_time` and a `jitter`. The rise time
+(10–90 %) turns every edge of a pattern or a square wave into an error-function step, rising and
+falling alike, around the edge's nominal time. The jitter (RMS) moves every edge by its own
+Gaussian time error, drawn anew for each acquisition. A modulator takes the drive at the center of
+each simulated bin, so the edges show wherever the bins are finer than they are: on a scope, or on
+a photon counter with sub-bins (`oversample`).
+
 ![The modulated-link example: a 10 MHz sine from the AWG modulates the laser through the intensity modulator, and the oscilloscope shows the photocurrent next to the drive](https://raw.githubusercontent.com/ammar-faifi/phoq/main/docs/images/oscilloscope.webp)
 
 *`examples/modulated_link.py`: the DC supply holds the intensity modulator at quadrature, the
@@ -514,7 +521,10 @@ detector dead time across records, and what long dead times do to the clicks.
 - **Balanced photodetector:** U_RF = G·(ℜ₊P₊ − ℜ₋P₋), with the CMRR as a responsivity mismatch,
   through the selected gain's pole and swing; both diodes' shot noise plus the amplifier's NEP;
   a monitor per diode. See [Balanced photodetector](#balanced-photodetector).
-- **Single-photon detector:** p(click) = 1 − (1 − p_dark)·exp(−η·n̄) per bin, plus dead time.
+- **Single-photon detector:** p(click) = 1 − (1 − p_dark)·exp(−η·n̄) per bin, plus dead time. A
+  click's time is its bin's center or, on a photon counter with sub-bins, the place in the bin
+  where its photon arrived, plus the detector's `timing_jitter`, a Gaussian given by its FWHM. Its
+  `rise_time` (10–90 %) shapes the edges of the click pulse. Both are 0 by default.
 - **Modulators, oscilloscope and spectrum analyzer:** see
   [Theory](#theory-modulators-delay-lines-balanced-detection-and-the-instruments) below.
 - **Steady-state report:** `phoq.report(setup)` gives mean powers, currents, open-connector
@@ -805,7 +815,8 @@ coupling), back-reflection from the collimator faces, thermal drift, backlash an
 **Counting pulses that miss each other.** The photon counter averages the light over each bin, and
 two pulses inside one bin then interfere as if they overlapped. `PhotonCounter(oversample=m)`
 synthesizes $m$ sub-bins per bin and adds their photons. A sub-bin of a quarter of the pulse width
-gets the overlap right to 2 %, an eighth to 0.5 %.
+gets the overlap right to 2 %, an eighth to 0.5 %. With sub-bins a click is also stamped where in
+its bin the photon arrived, not at the bin's center.
 
 **Validation.** `phoq run examples/odl_validation.py` checks each equation above against phoq's
 steady-state `report()` and against fields synthesized by the engine; `tests/test_odl.py` asserts
@@ -1643,10 +1654,12 @@ tagger hands the station's software a time stamp per click, and the software fol
 Alice's slots, t = t₀ + nτ + φ, with `phoq.timing.fold`. Every station here reads its tagger that
 way, Eve's included, and no protocol reads `clicks`: each protocol's `read_tagger` marks the slots
 holding a stamp whose phase φ falls in the station's click window (`phoq.timing.clicked_slots`).
-The stamps are still partly the simulator's. A click is stamped at the center of its bin, and the
-delay compensation puts Alice's first pulse at t₀ = 0 on the tagger's clock, so no station has to
-find t₀, which a bench does once per session from its clicks or a sync channel. The lab's Help (?)
-window walks through COW vacuum's reading line by line, under "Time stamps".
+The stamps are still partly the simulator's. These benches leave the detectors' `timing_jitter` at
+0, so a click is stamped at the center of its bin, or, where the tagger has sub-bins as COW's does,
+at the place in the bin where its photon arrived. And the delay compensation puts Alice's first
+pulse at t₀ = 0 on the tagger's clock, so no station has to find t₀, which a bench does once per
+session from its clicks or a sync channel. The lab's Help (?) window walks through COW vacuum's
+reading line by line, under "Time stamps".
 
 ### BB84 with decoy states, and an eavesdropper
 
@@ -2031,9 +2044,10 @@ fraction from its count rate: 80 % on D_T, 92 % on D_M0 and 97 % on D_M1, which 
 not only those Bob reads.
 
 The stamps are still partly the simulator's. The tagger's bins, half a slot each, one symbol of the
-modulator, are where the light is sampled, and a click is stamped at its bin's center. And the
-tagger's delay compensation puts the center of the first pulse at time zero on its clock, so Bob
-never has to find t₀, which a bench does once per session from its clicks or a sync channel.
+modulator, are where the light is sampled, and a click is stamped at its bin's center: the bench
+leaves out the detectors' timing jitter and the tagger's sub-bins. And the tagger's delay
+compensation puts the center of the first pulse at time zero on its clock, so Bob never has to find
+t₀, which a bench does once per session from its clicks or a sync channel.
 
 Two other things differ from `examples/cow`. One slot is 1 ns, or 0.20 m of fiber, so the arms of the
 DLI differ by a 0.25 m cord instead of 0.5 m, and the delay line in the short arm takes back the
@@ -2084,9 +2098,10 @@ and μ cannot rise to drown it without raising `beta`. Read over the whole slot,
 below 0.62, and Eq. (6) reaches 10⁻⁸ only to 0.25 km, or 3 km with a 40 dB modulator. The hold-off
 adds 0.005 to that bound; what it takes is about a fifth of the sifted key. The click window brings
 $E_p^u$ down to 0.51 and halves $E_b$. That is still above 1/2 at 25 km, but $E_p^u$ now stays below
-1/2 up to 24 km, and Eq. (6) reaches 10⁻⁸ at 10 km, or 13 km with a 40 dB modulator. phoq has no
-timing jitter, so the window loses no signal here. At the datasheet's 200 ps FWHM about 14 % of the
-clicks from a 0.5 ns pulse would fall outside it.
+1/2 up to 24 km, and Eq. (6) reaches 10⁻⁸ at 10 km, or 13 km with a 40 dB modulator. This bench
+leaves the detectors' timing jitter at 0, so the window loses no signal here. With the datasheet's
+200 ps FWHM (`timing_jitter=200e-12`) and sub-bins on the tagger to resolve the 0.5 ns pulse, 13.6 %
+of a pulse's clicks fall outside it (`tests/test_timing.py`).
 
 Three of these steps go beyond the paper. It does not discuss the light a passive DLI leaves out of
 the pair's slot; the proof only asks for measured gains, so this package takes it as loss inside the
@@ -2316,8 +2331,8 @@ null exactly at the symbol rate, and step 1 has nothing to lock to:
 The quarter-symbol depth sits just under sinc(πd) because the CW light leaks through the modulator
 (30 dB extinction) during the dark samples. With NRZ, the clock would have to come from the string
 itself, through a joint search of frequency and delay that the example does not implement.
-phoq's AWG and modulator are ideal, with instant edges and no rise time, and its detectors have no
-timing jitter; on a bench both add to σ_t and widen the errors in proportion.
+This bench leaves the AWG's `rise_time` and `jitter` and the detector's `timing_jitter` at 0:
+instant edges and no timing jitter. On a bench both add to σ_t and widen the errors in proportion.
 `tests/test_sync.py` also repeats the patch-cord run and the 25 km run (with a −57 ppm clock and a
 different epoch), checks the carving table's depths, and runs the analysis on hand-made clicks.
 

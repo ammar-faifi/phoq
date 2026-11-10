@@ -19,11 +19,12 @@ flowchart TD
     C -- yes --> D["time grid: one bin per pulse"]
     D --> E["synthesize: fields at every detector"]
     E --> F["detect: photons, clicks, dead time"]
-    F --> G["blind_after: dead time left for the next chunk"]
+    F --> T["click_offsets: each click's time in its bin<br/>(sub-bins or a jittering detector)"]
+    T --> G["blind_after: dead time left for the next chunk"]
     G --> C
     C -- no --> H["keep the dead time left for the next acquisition"]
     H --> I["CounterResult: one click record per channel"]
-    I --> J["timestamps: bin index / bin rate"]
+    I --> J["timestamps: bin index / bin rate,<br/>plus the click's time in its bin"]
 ```
 
 ## 1. Placing the bins
@@ -301,9 +302,11 @@ across the joins, so the result is one continuous record.
 
 ## 7. What the counter leaves out
 
-- No tagger dead time or timing jitter: a click is stamped at the center of its bin.
-- No detector timing jitter, afterpulsing, twilight events or gating; the dead time is
-  non-paralyzable.
+- No tagger dead time or timing jitter of its own. A click is stamped at the center of its bin, or
+  with sub-bins at the place in the bin where its photon arrived, and the detector's
+  `timing_jitter` adds to either.
+- No detector afterpulsing, twilight events or gating; the dead time is non-paralyzable. The
+  detector's timing jitter is a Gaussian, 0 by default.
 - One click per bin and channel: two photons in one bin are one click.
 - A chunk boundary re-draws the lasers' phase walks and a free-running generator's start time
   (section 2). Only the dead time carries across.

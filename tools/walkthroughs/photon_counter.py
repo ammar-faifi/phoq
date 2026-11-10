@@ -11,7 +11,7 @@ import numpy as np
 from phoq import Attenuator, Coupler, Laser, PhotonCounter, Setup, SinglePhotonDetector
 from phoq import instruments as I
 from phoq.engine import synthesize, trace
-from phoq.units import photon_energy
+from phoq.units import photon_energy, side_stream
 
 SEED = 18
 REFS = {
@@ -69,6 +69,7 @@ def capture() -> dict:
     shift = min(t + delay[d] for d in inputs.values() for t in net.delays(d, laser))
     offsets = {d: -tau for d, tau in delay.items()}
     clicks = {ch: np.zeros(cnt.slots, dtype=bool) for ch in inputs}
+    fine, timing = {ch: [] for ch in inputs}, None
     blind = {ch: 0 for ch in inputs}  # the first record carries no dead time in
     m = cnt.oversample
     step = max(1, cnt.chunk // m)
@@ -97,6 +98,9 @@ def capture() -> dict:
             clicks[ch][a:b] = c
             nbar_all[ch][a:b], p_all[ch][a:b] = nbar, p
             u_all[ch][a:b], raw_all[ch][a:b] = u, raw
+            if m > 1 or d.timing_jitter > 0:  # not on this bench
+                timing = timing or side_stream(rng)
+                fine[ch].append(d.click_offsets(fields[d], c, dt, timing, sub=m))
             before = blind[ch]
             blind[ch] = d.blind_after(c, dt, blind[ch])
             blind_log.append({"ch": ch, "a": a, "b": b, "in": before, "out": blind[ch]})
@@ -107,6 +111,8 @@ def capture() -> dict:
         assert np.array_equal(
             res.clicks[ch], clicks[ch]
         ), "replay differs from acquire()"
+    # every click at its bin's center, as the walk says
+    assert not res.fine and not any(fine.values())
 
     d1 = inputs["ch1"]
     D = d1.dead_bins(dt)

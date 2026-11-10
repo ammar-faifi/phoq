@@ -44,7 +44,7 @@ case_temperature_c = [5.0, 70.0]
 supply_voltage_v = 5.5
 
 [unsupported]
-timing_resolution_s = { typ = 350e-12, note = "at 825 nm, 10 µm spot, 22 °C; the click model has no timing jitter" }
+timing_resolution_s = { typ = 350e-12, note = "at 825 nm, 10 µm spot, 22 °C; not set by this preset: give the detector timing_jitter = 350e-12 to model it" }
 afterpulsing_probability = { typ = 0.005, max = 0.01, note = "first 500 ns after a count (excluding the first 75 ns) at 100 kc/s; not modeled" }
 count_rate_before_saturation_hz = { min = 12e6, typ = 37e6, note = "the module's count rate falls again at very high flux (Figure 7); the model's dead time is non-paralyzable, ceiling 1/t_d = 45 Mc/s" }
 linearity_correction_factor = "typ 1.02 at 1 Mc/s, 1.16 at 5, 1.40 at 10, 2.35 at 20, 3.32 at 25 Mc/s; the model's dead time alone gives 1/(1 − t_d·CR) = 1.02, 1.12, 1.28, 1.79, 2.22"

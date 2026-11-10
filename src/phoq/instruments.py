@@ -15,7 +15,7 @@ from .detectors import BalancedPhotodetector, Photodiode, SinglePhotonDetector
 from .engine import Network, driving_generators, synthesize
 from .generators import ArbitraryWaveformGenerator, DCPowerSupply
 from .sources import Laser
-from .units import fmt_si, seq125
+from .units import fmt_si, seq125, side_stream
 
 TIMEBASES = seq125(1e-9, 10e-3)
 SCALES = seq125(1e-9, 10.0)
@@ -457,7 +457,7 @@ class Oscilloscope(Component):
             elif isinstance(d, Photodiode):
                 raw = d.detect(fields[d], dts, rng, t_sim.size)
             elif isinstance(d, SinglePhotonDetector):
-                raw = d.waveform(d.detect(fields[d], dts, rng, t_sim.size), dts)
+                raw = d.signal(fields[d], dts, rng, t_sim.size)
             else:  # a generator or supply output viewed directly
                 if d not in driving:
                     d.start(rng)
@@ -600,7 +600,8 @@ class CounterResult:
 
     ``start`` is the index of the first bin in the instrument's continuous time base, so
     :meth:`timestamps` and :meth:`events` give absolute times that run on from batch to
-    batch.
+    batch. ``fine`` holds, for a channel whose detector jitters or whose bins are split
+    into sub-bins, each click's time from the center of its bin.
     """
 
     instrument: str
@@ -610,6 +611,8 @@ class CounterResult:
     sources: dict[str, str | None]
     start: int = 0  # first bin index (continuous across batches)
     seq: int = 0  # batch number, set by the session streaming it
+    # channel → each click's time from the center of its bin [s], in the clicks' order
+    fine: dict[str, np.ndarray] = field(default_factory=dict)
 
     @property
     def duration(self) -> float:
@@ -622,7 +625,8 @@ class CounterResult:
 
     def timestamps(self, channel: str) -> np.ndarray:
         """Absolute click times [s] on a channel (bin k is centered on t = k / rate)."""
-        return (self.start + np.flatnonzero(self.clicks[channel])) / self.rate
+        t = (self.start + np.flatnonzero(self.clicks[channel])) / self.rate
+        return t + self.fine[channel] if channel in self.fine else t
 
     def events(self) -> np.ndarray:
         """Every click as a time-ordered structured array with fields ``t`` [s] and
@@ -631,7 +635,7 @@ class CounterResult:
         for ch, rec in self.clicks.items():
             idx = np.flatnonzero(rec)
             ev = np.empty(idx.size, dtype=[("t", "f8"), ("ch", "i2")])
-            ev["t"], ev["ch"] = (self.start + idx) / self.rate, int(ch[2:])
+            ev["t"], ev["ch"] = self.timestamps(ch), int(ch[2:])
             parts.append(ev)
         out = (
             np.concatenate(parts)
@@ -727,7 +731,9 @@ class PhotonCounter(Component):
             "Synthesize the light on this many sub-bins per time bin and sum their"
             " photons. With 1, two pulses inside one bin interfere as if they"
             " overlapped; make a sub-bin a quarter of the pulse width or less to"
-            " resolve pulses that miss each other (an unbalanced DLI)."
+            " resolve pulses that miss each other (an unbalanced DLI). With sub-bins a"
+            " click's time stamp is where in the bin the photon arrived, not the bin's"
+            " center."
         ),
     )
     chunk = Param(1_000_000, label="Bins per chunk", min=1000, max=100_000_000)
@@ -799,6 +805,8 @@ class PhotonCounter(Component):
         # bin k of a channel: stamps, less its delay
         offsets = {d: -tau for d, tau in delay.items()}
         clicks = {ch: np.zeros(self.slots, dtype=bool) for ch in inputs}
+        # each click's time from its bin's center, where the detector or sub-bins set it
+        fine, timing = {ch: [] for ch in inputs}, None
         # a click near the end of a chunk (or of the previous record, when this one
         # continues it) keeps its detector dead into the next: the dead time does not
         # restart at the cut
@@ -817,6 +825,9 @@ class PhotonCounter(Component):
                 c = clicks[ch][a:b] = d.detect(
                     fields[d], dt, rng, b - a, sub=m, blind=blind[ch]
                 )
+                if m > 1 or d.timing_jitter > 0:
+                    timing = timing or side_stream(rng)
+                    fine[ch].append(d.click_offsets(fields[d], c, dt, timing, sub=m))
                 blind[ch] = d.blind_after(c, dt, blind[ch])
         self._blind = (self.position, blind)
         return CounterResult(
@@ -826,6 +837,7 @@ class PhotonCounter(Component):
             clicks,
             {ch: d.name for ch, d in inputs.items()},
             start=first,
+            fine={ch: np.concatenate(v) for ch, v in fine.items() if v},
         )
 
 
@@ -1658,7 +1670,7 @@ class SpectrumAnalyzer(Component):
                 # current → volts
                 x = d.detect(fields[d], dts, rng, t.size) * self.input_impedance
             else:
-                x = d.waveform(d.detect(fields[d], dts, rng, t.size), dts)
+                x = d.signal(fields[d], dts, rng, t.size)
         else:  # a generator or supply output straight into the analyzer
             d.start(rng)
             x = np.asarray(d.voltage(port, t), dtype=float)

@@ -54,7 +54,9 @@ def capture() -> dict:
     tau = p.slot
     flags, ch_data = {}, {}
     for ch in (c.DT, c.DM0, c.DM1):
-        # CounterResult.timestamps
+        # CounterResult.timestamps: no jitter and no sub-bins on this bench, so no
+        # times inside the bins, as the walk says
+        assert ch not in batch.fine
         k = np.flatnonzero(batch.clicks[ch])
         t = (batch.start + k) / batch.rate
         # slot_clicks

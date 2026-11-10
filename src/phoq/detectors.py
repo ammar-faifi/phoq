@@ -12,12 +12,15 @@ from .core import Component, FiberConnectors, Param
 from .units import (
     COMMON_WAVELENGTHS,
     DARK_CURRENT,
+    GAUSS_FWHM,
+    GAUSS_RISE,
     K_B,
     Q_E,
     fmt_si,
     peak_responsivity,
     photon_energy,
     responsivity,
+    side_stream,
     w_to_dbm,
 )
 
@@ -446,6 +449,12 @@ class SinglePhotonDetector(_Detector):
     blind for ``dead_time``. η(λ) = ``efficiency`` everywhere for a generic detector; a
     preset's datasheet PDE curve makes it η(λ) = efficiency · PDE(λ)/PDE(λ_ref), zero
     outside the curve.
+
+    A click's time is the photon's arrival plus the ``timing_jitter``, a Gaussian given
+    by its full width at half maximum. The arrival is the center of the click's bin, or,
+    where the bins are split into sub-bins, the place in the bin where the light put it.
+    ``rise_time`` is that of the output pulse's edges (10–90 %). Both are zero by
+    default.
     """
 
     prefix = "SPD"
@@ -485,13 +494,40 @@ class SinglePhotonDetector(_Detector):
         max=1e-2,
         presets=(0.0, 20e-9, 100e-9, 1e-6, 10e-6),
     )
+    timing_jitter = Param(
+        0.0,
+        unit="s",
+        label="Timing jitter (FWHM)",
+        min=0.0,
+        max=1e-6,
+        display=("ps", 1e12),
+        doc=(
+            "Gaussian spread of a click's time around the photon's arrival, as its full"
+            " width at half maximum. 0 = none"
+        ),
+    )
+    rise_time = Param(
+        0.0,
+        unit="s",
+        label="Output rise time (10–90 %)",
+        min=0.0,
+        max=1e-6,
+        display=("ps", 1e12),
+        doc="Of the click pulse's edges, rising and falling alike. 0 = ideal steps",
+    )
 
     def _build(self):
         self.add_port("inp", "optical", "in", "in")
         self.add_port("out", "electrical", "out", "SMA click out")
 
     def ui_fields(self):
-        fields = ["efficiency", "dark_count_rate", "dead_time"]
+        fields = [
+            "efficiency",
+            "dark_count_rate",
+            "dead_time",
+            "timing_jitter",
+            "rise_time",
+        ]
         if self.curve("efficiency") is not None:
             fields.insert(1, "ref_wavelength")
         return fields
@@ -566,13 +602,71 @@ class SinglePhotonDetector(_Detector):
             return max(0, int(hits[-1]) + self.dead_bins(dt) - clicks.size)
         return max(0, blind - clicks.size)
 
-    def waveform(
-        self, clicks: np.ndarray, dt: float, width: float = 5e-9
+    def click_offsets(
+        self, fields, clicks: np.ndarray, dt: float, rng, sub: int = 1
     ) -> np.ndarray:
-        """Electrical output: 1 V pulses of ``width`` for every click."""
+        """Each click's time from the center of its bin [s]: where in the bin the photon
+        was detected, plus the timing jitter.
+
+        With ``sub`` sub-bins per bin the place is that of the first detection of a
+        Poisson process with the sub-bins' rates (light and dark counts), given that the
+        bin has one. With one, the light's place in the bin is not resolved, and the
+        click stays at the center. Draw from a stream of its own
+        (``units.side_stream``), so that the click record does not depend on it.
+        """
+        hits = np.flatnonzero(clicks)
+        off = np.zeros(hits.size)
+        if not hits.size:
+            return off
+        if sub > 1:
+            n = clicks.size
+            nbar = self.photons(fields, dt / sub, n * sub, weighted=True)
+            rate = self.efficiency * nbar.reshape(n, sub)[hits]
+            rate = rate + self.dark_count_rate * dt / sub
+            cum = np.cumsum(rate, axis=1)
+            # detections so far at the first one, given at least one in the bin
+            u = rng.random(hits.size)
+            target = -np.log1p(u * np.expm1(-cum[:, -1]))
+            j = np.minimum((cum < target[:, None]).sum(axis=1), sub - 1)
+            row = np.arange(hits.size)
+            before = np.where(j > 0, cum[row, j - 1], 0.0)
+            r = rate[row, j]
+            # … and how far into its sub-bin that is
+            into = np.where(r > 0, (target - before) / np.where(r > 0, r, 1.0), 0.5)
+            off = ((j + np.clip(into, 0.0, 1.0)) / sub - 0.5) * dt
+        if self.timing_jitter > 0:
+            off = off + rng.normal(0.0, self.timing_jitter / GAUSS_FWHM, hits.size)
+        return off
+
+    def waveform(
+        self, clicks: np.ndarray, dt: float, width: float = 5e-9, offsets=None
+    ) -> np.ndarray:
+        """Electrical output: 1 V pulses of ``width`` for every click, each moved by its
+        entry in ``offsets`` [s] (:meth:`click_offsets`), with the output's rise time on
+        both edges."""
         k = max(1, int(round(width / dt)))
         v = clicks.astype(float)
-        return np.minimum(1.0, np.convolve(v, np.ones(k))[: v.size]) if k > 1 else v
+        if offsets is not None and np.any(offsets):
+            at = np.flatnonzero(clicks) + np.rint(np.asarray(offsets) / dt).astype(int)
+            v = np.zeros(clicks.size)
+            v[at[(at >= 0) & (at < v.size)]] = 1.0
+        if k > 1:
+            v = np.minimum(1.0, np.convolve(v, np.ones(k))[: v.size])
+        sigma = self.rise_time / GAUSS_RISE / dt  # of the edges' Gaussian [samples]
+        if sigma > 0.25:  # edges finer than the samples stay steps
+            m = int(math.ceil(4 * sigma))
+            g = np.exp(-0.5 * (np.arange(-m, m + 1) / sigma) ** 2)
+            v = np.convolve(v, g / g.sum(), mode="same")
+        return v
+
+    def signal(self, fields, dt: float, rng, n: int) -> np.ndarray:
+        """The click output's voltage on ``n`` bins of ``dt``: the clicks of
+        :meth:`detect` as pulses, each at its own jittered time."""
+        clicks = self.detect(fields, dt, rng, n)
+        if self.timing_jitter > 0:
+            off = self.click_offsets(fields, clicks, dt, side_stream(rng))
+            return self.waveform(clicks, dt, offsets=off)
+        return self.waveform(clicks, dt)
 
 
 class PowerMeter(_Detector):

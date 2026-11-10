@@ -3,16 +3,28 @@ drives modulators."""
 
 from __future__ import annotations
 
+import math
 import warnings
 
 import numpy as np
+from scipy.special import ndtr, ndtri
 
 from .core import Component, Param
-from .units import fmt_si, seq125
+from .units import GAUSS_RISE, fmt_si, seq125, side_stream
 
 CHANNELS = ("ch1", "ch2")
 SHAPES = ("dc", "sine", "square", "triangle", "ramp", "pattern")
 TRIGGERS = ("aligned", "laser", "free")
+
+
+def _edge_noise(key: int, edge: np.ndarray) -> np.ndarray:
+    """A standard normal number per edge index, the same however often an edge is asked
+    for (a hash, splitmix64): every sample near an edge sees it at one place."""
+    z = (edge.astype(np.uint64) + np.uint64(key)) * np.uint64(0x9E3779B97F4A7C15)
+    z = (z ^ (z >> np.uint64(30))) * np.uint64(0xBF58476D1CE4E5B9)
+    z = (z ^ (z >> np.uint64(27))) * np.uint64(0x94D049BB133111EB)
+    z = z ^ (z >> np.uint64(31))
+    return ndtri(((z >> np.uint64(11)).astype(np.float64) + 0.5) / 2.0**53)
 
 
 class ArbitraryWaveformGenerator(Component):
@@ -34,6 +46,11 @@ class ArbitraryWaveformGenerator(Component):
     laser, and you set ``chN_delay`` yourself; *free* runs free with a random start each
     acquisition. Symbol k of a pattern is centered on t = k / rate.
 
+    ``rise_time`` and ``jitter`` are the output's. Every edge of a pattern or of a
+    square wave is an error-function step with that 10–90 % rise time, rising and
+    falling alike, and is moved by its own Gaussian time error of that RMS. Both are
+    zero by default: ideal steps on an ideal clock.
+
     It used to be called ``FunctionGenerator``: that name still works, with a
     deprecation warning, and saved setups and presets that use it load as an
     ArbitraryWaveformGenerator.
@@ -53,6 +70,30 @@ class ArbitraryWaveformGenerator(Component):
         doc=(
             "aligned: symbol k meets pulse k at the driven modulator; laser: locked to"
             " the laser clock, set delays by hand; free: free-running"
+        ),
+    )
+    rise_time = Param(
+        0.0,
+        unit="s",
+        label="Rise time (10–90 %)",
+        min=0.0,
+        max=1e-3,
+        display=("ps", 1e12),
+        doc=(
+            "Of every edge of a pattern or a square wave, rising and falling alike: an"
+            " error-function step. 0 = ideal steps"
+        ),
+    )
+    jitter = Param(
+        0.0,
+        unit="s",
+        label="Jitter (RMS)",
+        min=0.0,
+        max=1e-6,
+        display=("ps", 1e12),
+        doc=(
+            "Random timing jitter: every edge of a pattern or a square wave moves by"
+            " its own Gaussian time error. 0 = an ideal clock"
         ),
     )
     ch1_enabled = Param(True, label="CH1 output")
@@ -95,6 +136,7 @@ class ArbitraryWaveformGenerator(Component):
     def __init__(self, name: str | None = None, **params):
         self.patterns: dict[str, np.ndarray | None] = {ch: None for ch in CHANNELS}
         self._epoch = 0.0
+        self._jitter_key = 0  # which realization of the edges' jitter
         super().__init__(name, **params)
 
     def _build(self):
@@ -102,7 +144,7 @@ class ArbitraryWaveformGenerator(Component):
             self.add_port(ch, "electrical", "out", f"{ch.upper()} out")
 
     def ui_fields(self):
-        fields = ["trigger"]
+        fields = ["trigger", "rise_time", "jitter"]
         for ch in CHANNELS:
             shape = getattr(self, f"{ch}_shape")
             fields += [f"{ch}_enabled", f"{ch}_shape"]
@@ -159,8 +201,11 @@ class ArbitraryWaveformGenerator(Component):
 
     # ---- signal ----------------------------------------------------------------------
     def start(self, rng: np.random.Generator) -> None:
-        """Begin an acquisition: a free-running generator starts at a random point."""
+        """Begin an acquisition: a free-running generator starts at a random point, and
+        a jittering one gets a new realization of its edges' time errors."""
         self._epoch = float(rng.uniform(0, 1e-3)) if self.trigger == "free" else 0.0
+        if self.jitter > 0:
+            self._jitter_key = int(side_stream(rng).integers(1 << 62))
 
     def is_static(self, channel: str) -> bool:
         ch = self._check(channel)
@@ -210,16 +255,64 @@ class ArbitraryWaveformGenerator(Component):
             pat = self.patterns[ch]
             if pat is None:
                 return np.full(tau.shape, offset)
+            if self.rise_time > 0 or self.jitter > 0:
+                return offset + amp * self._pattern_edges(ch, pat, tau * f, f)
             return offset + amp * pat[np.rint(tau * f).astype(np.int64) % pat.size]
         cycles = tau * f + g("phase") / 360.0
         frac = cycles - np.floor(cycles)
         if shape == "sine":
             return offset + amp * np.sin(2 * np.pi * cycles)
         if shape == "square":
+            if self.rise_time > 0 or self.jitter > 0:
+                return offset + amp * self._square_edges(ch, cycles, g("duty"), f)
             return offset + amp * np.where(frac < g("duty"), 1.0, -1.0)
         if shape == "triangle":
             return offset + amp * (1.0 - 4.0 * np.abs(frac - 0.5))
         return offset + amp * (2.0 * frac - 1.0)  # ramp
+
+    # ---- the output's edges: rise time and jitter ------------------------------------
+    def _switched(self, u: np.ndarray, edge: np.ndarray, f: float) -> np.ndarray:
+        """How far an edge has switched ``u`` symbols (or cycles) after its nominal
+        time: 0 well before it, 1 well after. An error-function step with the rise time,
+        around the edge's own jittered time; ``edge`` numbers the edges, each with its
+        own time error."""
+        if self.jitter > 0:
+            u = u - self.jitter * f * _edge_noise(self._jitter_key, edge)
+        if self.rise_time > 0:
+            return ndtr(u * (GAUSS_RISE / (self.rise_time * f)))
+        return (u >= 0).astype(float)
+
+    def _reach(self, f: float) -> int:
+        """Edges on either side of a symbol that can still be felt in it."""
+        sigma = (self.rise_time / GAUSS_RISE + self.jitter) * f  # [symbols]
+        return min(16, max(1, math.ceil(0.5 + 4 * sigma)))
+
+    def _pattern_edges(self, ch: str, pat: np.ndarray, x, f: float) -> np.ndarray:
+        """The normalized pattern at ``x`` symbols with the output's edges: the symbol's
+        own level, less what the edges before it have still to switch, plus what the
+        edges after it have switched already."""
+        k = np.rint(x).astype(np.int64)
+        salt = CHANNELS.index(ch) << 44  # the two outputs' edges jitter independently
+        v = pat[k % pat.size].astype(float)
+        for i in range(-self._reach(f), self._reach(f)):
+            j = k + i  # the edge between symbols j and j + 1, at j + ½
+            step = pat[(j + 1) % pat.size] - pat[j % pat.size]
+            s = self._switched(x - (j + 0.5), j + salt, f)
+            v += step * (s if i >= 0 else s - 1.0)
+        return v
+
+    def _square_edges(self, ch: str, cycles, duty: float, f: float) -> np.ndarray:
+        """The square wave (±1) at ``cycles`` with the output's edges: cycle n rises at n
+        and falls at n + duty."""
+        n = np.floor(cycles).astype(np.int64)
+        salt = CHANNELS.index(ch) << 44
+        v = np.full(np.shape(cycles), -1.0)
+        for i in range(-self._reach(f), self._reach(f) + 1):
+            j = n + i
+            up = self._switched(cycles - j, 2 * j + salt, f)
+            down = self._switched(cycles - j - duty, 2 * j + 1 + salt, f)
+            v += 2.0 * (up - down)
+        return v
 
     # ---- read-outs -------------------------------------------------------------------
     def describe(self, channel: str) -> str:

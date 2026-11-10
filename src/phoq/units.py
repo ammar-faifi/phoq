@@ -40,6 +40,20 @@ FRESNEL = ((N_EFF - 1) / (N_EFF + 1)) ** 2
 
 COMMON_WAVELENGTHS = (635e-9, 780e-9, 850e-9, 1310e-9, 1550e-9)
 
+# ---- timing: a Gaussian of standard deviation σ
+GAUSS_FWHM = 2.0 * math.sqrt(2.0 * math.log(2.0))  # full width at half maximum / σ
+# 10–90 % rise time of its step response, an error-function step, / σ
+GAUSS_RISE = 2.5631031311
+
+
+def side_stream(rng: np.random.Generator) -> np.random.Generator:
+    """A random stream of its own, split off ``rng`` without drawing from it: whatever
+    uses it (timing jitter) leaves every other draw of a run as it was."""
+    try:
+        return rng.spawn(1)[0]
+    except TypeError:  # a seed sequence that cannot spawn
+        return np.random.default_rng(int(rng.integers(1 << 62)))
+
 
 def db_to_t(db: float) -> float:
     """Power transmission for a loss in dB."""

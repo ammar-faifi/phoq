@@ -242,7 +242,8 @@ detector's grid to `t + offset` (the time tagger's channel delays) while it keep
 lasers' phase walks with the others:
 
 1. **Start the generators** that drive any modulator on those paths (`start(rng)`); a free-running
-   generator draws a random epoch here.
+   generator draws a random epoch here, and one with `jitter` a new realization of its edges' time
+   errors.
 2. **Group paths by laser.** For a laser with paths of delays $\tau_j$ to detectors with grid
    offsets $o_j$, the emission times are `emit = t + oⱼ − τⱼ` (bin starts) and `mid = emit + dt/2`
    (bin centers).
@@ -316,7 +317,18 @@ p = 1 - (1 - p_\mathrm{dark})\,e^{-\eta\bar n}, \qquad p_\mathrm{dark} = 1 - e^{
 
 independently, which is exact for coherent light: its photon number is Poissonian. Dead time then
 removes every click within $\lceil t_d/\Delta t\rceil$ bins of the last kept one (non-paralyzable).
-For an oscilloscope, `waveform()` turns clicks into 1 V, 5 ns pulses.
+
+`click_offsets` then gives each kept click its time from the center of its bin. With one sample per
+bin the light's place in the bin is unknown, and the click stays at the center. With $m$ sub-bins
+of rates $r_j = \eta\bar n_j + R_\mathrm{dark}\Delta t/m$, the click is the first detection of a
+Poisson process with those rates, given that the bin has one: for a uniform $u$, the time at which
+the accumulated rate reaches $-\ln\bigl(1 - u\,(1 - e^{-\sum_j r_j})\bigr)$. Dim light is stamped
+in proportion to its intensity, bright light at its leading edge. The `timing_jitter`, a Gaussian of
+σ = FWHM/2.355, adds to either. These draws come from a random stream split off the run's
+(`units.side_stream`), so the click record is the same with or without them.
+
+For an oscilloscope or a spectrum analyzer, `signal()` turns the clicks into 1 V, 5 ns pulses at
+those times, with the output's `rise_time` on both edges.
 
 **Power meter.** No time grid: it reads `Network.mean_powers` (section 8), weighted by its InGaAs
 head's responsivity relative to the calibration wavelength.
@@ -373,7 +385,8 @@ acquisitions are independent records, not consecutive pieces of one record.
   photons are added before the click is drawn. A single bin averages each path's envelope over the
   whole bin, so two pulses that miss each other inside it (a delay-line interferometer set δ off)
   would still interfere fully; sub-bins of a quarter of the pulse width get their overlap right to
-  2 %, at $m$ times the cost.
+  2 %, at $m$ times the cost. With sub-bins a click's time stamp is also the place in the bin where
+  its photon arrived (section 6): a histogram of the light in steps of a sub-bin.
 - **Chunks.** Long records are synthesized in chunks of `chunk` bins (one million by default;
   `chunk` divided by $m$ with sub-bins). A detector that clicked near the end of a chunk stays dead
   into the next (`SinglePhotonDetector.detect(..., blind=)` and `blind_after()`), and into the next
@@ -518,7 +531,10 @@ with the time average of synthesized fields: 0.1085 mW against 0.1091 ± 0.0016 
   no bias drift or bias controller, no chirp, Vπ independent of wavelength and frequency. The IQ
   modulator's outer splitter and combiner are exactly 50:50, with no crosstalk between its RF
   inputs and no internal monitor photodiodes.
-- Generators are ideal: no rise time, jitter or output impedance.
+- Generators have no output impedance. Their `rise_time` is an error-function step on every edge and
+  their `jitter` an independent Gaussian time error per edge: no overshoot or ringing, no
+  data-dependent or periodic jitter, no amplitude noise. Both are 0 by default, and only patterns
+  and square waves have edges to shape.
 
 **Detectors**
 
@@ -530,9 +546,10 @@ with the time average of synthesized fields: 0.1085 mW against 0.1091 ± 0.0016 
   frequency; one pole per output; no AC-coupled versions, amplifier offset or warm-up drift; no
   spot size or power density on the diodes. Its steady-state report checks the swing on the mean
   output only: a beat or modulation that clips shows in the time domain.
-- Single-photon detector: no timing jitter (a click sits in its bin), no afterpulsing, no gating or
-  twilight events. Dead time is non-paralyzable. It carries across the photon counter's chunks, and
-  into the next acquisition when that continues the record, so it may be longer than a chunk.
+- Single-photon detector: the `timing_jitter` is a Gaussian, without the exponential tail of a
+  SPAD's response, and 0 by default; no afterpulsing, no gating or twilight events. Dead time is
+  non-paralyzable. It carries across the photon counter's chunks, and into the next acquisition
+  when that continues the record, so it may be longer than a chunk.
 
 **Instruments**
 
