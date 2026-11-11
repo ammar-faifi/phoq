@@ -69,13 +69,18 @@ if __name__ == "__main__":  # the parties start processes of their own
     print(alice.result)
 ```
 
-The stations talk while the lab records the next blocks, so a rerun with the same seed can differ
-after the first chunk. Which blocks form a chunk depends on when the messages arrive. Each station
-draws its Cascade, tag and hash seeds from the generator that also draws its pulses, so a seed drawn
-earlier or later changes the pulses that follow. And privacy amplification is sized on the blocks
-tallied by then. Chunk 0 and its 164 final bits came out the same in all five runs of seed 1 made
-for this note; the command line cut chunk 1 at 1,027 bits instead of 1,033. Seeds 2–4 were run the
-same way as the run quoted, to show how far the numbers move.
+The stations talk while the lab records the next blocks, yet a rerun with the same seed gives the
+same numbers, line for line. Three choices in `station.py` make that so:
+
+- Each station draws its Cascade, tag and hash seeds from a generator of its own, spawned from the
+  one that draws its pulses, so a seed drawn early or late never shifts a pulse.
+- A chunk takes the oldest pooled blocks until it holds 1,000 bits.
+- Privacy amplification is sized on the tally up to the last block of the chunks it hashes.
+
+The command line, and `Experiment.run()` with or without its echo, gave the same blocks, chunks and
+final key for seed 1. `tests/test_phoq.py` runs one seed twice, with the lab waiting for every block
+and with it running four blocks ahead, and checks that the chunks and the key agree. Seeds 2–4 were
+run the same way as seed 1, to show how far the numbers move.
 
 ## What sifting hands over
 
@@ -138,15 +143,16 @@ block 7: 960 pairs (r_p 4.80e-03, Eq.4 4.80e-03) → 138 key Z pairs · … · s
 ```
 
 All 138 key bits went to the pool, which then held the 1,056 bits of chunk 0. Over the 20 blocks
-the stations sifted 2,631 key bits. Cascade found one error in the 2,089 bits it corrected
-(*E_Z (corrected)*, 4.8 × 10⁻⁴). E_X(μμ) ended at 0.220, where the model expects 0.249: a weak
+the stations sifted 2,625 key bits. Cascade found one error in the 2,063 bits it corrected
+(*E_Z (corrected)*, 4.8 × 10⁻⁴). E_X(μμ) ended at 0.205, where the model expects 0.249: a weak
 coherent X pair errs about a quarter of the time even with no phase walk.
 
 ## Error correction: Cascade
 
 **When.** Alice starts a chunk in `_maybe_start_ec` once her pool holds `chunk_bits` = 1,000
-sifted bits and no other chunk is being corrected. All the pooled blocks go in, so a chunk is a
-little over 1,000 bits: 1,056 and 1,033 in the run.
+sifted bits and no other chunk is being corrected. The oldest pooled blocks go in until the chunk
+holds 1,000 bits, so a chunk is a little over 1,000 bits: 1,056 and 1,007 in the run. Blocks that
+finish while a chunk is being corrected wait for the next one.
 
 **Block sizes.** Cascade needs an estimate of the chunk's error rate. `_maybe_start_ec` takes it
 from the chunks verified so far, pooled: the errors Bob corrected in them over their bits. Chunk 0,
@@ -204,16 +210,16 @@ and h the binary entropy.
 ```
 chunk 0: reconciling 1,056 sifted bits of blocks 0–7 (Cascade, k₁ = 73 from E_Z ≈ 1.00e-02: initial_qber, no chunk corrected yet; 15 first parities)
 chunk 0: 1,056 bits reconciled, 0 errors corrected (E_Z 0.00e+00), 33 parities leaked · 32-bit tag matches ✓
-chunk 1: reconciling 1,033 sifted bits of blocks 8–15 (Cascade, k₁ = 516 from E_Z ≈ 0.00e+00: 0 errors in 1,056 corrected bits; 3 first parities)
-chunk 1: 1,033 bits reconciled, 1 errors corrected (E_Z 9.68e-04), 27 parities leaked (f = 2.36) · 32-bit tag matches ✓
+chunk 1: reconciling 1,007 sifted bits of blocks 8–15 (Cascade, k₁ = 503 from E_Z ≈ 0.00e+00: 0 errors in 1,056 corrected bits; 3 first parities)
+chunk 1: 1,007 bits reconciled, 1 errors corrected (E_Z 9.93e-04), 27 parities leaked (f = 2.36) · 32-bit tag matches ✓
 ```
 
 Chunk 0 starts from `initial_qber`, so k₁ = 73. With nothing to find, its leak is the top-level
 parities of the six passes, with block sizes 73, 146, 292, 528, 528 and 528:
 15 + 8 + 4 + 2 + 2 + 2 = 33. Chunk 0 held no error, so chunk 1's estimate is 0 and its blocks start
-at the cap of 516 bits: two blocks and a 1-bit remainder per pass, 18 top-level parities in all. Its
-other 9 parities are the binary search through the 516-bit block that held its one error (in
-process, a 1,033-bit chunk with one error leaks 27 parities in 394 of 400 trials and 28 in the
+at the cap of 503 bits: two blocks and a 1-bit remainder per pass, 18 top-level parities in all. Its
+other 9 parities are the binary search through the 503-bit block that held its one error (in
+process, a 1,007-bit chunk with one error leaks 27 parities in 397 of 400 trials and 26 in the
 rest). Over seeds 1–4 the first chunks leaked 33 or 36 parities and the second ones 12 to 27.
 
 At this error rate the leak is almost all top-level parities, a fixed cost of
@@ -243,8 +249,8 @@ passes are what the verification tag is for.
 
 **Against the literature.** Mueller et al. (2025) describe Cascade in their §2.2 as phoq runs it.
 The first blocks are k₁ = 0.73/q̂ long and double on a new permutation each pass, and a binary
-search discloses one parity per step, at most ⌈log₂ k₁⌉ of them (chunk 1's search took 9 of
-⌈log₂ 516⌉ = 10). Every search of a level shares one message, and corrected bits cascade back into
+search discloses one parity per step, at most ⌈log₂ k₁⌉ of them (chunk 1's search took all
+⌈log₂ 503⌉ = 9). Every search of a level shares one message, and corrected bits cascade back into
 earlier passes. Their numbers come from a different variant, the efficient Cascade of
 Pacher et al. (2015), on 2¹⁶-bit frames: f = 1.03–1.05 over 0.5–9 % QBER (read off their Fig. 3)
 with 400–700 messages per frame, and f = 1.036 with 446 messages on their live system. phoq's
@@ -291,8 +297,8 @@ cut that cost by verifying several reconciled frames under one tag; phoq does no
 ## Privacy amplification
 
 **How long.** After each verified chunk Alice runs `_maybe_pa`. It sizes the hash of every verified
-chunk still waiting, with q₁₁ and e₁₁ from `estimate()` on everything tallied so far
-(`final_length`):
+chunk still waiting, with q₁₁ and e₁₁ from `estimate()` on the tally up to the last block of those
+chunks (`_tally_for`), however many later blocks have come in since (`final_length`):
 
 ```math
 \ell = \Big\lfloor\, n\,q_{11}\big[1 - h(e_{11})\big] - \mathrm{leak}_\mathrm{EC} - \mathrm{leak}_\mathrm{verify} \Big\rfloor,\qquad
@@ -304,8 +310,8 @@ chunk. The product q₁₁[1 − h(e₁₁)] is the *secret fraction* the consol
 wait for more (`PA: no secret key yet …`).
 
 **The message.** `pa` carries the chunk numbers, a fresh seed and ℓ. Bob recomputes ℓ from his own
-tally (`_pa`) and warns if it differs from Alice's by more than 8 bits or 25 %, whichever is larger,
-since his counts may lead by a block. Then he uses Alice's.
+tally up to the same block (`_pa`) and warns if it differs from Alice's at all. His tally is hers
+with the two stations swapped, which gives the same estimate. Then he uses Alice's ℓ.
 
 **The hash.** `toeplitz_hash(bits, seed, m)` draws n + m − 1 random bits r from the seed and
 multiplies the key by the m × n Toeplitz matrix $`T_{ij} = r_{i-j+n-1}`$ over GF(2). The product is
@@ -317,12 +323,12 @@ a fingerprint of all of it.
 **In the run** (keys shortened):
 
 ```
-PA: 1,056 corrected bits × secret fraction 0.217 (q₁₁ ≥ 0.221, e₁₁ 0.0017 [model]) − 65 leaked → 164 final bits · key e7e68aec…
-PA: 1,033 corrected bits × secret fraction 0.257 (q₁₁ ≥ 0.262, e₁₁ 0.0016 [model]) − 59 leaked → 206 final bits · key 268ce1d5…
+PA: 1,056 corrected bits × secret fraction 0.217 (q₁₁ ≥ 0.221, e₁₁ 0.0017 [model]) − 65 leaked → 164 final bits · key 166e46e8…
+PA: 1,007 corrected bits × secret fraction 0.277 (q₁₁ ≥ 0.282, e₁₁ 0.0016 [model]) − 59 leaked → 219 final bits · key dae607e3…
 ```
 
-1,056 × 0.217 − 65 = 164 and 1,033 × 0.257 − 59 = 206. That makes 370 final bits, the same on both
-laptops (fingerprint `75f743a0382b6e3c`), or 9.25 × 10⁻⁵ bits per pulse. The 542 sifted bits of
+1,056 × 0.217 − 65 = 164 and 1,007 × 0.277 − 59 = 219. That makes 383 final bits, the same on both
+laptops (fingerprint `496a9899c01d837b`), or 9.6 × 10⁻⁵ bits per pulse. The 562 sifted bits of
 blocks 16–19 were still waiting for a chunk when the run ended.
 
 **Against the paper's rate.** Zeng et al.'s key rate is
@@ -334,19 +340,20 @@ R = r_p\, r_s \left\{ q_{11}\big[1 - h(e_{11}^X)\big] - f\,h(E_Z) \right\}\quad\
 with r_p the pairs per pulse and r_s the share of pairs that are key pairs. ℓ applies the same
 formula to the bits the stations hold, with the counted leak in place of f h(E_Z). The read-out
 *rate, asymptotic formula* evaluates it over the whole run, as key pairs per pulse × (secret
-fraction − leak_EC/n): 1.25 × 10⁻⁴ here. `theory()` gives 2.82 × 10⁻⁴ with the model's
+fraction − leak_EC/n): 1.90 × 10⁻⁴ here. `theory()` gives 2.82 × 10⁻⁴ with the model's
 single-photon-pair fraction, and 2.63 × 10⁻⁴ with the decoy bound's asymptotic value. The run comes
-out at half of that because its q₁₁ bound ended at 0.223 (next section).
+out lower because its q₁₁ bound ended at 0.323 (next section).
 
-**What the leak costs.** The run leaked 60 Cascade parities and 64 tag bits on 2,089 corrected bits,
-5.9 % of them. The paper's f h(E_Z), with `theory()`'s f = 1.16 and E_Z = 4.0 × 10⁻⁴, is 0.6 %. At
+**What the leak costs.** The run leaked 60 Cascade parities and 64 tag bits on 2,063 corrected bits,
+6.0 % of them. The paper's f h(E_Z), with `theory()`'s f = 1.16 and E_Z = 4.0 × 10⁻⁴, is 0.6 %. At
 this error rate the cost is the chunks' overhead: Cascade's top-level parities, and a 32-bit tag per
 1,000 bits.
 
 ## How q₁₁ and e₁₁ are estimated
 
 Both stations call `estimate()` on their own tallies. These hold the same public numbers, so the two
-estimates agree once both have tallied the same blocks; `pa` still carries Alice's ℓ.
+estimates agree on the same blocks, and privacy amplification takes the tally up to a chunk's last
+block at both; `pa` still carries Alice's ℓ.
 
 ### q₁₁ from the decoy bound
 
@@ -371,18 +378,18 @@ G removes every term in which one side sent no photon. In the numerator the thre
 cancel and every higher one is negative, which is what makes it a lower bound. `q11_lower_from_z`
 clips the result to [0, 1].
 
-**In the run** the bound stood at 0.221 at the first privacy amplification (after 8 blocks), 0.262
-at the second (after 18) and 0.223 at the end, on 45 (ν, ν) Z pairs. `theory()` gives 0.441 for the
-model's single-photon-pair fraction and 0.412 for the bound's asymptotic value. Evaluated on a few
-dozen decoy pairs, the bound strays far either way: here it stayed near half its asymptotic value,
+**In the run** the bound stood at 0.221 at the first privacy amplification (on blocks 0–7), 0.282
+at the second (on blocks 0–15) and 0.323 at the end, on 53 (ν, ν) Z pairs. `theory()` gives 0.441
+for the model's single-photon-pair fraction and 0.412 for the bound's asymptotic value. Evaluated on
+a few dozen decoy pairs, the bound strays far either way: here it stayed below its asymptotic value,
 while seed 4's "lower bound" landed above the fraction it bounds. Seeds 2–4 show the spread:
 
 | Seed | (ν, ν) Z pairs after 20 blocks | q₁₁ bound at the two PA steps | Final key bits |
 | --- | --- | --- | --- |
-| 1 | 45 | 0.221, 0.262 | 370 |
-| 2 | 54 | 0.237, 0.334 | 468 |
-| 3 | 58 | 0.431, 0.351 | 688 |
-| 4 | 67 | 0.492, 0.540 | 926 |
+| 1 | 53 | 0.221, 0.282 | 383 |
+| 2 | 42 | 0.237, 0.160 | 311 |
+| 3 | 58 | 0.431, 0.412 | 786 |
+| 4 | 69 | 0.492, 0.512 | 912 |
 
 The sizing is asymptotic. Fluctuations like these are what a finite-key analysis has to absorb
 ([below](#asymptotic-and-finite-key-lengths)).
@@ -418,10 +425,10 @@ e₁₁ is the phase-error rate of those single-photon pairs. With the default `
    the model reaches E_X − 2σ, and recomputes e₁₁. A measured E_X below the model changes nothing,
    so the check can only make e₁₁ worse.
 
-**In the run** e₁₁ ended at 0.00160, from the run's own click rate and pairing intervals, where
+**In the run** e₁₁ ended at 0.00159, from the run's own click rate and pairing intervals, where
 `theory()` has 0.00156. With dark counts this rare, e₁₁ is essentially e_d.
 Charlie's clicks come every 1/0.0096 ≈ 100 rounds, so τ is about 170 ns, and the relative phase of
-two 3 kHz lasers spreads by σ² ≈ 6 × 10⁻³ rad² in that time. E_X(μμ) measured 0.220 against the
+two 3 kHz lasers spreads by σ² ≈ 6 × 10⁻³ rad² in that time. E_X(μμ) measured 0.205 against the
 model's 0.249, so e_d stayed as it was.
 
 ### The rigorous e₁₁ bound, and why it is unresolved
@@ -443,7 +450,7 @@ It stays unresolved here for the two reasons that [`keyrate.py`](keyrate.py)'s d
 In-process checks on expectation values (`expected_counts`) put numbers on both:
 
 - **Statistics.** The numerator is a difference of error gains of the weakest decoy class, which has
-  to be known to about 1 %. 10⁹ pairs hold 48,662 sifted (ν, ν) X pairs. The run's 19,174 pairs hold
+  to be known to about 1 %. 10⁹ pairs hold 48,662 sifted (ν, ν) X pairs. The run's 19,203 pairs hold
   about one, and the threshold of 100 needs about 2 × 10⁶ pairs, or 4 × 10⁸ pulses.
 - **The X intensities.** At 2ν = 0.2 and 2μ = 0.8 the multiphoton correction ν'³G(μ', μ') is 5 %
   larger than the term it corrects, μ'³G(ν', ν'). So the Y₁₁ bound is negative, and more data does
@@ -475,11 +482,11 @@ $`\delta(m) = \sqrt{2m\ln(1/\varepsilon)} + \ln(1/\varepsilon)`$, it:
 
 where q₁₁^ε is the bound on the moved counts and e₁₁ is capped at 1/2.
 
-**In the run** ℓ_ε = 0, as it is for seeds 2–4. δ for the run's 45 (ν, ν) Z pairs is 68.5, more
-than the count itself, so q₁₁^ε = 0. The Hoeffding term would add 0.32 to e₁₁ on top: the run holds
-109 sifted (μ, μ) X pairs. On expectation values, at the run's leak per corrected bit, ℓ_ε turns
-positive between 3.5 × 10⁷ and 4 × 10⁷ pulses (175 to 200 blocks), and then closes on the
-asymptotic length:
+**In the run** ℓ_ε = 0, as it is for seeds 2–4. δ for the run's 53 (ν, ν) Z pairs is 72.4, more
+than the count itself, so q₁₁^ε = 0. The Hoeffding term would add 0.32 to e₁₁ on top: 4 × 10⁶
+pulses are expected to hold about 110 sifted (μ, μ) X pairs. On expectation values, at the run's
+leak per corrected bit, ℓ_ε turns positive between 3.5 × 10⁷ and 4 × 10⁷ pulses (175 to 200
+blocks), and then closes on the asymptotic length:
 
 | Pulses | Link time at 625 MHz | ℓ_ε / ℓ |
 | --- | --- | --- |
@@ -504,7 +511,7 @@ would spend part of the key on it.
 | Cascade | `ec-start`, `ec-query`, `ec-parity` | `_maybe_start_ec`, `_ec_start`, `_ec_query`, `_ec_parity`; `block_sizes`, `permutations`, `CascadeReference`, `CascadeCorrector` |
 | Verification | `ec-done`, `verified` | `_ec_continue`, `_ec_done`, `_chunk_verified`; `verification_tag` |
 | q₁₁ and e₁₁ | none | `estimate`, `gains`, `q11_lower_from_z`, `decoy_y11_lower`, `decoy_ey11_upper`, `fit_transmittance`, `misalignment`, `e11_model`, `x_error_model` |
-| Privacy amplification | `pa` | `_maybe_pa`, `_pa`, `_amplify`; `final_length`, `toeplitz_hash` |
+| Privacy amplification | `pa` | `_maybe_pa`, `_pa`, `_tally_for`, `_amplify`; `final_length`, `toeplitz_hash` |
 | Finite-key length, reported only | none | `finite_key_length`, called in `_readouts` |
 
 ## References

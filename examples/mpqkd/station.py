@@ -29,9 +29,17 @@ The E_Z estimate is the error rate Cascade corrected in the chunks verified so f
 (``initial_qber`` for the first chunk), as in Mueller et al., IET Quantum Commun. 6,
 e70003 (2025), §3.2. Every parity the leader discloses and every tag bit is counted as
 leaked and subtracted.
+
+A seeded run comes out the same however the messages interleave with the lab's blocks:
+the public seeds of the post-processing (Cascade, tag, Toeplitz) come from a generator
+of their own, spawned from the station's, so they never shift the pulses' draws; a
+chunk takes the oldest pooled blocks until it holds ``chunk_bits``; and privacy
+amplification is sized on the tally up to the last block of the chunks it hashes.
 """
 
 from __future__ import annotations
+
+import copy
 
 import numpy as np
 
@@ -77,8 +85,12 @@ class Station(Party):
     # ---- lifecycle -------------------------------------------------------------------
     def setup(self) -> None:
         p = self.params
+        # the post-processing's public seeds: a stream apart from the pulses' draws
+        self.post_rng = self.rng.spawn(1)[0]
         self.blocks: dict[int, dict] = {}
         self.counts = Counts()
+        # block → the tally up to that block, for sizing privacy amplification
+        self.tallies: dict[int, Counts] = {}
         # block → sifted key bits waiting for error correction
         self.pool: dict[int, np.ndarray] = {}
         # chunk → its Cascade state, corrected key, leak, tag
@@ -252,6 +264,7 @@ class Station(Party):
             x_err,
             st["R"] - st["F"],
         )
+        self.tallies[block] = copy.deepcopy(c)
         self.pool[block] = kz.astype(np.uint8)
         t = self.totals
         t["blocks"] += 1
@@ -275,15 +288,21 @@ class Station(Party):
     # ---- [#6] error correction -------------------------------------------------------
     def _maybe_start_ec(self) -> None:
         """Leader: reconcile the pooled sifted bits once a chunk's worth is there
-        (one chunk at a time). Cascade's E_Z estimate is the error rate corrected in all
-        the chunks verified so far, ``initial_qber`` before the first."""
+        (one chunk at a time). The oldest pooled blocks go in until the chunk holds
+        ``chunk_bits``; later blocks wait for the next chunk, whenever the dialogue gets
+        to it. Cascade's E_Z estimate is the error rate corrected in all the chunks
+        verified so far, ``initial_qber`` before the first."""
         p, t = self.params, self.totals
-        if (
-            self.ec_active is not None
-            or sum(bits.size for bits in self.pool.values()) < p.chunk_bits
-        ):
+        if self.ec_active is not None:
             return
-        blocks = sorted(self.pool)
+        blocks, size = [], 0
+        for b in sorted(self.pool):
+            blocks.append(b)
+            size += self.pool[b].size
+            if size >= p.chunk_bits:
+                break
+        else:
+            return  # not a chunk's worth yet
         raw = np.concatenate([self.pool.pop(b) for b in blocks])
         if t["corrected"]:
             qber = t["ec_errors"] / t["corrected"]
@@ -292,7 +311,7 @@ class Station(Party):
         else:
             qber, source = p.initial_qber, "initial_qber, no chunk corrected yet"
         chunk, self.next_chunk = self.next_chunk, self.next_chunk + 1
-        seed = int(self.rng.integers(2**31))
+        seed = int(self.post_rng.integers(2**31))
         ref = CascadeReference(raw, seed, qber, p.cascade_passes)
         first, parities = ref.first_pass()
         self.chunks[chunk] = dict(
@@ -345,7 +364,7 @@ class Station(Party):
         ch = self.chunks[chunk]
         cor = ch["cor"]
         ch["key"], ch["leak"], ch["errors"] = cor.key, cor.leak, len(cor.corrected)
-        seed = int(self.rng.integers(2**31))
+        seed = int(self.post_rng.integers(2**31))
         ch["tag"] = verification_tag(cor.key, seed, self.params.verify_bits)
         self.net.send(
             self.partner,
@@ -418,6 +437,11 @@ class Station(Party):
         self._readouts()
 
     # ---- [#6] privacy amplification --------------------------------------------------
+    def _tally_for(self, chunks: list[int]) -> Counts:
+        """The tally up to the last block of ``chunks``: what privacy amplification is
+        sized on, the same at both stations however far their dialogue has got."""
+        return self.tallies[max(max(self.chunks[c]["blocks"]) for c in chunks)]
+
     def _maybe_pa(self) -> None:
         """Leader: size the Toeplitz hash of all verified chunks from the key-rate
         estimate."""
@@ -427,7 +451,7 @@ class Station(Party):
         n = sum(self.chunks[c]["n"] for c in self.verified)
         leak_ec = sum(self.chunks[c]["leak"] for c in self.verified)
         leak_v = p.verify_bits * len(self.verified)
-        est = estimate(self.counts, p)
+        est = estimate(self._tally_for(self.verified), p)
         length = final_length(n, est, leak_ec, leak_v)
         if length <= 0:
             print(
@@ -437,14 +461,14 @@ class Station(Party):
                 " for more"
             )
             return
-        seed = int(self.rng.integers(2**31))
+        seed = int(self.post_rng.integers(2**31))
         chunks = list(self.verified)
         self.net.send(self.partner, Topic.PA, chunks=chunks, seed=seed, length=length)
         self._amplify(chunks, seed, length, est)
 
     def _pa(self, msg: Message) -> None:
-        # from the same public numbers as the leader's
-        est = estimate(self.counts, self.params)
+        # from the same public numbers as the leader's: the tally up to the same block
+        est = estimate(self._tally_for(list(msg.chunks)), self.params)
         n = sum(self.chunks[c]["n"] for c in msg.chunks)
         mine = final_length(
             n,
@@ -452,8 +476,7 @@ class Station(Party):
             sum(self.chunks[c]["leak"] for c in msg.chunks),
             self.params.verify_bits * len(msg.chunks),
         )
-        # our counts may lead by a block
-        if abs(mine - msg.length) > max(8, 0.25 * msg.length):
+        if mine != msg.length:
             print(
                 f"⚠ PA: the leader sizes {msg.length} final bits, our own estimate says"
                 f" {mine}"
@@ -468,6 +491,9 @@ class Station(Party):
         final = toeplitz_hash(raw, seed, length)
         self.final.append(final)
         self.final_bits += length
+        last = max(max(self.chunks[c]["blocks"]) for c in chunks)
+        for b in [b for b in self.tallies if b <= last]:
+            del self.tallies[b]  # later hashes are sized on later blocks
         for c in chunks:
             self.verified.remove(c)
             del self.chunks[c]

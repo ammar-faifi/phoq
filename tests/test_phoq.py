@@ -836,7 +836,7 @@ def test_mpqkd_parties_agree_on_a_key():
     # leak accounting: every disclosed parity and tag bit is counted, the same on both
     # sides
     assert a["leak EC [bits]"] == b["leak EC [bits]"] > 0
-    # chunking depends on message timing; a failed tag discards a chunk
+    # a failed tag discards a chunk
     chunks = sum("bits reconciled" in l for l in bob.lines)
     assert (
         chunks >= 1
@@ -876,13 +876,37 @@ def test_mpqkd_parties_agree_on_a_key():
             want = errors / bits if bits else mpqkd.MPQKDParams().initial_qber
             assert float(m[1]) == pytest.approx(want, rel=6e-3, abs=1e-12)
             starts += 1
-        m = re.search(r"chunk \d+: ([\d,]+) bits reconciled, (\d+) errors .* matches", l)
+        m = re.search(
+            r"chunk \d+: ([\d,]+) bits reconciled, (\d+) errors .* matches", l
+        )
         if m:
             bits, errors = bits + int(m[1].replace(",", "")), errors + int(m[2])
     assert starts >= 2 and bits == a["corrected bits"]
     assert any("tag matches" in l for l in bob.lines)
     # clicks + 3 per block (basis, theta, xbits) + ec/pa
     assert charlie.net["sent"] == 2 * 6 and alice.net["recv"] >= 6 + 3 * 6 + 3
+
+
+def test_mpqkd_run_does_not_depend_on_timing():
+    """The same seed gives the same chunks and key whether the lab waits for every block
+    or runs ahead of the dialogue: the post-processing seeds come from a generator of
+    their own, a chunk takes the oldest blocks, and privacy amplification is sized on the
+    tally up to the chunk's last block."""
+    from phoq.parties import Experiment
+
+    mpqkd = load_protocol(EXAMPLES / "mpqkd")
+    runs = []
+    for ahead in (0, 4):
+        setup = mpqkd.build(mpqkd.MPQKDParams(distance=10e3), rounds=200_000)
+        alice, _, bob = Experiment(
+            setup, mpqkd.PARTIES, seed=8, blocks_ahead=ahead
+        ).run(blocks=6, echo=False)
+        # no leak or PA-length disagreement between the stations
+        assert not any("⚠" in l for l in alice.lines + bob.lines)
+        assert alice.result["final key sha256"] == bob.result["final key sha256"]
+        lines = [l for l in alice.lines if l.startswith(("chunk", "PA"))]
+        runs.append((lines, alice.result["final key sha256"]))
+    assert runs[0][0] and runs[0] == runs[1]
 
 
 def test_cascade_reconciles_and_both_sides_count_the_same_leak():
