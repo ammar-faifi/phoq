@@ -37,6 +37,7 @@ import sys
 import threading
 import time
 import traceback
+import warnings
 from dataclasses import dataclass, field
 from multiprocessing.connection import Client, Listener
 from pathlib import Path
@@ -550,6 +551,7 @@ class Experiment:
         self._recorded: set[int] = set()  # relay stages already recorded in this block
         self._results: dict[str, CounterResult] = {}  # this block's batches so far
         self.last_acquire = 0.0
+        self.stopped: str | None = None  # why run() ended before its last block
 
     @property
     def workers(self) -> list[ProcessWorker]:
@@ -716,16 +718,29 @@ class Experiment:
         self, blocks: int = 10, echo: bool = True, timeout: float = 120.0
     ) -> list[ProcessWorker]:
         """Start everything, run ``blocks`` blocks, let the parties finish talking,
-        stop."""
+        stop.
+
+        ``timeout`` is how long a block may take: a run goes on for as long as its
+        blocks keep coming, and gives up only when none has come for ``timeout``
+        seconds, a party being stuck. A run that ends before its last block says why,
+        printed with ``echo`` or as a warning, and keeps it in ``stopped``.
+        """
         self.start()
+        self.stopped = None
         try:
-            end = time.monotonic() + timeout
-            while self.block < blocks and time.monotonic() < end:
+            last = time.monotonic()
+            while self.block < blocks:
                 if self.poll() is None:
                     time.sleep(0.01)
+                else:
+                    last = time.monotonic()
                 if echo:
                     self.echo()
                 if not any(w.alive for w in self.party_workers):
+                    self.stopped = "every party has stopped"
+                    break
+                if time.monotonic() - last > timeout:
+                    self.stopped = f"no block came for {timeout:g} s"
                     break
             for w in self.workers:
                 w.wait_idle(timeout)
@@ -737,4 +752,10 @@ class Experiment:
             self.stop()
             if echo:
                 self.echo()
+        if self.stopped:
+            note = f"stopped after {self.block:,} of {blocks:,} blocks: {self.stopped}"
+            if echo:
+                print(f"\n{note}")
+            else:
+                warnings.warn(note, RuntimeWarning, stacklevel=2)
         return self.workers

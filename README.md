@@ -478,7 +478,10 @@ phoq serve --protocol mpqkd
 ```
 
 `--protocol` takes a package exposing `PARTIES` and `build()`; `--party my_party.py` adds a file
-that defines a `Party` subclass (an eavesdropper on the switch, for instance). In the virtual lab
+that defines a `Party` subclass (an eavesdropper on the switch, for instance). A run goes on for as
+many blocks as it was asked, however long that takes. It gives up only when no block has come for
+120 s (`Experiment.run(timeout=…)`), a party being stuck, and then prints how many blocks it ran
+and why it stopped. In the virtual lab
 every party gets a laptop on the table showing its console, read-outs and TCP port, wired with
 an Ethernet cable to a (purely visual) layer-3 switch whose port LEDs blink with the traffic;
 clicking a laptop opens its console.

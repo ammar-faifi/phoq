@@ -219,7 +219,7 @@ def receiver(setup: Setup, p: COWParams, slots: int) -> Coupler:
     return tap
 
 
-def build(p: COWParams | None = None, slots: int = 400_000) -> Setup:
+def build(p: COWParams | None = None, slots: int = 1_000_000) -> Setup:
     """The hardware, calibrated: Alice's transmitter → fiber → Bob's receiver. ``slots``
     time slots (``slots``/2 pairs) make one block."""
     p = p or COWParams()

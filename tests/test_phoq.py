@@ -3,6 +3,8 @@ layer."""
 
 import json
 import math
+import time
+import warnings
 from pathlib import Path
 
 import numpy as np
@@ -743,6 +745,62 @@ def test_classical_channel_between_party_processes(tmp_path):
         {"name": "PING", "kind": "party", "port": w_ping.port, "host": "127.0.0.1"},
         {"name": "PONG", "kind": "party", "port": w_pong.port, "host": "127.0.0.1"},
     ]
+
+
+def _paced_experiment(every: float, last: int | None = None, alive: bool = True):
+    """An Experiment without processes: a block every ``every`` seconds, and none
+    after ``last``."""
+    from phoq.parties import Experiment
+
+    class Party:
+        def __init__(self):
+            self.alive = alive
+
+        def wait_idle(self, timeout):
+            return True
+
+    exp = object.__new__(Experiment)
+    exp.block, exp.party_workers, exp.task_workers = 0, [Party()], []
+    exp.start = exp.stop = exp.echo = lambda: None
+    exp.wait_quiet = lambda timeout: True
+    due = [time.monotonic()]
+
+    def poll():
+        if (last is None or exp.block < last) and time.monotonic() >= due[0]:
+            due[0] += every
+            exp.block += 1
+            return {}
+        return None
+
+    exp.poll = poll
+    return exp
+
+
+def test_a_long_run_goes_on_while_its_blocks_come():
+    """The timeout is how long one block may take, not the whole run: 20 blocks of
+    30 ms run to the end with a 0.2 s timeout."""
+    exp = _paced_experiment(0.03)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        exp.run(blocks=20, echo=False, timeout=0.2)
+    assert exp.block == 20 and exp.stopped is None
+
+
+def test_a_stalled_run_stops_and_says_so(capsys):
+    exp = _paced_experiment(0.01, last=3)
+    note = "stopped after 3 of 10 blocks: no block came for 0.2 s"
+    with pytest.warns(RuntimeWarning, match=note):
+        exp.run(blocks=10, echo=False, timeout=0.2)
+    assert exp.block == 3 and exp.stopped == "no block came for 0.2 s"
+    # printed with the parties' output
+    _paced_experiment(0.01, last=2).run(blocks=5, timeout=0.1)
+    assert "stopped after 2 of 5 blocks: no block came for 0.1 s" in (
+        capsys.readouterr().out
+    )
+    # parties that died: at once, whatever the timeout
+    dead = _paced_experiment(0.01, alive=False)
+    with pytest.warns(RuntimeWarning, match="every party has stopped"):
+        dead.run(blocks=10, echo=False, timeout=60.0)
 
 
 def test_mpqkd_parties_agree_on_a_key():
