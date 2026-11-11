@@ -29,10 +29,12 @@ Block = tuple[int, int, int]
 
 # ---- shared pieces -------------------------------------------------------------------
 def block_sizes(n: int, qber: float, passes: int) -> list[int]:
-    """k_1 ≈ 0.73 / QBER, doubling each pass, but never more than half the key: a pass
-    whose single block spans everything cannot separate two hidden errors, while two
-    blocks still do so half of the time (one or two extra parities per pass)."""
-    cap = max(1, n // 2)
+    """k_1 ≈ 0.73 / QBER, doubling each pass, but never more than half the key, rounded
+    up so that a capped pass has exactly two blocks (an odd key would otherwise leave a
+    third of 1 bit, one more parity per pass): a pass whose single block spans
+    everything cannot separate two hidden errors, while two blocks still do so half of
+    the time (one or two extra parities per pass)."""
+    cap = max(1, (n + 1) // 2)
     k1 = cap if qber <= 0 else int(math.ceil(0.73 / qber))
     k1 = max(2, min(cap, k1)) if n > 3 else max(1, n)
     return [max(1, min(cap, k1 << i)) for i in range(passes)]

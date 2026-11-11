@@ -1604,8 +1604,8 @@ The models above were compared with seventeen references (October–November 202
     new permutation each pass. A binary search discloses one sub-block parity per step, at most
     ⌈log₂ k₁⌉ of them, and every search of a level shares one message. Corrected bits cascade back
     into earlier passes, and the number of passes is fixed: six in phoq, which caps blocks at half
-    the chunk and shuffles the first pass too. Their "additional checks" for parallel searches that
-    end on the same bit are phoq's closing of every search that a flip has made even.
+    the chunk, rounded up, and shuffles the first pass too. Their "additional checks" for parallel
+    searches that end on the same bit are phoq's closing of every search that a flip has made even.
   - Eqs. (2)–(4): the leak is at least n H(q), f = leak/(n H(q)), and a Cascade leak is bounded by
     the parities Alice sends. phoq counts those parities on both sides and checks that the counts
     agree.
@@ -1622,8 +1622,8 @@ The models above were compared with seventeen references (October–November 202
     errors corrected in the previous one (q̂ᵢ₊₁ = qᵢ) and discloses no sample. phoq's stations do
     the same, pooled over all the chunks verified so far (their §3.2 lets qᵢ span several keys),
     and start the first chunk at 1 % (`initial_qber`). At the showcase's E_Z of 4 × 10⁻⁴, the
-    estimate a 10 % sample gives would cost 34.9 parities per chunk of 1,000–1,080 bits and the
-    true value costs 18.8 (400 chunks in process); without the sample, a long run keeps about 16 %
+    estimate a 10 % sample gives would cost 33.4 parities per chunk of 1,000–1,080 bits and the
+    true value costs 15.8 (400 chunks in process); without the sample, a long run keeps about 17 %
     more final key per pulse.
   - §3.3, Eq. (11): each verified frame leaks its t tag bits, a failed frame counts as fully leaked,
     and clustering frames under one tag cuts the cost (t = 50, collision probability 10⁻¹⁰). phoq

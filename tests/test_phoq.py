@@ -933,6 +933,22 @@ def test_cascade_reconciles_and_both_sides_count_the_same_leak():
         )
 
 
+def test_cascade_splits_a_capped_pass_into_two_blocks():
+    """At the cap, half the chunk rounded up, every pass has two blocks, an odd chunk's
+    too: with no error to find, six passes disclose twelve parities."""
+    mpqkd = load_protocol(EXAMPLES / "mpqkd")
+    rng = np.random.default_rng(2)
+    for n in (1006, 1007):
+        a = rng.integers(0, 2, n, dtype=np.uint8)
+        _, ref, cor = mpqkd.cascade_in_process(a, a.copy(), seed=1, qber=0.0, passes=6)
+        assert ref.sizes == [(n + 1) // 2] * 6 and ref.leak == cor.leak == 12
+        b = a.copy()
+        b[rng.integers(n)] ^= 1
+        corrected, ref, _ = mpqkd.cascade_in_process(a, b, seed=1, qber=0.0, passes=6)
+        # one error costs one binary search: at most ⌈log₂ 504⌉ = 9 parities
+        assert np.array_equal(corrected, a) and 12 < ref.leak <= 12 + 9
+
+
 def test_toeplitz_hash_is_the_matrix_product_and_linear():
     mpqkd = load_protocol(EXAMPLES / "mpqkd")
     n, m, seed = 23, 7, 11
