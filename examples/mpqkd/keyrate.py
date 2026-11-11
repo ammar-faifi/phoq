@@ -100,8 +100,7 @@ class Counts:
     (A = 0: she sent vacuum twice) and Bob's is Z-type with level B. ``x[A, B]``: X-type
     pairs (two equal pulses of level A / B; level 0 is again vacuum twice), ``x_sifted``
     those with matching alignment angles and ``x_errors`` the disclosed-bit errors among
-    the sifted (X, X) classes. The key comes from ``z[LMU, LMU]``; ``z_sample`` /
-    ``z_sample_errors`` are the disclosed Z sample.
+    the sifted (X, X) classes. The key comes from ``z[LMU, LMU]``.
     """
 
     rounds: int = 0
@@ -115,8 +114,6 @@ class Counts:
     x_errors: np.ndarray = field(
         default_factory=lambda: np.zeros((3, 3), dtype=np.int64)
     )
-    z_sample: int = 0
-    z_sample_errors: int = 0
     # Σ (rear − front) over key pairs, for the phase-drift model
     interval_sum: float = 0.0
     linewidth: tuple[float, float] = (0.0, 0.0)  # announced laser linewidths [Hz]

@@ -2,8 +2,8 @@
 math.
 
 Everything here is public knowledge — the protocol's parameters (μ, ν, their
-probabilities, D, the pairing interval l, the disclosed-sample fraction, the
-post-processing sizes) are agreed before the run ([CLASSICAL #2] in
+probabilities, D, the pairing interval l, the post-processing sizes, Cascade's first
+E_Z estimate) are agreed before the run ([CLASSICAL #2] in
 ``examples/mpqkd/reference.py``), and the pairing / sifting functions are the
 deterministic algorithms both stations run on the same public announcements. Private
 data (each station's intensities and phases) never passes through this module's
@@ -48,10 +48,8 @@ class Topic:
     BASIS = "basis"
     THETA = "theta"  # #4 Alice ↔ Bob: alignment angle of each X pair
     XBITS = "xbits"  # #5 Alice ↔ Bob: X-basis bits, disclosed for error estimation
-    # #5 leader → partner: positions and bits of a Z sample to disclose
-    SAMPLE = "sample"
-    SAMPLE_REPLY = "sample-reply"  # #5 partner → leader: its bits at those positions
-    # #6 leader → partner: the chunk to reconcile, Cascade seed, first parities
+    # #6 leader → partner: the chunk to reconcile, Cascade seed, E_Z estimate, first
+    # parities
     EC_START = "ec-start"
     EC_QUERY = "ec-query"  # #6 partner → leader: parities wanted (pass, lo, hi)
     # #6 leader → partner: those parities (each one a leaked bit)
@@ -72,8 +70,10 @@ class MPQKDParams:
     p_nu: float = 0.15  # probability of sending ν (the rest, 0.6, is vacuum)
     D: int = 16  # number of discrete phases
     l: int = 1000  # maximal pairing interval (rounds)
-    sample_fraction: float = 0.1  # share of key Z pairs disclosed to estimate E_Z
     chunk_bits: int = 1000  # sifted key bits reconciled and amplified together
+    # Cascade's E_Z estimate for the first chunk; every later chunk takes the error rate
+    # corrected in the chunks verified before it
+    initial_qber: float = 0.01
     # the last passes cost 1–2 parities each and catch hidden error pairs
     cascade_passes: int = 6
     verify_bits: int = 32  # universal-hash tag that confirms the corrected chunks agree

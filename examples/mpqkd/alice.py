@@ -1,4 +1,4 @@
-"""Alice: one of the two transmitting stations. She leads the error estimation."""
+"""Alice: one of the two transmitting stations. She leads the post-processing."""
 
 from __future__ import annotations
 

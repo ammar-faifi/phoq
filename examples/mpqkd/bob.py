@@ -1,4 +1,4 @@
-"""Bob: the other transmitting station. He answers Alice's error-estimation sample."""
+"""Bob: the other transmitting station. He corrects his key toward Alice's."""
 
 from __future__ import annotations
 

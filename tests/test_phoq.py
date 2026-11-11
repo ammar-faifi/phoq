@@ -818,7 +818,7 @@ def test_mpqkd_parties_agree_on_a_key():
     ] and charlie.batches == 6
     for w in (alice, bob):
         assert w.result["blocks"] == 6 and w.result["sifted bits"] > 1000
-        assert w.result["E_Z (sample)"] < 0.01 and 0.1 < w.result["E_X (μμ)"] < 0.4
+        assert w.result["E_Z (corrected)"] < 0.01 and 0.1 < w.result["E_X (μμ)"] < 0.4
         assert not any("Traceback" in l for l in w.lines)
     a, b = alice.result, bob.result
     # [#6] a chunk was reconciled, verified and amplified, identically on both sides
@@ -867,9 +867,22 @@ def test_mpqkd_parties_agree_on_a_key():
         sized == a["final key bits"]
         and leaked <= a["leak EC [bits]"] + a["leak verify [bits]"]
     )
+    # Cascade's E_Z estimate: initial_qber for the first chunk, then the error rate
+    # corrected in all the chunks verified before
+    errors, bits, starts = 0, 0, 0
+    for l in alice.lines:
+        m = re.search(r"chunk \d+: reconciling .* from E_Z ≈ ([\d.e+-]+): ", l)
+        if m:
+            want = errors / bits if bits else mpqkd.MPQKDParams().initial_qber
+            assert float(m[1]) == pytest.approx(want, rel=6e-3, abs=1e-12)
+            starts += 1
+        m = re.search(r"chunk \d+: ([\d,]+) bits reconciled, (\d+) errors .* matches", l)
+        if m:
+            bits, errors = bits + int(m[1].replace(",", "")), errors + int(m[2])
+    assert starts >= 2 and bits == a["corrected bits"]
     assert any("tag matches" in l for l in bob.lines)
-    # clicks + 4 per block + ec/pa
-    assert charlie.net["sent"] == 2 * 6 and alice.net["recv"] >= 6 + 4 * 6 + 3
+    # clicks + 3 per block (basis, theta, xbits) + ec/pa
+    assert charlie.net["sent"] == 2 * 6 and alice.net["recv"] >= 6 + 3 * 6 + 3
 
 
 def test_cascade_reconciles_and_both_sides_count_the_same_leak():

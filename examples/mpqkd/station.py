@@ -13,20 +13,22 @@ Classical channel (``receive``), per block, in the order of
            → sift
     → [#4] send our alignment angles θ (every pair), wait for the partner's → keep
            matches
-    → [#5] disclose the X bits (E_X) and, led by one station, a random sample of the key
-           bits (E_Z); the disclosed bits leave the key. Both stations tally every
-           pair's public class (basis, level, θ match) — the decoy statistics behind the
-           key rate.
+    → [#5] disclose the X bits (E_X). No key bit is disclosed: E_Z comes from the
+           errors Cascade corrects in [#6]. Both stations tally every pair's public
+           class (basis, level, θ match) — the decoy statistics behind the key rate.
 
 and, once ``chunk_bits`` sifted key bits have accumulated, [#6] on that chunk:
 
-    leader ``ec-start`` (Cascade seed, first parities) ⇄ ``ec-query`` / ``ec-parity`` …
-    until the partner's ``ec-done`` carries a universal-hash tag of its corrected key →
-    ``verified``; the leader then sizes privacy amplification from the key-rate estimate
-    (:mod:`.keyrate`) and sends the Toeplitz seed and output length in ``pa``; both hash
-    their verified chunks.
+    leader ``ec-start`` (Cascade seed, E_Z estimate, first parities) ⇄ ``ec-query`` /
+    ``ec-parity`` … until the partner's ``ec-done`` carries a universal-hash tag of its
+    corrected key → ``verified``; the leader then sizes privacy amplification from the
+    key-rate estimate (:mod:`.keyrate`) and sends the Toeplitz seed and output length in
+    ``pa``; both hash their verified chunks.
 
-Every parity the leader discloses and every tag bit is counted as leaked and subtracted.
+The E_Z estimate is the error rate Cascade corrected in the chunks verified so far
+(``initial_qber`` for the first chunk), as in Mueller et al., IET Quantum Commun. 6,
+e70003 (2025), §3.2. Every parity the leader discloses and every tag bit is counted as
+leaked and subtracted.
 """
 
 from __future__ import annotations
@@ -61,7 +63,7 @@ class Station(Party):
     abstract = True
     tag = ""  # "ALICE" or "BOB": prefix of this station's instruments
     partner = ""
-    # the leader picks the Z sample, starts error correction and sizes PA
+    # the leader starts error correction, picks Cascade's E_Z estimate and sizes PA
     leader = False
     params = MPQKDParams()  # public parameters, agreed in advance
 
@@ -78,7 +80,7 @@ class Station(Party):
         self.blocks: dict[int, dict] = {}
         self.counts = Counts()
         # block → sifted key bits waiting for error correction
-        self.pool: dict[int, dict] = {}
+        self.pool: dict[int, np.ndarray] = {}
         # chunk → its Cascade state, corrected key, leak, tag
         self.chunks: dict[int, dict] = {}
         self.verified: list[int] = []  # chunks reconciled and verified, waiting for PA
@@ -95,9 +97,7 @@ class Station(Party):
             discarded=0,
             leak_ec=0,
             leak_verify=0,
-            z_disclosed=0,
-            z_errors=0,
-            ec_errors=0,
+            ec_errors=0,  # errors Cascade corrected in the verified chunks
             chunks=0,
         )
         self.laser = (
@@ -170,15 +170,6 @@ class Station(Party):
             elif msg.topic == Topic.XBITS:
                 st["x_partner"] = msg.bits
                 self._finish(msg.block, st)
-            elif msg.topic == Topic.SAMPLE:  # we follow: answer with our bits
-                st["sample_pos"], st["sample_partner"] = msg.positions, msg.bits
-                self._reply_sample(msg.block, st)
-                self._finish(msg.block, st)
-            elif (
-                msg.topic == Topic.SAMPLE_REPLY
-            ):  # we lead: the partner's bits came back
-                st["sample_partner"] = msg.bits
-                self._finish(msg.block, st)
 
     # ---- [#1]–[#5]: pairing, sifting, estimation -------------------------------------
     def _pair(self, block: int, st: dict) -> None:
@@ -226,7 +217,6 @@ class Station(Party):
         # [#4]
         self.net.send(self.partner, Topic.THETA, block=block, theta=st["theta_mine"])
         self._align(block, st)
-        self._reply_sample(block, st)
 
     def _align(self, block: int, st: dict) -> None:
         if "theta_mine" not in st or "theta_partner" not in st or "kx" in st:
@@ -238,43 +228,15 @@ class Station(Party):
         st["kx"] = st["kx_all"][st["xx"]]
         # [#5] X bits: estimation only
         self.net.send(self.partner, Topic.XBITS, block=block, bits=st["kx"])
-        if self.leader:
-            sel = np.flatnonzero(
-                self.rng.random(st["kz"].size) < self.params.sample_fraction
-            )
-            st["sample_pos"] = sel
-            self.net.send(
-                self.partner,
-                Topic.SAMPLE,
-                block=block,
-                positions=sel,
-                bits=st["kz"][sel],
-            )  # [#5] Z sample
         self._finish(block, st)
 
-    def _reply_sample(self, block: int, st: dict) -> None:
-        if self.leader or "kz" not in st or "sample_pos" not in st or st.get("replied"):
-            return
-        st["replied"] = True
-        self.net.send(
-            self.partner,
-            Topic.SAMPLE_REPLY,
-            block=block,
-            bits=st["kz"][st["sample_pos"]],
-        )
-
     def _finish(self, block: int, st: dict) -> None:
-        if any(k not in st for k in ("kx", "x_partner", "sample_partner")) or st.get(
-            "done"
-        ):
+        if any(k not in st for k in ("kx", "x_partner")) or st.get("done"):
             return
         st["done"] = True
         p = self.params
-        kz, pos = st["kz"], st["sample_pos"]
-        z_err = int(np.count_nonzero(kz[pos] != st["sample_partner"]))
+        kz = st["kz"]
         x_err = st["kx"] != st["x_partner"]
-        keep = np.ones(kz.size, dtype=bool)
-        keep[pos] = False  # disclosed bits leave the key
         n = st["clicks"].n
         c = self.counts
         c.linewidth = (self.laser[0], st["laser_partner"][0])
@@ -290,28 +252,20 @@ class Station(Party):
             x_err,
             st["R"] - st["F"],
         )
-        c.z_sample += pos.size
-        c.z_sample_errors += z_err
-        self.pool[block] = dict(
-            bits=kz[keep].astype(np.uint8), sample=pos.size, errors=z_err
-        )
+        self.pool[block] = kz.astype(np.uint8)
         t = self.totals
         t["blocks"] += 1
         t["rounds"] += n
         t["pairs"] += st["F"].size
-        t["sifted"] += int(keep.sum())
-        t["z_disclosed"] += pos.size
-        t["z_errors"] += z_err
+        t["sifted"] += kz.size
         n_xx = int(c.x_sifted[LMU, LMU])
-        e_z = z_err / pos.size if pos.size else float("nan")
         e_x = c.x_errors[LMU, LMU] / n_xx if n_xx else float("nan")
         r_p = st["F"].size / n
         print(
             f"block {block}: {st['F'].size:,} pairs (r_p {r_p:.2e}, Eq.4"
             f" {pairing_rate_theory(st['p_click'], p.l):.2e}) → {kz.size:,} key Z pairs"
-            f" ({pos.size} disclosed, E_Z {e_z:.3f}) · {st['kx'].size:,} X"
-            f" ({int(st['xx'].sum())} μμ, E_X(μμ) {e_x:.3f}) · sifted"
-            f" +{int(keep.sum()):,} = {t['sifted']:,} bits"
+            f" · {st['kx'].size:,} X ({int(st['xx'].sum())} μμ, E_X(μμ) {e_x:.3f}) ·"
+            f" sifted +{kz.size:,} = {t['sifted']:,} bits"
         )
         del self.blocks[block]
         if self.leader:
@@ -321,20 +275,22 @@ class Station(Party):
     # ---- [#6] error correction -------------------------------------------------------
     def _maybe_start_ec(self) -> None:
         """Leader: reconcile the pooled sifted bits once a chunk's worth is there
-        (one chunk at a time)."""
-        p = self.params
+        (one chunk at a time). Cascade's E_Z estimate is the error rate corrected in all
+        the chunks verified so far, ``initial_qber`` before the first."""
+        p, t = self.params, self.totals
         if (
             self.ec_active is not None
-            or sum(e["bits"].size for e in self.pool.values()) < p.chunk_bits
+            or sum(bits.size for bits in self.pool.values()) < p.chunk_bits
         ):
             return
         blocks = sorted(self.pool)
-        raw = np.concatenate([self.pool[b]["bits"] for b in blocks])
-        sample = sum(self.pool[b]["sample"] for b in blocks)
-        errors = sum(self.pool[b]["errors"] for b in blocks)
-        qber = (errors + 1) / (sample + 2)  # Laplace estimate from the disclosed sample
-        for b in blocks:
-            del self.pool[b]
+        raw = np.concatenate([self.pool.pop(b) for b in blocks])
+        if t["corrected"]:
+            qber = t["ec_errors"] / t["corrected"]
+            s = "" if t["ec_errors"] == 1 else "s"
+            source = f"{t['ec_errors']} error{s} in {t['corrected']:,} corrected bits"
+        else:
+            qber, source = p.initial_qber, "initial_qber, no chunk corrected yet"
         chunk, self.next_chunk = self.next_chunk, self.next_chunk + 1
         seed = int(self.rng.integers(2**31))
         ref = CascadeReference(raw, seed, qber, p.cascade_passes)
@@ -356,7 +312,7 @@ class Station(Party):
         print(
             f"chunk {chunk}: reconciling {raw.size:,} sifted bits of blocks"
             f" {blocks[0]}–{blocks[-1]} (Cascade, k₁ = {ref.sizes[0]} from E_Z ≈"
-            f" {qber:.4f}, {len(parities)} first parities)"
+            f" {qber:.2e}: {source}; {len(parities)} first parities)"
         )
 
     def _ec_start(self, msg: Message) -> None:
@@ -368,7 +324,7 @@ class Station(Party):
                 " dropped"
             )
             return
-        raw = np.concatenate([self.pool.pop(b)["bits"] for b in msg.blocks])
+        raw = np.concatenate([self.pool.pop(b) for b in msg.blocks])
         cor = CascadeCorrector(raw, msg.seed, msg.qber, self.params.cascade_passes)
         self.chunks[msg.chunk] = dict(
             blocks=list(msg.blocks), n=raw.size, cor=cor, qber=msg.qber
@@ -437,9 +393,9 @@ class Station(Party):
         p, t = self.params, self.totals
         t["leak_ec"] += ch["leak"]
         t["leak_verify"] += p.verify_bits
-        t["ec_errors"] += ch["errors"]
         if ok:
             t["corrected"] += ch["n"]
+            t["ec_errors"] += ch["errors"]
             self.verified.append(chunk)
         else:
             t["discarded"] += ch["n"]
@@ -535,7 +491,6 @@ class Station(Party):
         )
         formula = (
             (c.key_pairs / rounds)
-            * (1 - p.sample_fraction)
             * (est.secret_fraction - (corrected_rate if t["corrected"] else 0.0))
             if est
             else 0.0
@@ -555,9 +510,6 @@ class Station(Party):
                 est.e11_decoy
                 if est and est.e11_decoy == est.e11_decoy
                 else "unresolved (see keyrate.py)"
-            ),
-            "E_Z (sample)": (
-                t["z_errors"] / t["z_disclosed"] if t["z_disclosed"] else None
             ),
             "E_Z (corrected)": (
                 t["ec_errors"] / t["corrected"] if t["corrected"] else None

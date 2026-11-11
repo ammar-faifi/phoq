@@ -436,8 +436,8 @@ hardware, the pairing/sifting math), `station.py` (what Alice and Bob share), `a
 | #2 pairing with public l | no message: both stations run the same `simple_pairing` on #1 | — |
 | #3 basis announcement | `basis` (one label per pair and how bright it was — vacuum, ν or μ — never which pulse) | Alice ↔ Bob |
 | #4 alignment angle | `theta` (per pair) | Alice ↔ Bob |
-| #5 parameter estimation | `xbits` (all sifted X bits, for E_X); `sample` / `sample-reply` (a 10 % sample of the key bits, dropped from the key, for E_Z) | Alice ↔ Bob |
-| #6 error correction, verification | `ec-start` / `ec-query` / `ec-parity` / `ec-done`: Cascade on chunks of 1 000 sifted bits, every parity Alice discloses counted as leaked; `verified`: a 32-bit universal-hash tag of Bob's corrected chunk matched Alice's | Alice ↔ Bob |
+| #5 parameter estimation | `xbits` (all sifted X bits, for E_X). No key bit is disclosed: E_Z is the error rate Cascade corrects (#6) | Alice ↔ Bob |
+| #6 error correction, verification | `ec-start` / `ec-query` / `ec-parity` / `ec-done`: Cascade on chunks of 1 000 sifted bits, its blocks sized from the error rate corrected in the chunks before (1 % for the first), every parity Alice discloses counted as leaked; `verified`: a 32-bit universal-hash tag of Bob's corrected chunk matched Alice's | Alice ↔ Bob |
 | #6 privacy amplification | `pa`: Toeplitz seed and output length — corrected bits × q₁₁ [1 − h(e₁₁)] minus the leaked bits, from the MP-QKD key-rate formula (`keyrate.py`) | Alice → Bob |
 
 Each station's console shows every block's pairs and sifted bits, each chunk's Cascade run
@@ -1619,15 +1619,19 @@ The models above were compared with seventeen references (October–November 202
     their messages grow with an overestimate, past 3,000 per frame. phoq's f is 1.10, 1.38 and 1.92
     at estimates of 1, 4 and 8 %, and its messages fall from 714 to 52: a smaller k₁ means more
     top-level parities and shorter searches. Their system estimates each frame's QBER from the
-    errors corrected in the previous one (q̂ᵢ₊₁ = qᵢ). phoq discloses a 10 % sample instead, which
-    sets only the block size. At the showcase's E_Z of 4 × 10⁻⁴, the sample's estimate of about
-    1 % costs 38 parities per 1,035-bit chunk, and the true value 21 (200 chunks each).
+    errors corrected in the previous one (q̂ᵢ₊₁ = qᵢ) and discloses no sample. phoq's stations do
+    the same, pooled over all the chunks verified so far (their §3.2 lets qᵢ span several keys),
+    and start the first chunk at 1 % (`initial_qber`). At the showcase's E_Z of 4 × 10⁻⁴, the
+    estimate a 10 % sample gives would cost 34.9 parities per chunk of 1,000–1,080 bits and the
+    true value costs 18.8 (400 chunks in process); without the sample, a long run keeps about 16 %
+    more final key per pulse.
   - §3.3, Eq. (11): each verified frame leaks its t tag bits, a failed frame counts as fully leaked,
     and clustering frames under one tag cuts the cost (t = 50, collision probability 10⁻¹⁰). phoq
     tags each 1,000-bit chunk with 32 bits (2⁻³² = 2.3 × 10⁻¹⁰), 3.2 % of the corrected bits, and
     discards a chunk whose tag differs.
   - `tests/test_phoq.py` checks that Cascade corrects, that both sides count the same leak, that
-    1.0 ≤ f ≤ 2.5, and the tag. The figures above are in-process runs, not tests;
+    1.0 ≤ f ≤ 2.5, the tag, and that each chunk's estimate is the error rate corrected before it
+    (1 % for the first). The figures above are in-process runs, not tests;
     [examples/mpqkd/post_processing.md](examples/mpqkd/post_processing.md) has them. Not modeled:
     LDPC codes and the blind protocol, the efficient Cascade, frame clustering, and the latency and
     throughput of the classical channel.
