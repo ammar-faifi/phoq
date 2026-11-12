@@ -72,8 +72,9 @@ if __name__ == "__main__":  # the parties start processes of their own
 The stations talk while the lab records the next blocks, yet a rerun with the same seed gives the
 same numbers, line for line. Three choices in `station.py` make that so:
 
-- Each station draws its Cascade, tag and hash seeds from a generator of its own, spawned from the
-  one that draws its pulses, so a seed drawn early or late never shifts a pulse.
+- Alice draws the Cascade and hash seeds, Bob the tag seeds. Each station draws them from a
+  generator of its own, spawned from the one that draws its pulses, so a seed drawn early or late
+  never shifts a pulse.
 - A chunk takes the oldest pooled blocks until it holds 1,000 bits.
 - Privacy amplification is sized on the tally up to the last block of the chunks it hashes.
 
@@ -129,7 +130,7 @@ same announcements, so both compute the same estimates:
 | `linewidth`, `detuning` | the two lasers' linewidths and frequency offset: each station reads its own laser and sends the values in `basis` |
 
 Pairs with two unequal bright pulses are in neither table. The key comes from `z[μ, μ]`; every other
-class only feeds the decoy statistics.
+class feeds only the estimates of q₁₁ and e₁₁.
 
 **The error rates.** E_X(μμ) = `x_errors[μ, μ] / x_sifted[μ, μ]` is the error rate of the signal X
 pairs over the run so far. It checks the e₁₁ model, below. E_Z is not estimated here. Cascade
@@ -161,6 +162,9 @@ with nothing corrected yet, starts at `initial_qber` = 1 %:
 ```math
 \hat E_Z^{(i)} = \frac{\sum_{j<i}\text{errors}_j}{\sum_{j<i} n_j}\quad (i \ge 1),\qquad \hat E_Z^{(0)} = 0.01 .
 ```
+
+A chunk discarded at verification counts in neither sum, and until one chunk is verified the
+estimate stays at `initial_qber`.
 
 Mueller et al. (§3.2) run their system this way: once a frame is corrected, Bob knows its true
 error rate, and it becomes the estimate for the next frame. They also consider taking the rate over
@@ -202,9 +206,9 @@ the sixth pass he is done.
 **The leak.** Every parity Alice sends, in `ec-start` and in `ec-parity`, is one leaked bit. Alice
 counts them in `CascadeReference.parities`, Bob in `CascadeCorrector.receive`. Bob's count travels
 in `ec-done`, and Alice prints `⚠ chunk …: leak accounting differs` if the two disagree. The
-parities Bob infers cost nothing, since nothing new was disclosed. The console also prints
-Cascade's efficiency, $`f = \text{leak}/\big(n\,h(E)\big)`$, with E the errors corrected per bit
-and h the binary entropy.
+parities Bob infers cost nothing, since nothing new was disclosed. For a chunk that held an error,
+the console also prints Cascade's efficiency, $`f = \text{leak}/\big(n\,h(E)\big)`$, with E the
+errors corrected per bit and h the binary entropy.
 
 **In the run**, from Alice's console:
 
@@ -228,7 +232,7 @@ $`\sum_i \lceil n/k_i\rceil`$ per chunk, so the estimate matters through k₁ al
 stations disclose no sample of the key bits for it, as many protocols do before error correction. A
 10 % sample, about a hundred bits per chunk, cannot tell 4 × 10⁻⁴ from 1 %: the Laplace estimate
 (errors + 1)/(sample + 2) leans toward 1 % and makes k₁ small. In process, on 400 chunks of 1,000
-to 1,080 bits at the true error rate of 4.0 × 10⁻⁴, that estimate costs 33.4 parities per chunk and
+to 1,080 bits at the true error rate of 4.0 × 10⁻⁴, that estimate costs 34.5 parities per chunk and
 the true value 15.8. The key length uses the counted leak, not f h(E_Z), so nothing else needs the
 estimate. Counting the sample's 10 % of the key bits as well, a long run without the sample ends
 with about 17 % more final key per pulse, at `theory()`'s asymptotic q₁₁ bound. Only chunk 0 pays
@@ -286,11 +290,15 @@ same seed (`_ec_done`), compares, and answers with `verified`. Both then run `_c
 Equal tags put the chunk on the list for privacy amplification; different tags discard it on both
 sides (`DIFFERS ✗ — chunk discarded`).
 
-Toeplitz matrices with a uniformly random seed form a universal₂ family, so two different chunks
-give equal tags with probability 2⁻³² ≈ 2.3 × 10⁻¹⁰ over the seed. The 32 tag bits count as leaked
-too (*leak verify*), and privacy amplification subtracts them. In the run both tags matched, 64 tag
-bits in all. `tests/test_phoq.py` checks that the tag tells a chunk before correction from Alice's,
-and matches after.
+Toeplitz matrices drawn from uniformly random bits form a universal₂ family, so two different
+chunks give equal tags with probability 2⁻³² ≈ 2.3 × 10⁻¹⁰ over the draw. phoq draws the n + 31
+bits of a tag's matrix from NumPy's generator, seeded with the 31-bit integer that `ec-done`
+carries. That stands in for a true random source, which a real system would use for all n + 31
+bits: 2³¹ seeds are too few to guarantee 2⁻³² for every pair of chunks. The privacy-amplification
+hash below is seeded the same way. The 32 tag bits count as leaked too (*leak verify*), and
+privacy amplification subtracts them. In the run both tags matched, 64 tag bits in all.
+`tests/test_phoq.py` checks that the tag tells a chunk before correction from Alice's, and matches
+after.
 
 At 1,000 bits per chunk the tag costs 3.2 % of the corrected bits. Mueller et al. (§3.3, Eq. 11)
 cut that cost by verifying several reconciled frames under one tag; phoq does not.
@@ -343,7 +351,8 @@ formula to the bits the stations hold, with the counted leak in place of f h(E_Z
 *rate, asymptotic formula* evaluates it over the whole run, as key pairs per pulse × (secret
 fraction − leak_EC/n): 1.91 × 10⁻⁴ here. `theory()` gives 2.82 × 10⁻⁴ with the model's
 single-photon-pair fraction, and 2.63 × 10⁻⁴ with the decoy bound's asymptotic value. The run comes
-out lower because its q₁₁ bound ended at 0.323 (next section).
+out lower mostly because its q₁₁ bound ended at 0.323 (next section): with `theory()`'s f h(E_Z) in
+place of its counted leak, the read-out would be 2.05 × 10⁻⁴.
 
 **What the leak costs.** The run leaked 54 Cascade parities and 64 tag bits on 2,063 corrected bits,
 5.7 % of them. The paper's f h(E_Z), with `theory()`'s f = 1.16 and E_Z = 4.0 × 10⁻⁴, is 0.6 %. At

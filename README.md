@@ -1622,7 +1622,7 @@ The models above were compared with seventeen references (October–November 202
     errors corrected in the previous one (q̂ᵢ₊₁ = qᵢ) and discloses no sample. phoq's stations do
     the same, pooled over all the chunks verified so far (their §3.2 lets qᵢ span several keys),
     and start the first chunk at 1 % (`initial_qber`). At the showcase's E_Z of 4 × 10⁻⁴, the
-    estimate a 10 % sample gives would cost 33.4 parities per chunk of 1,000–1,080 bits and the
+    estimate a 10 % sample gives would cost 34.5 parities per chunk of 1,000–1,080 bits and the
     true value costs 15.8 (400 chunks in process); without the sample, a long run keeps about 17 %
     more final key per pulse.
   - §3.3, Eq. (11): each verified frame leaks its t tag bits, a failed frame counts as fully leaked,
