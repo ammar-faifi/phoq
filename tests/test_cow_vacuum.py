@@ -168,9 +168,9 @@ def test_hardware_is_calibrated():
         assert (spd.dark_count_rate, spd.dead_time) == (250.0, 40e-6)
     arms = cv.common.arms
     short, long_ = arms(setup)
-    # the tagger: two bins per slot, each one symbol of the modulator
+    # the tagger: two bins per slot of a default block, each one symbol of the modulator
     tagger = setup["TAGGER"]
-    assert (tagger.slots, tagger.bin_rate) == (800_000, 2 * p.rate)
+    assert (tagger.slots, tagger.bin_rate) == (2 * 1_000_000, 2 * p.rate)
     # the DLI: one slot, balanced by BOB-VOA, the delay line within its travel
     assert long_.delay - short.delay == pytest.approx(p.slot, abs=1e-15)
     assert setup["BOB-ODL"].setting == pytest.approx(124e-12, abs=1e-12)
