@@ -526,7 +526,7 @@ const BUILDERS = {
     wind.repeat.set(6, 1.5);
     p.add(new THREE.CylinderGeometry(8.6, 8.6, 6, 48, 1, true), new THREE.MeshStandardMaterial({ map: wind, roughness: 0.5, metalness: 0.1 }), 0, 4.1, 0);
     p.cyl(3.2, 6.2, MAT.gray, 0, 4.1, 0);
-    p.cyl(10, 0.5, MAT.acrylic, 0, 7.35, 0, 'y', 48).castShadow = false;
+    p.cyl(10, 0.5, MAT.black, 0, 7.35, 0, 'y', 48);
     p.cyl(1.4, 0.7, MAT.steel, 0, 7.9, 0, 'y', 20);
     p.box(9, 4.2, 1.2, MAT.black, 0, 2.7, 10.4);
     p.addPort('p1', -2.4, 2.7, 11.0, 0, 1);
