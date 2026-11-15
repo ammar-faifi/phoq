@@ -369,32 +369,5 @@ randomness. Not modeled: the detector's AC coupling, the ADC's non-linearity and
 errors (which cost Gehring 7.23 of their 10.74 bits), and drifts that would break stationarity.
 [laser_noise.md](laser_noise.md) connects this to the shot-noise measurement.
 
-## Checked against the literature
-
-The QRNG was compared with the two papers it follows (November 2026):
-
-- *T. Gehring et al., "Homodyne-based quantum random number generator at 2.9 Gbps secure against
-  quantum side-information", Nat. Commun. 12, 605 (2021),
-  [doi:10.1038/s41467-020-20813-w](https://doi.org/10.1038/s41467-020-20813-w).*
-  - Eqs. (3) and (49)–(51): Gaussian outcomes of variance g²(1+2n), and the ADC's d bins with end
-    bins beyond ±R.
-  - Eq. (67), maximized over δ: the min-entropy against quantum side information.
-  - Eqs. (9)–(11): the same at the best ADC range.
-  - Eqs. (14), (22), (24): correlated samples, through conditional variances from the PSD.
-  - Eq. (1): the leftover hash lemma.
-  - `examples/vacuum_noise_qrng.py` implements all of these and reproduces Table 1's 10.74 bits to 0.04 bit, and
-    the 1024 extracted bits.
-  - Not modeled: their ADC's non-linearity, measured at 7.23 bits of loss, and the transfer-function
-    calibration of the vacuum level (in phoq the dark noise is measured directly).
-- *S. Park et al., "Precision-balanced homodyne quantum random number generator with uncorrelated
-  IID raw data and NIST-compliant full-entropy extraction", Phys. Scr. 100, 095117 (2025),
-  [doi:10.1088/1402-4896/ae052e](https://doi.org/10.1088/1402-4896/ae052e).*
-  - §3.1: quantum noise linear in LO power above the electronic noise. phoq: R² = 1.0000 (seeds
-    1–3: 0.9999–1.0000), against their 0.9957.
-  - §3.2: balancing the two photocurrents to keep the LO's noise out. phoq trims the coupler, as
-    they trim the split with a half-wave plate.
-  - §3.3: correlations falling as the bandwidth exceeds the ADC's Nyquist frequency.
-  - Eqs. (7)–(8): the min-entropy against classical side information, which reproduces their 13.37
-    bits exactly.
-  - Not modeled: their NIST SP 800-90B assessment, SHA3-384 conditioning and SP 800-22 suite, which
-    phoq replaces with a Toeplitz extractor and three quick checks.
+The comparison with both papers is in the main README, under
+[Checked against the literature](../README.md#checked-against-the-literature).

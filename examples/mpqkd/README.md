@@ -63,8 +63,8 @@ clearly labeled, and is zero at this scale.
 
 [post_processing.md](post_processing.md) walks through each step after
 sifting, with the functions, messages and equations it uses and the numbers of a 20-block run. Its
-Cascade is checked against Mueller et al. (2025) in
-[Checked against the literature](#checked-against-the-literature).
+Cascade is checked against Mueller et al. (2025) in the main README, under
+[Checked against the literature](../../README.md#checked-against-the-literature).
 
 Run it with the three parties as processes, headless or live:
 
@@ -79,45 +79,3 @@ uv run phoq run examples/mpqkd/sweep.py --plot sweep.png   # key rate vs fiber l
 ```bash
 phoq serve --protocol mpqkd
 ```
-
-## Checked against the literature
-
-- *R. Mueller, C. De Lazzari, F. Chirici, I. Vagniluca, L. K. Oxenløwe, S. Forchhammer, A. Zavatta
-  and D. Bacco, "Performance of Cascade and LDPC codes for information reconciliation on industrial
-  quantum key distribution systems", IET Quantum Commun. 6, e70003 (2025),
-  [doi:10.1049/qtc2.70003](https://doi.org/10.1049/qtc2.70003).*
-  - §2.2: Cascade as `examples/mpqkd/postprocess.py` runs it. Blocks of k₁ = 0.73/q̂ double on a
-    new permutation each pass. A binary search discloses one sub-block parity per step, at most
-    ⌈log₂ k₁⌉ of them, and every search of a level shares one message. Corrected bits cascade back
-    into earlier passes, and the number of passes is fixed: six in phoq, which caps blocks at half
-    the chunk, rounded up, and shuffles the first pass too. Their "additional checks" for parallel
-    searches that end on the same bit are phoq's closing of every search that a flip has made even.
-  - Eqs. (2)–(4): the leak is at least n H(q), f = leak/(n H(q)), and a Cascade leak is bounded by
-    the parities Alice sends. phoq counts those parities on both sides and checks that the counts
-    agree.
-  - Fig. 3, §3.1 and §3.4: their numbers are for the efficient Cascade of Pacher et al. (2015) on
-    2¹⁶-bit frames: f = 1.03–1.05 over 0.5–9 % QBER (read off Fig. 3), 400–700 messages per frame,
-    and f = 1.036 with 446 messages on their live system. phoq runs the original protocol. In
-    process on 2¹⁶-bit frames, with the true QBER as its estimate, it gives f = 1.149, 1.172, 1.197,
-    1.215 and 1.236 at 1, 2, 4, 6 and 8 % (10–20 frames each), with 190–211 messages per frame and
-    no frame left with an error (they report a frame error rate below 0.003).
-  - §3.2: with a true 2 %, their f stays below 1.1 while the estimate is off by less than 3 %, and
-    their messages grow with an overestimate, past 3,000 per frame. phoq's f is 1.10, 1.38 and 1.92
-    at estimates of 1, 4 and 8 %, and its messages fall from 714 to 52: a smaller k₁ means more
-    top-level parities and shorter searches. Their system estimates each frame's QBER from the
-    errors corrected in the previous one (q̂ᵢ₊₁ = qᵢ) and discloses no sample. phoq's stations do
-    the same, pooled over all the chunks verified so far (their §3.2 lets qᵢ span several keys),
-    and start the first chunk at 1 % (`initial_qber`). At the showcase's E_Z of 4 × 10⁻⁴, the
-    estimate a 10 % sample gives would cost 34.5 parities per chunk of 1,000–1,080 bits and the
-    true value costs 15.8 (400 chunks in process); without the sample, a long run keeps about 17 %
-    more final key per pulse.
-  - §3.3, Eq. (11): each verified frame leaks its t tag bits, a failed frame counts as fully leaked,
-    and clustering frames under one tag cuts the cost (t = 50, collision probability 10⁻¹⁰). phoq
-    tags each 1,000-bit chunk with 32 bits (2⁻³² = 2.3 × 10⁻¹⁰), 3.2 % of the corrected bits, and
-    discards a chunk whose tag differs.
-  - `tests/test_phoq.py` checks that Cascade corrects, that both sides count the same leak, that
-    1.0 ≤ f ≤ 2.5, the tag, and that each chunk's estimate is the error rate corrected before it
-    (1 % for the first). The figures above are in-process runs, not tests;
-    [post_processing.md](post_processing.md) has them. Not modeled:
-    LDPC codes and the blind protocol, the efficient Cascade, frame clustering, and the latency and
-    throughput of the classical channel.

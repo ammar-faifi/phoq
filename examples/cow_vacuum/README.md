@@ -217,23 +217,5 @@ at 250 blocks:
 | $E_p^u$ | 0.564 ± 0.037 | 0.557 |
 | `beta`, `M0`, `M1` | 0.232, 0.225, 0.106 | 0.229, 0.209, 0.119 |
 
-## Checked against the literature
-
-- *R.-Q. Gao, Y.-M. Xie, J. Gu, W.-B. Liu, C.-X. Weng, B.-H. Li, H.-L. Yin and Z.-B. Chen, "Simple
-  security proof of coherent-one-way quantum key distribution", arXiv:2107.09329v5 (2023).*
-  - Appendix A: its gains, including those of the nonclassical $|0_x\rangle$, match an independent
-    calculation from coherent-state matrix elements of the no-click operators, and so does the
-    relation behind Eq. (5). Eq. (A5) follows from (A2)–(A4), and it brackets the true gains at every
-    point tested.
-  - Figs. 2, 3 and 5: `bound.optimum` gives $E_p^u$ from 0.174 at 0 km to 0.234 at 100 km (Fig. 3:
-    about 0.17 to 0.24, read off its axis), and the rate falling to 10⁻⁸ at 68, 89, 100, 76 and 88 km
-    (read off as 68, 90, 102, 76 and 88). The text's 0.005η² comes out as 0.0048η².
-  - Not stated in the paper: how the misalignment $e_a$ enters. Here it goes into both $E_b$ and the
-    |α,α⟩ monitoring gains, which gives those end points; on the data line alone it does not. Sec. III
-    also calls $T_0$ the earlier moment, where its states and Eq. (4) need the later one.
-  - Where the bench differs: the paper's gains put all of a pair's light into the interference, and
-    a passive one-slot DLI holds half of that in the pair's slot. Its proof assumes exact vacuum, and
-    a modulator leaks. `examples/cow_vacuum` counts what the hardware gives; see
-    *What the real bench costs* above.
-  - `tests/test_cow_vacuum.py` repeats all of this. Not modeled: the zero-error attack or any other
-    attack on this variant, and finite-key effects.
+The comparison with the paper is in the main README, under
+[Checked against the literature](../../README.md#checked-against-the-literature).

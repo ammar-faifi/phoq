@@ -276,8 +276,8 @@ past 3,000 per frame. phoq's f is 1.10, 1.17, 1.38 and 1.92 for estimates of 1, 
 its messages fall from 714 to 52: a smaller k₁ means more top-level parities and shorter searches.
 Their system estimates each frame's QBER from the errors corrected in the frame before
 (q̂ᵢ₊₁ = qᵢ, their §3.2) and discloses no sample, and phoq's stations do the same, pooled over the
-chunks before. This directory's README has the full comparison, under
-[Checked against the literature](README.md#checked-against-the-literature).
+chunks before. The main README has the full comparison, under
+[Checked against the literature](../../README.md#checked-against-the-literature).
 
 ## Verification
 
