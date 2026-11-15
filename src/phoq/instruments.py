@@ -1298,9 +1298,9 @@ class SpectrumAnalyzer(Component):
     """RF (electrical) spectrum analyzer: the power in the resolution bandwidth against
     frequency, in dBm into an AC-coupled input of ``input_impedance``.
 
-    FFT method (README, "RF spectrum analyzer"): anti-alias filter and decimate to f_s =
-    2.56 f_stop, Hann records of N = 1.5 f_s / RBW samples, as many as the video
-    bandwidth asks (:func:`vbw_records`) power-averaged with 50 % overlap, then
+    FFT method (docs/README.md, "RF spectrum analyzer"): anti-alias filter and decimate
+    to f_s = 2.56 f_stop, Hann records of N = 1.5 f_s / RBW samples, as many as the
+    video bandwidth asks (:func:`vbw_records`) power-averaged with 50 % overlap, then
     ``points`` display points through the ``detector``. The input attenuator follows
     the reference level unless set by hand; every dB of it raises the displayed noise
     floor by a dB.
@@ -1678,7 +1678,7 @@ class SpectrumAnalyzer(Component):
         return x[pad : pad + total]
 
     def acquire(self, net: Network, rng: np.random.Generator) -> SpectrumResult:
-        """One sweep (README, "RF spectrum analyzer")."""
+        """One sweep (docs/README.md, "RF spectrum analyzer")."""
         fs, n, k, rbw = self.record()
         hop, R = n // 2, self.input_impedance
         total = n + (k - 1) * hop

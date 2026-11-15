@@ -4,8 +4,8 @@ This document explains what happens between building a `Setup` and reading a num
 instrument: the object model, how light is traced through a setup, how fields are put on a time
 grid, how detectors turn fields into currents and clicks, and how each instrument acquires. It ends
 with what the model leaves out. It is written for people who extend phoq or want to know how far to
-trust its results; the [README](../README.md) covers usage, and its *Theory* section the
-modulator, oscilloscope and spectrum-analyzer physics in more depth.
+trust its results; this directory's [README](README.md) covers usage, and its *Theory* section
+the modulator, oscilloscope and spectrum-analyzer physics in more depth.
 
 | Module | Role |
 | --- | --- |
@@ -58,7 +58,7 @@ varies. The report checks each of those ports against a preset's `bias_voltage_v
 `rf_input_dbm`. The IQ modulator's factor is
 $`\tfrac12[e(\varphi_I) + e^{j\varphi_P}e(\varphi_Q)]`$, with $e$ the signed field of an MZM of finite
 extinction. Its `mean_factor()` averages $|\cdot|^2$ symbol by symbol when I and Q are patterns of
-one length, and over every pairing otherwise (README, "IQ modulator").
+one length, and over every pairing otherwise ([README](README.md#iq-modulator), "IQ modulator").
 
 **Setup.** A `Setup` owns named components and the connections between their ports.
 `connect(a, b)` mates two ports. Two bulkhead optical ports never touch directly: phoq inserts a

@@ -153,8 +153,9 @@ also keeps *heterodyne* (a frequency-shifted local oscillator) apart from *balan
 gets its own shot noise, drawn independently. The INPUT− diode's responsivity is short by
 $10^{-\mathrm{CMRR}/20}$, which is how the CMRR is modeled. The two currents are subtracted before
 the amplifier noise (NEP) is added. Noise above the shot noise limit common to both inputs, the
-laser's δ above all, leaves a residue $`\mathrm{RIN}\,(I_+ - I_-)^2`$. The README's *Balanced
-photodetector* section has the rest: the gain switch, the path-length CMRR and the monitors.
+laser's δ above all, leaves a residue $`\mathrm{RIN}\,(I_+ - I_-)^2`$. The *Balanced
+photodetector* section of [docs/README.md](../docs/README.md#balanced-photodetector) has the rest:
+the gain switch, the path-length CMRR and the monitors.
 
 ## The measurement: `laser_noise.py`
 
@@ -242,7 +243,8 @@ hashes the samples into bits. Each step maps onto the plot:
 - The CMRR residue is classical side information too, which is why the detector is balanced.
 
 The results, and the checks against Gehring et al. (2021) and Park et al. (2025), are in the
-README's *Quantum random numbers from vacuum fluctuations* section.
+*Quantum random numbers from vacuum fluctuations* section of this directory's
+[README](README.md#quantum-random-numbers-from-vacuum-fluctuations).
 
 ![The QRNG's sample spectrum (LO on against dark), its autocorrelation at four sample rates, and the Gaussian histogram of 8-bit codes](../docs/images/qrng.png)
 

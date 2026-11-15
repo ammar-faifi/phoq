@@ -421,8 +421,8 @@ def with_detectors(setup, **values):
 
 
 def cost_rows(paper, th):
-    """The steps from the paper's model to this bench, as in the README: (tau, ports,
-    leak, coherence, p_d, hold, click window)."""
+    """The steps from the paper's model to this bench, as in the package's README: (tau,
+    ports, leak, coherence, p_d, hold, click window)."""
     tau, bench, p_d = paper["tau"], paper["ports"], paper["p_d"]
     lossless = (tau / 2, tau / 2, tau / 2)
     side = (tau / 4, tau / 4, tau / 4)

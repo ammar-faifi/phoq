@@ -5,7 +5,7 @@
     # a DLI for 100 ps pulses: turn DLI-ODL's dial in 3D
     uv run phoq serve examples/odl_validation.py
 
-The README section "Optical delay line" derives the expected values:
+The section "Optical delay line" of docs/README.md derives the expected values:
 
 1. group delay    τ_g = τ₀ + τ, stopped at the end of travel and on the step grid
 2. carrier phase  one fringe per optical period λ/c (5.17 fs at 1550 nm)

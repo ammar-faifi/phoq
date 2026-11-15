@@ -21,9 +21,8 @@ finite-key length reported next to the asymptotic one.
 Three files hold the code. [`station.py`](station.py) sends and handles the messages,
 [`postprocess.py`](postprocess.py) holds Cascade and the Toeplitz hash, and
 [`keyrate.py`](keyrate.py) the decoy bounds, the channel model and the key length. `[#5]` and `[#6]`
-are the `[CLASSICAL #N]` annotations of [`reference.py`](reference.py), which the README's
-[Parties and the classical channel](../../README.md#parties-and-the-classical-channel) table maps
-onto messages.
+are the `[CLASSICAL #N]` annotations of [`reference.py`](reference.py), which the table in this
+directory's [README](README.md#parties-and-the-classical-channel) maps onto messages.
 
 ```mermaid
 sequenceDiagram
@@ -277,9 +276,8 @@ past 3,000 per frame. phoq's f is 1.10, 1.17, 1.38 and 1.92 for estimates of 1, 
 its messages fall from 714 to 52: a smaller k₁ means more top-level parities and shorter searches.
 Their system estimates each frame's QBER from the errors corrected in the frame before
 (q̂ᵢ₊₁ = qᵢ, their §3.2) and discloses no sample, and phoq's stations do the same, pooled over the
-chunks before. The README's
-[Checked against the literature](../../README.md#checked-against-the-literature) has the full
-comparison.
+chunks before. This directory's README has the full comparison, under
+[Checked against the literature](README.md#checked-against-the-literature).
 
 ## Verification
 
@@ -508,7 +506,8 @@ blocks), and then closes on the asymptotic length:
 | 10¹¹ | 160 s | 0.97 |
 
 **Not modeled:** the cost of authentication. The classical channel is authenticated with HMAC and a
-pre-shared key (see the README), so it costs no key bits here; information-theoretic authentication
+pre-shared key (see [docs/README.md](../../docs/README.md#parties-and-the-classical-channel)), so it
+costs no key bits here; information-theoretic authentication
 would spend part of the key on it.
 
 ## Where each step lives

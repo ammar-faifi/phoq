@@ -15,8 +15,8 @@ A delayed self-homodyne needs a delay of several coherence times τc = 1/(πΔν
 the plain Lorentzian (examples/linewidth_homodyne.py). For 1 kHz that is 150–400 km of
 fiber: one spool. For 100 Hz it would be 1,500–3,900 km and 285–740 dB of loss, which no
 spool (500 km at most here) and no bench without amplifiers can give. The way out is a
-delay *shorter* than τc and a fit of the spectrum for any delay (README, "Laser
-linewidth by delayed self-homodyne"; Chen et al., Sensors 24, 3656 (2024), Eqs.
+delay *shorter* than τc and a fit of the spectrum for any delay (docs/README.md,
+"Laser linewidth by delayed self-homodyne"; Chen et al., Sensors 24, 3656 (2024), Eqs.
 (28)–(31)). That fit is the average over the interferometer's bias phase θ, so spectra
 are taken at θ and θ + π/2 (the phase shifter) and averaged.
 

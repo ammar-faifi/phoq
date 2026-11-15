@@ -13,7 +13,7 @@ analyzer.
 
 With τd ≫ τc = 1/(πΔν) the two arms reach the coupler mutually incoherent, and the
 photocurrent's RF spectrum is a Lorentzian at 0 Hz whose half width at half maximum is
-the laser linewidth Δν (README, "Laser linewidth by delayed self-homodyne").
+the laser linewidth Δν (docs/README.md, "Laser linewidth by delayed self-homodyne").
 """
 
 import argparse
