@@ -437,7 +437,10 @@ acquisitions are independent records, not consecutive pieces of one record.
 dead time does to the clicks: how many there are, how a saturated detector strobes a clock, and how
 fine the tagger's bin must be.
 - **Result.** A boolean click record per channel; `timestamps`, `events`, `counts`, `rates` and
-  `coincidences` are derived from it. Clicks have no position inside their bin.
+  `coincidences` are derived from it. For a channel whose detector has `timing_jitter` or whose
+  bins are split into sub-bins, `fine` holds each click's time from the center of its bin, and
+  `timestamps` and `events` add it; otherwise a click is stamped at its bin's center.
+  `coincidences` count the bins in which both channels clicked.
 
 ### RF spectrum analyzer
 
