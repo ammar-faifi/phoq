@@ -515,7 +515,7 @@ class SinglePhotonDetector(_Detector):
         display=("ns", 1e9),
         doc=(
             "How long each click's 1 V pulse lasts, between the 50 % points of its"
-            " edges. An instrument rounds it to its time step, one step at least"
+            " edges"
         ),
     )
     rise_time = Param(
@@ -656,22 +656,31 @@ class SinglePhotonDetector(_Detector):
     ) -> np.ndarray:
         """Electrical output: 1 V pulses of ``width`` (the ``pulse_width`` unless given)
         for every click, each moved by its entry in ``offsets`` [s]
-        (:meth:`click_offsets`), with the output's rise time on both edges. A pulse is
-        the width rounded to whole samples of ``dt``, one at least."""
+        (:meth:`click_offsets`) to the nearest sample, with the output's rise time on
+        both edges. A pulse fills whole samples of ``dt``, and the sample after them
+        holds what is left of the width as a fraction of 1 V: the pulse keeps its width
+        and its area on any grid."""
         if width is None:
             width = self.pulse_width
-        k = max(1, int(round(width / dt)))
+        steps = width / dt
+        if abs(steps - round(steps)) < 1e-9:  # a width on the grid stays exact
+            steps = round(steps)
+        k = int(steps)  # samples at 1 V
+        part = steps - k  # … and the next one's fraction
         v = clicks.astype(float)
         if offsets is not None and np.any(offsets):
             at = np.flatnonzero(clicks) + np.rint(np.asarray(offsets) / dt).astype(int)
             v = np.zeros(clicks.size)
             v[at[(at >= 0) & (at < v.size)]] = 1.0
-        if k > 1:
-            # the clicks among each sample's last k: a running sum, as fast for a long
-            # pulse as for a short one
+        # the clicks among each sample's last k: a running sum, as fast for a long pulse
+        # as for a short one
+        c = np.zeros(v.size)
+        if k:
             c = np.cumsum(v)
             c[k:] = c[k:] - c[:-k]
-            v = np.minimum(1.0, c)
+        if part and k < v.size:
+            c[k:] += part * v[: v.size - k]
+        v = np.minimum(1.0, c)
         sigma = self.rise_time / GAUSS_RISE / dt  # of the edges' Gaussian [samples]
         if sigma > 0.25:  # edges finer than the samples stay steps
             m = int(math.ceil(4 * sigma))

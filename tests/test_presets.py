@@ -266,6 +266,17 @@ def test_pdm_ir_desktop_and_small_form_factor_differ_only_in_dark_counts():
     assert spad.efficiency_at(1550e-9) == pytest.approx(0.25)
 
 
+def test_spad_presets_set_the_datasheets_10_ns_output_pulse():
+    """PDM-IR datasheet v2.1, p. 3, PHOTON OUT: 10 ns typ. SPCM-AQRH Rev 2020-10,
+    Table 1: 10 ns typ for the -1X pulse model, ± 2 ns by note 8."""
+    ids = ["mpd/pdm-ir", "mpd/pdm-ir-sff"]
+    ids += [f"excelitas/spcm-aqrh-1{grade}-fc" for grade in range(7)]
+    for pid in ids:
+        assert presets.get(pid).provenance["pulse_width"].kind == "datasheet-typ"
+        assert SinglePhotonDetector(preset=pid).pulse_width == 10e-9, pid
+    assert SinglePhotonDetector().pulse_width == 5e-9  # without a preset, as before
+
+
 def test_curve_schema_is_checked(tmp_path):
     head = 'component = "SinglePhotonDetector"\ntitle = "x"\n[curves.efficiency]\n'
     p = presets.parse(

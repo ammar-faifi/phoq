@@ -30,6 +30,7 @@ efficiency = { value = 0.62, from = "derived", spec = "PDE without FC adaptor at
 ref_wavelength = { value = 650e-9, from = "datasheet-condition", spec = "Table 1 PDE row at 650 nm" }
 dark_count_rate = { value = 1000.0, from = "datasheet-max", spec = "Dark count, grade W1 (SPCM-AQRH-W1)", note = "Only a maximum is specified per grade; the unit's test report gives its value. Variation ± 10 % over 6 h at 25 °C, ± 20 % over 5–70 °C case temperature" }
 dead_time = { value = 22e-9, from = "datasheet-typ", spec = "Dead time, -1X / -4X pulse models, count rate below 5 Mc/s", note = "Table 3A lists 24 ns for -1X; Table 1, note 7 and the ordering example give 22 ns" }
+pulse_width = { value = 10e-9, from = "datasheet-typ", spec = "Table 1, Output pulse width, SPCM-AQRH-1X / -4X", note = "Note 8: the standard width, 10 ns ± 2 ns; each module's test data give its own" }
 
 [curves.efficiency]
 from = "datasheet-graph"
@@ -49,7 +50,7 @@ afterpulsing_probability = { typ = 0.005, max = 0.01, note = "first 500 ns after
 count_rate_before_saturation_hz = { min = 12e6, typ = 37e6, note = "the module's count rate falls again at very high flux (Figure 7); the model's dead time is non-paralyzable, ceiling 1/t_d = 45 Mc/s" }
 linearity_correction_factor = "typ 1.02 at 1 Mc/s, 1.16 at 5, 1.40 at 10, 2.35 at 20, 3.32 at 25 Mc/s; the model's dead time alone gives 1/(1 − t_d·CR) = 1.02, 1.12, 1.28, 1.79, 2.22"
 active_area_diameter_m = { min = 170e-6, typ = 180e-6 }
-output_pulse = "TTL into 50 Ω: 10 ns, 2.2 V (-1X; 4.4 V for -4X); the model emits 1 V pulses, and their width is not set by this preset: give the detector pulse_width = 10e-9 to model it. Trigger counters at 1.0 V"
+output_pulse = "TTL into 50 Ω: 2.2 V (-1X; 4.4 V for -4X); the model emits 1 V pulses. Trigger counters at 1.0 V"
 gating = "TTL gate input (50 Ω): counting off in 40 ns typ, on in 60 ns typ; counts less than 2 µs before a gate change lose timing accuracy. Not modeled"
 fiber_adaptor = "FC/PC receptacle optimized for 550 nm and 100 µm core multimode fiber (SPCM-QC6); coupling of single-mode fiber is not specified"
 breakdown_flash = "An avalanche emits light with a broad spectrum; reflected back more than 20 ns later it is detected. Not modeled (matters for back-reflections and detector side channels)"

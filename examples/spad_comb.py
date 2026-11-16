@@ -6,17 +6,18 @@ uv run phoq serve examples/spad_comb.py                # the bench in 3D
 
 The clicks repeat at the laser's clock, so their spectrum is a comb with a line at every
 multiple of it: the repetition spectrum. The analyzer does not see clicks but the
-detector's electrical pulse for each, 5 ns long (phoq's default ``pulse_width``, as the
-PDM-IR preset does not set the datasheet's 10 ns), so it shows that comb times the
-pulse's spectrum, sin(πfw)/(πfw) with w = 5 ns. The lines at odd multiples of 100 MHz
-follow that envelope down, and every multiple of 200 MHz, where it is zero, is gone.
+detector's electrical pulse for each, 10 ns long (the PDM-IR preset's ``pulse_width``,
+from its datasheet), so it shows that comb times the pulse's spectrum, sin(πfw)/(πfw)
+with w = 10 ns. The lines at odd multiples of 50 MHz follow that envelope down, and
+every multiple of 100 MHz, where it is zero, is gone: a 100 MHz clock,
+``build(rate=100e6)``, leaves no line at all.
 
 The randomly placed clicks also leave a pedestal, which the envelope scales the same way,
 so a line stands above its own stretch of pedestal by nearly the same margin at any
 frequency. The SPAD's timing jitter takes exp(−(2πfσ)²) off the lines alone: for the
-preset's 200 ps FWHM, 0.01 dB at 100 MHz and 1.5 dB at 1.1 GHz. The margin grows with
+preset's 200 ps FWHM, 0.003 dB at 50 MHz and 1.6 dB at 1.15 GHz. The margin grows with
 the click rate against the RBW. At the preset's shortest hold-off, 1 µs, and a 4 µs wait,
-the SPAD counts 200 kHz and every line stands about 10 dB clear, 8.4 dB at 1.1 GHz.
+the SPAD counts 200 kHz and every line stands about 10 dB clear, 8.9 dB at 1.15 GHz.
 At a 40 µs hold-off it counts 5 kHz, and at this RBW the comb drowns. A narrower RBW
 digs one line out, as examples/spad_tones.py does.
 """
@@ -37,7 +38,7 @@ from phoq import (
 from phoq.engine import trace
 from phoq.units import fmt_si
 
-RATE = 100e6  # laser repetition rate [Hz]
+RATE = 50e6  # laser repetition rate [Hz]
 PULSE = 100e-12  # laser pulse, FWHM [s]
 HOLD_OFF = 1e-6  # the SPAD's dead time: the preset allows 1 µs to 3 ms
 WAIT = 4e-6  # a live SPAD's mean wait for its next click [s]: sets the light
@@ -95,6 +96,7 @@ def measure(hold_off: float, wait: float, sweeps: int) -> dict:
     return {
         "hold_off": hold_off,
         "rate": 1 / (hold_off + wait),
+        "width": bench["SPD"].pulse_width,
         "f": f,
         "level": level,
         "n": n,
@@ -113,14 +115,15 @@ def plot(readings: list[dict], path: str) -> None:
     for ax, r in zip(axes, readings):
         f = r["f"] / 1e6
         ax.plot(f, r["level"], color="#3987e5", lw=1.0)
-        # the 5 ns pulse's envelope, through the first line
-        env = 20 * np.log10(np.maximum(np.abs(np.sinc(r["f"] * 5e-9)), 1e-6))
-        ref = r["lines"][0] - 20 * math.log10(abs(np.sinc(RATE * 5e-9)))
+        # the pulse's envelope, through the first line
+        w = r["width"]
+        env = 20 * np.log10(np.maximum(np.abs(np.sinc(r["f"] * w)), 1e-6))
+        ref = r["lines"][0] - 20 * math.log10(abs(np.sinc(RATE * w)))
         ax.plot(f, ref + env, color="#d95926", lw=1.0)
         ax.set_ylim(np.median(r["pedestals"]) - 15, r["lines"][0] + 5)
         ax.set_title(
             f"Hold-off {fmt_si(r['hold_off'], 's')}: {fmt_si(r['rate'], 'Hz')} of"
-            " clicks (orange: the 5 ns pulse's envelope)",
+            f" clicks (orange: the {fmt_si(w, 's')} pulse's envelope)",
             loc="left",
         )
         ax.set_ylabel(f"dBm in {fmt_si(RBW, 'Hz')}")

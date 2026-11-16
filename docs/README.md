@@ -323,7 +323,7 @@ detector dead time across records, and what long dead times do to the clicks.
   where its photon arrived, plus the detector's `timing_jitter`, a Gaussian given by its FWHM. Its
   `rise_time` (10–90 %) shapes the edges of the click pulse. Both are 0 by default; the PDM-IR
   presets set the datasheet's 200 ps of jitter. The click pulse is 1 V high and `pulse_width`
-  long, 5 ns by default.
+  long: 5 ns by default, the datasheets' 10 ns in the PDM-IR and SPCM-AQRH presets.
 - **Modulators, oscilloscope and spectrum analyzer:** see
   [Theory](#theory-modulators-delay-lines-balanced-detection-and-the-instruments) below.
 - **Steady-state report:** `phoq.report(setup)` gives mean powers, currents, open-connector

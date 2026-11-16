@@ -241,26 +241,32 @@ def test_spd_output_pulse_has_the_rise_time_on_both_edges():
 
 
 def test_spd_output_pulse_width_is_a_setting():
-    """Dark counts through signal(): every click's pulse lasts pulse_width, rounded to
-    whole samples, and the clicks are the same whatever the width."""
+    """Dark counts through signal(): every click's pulse lasts pulse_width, as whole
+    samples at 1 V and a fraction of the next, so its area is the width on any grid;
+    the clicks are the same whatever the width."""
     d = SinglePhotonDetector(dark_count_rate=1e7, dead_time=100e-9)
     assert d.pulse_width == 5e-9 and "pulse_width" in d.ui_fields()
     n, dt = 100_000, 0.5e-9
     dark = {1550e-9: np.zeros(n)}
-    starts = {}
-    for width in (5e-9, 20e-9, 1.3e-9):  # 1.3 ns is 2.6 samples: 3
+    shapes = {
+        5e-9: [1.0] * 10 + [0.0],
+        20e-9: [1.0] * 40 + [0.0],
+        1.3e-9: [1.0, 1.0, 0.6, 0.0],  # 2.6 samples
+    }
+    starts = []
+    for width, shape in shapes.items():
         d.pulse_width = width
         v = d.signal(dark, dt, np.random.default_rng(1), n)
-        edges = np.diff(v, prepend=0.0, append=0.0)
-        up, down = np.flatnonzero(edges > 0), np.flatnonzero(edges < 0)
+        up = np.flatnonzero(np.diff(v, prepend=0.0) == 1.0)
         assert up.size > 100
-        # the last pulse may run past the record
-        assert set((down - up)[:-1]) == {round(width / dt)}
-        starts[width] = up
-    assert np.array_equal(starts[5e-9], starts[20e-9])
-    # a grid coarser than the pulse: one sample each
-    one = d.waveform(np.array([True, False, True]), 10e-9)
-    assert one.tolist() == [1.0, 0.0, 1.0]
+        # every pulse but the last, which may run past the record
+        pulses = v[up[:-1, None] + np.arange(len(shape))]
+        assert pulses == pytest.approx(np.tile(shape, (up.size - 1, 1)))
+        starts.append(up)
+    assert all(np.array_equal(up, starts[0]) for up in starts)
+    # a grid coarser than the pulse: a fraction of one sample each
+    one = d.waveform(np.array([True, False, True]), 10e-9, width=5e-9)
+    assert one.tolist() == [0.5, 0.0, 0.5]
 
 
 def test_scope_sees_the_click_pulses_at_their_jittered_times():

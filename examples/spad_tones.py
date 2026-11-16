@@ -10,10 +10,11 @@ click, against its hold-off τd. With W ≈ 4 τd there is one line. With W ≪ 
 detector clicks almost every τd, and that rhythm puts a copy of the line every
 1/(τd + W) on each side of it, nearly as tall as the line itself.
 
-The analyzer sees the detector's electrical output, a 5 ns rectangle per click: phoq's
-default ``pulse_width``, as the PDM-IR preset does not set the datasheet's 10 ns. Its
-spectrum has nulls at multiples of 200 MHz, so ``rate=1e9`` shows nothing: that limit
-is the pulse's, not the clicks'. Time stamps have no such null.
+The analyzer sees the detector's electrical output, a 10 ns rectangle per click: the
+PDM-IR preset's ``pulse_width``, from its datasheet. Its spectrum has nulls at multiples
+of 100 MHz, so this bench clocks at 50 MHz: with ``rate=100e6`` the line falls into the
+first null and all but vanishes. That limit is the pulse's, not the clicks'. Time stamps
+have no such null.
 """
 
 import argparse
@@ -32,11 +33,11 @@ from phoq import (
 from phoq.engine import trace
 from phoq.units import fmt_si
 
-RATE = 100e6  # pulse clock [Hz]
+RATE = 50e6  # pulse clock [Hz]
 PULSE = 100e-12  # laser pulse, FWHM [s]
 HOLD_OFF = 40e-6  # the SPAD's dead time [s]
-QUIET = 2.5e-4  # photons per pulse at the SPAD: W ≈ 4 τd
-BRIGHT = 0.1  # … and saturated: W ≈ τd / 100
+QUIET = 5e-4  # photons per pulse at the SPAD: W ≈ 4 τd
+BRIGHT = 0.2  # … and saturated: W ≈ τd / 100
 SPAN = 130e3  # the analyzer's view on each side of the clock [Hz]
 RBW = 1e3  # [Hz]
 SWEEPS = 100  # averaged: enough for a converged trace

@@ -328,10 +328,15 @@ in proportion to its intensity, bright light at its leading edge. The `timing_ji
 (`units.side_stream`), so the click record is the same with or without them.
 
 For an oscilloscope or a spectrum analyzer, `signal()` turns the clicks into 1 V pulses at those
-times, `pulse_width` long (5 ns by default), with the output's `rise_time` on both edges. The width
-is rounded to whole steps of the instrument's simulated time grid, one step at least: on the
-spectrum analyzer a step is $`1/(10.24\,f_\mathrm{stop})`$, 0.98 ns for a stop frequency of
-100 MHz; on the oscilloscope it is the fine grid of the analog signal (see Oscilloscope below).
+times, `pulse_width` long (5 ns by default, 10 ns in the PDM-IR and SPCM-AQRH presets), with the
+output's `rise_time` on both edges. A pulse starts at the sample of the instrument's simulated
+time grid that holds its click, moved by its jitter rounded to whole samples. It fills whole
+samples, and the sample after them holds what is left of the width as a fraction of 1 V: the pulse
+keeps its width and its area on any grid. On the spectrum analyzer the sample interval is
+$`1/(10.24\,f_\mathrm{stop})`$, 0.98 ns for a stop frequency of 100 MHz, where a 10 ns pulse is
+ten samples at 1 V and one at 0.24 V; on the oscilloscope it is the analog signal's, $`\Delta t/k`$
+(see Oscilloscope below). Unless the width is a whole number of samples, the nulls of the pulse's
+spectrum, at multiples of 1/`pulse_width`, are deep but not complete.
 
 **Power meter.** No time grid: it reads `Network.mean_powers` (section 8), weighted by its InGaAs
 head's responsivity relative to the calibration wavelength.
@@ -553,8 +558,7 @@ with the time average of synthesized fields: 0.1085 mW against 0.1091 ± 0.0016 
   SPAD's response, and 0 by default; no afterpulsing, no gating or twilight events. Dead time is
   non-paralyzable. It carries across the photon counter's chunks, and into the next acquisition
   when that continues the record, so it may be longer than a chunk. The output pulse is 1 V high,
-  whatever the module's NIM or TTL level, and its width is `pulse_width` rounded to the
-  instrument's time step.
+  whatever the module's NIM or TTL level, and a rectangle whose two edges share one `rise_time`.
 
 **Instruments**
 

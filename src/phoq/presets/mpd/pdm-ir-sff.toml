@@ -35,6 +35,7 @@ dark_count_rate = { value = 500.0, from = "datasheet-typ", spec = "p. 3, DCR, SM
 ref_wavelength = { value = 1550e-9, from = "datasheet-condition", spec = "p. 3, PDE is specified at λ = 1550 nm" }
 dead_time = { value = 100e-6, from = "datasheet-typ", spec = "p. 3, Hold-off time at which the DCR is specified; software-selectable 1 µs … 3 ms in 10 ns steps", min = 1e-6, max = 3e-3 }
 timing_jitter = { value = 200e-12, from = "datasheet-typ", spec = "p. 3, Timing jitter (FWHM), V_EX = 4 V (all working modes), 10 µm SPAD", min = 130e-12, note = "At V_EX = 7 V (fixed-gate mode only): 100 ps typ, 70 ps min (p. 3). The model's jitter is a Gaussian: the IRF's exponential decay (60 ps typ, 100 ps max, p. 3) and the secondary bump above 6 V (note 3, p. 3) are not modeled" }
+pulse_width = { value = 10e-9, from = "datasheet-typ", spec = "p. 3, PHOTON OUT, Pulse width" }
 
 [curves.efficiency]
 from = "datasheet-graph"
@@ -48,6 +49,6 @@ irf_decay_time_s = { typ = 60e-12, max = 100e-12, note = "p. 3, V_EX = 4 V; long
 gating = "p. 3: gate width 1 ns … 1.5 ms (p. 1's feature list says 1 ns to 10 µs), gate repetition up to 100 MHz, internal or external trigger with programmable delays. Only free-running operation is modeled"
 afterpulsing = "Not specified beyond the DCR-vs-hold-off curves (p. 2); not modeled"
 spad_temperature_k = { min = 225, max = 243, note = "p. 3, four software-selectable values; not modeled" }
-output_pulse = "p. 3, PHOTON OUT: NIM (−800 mV into 50 Ω) or TTL, 10 ns; the model emits 1 V pulses, and their width is not set by this preset: give the detector pulse_width = 10e-9 to model it"
+output_pulse = "p. 3, PHOTON OUT: NIM (−800 mV into 50 Ω) or TTL; the model emits 1 V pulses"
 case_temperature = "p. 2: no additional thermal loop, so the DCR depends on the case temperature; p. 3: the table's DCR is at a 25 °C case. Not modeled"
 exposed_pigtail = "p. 3, note 2: the exposed fiber is not light-tight; shield it completely for any measurement, the DCR included. Light it picks up is not modeled"
