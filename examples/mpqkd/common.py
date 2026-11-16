@@ -28,13 +28,10 @@ from phoq.sources import Laser
 from phoq.timing import clicked_slots
 from phoq.units import photon_energy
 
-B_ZERO, B_Z, B_X, B_MIXED = (
-    0,
-    1,
-    2,
-    3,
-)  # pair basis: vacuum twice / one vacuum / equal bright / unequal
-L0, LNU, LMU = 0, 1, 2  # intensity levels of a pulse: vacuum, decoy ν, signal μ
+# pair basis: vacuum twice / one vacuum / equal bright / unequal
+B_ZERO, B_Z, B_X, B_MIXED = 0, 1, 2, 3
+# intensity levels of a pulse: vacuum, decoy ν, signal μ
+L0, LNU, LMU = 0, 1, 2
 DET_L, DET_R = 0, 1
 STATIONS = ("ALICE", "BOB")
 
