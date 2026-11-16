@@ -234,6 +234,39 @@ See [examples/laser_noise.md](../examples/laser_noise.md).
 
 ## 5. `synthesize()`: paths on a time grid
 
+**The time grid.** phoq never computes a continuous signal. Each acquisition picks evenly spaced
+times $t_n = t_0 + n\,\Delta t$ and computes fields, photocurrents, clicks and output voltages at
+those times only; $\Delta t$ is the grid's sample interval, and sample $n$ stands for the bin
+$[t_n, t_n + \Delta t)$. The grid belongs to the simulation, not to a part: a laser or a detector
+has no sample interval. An instrument's own sampling is modeled on it: the scope point-samples the
+grid at its sample rate, the analyzer decimates it to its $f_s$, and the photon counter's bins are
+the grid itself, or groups of its sub-bins. Each instrument chooses its grid from its settings
+(section 7), as coarse as what it shows allows, because the cost grows with the number of samples:
+
+| Instrument | Sample interval of its grid | Example |
+| --- | --- | --- |
+| Oscilloscope | its own sample interval $1/f_s$ divided by $`k = \lceil 6\,f_\mathrm{BW}/f_s\rceil`$ | the defaults (20 ns/div, 5 GS/s, 1 GHz): 0.2 ns samples on a 0.1 ns grid |
+| RF spectrum analyzer | $`1/(4 f_s) = 1/(10.24\,f_\mathrm{stop})`$ | 78 ps for a stop frequency of 1.25 GHz, 0.98 ns for 100 MHz |
+| Photon counter | a bin, one period of `bin_rate` or of the laser feeding its detectors, or a sub-bin of it with `oversample` | COW vacuum's 0.5 ns bins of 2 sub-bins: 0.25 ns |
+| Power meter | none: it reads time-averaged powers (section 8) | |
+
+Whatever the sample interval, energy is kept. A laser's envelope is the power averaged over each
+bin (section 4), so a pulse's energy is exact, and so are the mean photocurrent and photon number
+it gives; a single-photon detector's output pulse keeps its area (section 6). The sample interval
+decides the rest:
+
+- Nothing shorter than a sample is resolved. Within a bin the field has no structure, so two
+  pulses inside one bin interfere as if they overlapped; the photon counter's `oversample` splits
+  its bins (section 7).
+- Times fall on samples. Phases and modulator voltages are taken at bin centers (below), a click is
+  stamped at its bin's center unless sub-bins or `timing_jitter` place it, and a detector clicks
+  at most once per bin. A single-photon detector's output pulse starts on a sample, its jitter
+  rounded to whole samples, and the nulls of its spectrum are complete only when `pulse_width` is a
+  whole number of samples (section 6).
+- The cost is samples × paths (section 10). The scope keeps its grid under 200 000 samples, the
+  analyzer a sweep under 4 million samples after decimation, and the photon counter synthesizes a
+  million bins at a time by default.
+
 `synthesize(net, detectors, t, dt, rng, offsets=None)` returns, for each requested detector, a dict
 wavelength → complex field array on the grid `t` (bin starts), in √W; for a detector with several
 optical inputs (the balanced detector) the keys are (input port, wavelength), so each photodiode

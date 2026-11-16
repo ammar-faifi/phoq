@@ -812,8 +812,9 @@ f_s = \min\!\left(f_\mathrm{set},\; N_\max / W\right), \qquad N = f_s W, \qquad 
 ```
 
 so a 5 GS/s scope with 20 000 points runs at 5 GS/s up to 400 ns/div and drops to 2 MS/s at
-1 ms/div, as a real instrument does. Internally the analog signal is computed on a grid
-$\Delta t/k$ with $k = \lceil 6 f_\mathrm{BW}\Delta t\rceil$ (capped) so the front end is resolved,
+1 ms/div, as a real instrument does. Internally the analog signal is computed on a
+[time grid](engine.md#5-synthesize-paths-on-a-time-grid) of $\Delta t/k$ with
+$k = \lceil 6 f_\mathrm{BW}\Delta t\rceil$ (capped) so the front end is resolved,
 then *point-sampled* at the sample instants with no anti-alias filter. A component at frequency
 $f$ therefore appears at the folded frequency
 
@@ -896,8 +897,9 @@ span:
 
 1. **Input.** AC-coupled (the DC photocurrent is blocked), impedance $R_\mathrm{in}$ (`input_impedance`,
    50 Ω). A photodiode's current becomes $v = i R_\mathrm{in}$.
-2. **Anti-alias and sampling.** The signal is computed at $4f_s$, low-passed by a polyphase FIR
-   and decimated to $`f_s = 2.56\,f_\mathrm{stop}`$. Unlike the oscilloscope's point sampling,
+2. **Anti-alias and sampling.** The signal is computed on a
+   [time grid](engine.md#5-synthesize-paths-on-a-time-grid) at $4f_s$, low-passed by a polyphase
+   FIR and decimated to $`f_s = 2.56\,f_\mathrm{stop}`$. Unlike the oscilloscope's point sampling,
    signals above the span do not fold into it.
 3. **RBW is the record length.** Each FFT uses $N$ samples under a Hann window, whose
    equivalent noise bandwidth is $1.5 f_s/N$; phoq sets $N = 1.5 f_s/\mathrm{RBW}$, so one record
