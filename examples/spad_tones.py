@@ -10,9 +10,10 @@ click, against its hold-off τd. With W ≈ 4 τd there is one line. With W ≪ 
 detector clicks almost every τd, and that rhythm puts a copy of the line every
 1/(τd + W) on each side of it, nearly as tall as the line itself.
 
-The analyzer sees the detector's electrical output, which in phoq is a 5 ns rectangle
-per click. Its spectrum has nulls at multiples of 200 MHz, so ``rate=1e9`` shows nothing:
-that limit is the pulse's, not the clicks'. Time stamps have no such null.
+The analyzer sees the detector's electrical output, a 5 ns rectangle per click: phoq's
+default ``pulse_width``, as the PDM-IR preset does not set the datasheet's 10 ns. Its
+spectrum has nulls at multiples of 200 MHz, so ``rate=1e9`` shows nothing: that limit
+is the pulse's, not the clicks'. Time stamps have no such null.
 """
 
 import argparse

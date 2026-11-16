@@ -227,7 +227,7 @@ def test_spd_output_pulse_has_the_rise_time_on_both_edges():
     clicks[200] = True
     dt = 50e-12
     t = np.arange(clicks.size) * dt
-    v = d.waveform(clicks, dt)  # a 5 ns pulse
+    v = d.waveform(clicks, dt)  # the default pulse_width, 5 ns
     assert crossing(t, v, 0.9) - crossing(t, v, 0.1) == pytest.approx(1e-9, rel=0.01)
     late = t > 12e-9
     fall = crossing(t[late], -v[late], -0.1) - crossing(t[late], -v[late], -0.9)
@@ -238,6 +238,29 @@ def test_spd_output_pulse_has_the_rise_time_on_both_edges():
     d.rise_time = 5e-12
     assert set(np.unique(d.waveform(clicks, dt))) == {0.0, 1.0}
     assert {"timing_jitter", "rise_time"} <= set(d.ui_fields())
+
+
+def test_spd_output_pulse_width_is_a_setting():
+    """Dark counts through signal(): every click's pulse lasts pulse_width, rounded to
+    whole samples, and the clicks are the same whatever the width."""
+    d = SinglePhotonDetector(dark_count_rate=1e7, dead_time=100e-9)
+    assert d.pulse_width == 5e-9 and "pulse_width" in d.ui_fields()
+    n, dt = 100_000, 0.5e-9
+    dark = {1550e-9: np.zeros(n)}
+    starts = {}
+    for width in (5e-9, 20e-9, 1.3e-9):  # 1.3 ns is 2.6 samples: 3
+        d.pulse_width = width
+        v = d.signal(dark, dt, np.random.default_rng(1), n)
+        edges = np.diff(v, prepend=0.0, append=0.0)
+        up, down = np.flatnonzero(edges > 0), np.flatnonzero(edges < 0)
+        assert up.size > 100
+        # the last pulse may run past the record
+        assert set((down - up)[:-1]) == {round(width / dt)}
+        starts[width] = up
+    assert np.array_equal(starts[5e-9], starts[20e-9])
+    # a grid coarser than the pulse: one sample each
+    one = d.waveform(np.array([True, False, True]), 10e-9)
+    assert one.tolist() == [1.0, 0.0, 1.0]
 
 
 def test_scope_sees_the_click_pulses_at_their_jittered_times():

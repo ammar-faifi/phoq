@@ -327,8 +327,11 @@ in proportion to its intensity, bright light at its leading edge. The `timing_ji
 σ = FWHM/2.355, adds to either. These draws come from a random stream split off the run's
 (`units.side_stream`), so the click record is the same with or without them.
 
-For an oscilloscope or a spectrum analyzer, `signal()` turns the clicks into 1 V, 5 ns pulses at
-those times, with the output's `rise_time` on both edges.
+For an oscilloscope or a spectrum analyzer, `signal()` turns the clicks into 1 V pulses at those
+times, `pulse_width` long (5 ns by default), with the output's `rise_time` on both edges. The width
+is rounded to whole steps of the instrument's simulated time grid, one step at least: on the
+spectrum analyzer a step is $`1/(10.24\,f_\mathrm{stop})`$, 0.98 ns for a stop frequency of
+100 MHz; on the oscilloscope it is the fine grid of the analog signal (see Oscilloscope below).
 
 **Power meter.** No time grid: it reads `Network.mean_powers` (section 8), weighted by its InGaAs
 head's responsivity relative to the calibration wavelength.
@@ -549,7 +552,9 @@ with the time average of synthesized fields: 0.1085 mW against 0.1091 ± 0.0016 
 - Single-photon detector: the `timing_jitter` is a Gaussian, without the exponential tail of a
   SPAD's response, and 0 by default; no afterpulsing, no gating or twilight events. Dead time is
   non-paralyzable. It carries across the photon counter's chunks, and into the next acquisition
-  when that continues the record, so it may be longer than a chunk.
+  when that continues the record, so it may be longer than a chunk. The output pulse is 1 V high,
+  whatever the module's NIM or TTL level, and its width is `pulse_width` rounded to the
+  instrument's time step.
 
 **Instruments**
 

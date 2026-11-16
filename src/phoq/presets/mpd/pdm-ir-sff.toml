@@ -48,6 +48,6 @@ irf_decay_time_s = { typ = 60e-12, max = 100e-12, note = "p. 3, V_EX = 4 V; long
 gating = "p. 3: gate width 1 ns … 1.5 ms (p. 1's feature list says 1 ns to 10 µs), gate repetition up to 100 MHz, internal or external trigger with programmable delays. Only free-running operation is modeled"
 afterpulsing = "Not specified beyond the DCR-vs-hold-off curves (p. 2); not modeled"
 spad_temperature_k = { min = 225, max = 243, note = "p. 3, four software-selectable values; not modeled" }
-output_pulse = "p. 3, PHOTON OUT: NIM (−800 mV into 50 Ω) or TTL, 10 ns; the model emits 1 V, 5 ns pulses"
+output_pulse = "p. 3, PHOTON OUT: NIM (−800 mV into 50 Ω) or TTL, 10 ns; the model emits 1 V pulses, and their width is not set by this preset: give the detector pulse_width = 10e-9 to model it"
 case_temperature = "p. 2: no additional thermal loop, so the DCR depends on the case temperature; p. 3: the table's DCR is at a 25 °C case. Not modeled"
 exposed_pigtail = "p. 3, note 2: the exposed fiber is not light-tight; shield it completely for any measurement, the DCR included. Light it picks up is not modeled"

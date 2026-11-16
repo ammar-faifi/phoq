@@ -322,7 +322,8 @@ detector dead time across records, and what long dead times do to the clicks.
   click's time is its bin's center or, on a photon counter with sub-bins, the place in the bin
   where its photon arrived, plus the detector's `timing_jitter`, a Gaussian given by its FWHM. Its
   `rise_time` (10–90 %) shapes the edges of the click pulse. Both are 0 by default; the PDM-IR
-  presets set the datasheet's 200 ps of jitter.
+  presets set the datasheet's 200 ps of jitter. The click pulse is 1 V high and `pulse_width`
+  long, 5 ns by default.
 - **Modulators, oscilloscope and spectrum analyzer:** see
   [Theory](#theory-modulators-delay-lines-balanced-detection-and-the-instruments) below.
 - **Steady-state report:** `phoq.report(setup)` gives mean powers, currents, open-connector
@@ -800,8 +801,8 @@ first-order poles at $`f_1 = 1.554\,f_\mathrm{BW}`$, chosen so that $|H(f_\mathr
 
 A 20 MHz front end passes a 10 MHz fundamental at 0.91, its third harmonic at 0.52 and its fifth at
 0.28, so a 10 MHz square wave keeps most of its swing but loses its corners, and an SPD click
-pulse of 5 ns is smeared to about 13 ns. The photodiode's own one-pole bandwidth acts before the
-scope's; the slower of the two dominates.
+pulse of 5 ns, the default `pulse_width`, is smeared to about 13 ns. The photodiode's own one-pole
+bandwidth acts before the scope's; the slower of the two dominates.
 
 **Sampling.** For a timebase of $s$ s/div the window is $W = 10s$. The effective sample rate is
 limited by the record memory $N_\max$ (`max_points`):

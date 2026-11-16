@@ -5,10 +5,11 @@ uv run phoq run examples/spad_comb.py --plot comb.png  # and plot both traces
 uv run phoq serve examples/spad_comb.py                # the bench in 3D
 
 The clicks repeat at the laser's clock, so their spectrum is a comb with a line at every
-multiple of it: the repetition spectrum. The analyzer does not see clicks but phoq's
-5 ns electrical pulse for each, so it shows that comb times the pulse's spectrum,
-sin(πfw)/(πfw) with w = 5 ns. The lines at odd multiples of 100 MHz follow that envelope
-down, and every multiple of 200 MHz, where it is zero, is gone.
+multiple of it: the repetition spectrum. The analyzer does not see clicks but the
+detector's electrical pulse for each, 5 ns long (phoq's default ``pulse_width``, as the
+PDM-IR preset does not set the datasheet's 10 ns), so it shows that comb times the
+pulse's spectrum, sin(πfw)/(πfw) with w = 5 ns. The lines at odd multiples of 100 MHz
+follow that envelope down, and every multiple of 200 MHz, where it is zero, is gone.
 
 The randomly placed clicks also leave a pedestal, which the envelope scales the same way,
 so a line stands above its own stretch of pedestal by nearly the same margin at any

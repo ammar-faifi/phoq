@@ -441,8 +441,8 @@ class BalancedPhotodetector(_Responsive, _Detector):
 
 
 class SinglePhotonDetector(_Detector):
-    """Threshold single-photon detector (SPAD / SNSPD). Its ``out`` port emits 1 V click
-    pulses.
+    """Threshold single-photon detector (SPAD / SNSPD). Its ``out`` port emits a 1 V
+    pulse of ``pulse_width`` (5 ns by default) for every click.
 
     Click probability per time bin: 1 − (1 − p_dark)·exp(−Σ η(λ)·n̄_λ), where n̄_λ is
     the mean photon number in the bin at each wavelength; after a click the detector is
@@ -506,6 +506,18 @@ class SinglePhotonDetector(_Detector):
             " width at half maximum. 0 = none"
         ),
     )
+    pulse_width = Param(
+        5e-9,
+        unit="s",
+        label="Output pulse width",
+        min=100e-12,
+        max=1e-6,
+        display=("ns", 1e9),
+        doc=(
+            "How long each click's 1 V pulse lasts, between the 50 % points of its"
+            " edges. An instrument rounds it to its time step, one step at least"
+        ),
+    )
     rise_time = Param(
         0.0,
         unit="s",
@@ -526,6 +538,7 @@ class SinglePhotonDetector(_Detector):
             "dark_count_rate",
             "dead_time",
             "timing_jitter",
+            "pulse_width",
             "rise_time",
         ]
         if self.curve("efficiency") is not None:
@@ -639,11 +652,14 @@ class SinglePhotonDetector(_Detector):
         return off
 
     def waveform(
-        self, clicks: np.ndarray, dt: float, width: float = 5e-9, offsets=None
+        self, clicks: np.ndarray, dt: float, width: float | None = None, offsets=None
     ) -> np.ndarray:
-        """Electrical output: 1 V pulses of ``width`` for every click, each moved by its
-        entry in ``offsets`` [s] (:meth:`click_offsets`), with the output's rise time on
-        both edges."""
+        """Electrical output: 1 V pulses of ``width`` (the ``pulse_width`` unless given)
+        for every click, each moved by its entry in ``offsets`` [s]
+        (:meth:`click_offsets`), with the output's rise time on both edges. A pulse is
+        the width rounded to whole samples of ``dt``, one at least."""
+        if width is None:
+            width = self.pulse_width
         k = max(1, int(round(width / dt)))
         v = clicks.astype(float)
         if offsets is not None and np.any(offsets):
@@ -651,7 +667,11 @@ class SinglePhotonDetector(_Detector):
             v = np.zeros(clicks.size)
             v[at[(at >= 0) & (at < v.size)]] = 1.0
         if k > 1:
-            v = np.minimum(1.0, np.convolve(v, np.ones(k))[: v.size])
+            # the clicks among each sample's last k: a running sum, as fast for a long
+            # pulse as for a short one
+            c = np.cumsum(v)
+            c[k:] = c[k:] - c[:-k]
+            v = np.minimum(1.0, c)
         sigma = self.rise_time / GAUSS_RISE / dt  # of the edges' Gaussian [samples]
         if sigma > 0.25:  # edges finer than the samples stay steps
             m = int(math.ceil(4 * sigma))
