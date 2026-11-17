@@ -159,7 +159,7 @@ from the chunks verified so far, pooled: the errors Bob corrected in them over t
 with nothing corrected yet, starts at `initial_qber` = 1 %:
 
 ```math
-\hat E_Z^{(i)} = \frac{\sum_{j<i}\text{errors}_j}{\sum_{j<i} n_j}\quad (i \ge 1),\qquad \hat E_Z^{(0)} = 0.01 .
+\hat E_Z^{(i)} = \frac{\sum_{j < i}\text{errors}_j}{\sum_{j < i} n_j}\quad (i \ge 1),\qquad \hat E_Z^{(0)} = 0.01 .
 ```
 
 A chunk discarded at verification counts in neither sum, and until one chunk is verified the
