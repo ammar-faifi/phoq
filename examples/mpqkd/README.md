@@ -19,6 +19,49 @@ mpqkd = import_source("examples/mpqkd")       # the showcase package
 print(mpqkd.run(mpqkd.MPQKDParams(distance=100e3, mu=0.4), rounds=2_000_000, seed=1).summary())
 ```
 
+## Charlie's measurement: single-photon interference
+
+Alice's and Bob's pulses meet on Charlie's 50:50 coupler, whose outputs feed DET-L and DET-R. For
+every round Charlie announces whether exactly one detector clicked, and which one (`charlie.py`);
+rounds with no click or two clicks are dropped. The paper calls this a single-photon interference
+measurement (Box 1, step 2):
+
+- **Single-photon.** Each arm loses 10.1 dB between the link input, where μ is set, and the
+  coupler: 9.5 dB in the 50 km spool and 0.6 dB at the two matings of the patch cord after it. A
+  μ = 0.4 pulse therefore reaches the coupler with 0.039 photons on average. A click almost always
+  comes from one photon, and nothing in it says whose. The name describes the detection, not the
+  sources, which send weak coherent pulses.
+- **Interference.** Which detector clicks depends on Δ, Alice's phase minus Bob's at the coupler.
+  With equal intensities the photon reaches DET-L with probability (1 + sin Δ)/2 and DET-R with
+  (1 − sin Δ)/2: a sine, because the coupler's cross port adds π/2. A round in which only one party
+  sent light splits 50/50. Δ holds both parties' random phases and the phase walk of the two
+  free-running lasers, so a single round's L or R is a coin flip to everyone.
+
+**Why single clicks.** Coincidence detection, as in time-bin MDI-QKD, needs a photon from each
+party and so pays the loss of both arms, 20.2 dB at 100 km. A single click pays one arm's,
+10.1 dB: that halving in dB is the √η scaling of twin-field QKD. Twin-field schemes, however, read
+Δ within single rounds, so they need global phase locking.
+
+**How MP-QKD avoids phase locking.** After Charlie's announcement, Alice and Bob pair two
+single-click rounds i and j, at most `l` = 1000 rounds apart, and read only what differs between
+them:
+
+- **Z pairs**, (0, μ) or (μ, 0): the bit is which round carried the light. Which detector clicked
+  does not matter, so interference plays no part. These pairs give the key.
+- **X pairs**, (μ, μ): each party's bit comes from its own relative phase φ_j − φ_i, and both keep
+  only the pairs whose θ = (φ_j − φ_i) mod π match. For one photon from each party, the same
+  detector in both rounds means Alice's and Bob's relative phases agree; different detectors mean
+  they differ by π, and Bob flips his bit. These pairs check e₁₁ˣ, the phase-error rate that sizes
+  privacy amplification (below).
+
+The phase walk enters both rounds of a pair and cancels, except for how far it went between them.
+Two single-click rounds thus do the job of one coincidence (the abstract's "conventional
+second-order interference"), and the lasers only have to hold their relative phase across the
+pairing interval. With the bench's 3 kHz lasers at 625 MHz, the phase walk gives a pair 1000 rounds
+(1.6 µs) apart a phase-error rate of 1.5 %. In the 20-block run of
+[post_processing.md](post_processing.md), clicks came about every 100 rounds, key pairs were about
+170 ns apart, and e₁₁ˣ came out at 0.16 %.
+
 ## Parties and the classical channel
 
 phoq's [parties framework](../../docs/README.md#parties-and-the-classical-channel) keeps the
