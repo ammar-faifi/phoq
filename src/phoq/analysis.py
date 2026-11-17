@@ -467,10 +467,15 @@ class Session:
 
 
 def echo_lines(workers, stream=None) -> None:
+    """Print the workers' new console lines, each prefixed with its worker's name in
+    brackets. The names are padded to the longest one, so every line starts in the
+    same column: ``[ALICE  ]``, ``[BOB    ]``, ``[CHARLIE]``."""
     stream = stream or sys.stdout
+    workers = list(workers)
+    width = max((len(w.name) for w in workers), default=0)
     for w in workers:
         for line in w.snapshot()["lines"]:
-            print(f"[{w.name}] {line}", file=stream)
+            print(f"[{w.name:<{width}}] {line}", file=stream)
 
 
 def main(

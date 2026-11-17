@@ -667,6 +667,35 @@ def test_analysis_tasks_run_in_worker_processes(tmp_path):
     assert all(w.proc is None for w in workers)
 
 
+def test_echo_lines_pads_the_names_to_one_width():
+    """Every console line starts in the same column: each name in brackets is padded
+    to the longest one."""
+    import io
+
+    from phoq.analysis import echo_lines
+
+    class Worker:
+        def __init__(self, name, lines):
+            self.name, self.lines = name, lines
+
+        def snapshot(self):
+            return {"lines": self.lines}
+
+    out = io.StringIO()
+    echo_lines(
+        [Worker("ALICE", ["a"]), Worker("BOB", ["b", "c"]), Worker("CHARLIE", ["d"])],
+        out,
+    )
+    assert out.getvalue().splitlines() == [
+        "[ALICE  ] a",
+        "[BOB    ] b",
+        "[BOB    ] c",
+        "[CHARLIE] d",
+    ]
+    echo_lines([], out)  # a session without tasks echoes nothing
+    assert out.getvalue().count("\n") == 4
+
+
 def test_api_lists_and_controls_tasks(tmp_path):
     from fastapi.testclient import TestClient
     from phoq.analysis import load_tasks
