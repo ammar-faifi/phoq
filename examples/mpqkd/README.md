@@ -62,6 +62,27 @@ pairing interval. With the bench's 3 kHz lasers at 625 MHz, the phase walk gives
 [post_processing.md](post_processing.md), clicks came about every 100 rounds, key pairs were about
 170 ns apart, and e₁₁ˣ came out at 0.16 %.
 
+**Why double clicks are dropped.** A double click helps neither the X pairs nor the key:
+
+- **No X bit.** In an X pair, the detectors tell Bob whether his relative phase agrees with
+  Alice's or differs by π. The two cases differ by a π shift of Δ in one round, and that shift
+  swaps the coupler's two outputs. With matched detectors, both firing is as likely after the swap
+  as before, so a double click cannot tell the cases apart, and Bob would be wrong half the time.
+- **No credited key bits.** One photon fires only one detector, so a double click needs two
+  photons in one round, or a dark count or afterpulse in the second detector. Privacy
+  amplification credits only the share q₁₁ of pairs in which Alice and Bob each sent one photon.
+  With a click in each round, such a pair holds one photon per round, so light alone never gives
+  it a double click. Key bits from double clicks would cost error-correction parities, then be
+  removed by privacy amplification.
+
+Dropping them costs little: a double click needs two photons to cross the fiber in one round, so
+it scales with η, like a coincidence, where a single click scales with √η. The `run()` above with
+2 × 10⁷ rounds counts about 750 double clicks against 193,000 single clicks, 0.39 % of detections.
+Nor does the rule open a loophole, because Charlie is untrusted: the security proof already lets
+him announce anything, and Alice and Bob bound q₁₁ and check e₁₁ˣ on the rounds they keep. A BB84
+receiver, whose detectors are trusted, cannot simply drop double clicks; the usual rule gives each
+one a random bit.
+
 ## Parties and the classical channel
 
 phoq's [parties framework](../../docs/README.md#parties-and-the-classical-channel) keeps the
