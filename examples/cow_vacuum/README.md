@@ -19,6 +19,10 @@ phoq run --protocol cow_vacuum --blocks 20
 phoq serve --protocol cow_vacuum
 ```
 
+```bash
+uv run phoq run examples/cow_vacuum/settings.py --plot settings.png   # one wrong setting at a time
+```
+
 **The states.** A pair takes two time slots: bit 0 is |0⟩|α⟩, bit 1 is |α⟩|0⟩, decoy sequence 1 is
 |α⟩|α⟩ and decoy sequence 2, the new one, is |0⟩|0⟩. The data detector D_T reads the bit from the
 time of arrival: T_0 is the slot where bit 0 has its pulse, and T_1 the other. (The paper's Sec. III
@@ -154,6 +158,11 @@ wrong setting does to it:
 | Dark counts at 600 Hz, the datasheet's maximum | 0.708 | 0.218 | 0.290 | 0.200 | 0.867 |
 | Hold-off of 100 µs, the datasheet's | 0.563 | 0.235 | 0.203 | 0.125 | 0.934 |
 | No timing jitter | 0.514 | 0.212 | 0.197 | 0.105 | 0.946 |
+
+![E_p^u stacked from beta, M0 and M1 for each setting, then each part on one scale: μ moves beta far more than any fault does, the modulator, the click window and dark counts move M0, and the DLI, the laser and dark counts move M1](../../docs/images/cow-vacuum-settings.png)
+
+*`settings.py --plot`: the table, with $E_p^u$ stacked from its three parts, then each part on one
+scale with the default dashed. Without `--plot`, `settings.py` prints the table.*
 
 The modulator's leak matters more than its power suggests, because it adds to a pulse in amplitude:
 √ε of the pulse's field against ε of its photons. The row with no shared phase uses a very broad
