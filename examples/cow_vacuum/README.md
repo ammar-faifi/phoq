@@ -39,9 +39,12 @@ resulting Eq. (7) into three parts that add up to $E_p^u$, each pointing at diff
 
 | Part | What it is | What raises it |
 | --- | --- | --- |
-| `beta` | the \|β,β⟩ terms, bounded with $Q_{\beta\beta} \le 1$ | too high a μ for the transmittance |
-| `M0` | what the \|α,α⟩ and \|0,0⟩ gains at D_M0 leave unexplained of a single pulse's | a modulator's leak, lost interference, dark counts |
-| `M1` | \|α,α⟩ and \|0,0⟩ clicks at D_M1, which should be dark | the laser's phase noise, the DLI's phase, dark counts |
+| `beta` | \|β,β⟩'s own gain, bounded with $Q_{\beta\beta} \le 1$, and its cross term with \|α,α⟩ at D_M0 | too high a μ for the transmittance |
+| `M0` | what the \|α,α⟩ and \|0,0⟩ gains at D_M0 leave unexplained of a single pulse's, and \|β,β⟩'s cross term with \|0,0⟩ there | a modulator's leak, lost interference, dark counts |
+| `M1` | \|α,α⟩ and \|0,0⟩ clicks at D_M1, which should be dark, and their cross terms with \|β,β⟩ | the laser's phase noise, the DLI's phase, dark counts |
+
+On a perfect bench (no leak, no dark counts, full interference) `M0` and `M1` go to zero, and `beta`
+is what is left: the cost of μ at this transmittance.
 
 With quiet detectors `beta` is most of it, and it grows with μ/η whatever Bob measures. So μ has to
 fall with the transmittance, which is where the paper's $R \propto \eta^2$ comes from. The bound also
@@ -147,17 +150,17 @@ wrong setting does to it:
 
 | Setting | $E_p^u$ | `beta` | `M0` | `M1` | V |
 | --- | --- | --- | --- | --- | --- |
-| Default | 0.557 | 0.229 | 0.209 | 0.119 | 0.938 |
-| No click window | 0.678 | 0.207 | 0.292 | 0.179 | 0.883 |
-| μ = 2·10⁻³ | 0.810 | 0.606 | 0.107 | 0.096 | 0.982 |
-| 40 dB modulator | 0.535 | 0.228 | 0.188 | 0.119 | 0.938 |
-| 25 dB modulator | 0.585 | 0.229 | 0.237 | 0.119 | 0.938 |
-| DLI 30° off its fringe | 0.649 | 0.223 | 0.230 | 0.196 | 0.808 |
-| 10 MHz laser | 0.579 | 0.227 | 0.214 | 0.138 | 0.911 |
-| No phase shared between pulses | 1.067 | 0.179 | 0.363 | 0.525 | 0.000 |
-| Dark counts at 600 Hz, the datasheet's maximum | 0.708 | 0.218 | 0.290 | 0.200 | 0.867 |
-| Hold-off of 100 µs, the datasheet's | 0.563 | 0.235 | 0.203 | 0.125 | 0.934 |
-| No timing jitter | 0.514 | 0.212 | 0.197 | 0.105 | 0.946 |
+| Default | 0.557 | 0.198 | 0.240 | 0.119 | 0.938 |
+| No click window | 0.678 | 0.169 | 0.330 | 0.179 | 0.883 |
+| μ = 2·10⁻³ | 0.810 | 0.568 | 0.145 | 0.096 | 0.982 |
+| 40 dB modulator | 0.535 | 0.198 | 0.219 | 0.119 | 0.938 |
+| 25 dB modulator | 0.585 | 0.197 | 0.269 | 0.119 | 0.938 |
+| DLI 30° off its fringe | 0.649 | 0.192 | 0.261 | 0.196 | 0.808 |
+| 10 MHz laser | 0.579 | 0.196 | 0.245 | 0.138 | 0.911 |
+| No phase shared between pulses | 1.067 | 0.148 | 0.394 | 0.525 | 0.000 |
+| Dark counts at 600 Hz, the datasheet's maximum | 0.708 | 0.176 | 0.332 | 0.200 | 0.867 |
+| Hold-off of 100 µs, the datasheet's | 0.563 | 0.203 | 0.235 | 0.125 | 0.934 |
+| No timing jitter | 0.514 | 0.185 | 0.225 | 0.105 | 0.946 |
 
 ![E_p^u stacked from beta, M0 and M1 for each setting, then each part on one scale: μ moves beta far more than any fault does, the modulator, the click window and dark counts move M0, and the DLI, the laser and dark counts move M1](../../docs/images/cow-vacuum-settings.png)
 
@@ -197,7 +200,7 @@ print(cv.run(blocks=20, seed=4).summary())
 ```
 COW with vacuum decoys over 25 km, μ = 0.0004, decoys 0.25 + 0.25, t_B = 0.5, 4,000,000 pairs (8,000,000 slots at 1000 MHz)
 sifted 16: Q 8.004e-06 (expected 8.349e-06) · E_b 0.0000 on the whole sifted key (expected 0.0132)
-E_p^u 1.440 ± 1.321 (expected 0.557): |β,β⟩ 0.240, M0 0.750, M1 0.450 (expected 0.229, 0.209, 0.119)
+E_p^u 1.440 ± 1.321 (expected 0.557): |β,β⟩ 0.240, M0 0.750, M1 0.450 (expected 0.198, 0.240, 0.119)
 |α,α⟩ at D_M0 1, D_M1 0 · |0,0⟩ at D_M0 0, D_M1 1 · V 1.0000 (expected 0.9382, not in the bound)
 boundaries where both pulses meet: D_M0 4, D_M1 0 · V 1.0000 (expected 0.9382, not in the bound)
 ```
@@ -224,7 +227,7 @@ at 250 blocks:
 | Boundary clicks where both pulses meet, at D_M0, D_M1 | 423, 14 | 399, 12.7 |
 | V inside the pairs, at the boundaries | 0.953, 0.936 | 0.938, 0.938 |
 | $E_p^u$ | 0.564 ± 0.037 | 0.557 |
-| `beta`, `M0`, `M1` | 0.232, 0.225, 0.106 | 0.229, 0.209, 0.119 |
+| `beta`, `M0`, `M1` | 0.196, 0.261, 0.106 | 0.198, 0.240, 0.119 |
 
 The comparison with the paper is in the main README, under
 [Checked against the literature](../../README.md#checked-against-the-literature).

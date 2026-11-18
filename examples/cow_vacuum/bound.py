@@ -79,13 +79,18 @@ def phase_error(mu: float, g: Gains) -> float:
 def terms(mu: float, g: Gains) -> dict[str, float]:
     """E_p^u split by what sets each part of Eq. (7); the three add up to it.
 
-    * ``"beta"``: the |β,β⟩ terms, bounded with Q_ββ ≤ 1. Too high a μ for the
-      transmittance shows here.
+    * ``"beta"``: |β,β⟩'s own gain, bounded with Q_ββ ≤ 1, and its cross term with
+      |α,α⟩ at D_M0. Too high a μ for the transmittance shows here.
     * ``"M0"``: what the |α,α⟩ and |0,0⟩ gains at D_M0 leave unexplained of a single
-      pulse's. A modulator's leak (through Q_00^M0), lost interference and dark counts
-      show here.
-    * ``"M1"``: |α,α⟩ and |0,0⟩ clicks at D_M1, which should be dark: the laser's phase
-      noise, the DLI's phase and dark counts show here.
+      pulse's, and the cross term of |β,β⟩ with |0,0⟩ there. A modulator's leak
+      (through Q_00^M0), lost interference and dark counts show here.
+    * ``"M1"``: |α,α⟩ and |0,0⟩ clicks at D_M1, which should be dark, and their cross
+      terms with |β,β⟩: the laser's phase noise, the DLI's phase and dark counts show
+      here.
+
+    The split follows the fixes. On a perfect bench (no leak, no dark counts, full
+    interference) ``M0`` and ``M1`` go to zero, and ``beta`` is what is left: the cost
+    of μ at this transmittance.
     """
     den = 2 * (sum(g.q0a) + sum(g.qa0))
     if not den:
@@ -95,8 +100,8 @@ def terms(mu: float, g: Gains) -> dict[str, float]:
     aa0, aa1 = math.sqrt(g.qaa[0]), math.sqrt(g.qaa[1])
     v0, v1 = math.sqrt(g.q00[0]), math.sqrt(g.q00[1])
     return dict(
-        beta=nm * (e * nm / 4 + e * aa0 + v0) / den,
-        M0=(2 * (g.q0a[0] + g.qa0[0]) - (grow * aa0 - fall * v0) ** 2) / den,
+        beta=nm * e * (nm / 4 + aa0) / den,
+        M0=(2 * (g.q0a[0] + g.qa0[0]) - (grow * aa0 - fall * v0) ** 2 + nm * v0) / den,
         M1=((grow * aa1 + fall * v1) ** 2 + nm * (e * aa1 + v1)) / den,
     )
 

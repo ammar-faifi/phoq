@@ -405,8 +405,8 @@ def test_the_default_operating_point():
     assert th["E_p^u"] == pytest.approx(0.557, abs=0.001)
     assert th["E_b"] == pytest.approx(0.0132, abs=1e-4)
     assert th["Q"] == pytest.approx(8.35e-6, rel=0.01)
-    assert th["terms"]["beta"] == pytest.approx(0.229, abs=0.001)
-    assert th["terms"]["M0"] == pytest.approx(0.209, abs=0.001)
+    assert th["terms"]["beta"] == pytest.approx(0.198, abs=0.001)
+    assert th["terms"]["M0"] == pytest.approx(0.240, abs=0.001)
     assert th["terms"]["M1"] == pytest.approx(0.119, abs=0.001)
     assert th["spill"] == (cv.jitter_spill(200e-12, 0.5e-9),) * 3
     assert th["coherence"] == pytest.approx(math.exp(-math.pi * 1e6 / 1e9))
@@ -547,6 +547,16 @@ def test_settings_show_in_the_terms_of_the_bound():
     free = expected(cv.COWParams(dead_time=0.0))
     assert longer["Q"] < base["Q"] < 0.85 * free["Q"]
     assert abs(longer["E_p^u"] - free["E_p^u"]) < 0.02
+
+
+def test_a_perfect_bench_leaves_only_beta():
+    # the modulator at its limit, a laser of no width, quiet and sharp detectors
+    p = cv.COWParams(extinction_db=80.0, linewidth=0.0, dead_time=0.0)
+    perfect = expected(p, dark_count_rate=0.0, timing_jitter=0.0)
+    assert perfect["terms"]["M0"] == pytest.approx(0.0, abs=1e-3)
+    assert perfect["terms"]["M1"] == pytest.approx(0.0, abs=1e-6)
+    # the cost of μ at this transmittance, the same as on the default bench
+    assert perfect["terms"]["beta"] == pytest.approx(0.198, abs=0.001)
 
 
 def test_what_the_click_window_buys():

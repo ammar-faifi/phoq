@@ -43,7 +43,7 @@ SETTINGS = [
     ("No timing jitter", P(), 0.0, dict(timing_jitter=0.0)),
 ]
 PARTS = (  # bound.terms' keys, their colors and panel titles
-    ("beta", "#3987e5", r"beta: the $|\beta,\beta\rangle$ terms"),
+    ("beta", "#3987e5", "beta: the cost of μ"),
     ("M0", "#d95926", r"M0: unexplained at $D_{M0}$"),
     ("M1", "#199e70", r"M1: clicks at $D_{M1}$"),
 )
