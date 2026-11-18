@@ -69,10 +69,13 @@ pairing interval. With the bench's 3 kHz lasers at 625 MHz, the phase walk gives
   swaps the coupler's two outputs. With matched detectors, both firing is as likely after the swap
   as before, so a double click cannot tell the cases apart, and Bob would be wrong half the time.
 - **No credited key bits.** One photon fires only one detector, so a double click needs two
-  photons in one round, or a dark count or afterpulse in the second detector. Privacy
-  amplification credits only the share q₁₁ of pairs in which Alice and Bob each sent one photon.
-  With a click in each round, such a pair holds one photon per round, so light alone never gives
-  it a double click. Key bits from double clicks would cost error-correction parities, then be
+  photons in one round, or a dark count or afterpulse in the second detector. Weak coherent
+  pulses supply such rounds: Alice and Bob draw each pulse's phase at random and never reveal
+  it, so to Eve a pulse is a Poisson mixture of photon numbers, and its two-photon part alone
+  can fire both detectors. Privacy amplification, however, credits only q₁₁, the share of pairs
+  in which Alice and Bob each sent exactly one photon. With a click in each round, such a pair
+  holds one photon per round, so double clicks come from the multi-photon parts, which count as
+  known to Eve. Key bits from double clicks would cost error-correction parities, then be
   removed by privacy amplification.
 
 Dropping them costs little: a double click needs two photons to cross the fiber in one round, so
