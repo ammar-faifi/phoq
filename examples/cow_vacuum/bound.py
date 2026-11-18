@@ -82,7 +82,8 @@ def terms(mu: float, g: Gains) -> dict[str, float]:
     * ``"beta"``: the |β,β⟩ terms, bounded with Q_ββ ≤ 1. Too high a μ for the
       transmittance shows here.
     * ``"M0"``: what the |α,α⟩ and |0,0⟩ gains at D_M0 leave unexplained of a single
-      pulse's. A modulator's leak (through Q_00^M0) and lost interference show here.
+      pulse's. A modulator's leak (through Q_00^M0), lost interference and dark counts
+      show here.
     * ``"M1"``: |α,α⟩ and |0,0⟩ clicks at D_M1, which should be dark: the laser's phase
       noise, the DLI's phase and dark counts show here.
     """
