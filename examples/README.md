@@ -62,6 +62,7 @@ window walks through COW vacuum's reading line by line, under "Time stamps".
 | [spad_comb.py](spad_comb.py), [spad_tones.py](spad_tones.py) | A SPAD's clicks on the spectrum analyzer: the comb up to 1.25 GHz, and the clock's tone | — |
 | [vacuum_noise_qrng.py](vacuum_noise_qrng.py) | A quantum random number generator from vacuum fluctuations, digitized by the scope | [below](#quantum-random-numbers-from-vacuum-fluctuations) |
 | [clock_sync.py](clock_sync.py) | Alice's clock and the delay recovered from single-photon time stamps | [below](#clock-and-frame-synchronization-from-time-stamps) |
+| [clock_sync_dli.py](clock_sync_dli.py) | The same at 1 GHz on three SPADs: a direct line, and a DLI's bright and dark lines, each with its own pattern | [below](#three-spads-behind-a-dli-at-1-ghz) |
 | [analysis_pairing.py](analysis_pairing.py) | An analysis script on Charlie's clicks: the mode-pairing rate against Eq. (4) of the paper | [Post-processing clicks with your own script](../docs/README.md#post-processing-clicks-with-your-own-script) |
 
 ## Delay-line interferometer: DPSK and the COW monitoring line
@@ -291,6 +292,81 @@ This bench leaves the AWG's `rise_time` and `jitter` and the detector's `timing_
 instant edges and no timing jitter. On a bench both add to σ_t and widen the errors in proportion.
 `tests/test_sync.py` also repeats the patch-cord run and the 25 km run (with a −57 ppm clock and a
 different epoch), checks the carving table's depths, and runs the analysis on hand-made clicks.
+
+### Three SPADs behind a DLI, at 1 GHz
+
+`examples/clock_sync_dli.py` runs the same synchronization on the receiver of a COW link, at one
+setting: 1 GHz symbols (250 ps pulses) over 25 km, SPADs held off 10 µs as free-running InGaAs
+SPADs are, and a 10 ms record in 250 ps tagger bins (`LONG`). It takes about 20 s.
+
+- Bob's 90:10 tap sends 90 % of the light to the direct line's SPAD and the rest through a
+  delay-line interferometer (DLI) to the bright and the dark line's SPADs, all on one tagger, every
+  channel at Bob's unknown epoch. A VOA sets 0.2 photons per "1" pulse at the direct SPAD.
+- The DLI's long arm is one 1 ns symbol, 0.20 m of fiber, longer. As in `examples/cow_vacuum`,
+  standard cords make it 0.25 m longer and a delay line in the short arm takes back the rest. A
+  VOA in the long arm evens out the arms' losses, and the phase shifter is locked so that a pulse
+  adds to the one before it on the bright SPAD.
+
+Two steps change. The clock comes once from all three lines: each line has its own delay, and so
+its own phase of the clock line, so their periodograms add as powers. Each line's delay comes from
+its own pattern, the light it should see in each symbol, in units of a "1" pulse at the line's
+input:
+
+| Bits $s_{k-1}\,s_k$ | 00 | 01 | 10 | 11 |
+| --- | --- | --- | --- | --- |
+| Direct line, $s_k$ | 0 | 1 | 0 | 1 |
+| Bright line, $(s_k+s_{k-1})^2/4$ | 0 | ¼ | ¼ | 1 |
+| Dark line, $(s_k-s_{k-1})^2/4$ | 0 | ¼ | ¼ | 0 |
+
+In the DLI, symbol k holds pulse k through the short arm on top of pulse k − 1 through the long
+one, each arm carrying half a pulse's light. Their fields add on the bright SPAD and cancel on the
+dark one, which lights only where the string changes. Each line needs its own pattern:
+
+- Against the string itself, the bright line peaks at its delay and again one symbol later, as
+  tall, since it holds $s_k$ and $s_{k-1}$ alike. In the run below the two stand 13.9 and 13.8 σ.
+- The dark line does not peak against the string at all: a random string's changes are
+  uncorrelated with the string at every lag. They are as random as the string itself, though, so
+  the dark line's own pattern gives one clear peak.
+
+A DLI that is not locked moves the light of two 1s between its SPADs, and the bright and dark
+patterns no longer hold.
+
+```bash
+phoq run examples/clock_sync_dli.py --plot sync_dli.png
+```
+
+| | direct | bright | dark |
+| --- | --- | --- | --- |
+| Clicks in 10 ms | 996 | 902 | 735 |
+| A live SPAD's mean wait W | 0.004 τd: saturated | 0.11 τd | 0.36 τd |
+| Frame check (σ; best coprime) | 3347, wrong (23 σ; 19.4 σ) | 1000 (17 σ; 3.8 σ) | 1000 (16 σ; 3.6 σ) |
+| Cross-correlation peak against the line's pattern | D = 672, 23 σ | D = 683, 17 σ | D = 683, 20 σ |
+| Δ mod P, error against the traced flight time + epoch | −1 ps | +1 ps | −3 ps |
+| Clicks given their true symbol index | 100 % | 100 % | 100 % |
+| Against the string itself | — | D = 683 (13.9 σ) or 684 (13.8 σ) | no peak (2.8 σ) |
+
+**The hold-off splits the lines in two.** The direct SPAD, with 90 % of the light, waits only
+40 ns once live. Saturated, it clicks almost every 10 µs, and as with the long hold-offs above,
+that rhythm strobes Alice's clock:
+
+- On the direct line alone the clock line has copies every 1/τd, 100 ppm of the clock. The one
+  inside Bob's ±100 ppm search, 76 kHz below nominal, stands 0.95 as tall as the line itself, so
+  which one step 1 picks would be chance. [spad_tones.py](spad_tones.py) shows the same copies on
+  the spectrum analyzer: with W ≪ τd they stand every 1/(τd + W) on each side of the clock line,
+  nearly as tall as the line itself.
+- The rhythm also pulls the direct line's frame check onto 3347, a third of its 10,040 symbols.
+
+The DLI's lines get a tenth of the light, less the DLI's losses, and wait 1 and 4 µs. Their waits
+scatter the rhythm, so they show one clock line and confirm L. Added to the direct line's, their
+periodograms bring the copy down to 0.40 of the line, and the shared clock lands within a ppb of
+Alice's. Every line's delay then comes to a few ps. The DLI's lines sit 11.245 ns behind the
+direct one (traced 11.243 ns): the 1 m cord into the DLI, the short arm's 1.25 m and the delay
+line.
+
+`tests/test_sync_dli.py` runs this setting. It checks each line's clicks against its pattern,
+symbol by symbol, that the string alone cannot place the DLI's lines, and that the DLI's lines
+rescue the saturated direct line's clock. It also runs the analysis on hand-made clicks on all
+three lines.
 
 ## Quantum random numbers from vacuum fluctuations
 

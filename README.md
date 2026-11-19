@@ -124,6 +124,8 @@ Benches and measurements:
   vacuum fluctuations.
 - [clock_sync.py](examples/clock_sync.py): Alice's clock and the delay recovered from
   single-photon time stamps.
+- [clock_sync_dli.py](examples/clock_sync_dli.py): the same at 1 GHz on three SPADs, a direct
+  line and a DLI's bright and dark lines, each with its own pattern.
 - [analysis_pairing.py](examples/analysis_pairing.py): an analysis script on Charlie's clicks,
   the mode-pairing rate against the paper's.
 
