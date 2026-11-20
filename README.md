@@ -134,8 +134,10 @@ Benches and measurements:
 A preset sets a component up as a specific product, with every number traced to its datasheet:
 
 ```python
-im = IntensityModulator("IM-1", preset="exail/mx-ln-10")   # Vπ 5.5 V (RF) / 4.2 V (DC), 22 dB ER, 3.5 dB
-setup["DET-L"].apply_preset("mpd/pdm-ir")                   # on an existing part; "generic" goes back to the defaults
+# Vπ 5.5 V (RF) / 4.2 V (DC), 22 dB ER, 3.5 dB
+im = IntensityModulator("IM-1", preset="exail/mx-ln-10")
+# on an existing part; "generic" goes back to the defaults
+setup["DET-L"].apply_preset("mpd/pdm-ir")
 ```
 
 phoq ships presets for Exail modulators, Hamamatsu (formerly NKT Photonics) fiber lasers, MPD
