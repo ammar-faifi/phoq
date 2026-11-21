@@ -18,6 +18,7 @@ PAGES = (
     "oscilloscope.html",
     "photon-counter.html",
     "time-stamps.html",
+    "clock-recovery.html",
 )
 
 

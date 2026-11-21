@@ -4,11 +4,12 @@
     uv run python tools/walkthroughs/build.py --fragments out/
 
 Each walkthrough steps through code line by line, an instrument's acquire() and the
-methods it calls or a station reading its tagger, beside a screen that draws what each
-line produced. ``<name>.py`` replays those lines on a demo bench, checks the replay
-against the code itself and returns every intermediate array; ``<name>.html`` is the
-page, with ``/*DATA*/`` where the data go. The methods' source is embedded as it is
-now, so rebuild after changing them (tests/test_walkthroughs.py fails until you do).
+methods it calls, a station reading its tagger or Bob recovering Alice's clock, beside a
+screen that draws what each line produced. ``<name>.py`` replays those lines on a demo
+bench, checks the replay against the code itself and returns every intermediate array;
+``<name>.html`` is the page, with ``/*DATA*/`` where the data go. The methods' source is
+embedded as it is now, so rebuild after changing them (tests/test_walkthroughs.py fails
+until you do).
 """
 
 import argparse
@@ -28,6 +29,7 @@ PAGES = {  # capture module and template → published page
     "oscilloscope": "oscilloscope.html",
     "photon_counter": "photon-counter.html",
     "time_stamps": "time-stamps.html",
+    "clock_recovery": "clock-recovery.html",
 }
 
 

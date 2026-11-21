@@ -1,0 +1,686 @@
+<title>Clock Recovery, Line by Line</title>
+<meta name="viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: source listing on the left, Bob's screen and the step's story on the right;
+   one column on phones, screen first. Dark theme only, like an instrument's screen. */
+:root {
+  --bg: #0d1116;
+  --panel: #141a21;
+  --fg: #e4ebf1;
+  --muted: #93a1af;
+  --line: #26303b;
+  --accent: #facc15;
+  --hl: rgba(250, 204, 21, 0.13);
+  --m-sync: #fbbf24;
+  --m-clock: #60a5fa;
+  --m-pgram: #2dd4bf;
+  --m-phase: #e879f9;
+  --tok-kw: #c4b5fd;
+  --tok-str: #6ee7b7;
+  --tok-num: #fdba74;
+  --tok-com: #6b7a89;
+  --tok-fn: #93c5fd;
+  --scr-bg: #05080a;
+  --scr-bezel: #1b2127;
+  --scr-grid: rgba(134, 178, 150, 0.15);
+  --scr-axis: rgba(134, 178, 150, 0.45);
+  --scr-text: #a9bdb0;
+  --scr-strong: #e8efe9;
+  --scr-trace: #facc15;
+  --scr-2: #22d3ee;
+  --scr-3: #f472b6;
+  --scr-4: #94a3b8;
+  --scr-5: #4ade80;
+  --scr-light: #fb923c;
+  --font-display: "Chakra Petch", "Rajdhani", "Segoe UI", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 28px;
+}
+.wrap { max-width: 1440px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; }
+header.top { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
+.eyebrow { font-family: var(--font-mono); font-size: 12px; letter-spacing: .06em; color: var(--muted); text-transform: uppercase; }
+h1 { font-family: var(--font-display); font-weight: 600; font-size: clamp(26px, 3.4vw, 38px); line-height: 1.1; margin: 0; text-wrap: balance; letter-spacing: .01em; }
+.lede { margin: 0; max-width: 78ch; color: var(--muted); }
+.lede code, footer code { font-family: var(--font-mono); font-size: .92em; color: var(--fg); }
+.bench { font-family: var(--font-mono); font-size: 12.5px; color: var(--muted); margin: 0; max-width: 100%; overflow-x: auto; }
+
+.main { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+@media (max-width: 900px) { .main { grid-template-columns: minmax(0, 1fr); } .right { order: -1; } }
+
+.code { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; min-width: 0; overflow: hidden; }
+.code-scroll { position: relative; max-height: min(78vh, 860px); overflow: auto; padding: 6px 0 14px; scroll-behavior: smooth; }
+@media (max-width: 900px) { .code-scroll { max-height: 46vh; } }
+.method { padding-top: 10px; }
+.method h2 { margin: 0 0 4px; padding: 4px 16px; font-family: var(--font-mono); font-weight: 500; font-size: 13px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; color: var(--muted); }
+.method h2 .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--mc); flex: none; }
+.method h2 b { color: var(--fg); font-weight: 500; }
+.method h2 .file { font-size: 11.5px; color: var(--tok-com); }
+[data-m="synchronize"] { --mc: var(--m-sync); }
+[data-m="recover_clock"] { --mc: var(--m-clock); }
+[data-m="periodogram"] { --mc: var(--m-pgram); }
+[data-m="symbol_phase"] { --mc: var(--m-phase); }
+pre { margin: 0; font-family: var(--font-mono); font-size: 12.5px; line-height: 1.6; width: max-content; min-width: 100%; }
+.ln { display: grid; grid-template-columns: 3.2em auto; padding-right: 14px; border-left: 3px solid transparent; transition: background .35s ease, border-color .35s ease, opacity .35s ease; }
+.ln .no { color: var(--tok-com); text-align: right; padding-right: 1em; user-select: none; }
+.ln .tx { white-space: pre; }
+.code.active .ln { opacity: .55; }
+.code.active .method.cur .ln { opacity: .8; }
+.code.active .ln.on, .code.active .method.cur .ln.on { opacity: 1; background: var(--hl); border-left-color: var(--mc); }
+.k { color: var(--tok-kw); } .s { color: var(--tok-str); } .n { color: var(--tok-num); } .c { color: var(--tok-com); font-style: italic; } .f { color: var(--tok-fn); }
+
+.right { display: grid; gap: 12px; min-width: 0; }
+.instrument { background: var(--scr-bezel); border-radius: 12px; padding: 10px; box-shadow: 0 1px 0 rgba(255,255,255,.05) inset, 0 8px 24px rgba(0,0,0,.18); }
+.instrument .bar { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 0 4px 8px; font-family: var(--font-display); color: var(--scr-text); font-size: 13px; letter-spacing: .05em; }
+.instrument .bar .run { font-family: var(--font-mono); font-size: 11px; padding: 2px 8px; border-radius: 4px; background: rgba(52, 211, 153, .15); color: var(--scr-5); }
+canvas { display: block; width: 100%; aspect-ratio: 16 / 10; max-width: 100%; background: var(--scr-bg); border-radius: 6px; }
+
+.caption { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px 16px; display: grid; gap: 8px; min-height: 9.5em; }
+.cap-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.cap-head .where { font-family: var(--font-mono); font-size: 12px; color: var(--mc, var(--muted)); }
+.cap-head h3 { margin: 0; font-family: var(--font-display); font-weight: 600; font-size: 19px; line-height: 1.25; text-wrap: balance; }
+.caption p { margin: 0; max-width: 68ch; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-family: var(--font-mono); font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); font-variant-numeric: tabular-nums; }
+.chip b { color: var(--fg); font-weight: 500; }
+
+.controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.controls button { font: 500 14px var(--font-body); color: var(--fg); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 7px 14px; cursor: pointer; min-width: 44px; }
+.controls button:hover { border-color: var(--accent); }
+.controls button:focus-visible, .seg:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.controls button.primary { background: var(--fg); color: var(--bg); border-color: var(--fg); min-width: 88px; }
+.counter { font-family: var(--font-mono); font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; margin-left: auto; }
+.track { display: flex; gap: 3px; width: 100%; }
+.seg { flex: 1 1 0; height: 9px; border-radius: 3px; background: var(--mc); opacity: .28; border: 0; padding: 0; cursor: pointer; transition: opacity .25s, transform .25s; }
+.seg.done { opacity: .6; } .seg.cur { opacity: 1; transform: scaleY(1.45); }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; background: var(--mc); }
+footer { color: var(--muted); font-size: 13px; max-width: 90ch; }
+@media (prefers-reduced-motion: reduce) { .ln, .seg { transition: none; } .code-scroll { scroll-behavior: auto; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="eyebrow">phoq · examples/clock_sync.py</div>
+    <h1>Clock Recovery, Line by Line</h1>
+    <p class="lede">How Bob, whose time tagger runs on its own clock, finds Alice's symbol clock and its phase in his time stamps alone: step 1 of <code>examples/clock_sync.py</code>. The walk follows <code>synchronize()</code> into <code>recover_clock()</code> and the <code>periodogram()</code> it calls, then <code>symbol_phase()</code>, where steps 2 and 3 start. Every mark on the screen comes from the arrays those lines produced on the bench below: the lines were replayed and checked against the functions themselves, and what the screen draws of Alice's side was checked against the bench.</p>
+    <pre class="bench" id="bench"></pre>
+  </header>
+
+  <div class="main">
+    <div class="code" id="code" aria-label="Source code of the functions Bob runs on his time stamps"><div class="code-scroll" id="codeScroll"></div></div>
+
+    <div class="right">
+      <div class="instrument">
+        <div class="bar"><span>BOB · TIME STAMPS → ALICE'S CLOCK</span><span class="run" id="scrState">RUN</span></div>
+        <canvas id="scr" width="960" height="600" role="img" aria-label="Bob's screen showing the effect of the highlighted line"></canvas>
+      </div>
+      <div class="controls">
+        <button id="prev" type="button" aria-label="Previous step">◀</button>
+        <button id="play" type="button" class="primary">Pause</button>
+        <button id="next" type="button" aria-label="Next step">▶</button>
+        <span class="counter" id="counter">1 / 1</span>
+      </div>
+      <div class="track" id="track" role="tablist" aria-label="Steps"></div>
+      <div class="legend">
+        <span data-m="synchronize"><i></i>synchronize()</span>
+        <span data-m="recover_clock"><i></i>recover_clock()</span>
+        <span data-m="periodogram"><i></i>periodogram()</span>
+        <span data-m="symbol_phase"><i></i>symbol_phase()</span>
+      </div>
+      <div class="caption" id="caption" aria-live="polite">
+        <div class="cap-head"><span class="where" id="capWhere"></span><h3 id="capTitle"></h3></div>
+        <p id="capBody"></p>
+        <div class="chips" id="capChips"></div>
+      </div>
+    </div>
+  </div>
+  <footer>Keys: ← and → step, Space plays or pauses. Data: <code>examples/clock_sync.py</code>'s default bench with patch cords only, one record. Alice's true clock and her pulses are drawn for comparison: Bob never sees them. That record takes the FFT branch, so the step on the other branch follows a second record, long enough to need it, and the runner-up step compares the two.</footer>
+</div>
+
+<script id="data" type="application/json">/*DATA*/</script>
+<script>
+(() => {
+"use strict";
+const D = JSON.parse(document.getElementById("data").textContent);
+const N = D.nums, STAMP = D.t, ZM = D.zoom, WH = D.whole, B = D.bars, FN = D.fine, P = D.para, SAT = D.sat;
+const ORDER = ["synchronize", "recover_clock", "periodogram", "symbol_phase"];
+const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/* ---------- source listing with a small Python highlighter ---------- */
+const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const KW = new Set(["def", "return", "if", "elif", "else", "for", "in", "and", "or", "not", "is", "None", "True", "False", "import", "from", "as", "with", "while", "lambda"]);
+function hl(line, st) {
+  let out = "", i = 0;
+  if (st.doc) {
+    const j = line.indexOf('"""');
+    if (j < 0) return [`<span class="s">${esc(line)}</span>`, st];
+    out += `<span class="s">${esc(line.slice(0, j + 3))}</span>`; i = j + 3; st = { doc: false };
+  }
+  const re = /(#.*$)|("""|"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')|(\b\d[\d_]*(?:\.\d*)?(?:e[-+]?\d+)?\b)|(@?[A-Za-z_]\w*)/g;
+  re.lastIndex = i;
+  let m, last = i;
+  while ((m = re.exec(line))) {
+    out += esc(line.slice(last, m.index));
+    if (m[1]) out += `<span class="c">${esc(m[1])}</span>`;
+    else if (m[2] === '"""') {
+      const j = line.indexOf('"""', m.index + 3);
+      if (j < 0) { out += `<span class="s">${esc(line.slice(m.index))}</span>`; return [out, { doc: true }]; }
+      out += `<span class="s">${esc(line.slice(m.index, j + 3))}</span>`; re.lastIndex = j + 3; last = j + 3; continue;
+    } else if (m[2]) out += `<span class="s">${esc(m[2])}</span>`;
+    else if (m[3]) out += `<span class="n">${m[3]}</span>`;
+    else if (m[4]) {
+      const w = m[4], nxt = line[m.index + w.length];
+      if (w[0] === "@") out += `<span class="k">${w}</span>`;
+      else if (KW.has(w)) out += `<span class="k">${w}</span>`;
+      else if (nxt === "(") out += `<span class="f">${w}</span>`;
+      else out += w;
+    }
+    last = re.lastIndex;
+  }
+  out += esc(line.slice(last));
+  return [out, st];
+}
+const LABELS = {
+  synchronize: "synchronize(t, string, f_nom=F_NOM)",
+  recover_clock: "recover_clock(t, f_nom=F_NOM, search_ppm=SEARCH_PPM)",
+  periodogram: "periodogram(t, freqs)",
+  symbol_phase: "symbol_phase(t, f)",
+};
+const FILE = "examples/clock_sync.py";
+const codeScroll = document.getElementById("codeScroll");
+const LINES = {};
+for (const m of ORDER) {
+  const sec = document.createElement("section");
+  sec.className = "method"; sec.dataset.m = m;
+  sec.innerHTML = `<h2><span class="dot"></span><b>${esc(LABELS[m])}</b><span class="file">${esc(FILE)}</span></h2>`;
+  const pre = document.createElement("pre");
+  let st = { doc: false };
+  const raw = D.src[m].replace(/\n+$/, "").split("\n");
+  const ind = raw[0].length - raw[0].trimStart().length, pad = " ".repeat(ind);
+  LINES[m] = [];
+  raw.forEach((ln, i) => {
+    const [html, s2] = hl(ln.startsWith(pad) ? ln.slice(ind) : ln, st); st = s2;
+    const row = document.createElement("div");
+    row.className = "ln";
+    row.innerHTML = `<span class="no">${i + 1}</span><span class="tx">${html || " "}</span>`;
+    pre.appendChild(row); LINES[m].push(row);
+  });
+  sec.appendChild(pre); codeScroll.appendChild(sec);
+}
+
+/* ---------- numbers, all from the data ---------- */
+const nf = (v, d = 0) => Number(v).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+const fmt = (v) => nf(v, 0);
+const sgn = (v, d = 0) => (v < 0 ? "−" : "+") + nf(Math.abs(v), d);
+const ppm = (f) => (f / N.f_nom - 1) * 1e6;
+const ms = (s, d = 1) => nf(s * 1e3, d);
+const us = (s, d = 0) => nf(s * 1e6, d);
+const ns = (s, d = 2) => nf(s * 1e9, d);
+const mhz = (f, d = 0) => nf(f / 1e6, d);
+const n = STAMP.length;
+const SPAN_MS = (STAMP[n - 1] - STAMP[0]) * 1e-6;
+const DRIFT = (N.f_a - N.f_nom) * N.span;  // turns the phase walks at the nominal rate
+const SINC = Math.sin(Math.PI / N.carve) / (Math.PI / N.carve);
+const PULSE = 1 / (N.carve * N.f_a);  // Alice's pulse [s]
+const HALF_HZ = N.f_nom * N.search_ppm * 1e-6;
+const MB = (rows) => nf(rows * N.N * 16 / 1e6, 1);
+const ppbOf = (df, f) => df / f * 1e9;
+const harm = (k) => WH.db[Math.min(WH.db.length - 1, Math.floor(k * N.f_a / WH.group_hz))];
+const COPIES = SAT.z.reduce((c, v, i, a) => c + (i > 0 && i < a.length - 1 && v > 0.5 && v >= a[i - 1] && v > a[i + 1] ? 1 : 0), 0);
+const SECOND_DB = Math.max(...B.db.filter((v, i) => B.win[i] && i !== B.coarse));
+// which of the saturated record's copies the scan picked, and where Alice's clock came
+const atAlice = (p) => Math.abs(p - SAT.f_a_ppm) < SAT.copy_ppm / 2;
+const SAT_PICK = atAlice(SAT.coarse_ppm)
+  ? `the scan picked the one at Alice's clock by chance: the runner-up, at ${sgn(SAT.runner_ppm, 2)} ppm, is as tall`
+  : `the scan picked the one at ${sgn(SAT.coarse_ppm, 2)} ppm, ${nf(Math.abs(SAT.err_ppm), 1)} ppm from Alice's clock${atAlice(SAT.runner_ppm) ? ", which came second" : ""}`;
+const DL = N.delays;
+const bench = document.getElementById("bench");
+bench.textContent =
+  `CW laser → IM, the AWG at ${mhz(N.carve * N.f_a)} MS/s playing (s_k, 0, 0, 0): ${ns(PULSE, 1)} ns pulses on Alice's ${mhz(N.f_nom)} MHz clock, ${sgn(N.ppm, 1)} ppm → VOA, μ = ${N.mu} per pulse → patch cords → SPD, ${Math.round(N.eff * 100)} % PDE, ${N.dcr} Hz dark counts, ${us(N.dead_time)} µs dead time → free-running TAGGER, ${nf(N.resolution * 1e12)} ps bins\n` +
+  `a ${fmt(N.L)}-bit random string, repeated; one ${ms(N.record, 0)} ms record, ${fmt(N.N)} clicks · second record: ${mhz(SAT.rate / 1e3)} GHz, ${nf(SAT.resolution * 1e12)} ps bins, μ = ${SAT.mu}, ${us(SAT.dead_time)} µs dead time, ${ms(SAT.record, 0)} ms, ${SAT.N} clicks`;
+
+/* ---------- the steps ---------- */
+const S = [
+  { m: "synchronize", a: 1, b: 1, sc: "record", t: "Bob's time stamps",
+    p: `Bob's tagger runs on its own clock, so all he has of Alice's is ${fmt(N.N)} time stamps from a ${ms(N.record, 0)} ms record, the string they agreed on, and the nominal symbol rate, ${mhz(N.f_nom)} MHz. The detector's ${us(N.dead_time)} µs dead time spaces the clicks about ${us(N.span / N.N, 2)} µs apart. synchronize() starts with step 1: recover_clock() finds the rate at which Alice's pulses really came.`,
+    c: [["clicks", fmt(N.N)], ["record", `${ms(N.span, 4)} ms`], ["nominal", `${mhz(N.f_nom)} MHz`]] },
+  { m: "recover_clock", a: 3, b: 6, sc: "scatter", f: "nom", t: "At the nominal rate, the phase walks",
+    p: `Fold each stamp at the nominal rate: frac(f_nom·tᵢ) is where in a symbol it fell. Alice's clock runs ${N.ppm} ppm fast, ${sgn(N.f_a - N.f_nom)} Hz, so across the record the clicks' phase walks through the symbol ${nf(DRIFT, 1)} times. Step 1 finds the rate at which the walk stops: an FFT finds it to the nearest FFT bin, then the periodogram of the stamps refines it.`,
+    c: [["f_A − f_nom", `${sgn(N.f_a - N.f_nom)} Hz`], ["walk", `${nf(DRIFT, 1)} turns`]] },
+  { m: "recover_clock", a: 8, b: 11, sc: "table", t: "Three scales",
+    p: `A frequency error δf tilts the clicks' phase by δf·T turns across the record. At δf = 1/T = ${nf(N.step, 1)} Hz the phasors make one full turn and cancel, so one FFT bin, step, is the width of Alice's line: ${nf(ppm(N.f_nom + N.step), 2)} ppm, against Bob's ±${N.search_ppm} ppm search. dt cuts the record into 8 bins per symbol, ${ns(N.dt)} ns, which puts the histogram's Nyquist frequency at 4·f_nom, far above the line.`,
+    rows: [["span", `${ms(N.span, 4)} ms`, "T = t[−1] − t[0]", 1], ["dt", `${ns(N.dt)} ns`, "8 bins per symbol"], ["step", `${nf(N.step, 1)} Hz`, "1/T: one FFT bin"]] },
+  { m: "recover_clock", a: 12, b: 12, sc: "table", t: "Will the histogram fit?",
+    p: `At 8 bins per symbol this record makes ${fmt(N.nbins)} bins, well under 2²⁵ = ${fmt(N.limit)}, so it takes the FFT branch. A 2²⁵-bin histogram already takes ${nf(N.limit * 8 / 1e6)} MB as floats. The second record further on, ${ms(SAT.record, 0)} ms at ${mhz(SAT.rate / 1e3)} GHz, would need ${fmt(SAT.nbins)} bins and takes the other branch.`,
+    rows: [["span / dt", fmt(N.nbins), "histogram bins"], ["2²⁵", fmt(N.limit), "the most it builds"], ["branch", "FFT", "span / dt ≤ 2²⁵", 1]] },
+  { m: "recover_clock", a: 13, b: 13, sc: "bins", t: `Count clicks in ${ns(N.dt)} ns bins`,
+    p: `Each stamp adds one to its bin, counted from the first click. This click fell in bin ${fmt(ZM.bin)}, under one of Alice's ${ns(PULSE, 1)} ns pulses: a 1 of the string, centered on her tick. ${nf(N.under, 2)} % of the clicks fall under a pulse; the rest are light that the ${nf(N.extinction)} dB modulator leaks between pulses. Only ${fmt(N.N)} of the ${fmt(N.nbins)} bins hold a click: what carries the clock is where the clicks are.`,
+    c: [["bin", fmt(ZM.bin)], ["dt", `${ns(N.dt)} ns`], ["under a pulse", `${nf(N.under, 2)} %`]] },
+  { m: "recover_clock", a: 14, b: 15, sc: "whole", t: "The histogram's spectrum",
+    p: `Removing the mean drops the DC term, the average click rate. |rfft|² is then the power at ${fmt(N.fft_size)} frequencies, ${nf(N.fft_spacing, 1)} Hz apart, up to the histogram's Nyquist frequency, ${mhz(WH.f_max)} MHz. The clicks come on Alice's ticks, so the spectrum has a line at her clock, with harmonics at 2f_A and 3f_A, ${nf(-harm(2), 1)} and ${nf(-harm(3), 1)} dB lower.`,
+    c: [["frequencies", fmt(N.fft_size)], ["spacing", `${nf(N.fft_spacing, 1)} Hz`]] },
+  { m: "recover_clock", a: 16, b: 16, sc: "window", t: `Search ±${N.search_ppm} ppm around the nominal rate`,
+    p: `Bob knows Alice's oscillator only to its specification, so he searches within ±${N.search_ppm} ppm of the nominal rate, ±${fmt(HALF_HZ)} Hz: ${N.window_bins} FFT bins. One bin stands ${nf(-SECOND_DB)} dB above all the others. The dotted line is Alice's clock, ${sgn(N.ppm, 1)} ppm, which Bob doesn't know.`,
+    c: [["window", `±${fmt(HALF_HZ)} Hz`], ["bins", N.window_bins]] },
+  { m: "recover_clock", a: 17, b: 21, sc: "scan", t: "The other branch: scan Z itself",
+    p: `This record skips these lines, so the walk follows a second one: ${ms(SAT.record, 0)} ms at ${mhz(SAT.rate / 1e3)} GHz, its detector held off ${us(SAT.dead_time)} µs after each click. Its histogram would need ${fmt(SAT.nbins)} bins, over 2²⁵, for only ${SAT.N} clicks. So recover_clock evaluates Z directly, at ${fmt(SAT.scan_n)} frequencies a quarter bin (${nf(SAT.step / 4)} Hz) apart, in ${SAT.scan_blocks} blocks of 256. The saturated detector clicks every ${us(SAT.spacing, 2)} µs, and that rhythm strobes Alice's clock: the line has copies every ${nf(SAT.copy_ppm, 1)} ppm.`,
+    c: [["frequencies", fmt(SAT.scan_n)], ["clicks", SAT.N], ["copies every", `${nf(SAT.copy_ppm, 1)} ppm`]] },
+  { m: "recover_clock", a: 22, b: 22, sc: "window", mark: "coarse", t: "The tallest bin",
+    p: `Back on the first record: coarse is the tallest bin in the window, ${fmt(N.coarse)} Hz, ${sgn(ppm(N.coarse), 2)} ppm. Bins are ${nf(N.fft_spacing)} Hz apart, so coarse can miss Alice's clock by up to half a bin. Here it misses by ${sgn(N.coarse - N.f_a, 1)} Hz, ${nf(Math.abs(N.coarse - N.f_a) / N.step, 2)} bin.`,
+    c: [["coarse", `${fmt(N.coarse)} Hz`], ["off by", `${sgn(N.coarse - N.f_a, 1)} Hz`]] },
+  { m: "recover_clock", a: 24, b: 27, sc: "runner", t: "The runner-up",
+    p: `elsewhere is the window without ±2 bins around coarse, where the line spills when Alice's clock falls between two bins. runner_up is the tallest point left, over the chosen one: ${nf(N.runner_up, 4)} on this record, so nothing competes. On the saturated record it is ${nf(SAT.runner_up, 4)}: ${COPIES} copies stand equally tall, and ${SAT_PICK}. A runner-up near 1 tells Bob the pick was chance.`,
+    c: [["this record", nf(N.runner_up, 4)], ["saturated", nf(SAT.runner_up, 4)]] },
+  { m: "recover_clock", a: 28, b: 28, sc: "grid", t: "A fine grid around the peak",
+    p: `fine holds ${N.fine_n} frequencies over ±2 bins around coarse, ${nf(N.fine_spacing, 2)} Hz apart: 1/${Math.round(N.step / N.fine_spacing)} of a bin. ±2 bins always holds the true peak, because coarse is within half a bin of it, or an eighth after a scan.`,
+    c: [["points", N.fine_n], ["spacing", `${nf(N.fine_spacing, 2)} Hz`]] },
+  { m: "periodogram", a: 3, b: 5, sc: "blocks", t: "Z, 256 frequencies at a time",
+    p: `periodogram() computes Z(f) = |Σ e^{2πi f tᵢ}|²/N straight from the stamps: no histogram, any frequency. It takes the ${N.fine_n} frequencies × ${fmt(N.N)} clicks in blocks of 256 rows (${N.blocks.join(" + ")}), so a block holds at most ${fmt(256 * N.N)} complex numbers, ${MB(256)} MB, however many frequencies there are.`,
+    c: [["blocks", N.blocks.length], ["per block", `${MB(256)} MB`]] },
+  { m: "periodogram", a: 6, b: 8, sc: "phasors", mode: "sweep", t: "One phasor per click",
+    p: `Each click becomes a unit phasor at angle 2π·f·tᵢ. Near Alice's clock every click sits on a tick, give or take its place in the ${ns(PULSE, 1)} ns pulse, so the phasors bunch within 1/${N.carve} of a turn and add up: Z = N·D², where D is the mean phasor's length. At the nominal rate they wrap around ${nf(DRIFT, 1)} times over the record and cancel, Z = ${nf(N.z_nom, 1)}, against ${nf(N.z_max, 1)} near Alice's clock. The absolute value drops the bunch's common angle, which depends on the unknown delay.`,
+    c: [["Z(f_nom)", nf(N.z_nom, 1)], ["Z max", nf(N.z_max, 1)]] },
+  { m: "recover_clock", a: 29, b: 30, sc: "fine", t: "Z on the fine grid",
+    p: `Back in recover_clock, z holds Z at the ${N.fine_n} grid frequencies. The line is one bin wide: one bin from Alice's clock the phasors make a full turn across the record, and Z falls to zero. The tallest grid point is k = ${N.k}, ${sgn(N.grid_max - N.f_a, 2)} Hz from Alice's clock.`,
+    c: [["k", N.k], ["Z", nf(N.z_max, 1)]] },
+  { m: "recover_clock", a: 31, b: 33, sc: "para", t: "A parabola through the top three points",
+    p: `Near its top the line is a parabola. Its vertex, 0.5·(y0 − y2)/(y0 − 2·y1 + y2) grid spacings from fine[k], estimates the peak between grid points: ${sgn(N.f - N.grid_max, 2)} Hz here. f = ${nf(N.f, 1)} Hz is ${sgn(N.f - N.f_a, 2)} Hz from Alice's clock, ${sgn(ppbOf(N.f - N.f_a, N.f_a), 1)} ppb. The grid and the parabola are finer than the statistics: ${fmt(N.N)} clicks spread by ${ns(N.sigma_t)} ns rms over ${ms(N.span)} ms fix f only to σ_f ≈ √12·f·σ_t/(T√N) = ${nf(N.sigma_f, 1)} Hz, ${nf(ppbOf(N.sigma_f, N.f_a))} ppb.`,
+    c: [["f", `${nf(N.f, 1)} Hz`], ["error", `${sgn(ppbOf(N.f - N.f_a, N.f_a), 1)} ppb`], ["σ_f", `${nf(N.sigma_f, 1)} Hz`]] },
+  { m: "recover_clock", a: 43, b: 43, sc: "phasors", mode: "depth", t: "The depth: how well the clicks agree",
+    p: `depth = √(Z/N) is the mean phasor's length: ${nf(N.depth, 3)}. A pulse filling 1/${N.carve} of the symbol spreads its clicks over 1/${N.carve} of a turn, which leaves sinc(π/${N.carve}) = ${nf(SINC, 3)} of their agreement. NRZ, a pulse filling the whole symbol, leaves none, and there is no line to find.`,
+    c: [["depth", nf(N.depth, 3)], [`sinc(π/${N.carve})`, nf(SINC, 3)]] },
+  { m: "recover_clock", a: 36, b: 45, sc: "table", t: "What step 1 returns",
+    p: `recover_clock returns Alice's clock as Bob reads it, ${sgn(ppm(N.f), 3)} ppm from nominal, and what went into it: the coarse peak, the bin, the two spectra for the example's plot, the depth and the runner-up.`,
+    rows: [["f", `${nf(N.f, 1)} Hz`, `${sgn(ppbOf(N.f - N.f_a, N.f_a), 1)} ppb from Alice's`, 1], ["coarse", `${fmt(N.coarse)} Hz`, "the tallest bin"], ["fft bin", `${nf(N.step, 1)} Hz`, "1/T"], ["depth", nf(N.depth, 3), "√(Z/N)"], ["runner-up", nf(N.runner_up, 4), "near 1: chance"]] },
+  { m: "symbol_phase", a: 3, b: 3, sc: "phasors", mode: "theta", t: "θ: where in the symbol the clicks fall",
+    p: `symbol_phase takes the same sum at f and keeps its angle instead of its length. A click at tᵢ = Δ + (kᵢ + εᵢ)/f_A has angle 2π(f·Δ + εᵢ), and εᵢ, its place in the pulse, averages out over the symmetric pulse. The mean phasor therefore points at θ = frac(Δ·f) = ${nf(N.theta, 4)}: Alice's ticks fall ${ns(N.theta / N.f, 3)} ns into each of Bob's ${ns(1 / N.f, 0)} ns symbols. The bench's true delay gives ${nf(N.theta_true, 4)}.`,
+    c: [["θ", nf(N.theta, 4)], ["θ/f", `${ns(N.theta / N.f, 3)} ns`], ["from the truth", nf(N.theta_true, 4)]] },
+  { m: "synchronize", a: 2, b: 3, sc: "scatter", f: "fine", from: "nom", theta: true, t: "What f and θ are for",
+    p: `check_frame and recover_delay both start with θ = symbol_phase(t, f) and give each click its symbol index, n = rint(tᵢ·f − θ): the nearest of Alice's ticks. Folded at f, the clicks lie flat at θ, within the pulse's ±1/${2 * N.carve} symbol. The delay Δ is referred to Bob's time zero, but the clicks' phase is read around the record's middle, ${ms(N.t_mean, 2)} ms later, so a clock error δf moves Δ by about δf·⟨t⟩/f. Step 3's delay comes out ${sgn(DL.fine.err_ps)} ps off with f, ${sgn(DL.coarse.err_ps)} ps with coarse, and ${sgn(DL.half.err_ps)} ps with a clock half a bin off.`,
+    c: [["Δ error with f", `${sgn(DL.fine.err_ps)} ps`], ["with coarse", `${sgn(DL.coarse.err_ps)} ps`], ["half a bin off", `${sgn(DL.half.err_ps)} ps`]] },
+];
+
+/* ---------- canvas helpers ---------- */
+const cv = document.getElementById("scr");
+const ctx = cv.getContext("2d");
+let W = 960, H = 600;
+function resize() {
+  const r = cv.getBoundingClientRect();
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  W = Math.max(320, r.width); H = W * 10 / 16;
+  cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+let C = {};
+function colors() { C = { grid: css("--scr-grid"), axis: css("--scr-axis"), text: css("--scr-text"), strong: css("--scr-strong"), tr: css("--scr-trace"), c2: css("--scr-2"), c3: css("--scr-3"), c4: css("--scr-4"), c5: css("--scr-5"), light: css("--scr-light"), bg: css("--scr-bg") }; }
+const ease = (t) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+const font = (px, w = 500, fam = "mono") => `${w} ${px}px ${fam === "mono" ? '"IBM Plex Mono", ui-monospace, monospace' : '"Chakra Petch", system-ui, sans-serif'}`;
+const sz = () => Math.max(10, Math.min(13, W / 64));
+function rgba(hex, a) {
+  const m = hex.replace("#", ""); const v = parseInt(m.length === 3 ? m.split("").map((c) => c + c).join("") : m, 16);
+  return `rgba(${(v >> 16) & 255}, ${(v >> 8) & 255}, ${v & 255}, ${a})`;
+}
+function clear() { ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H); }
+// a plot in the band box = [top, bottom] of the screen (fractions of its height)
+function frame(o) {
+  const [b0, b1] = o.box || [0, 1];
+  const L = Math.max(58, W * 0.08), R = 14, T = b0 * H + 30, Bm = (1 - b1) * H + 30;
+  const pw = W - L - R, ph = H - T - Bm;
+  const [x0, x1] = o.x, [y0, y1] = o.y;
+  const X = (x) => L + (x - x0) / (x1 - x0) * pw;
+  const Y = (y) => T + (1 - (y - y0) / (y1 - y0)) * ph;
+  if (!o.box || o.box[0] === 0) clear();
+  ctx.strokeStyle = C.grid; ctx.lineWidth = 1;
+  const nx = o.nx || 10, ny = o.ny || 8;
+  for (let i = 0; i <= nx; i++) { const x = L + i * pw / nx; ctx.beginPath(); ctx.moveTo(x, T); ctx.lineTo(x, T + ph); ctx.stroke(); }
+  for (let j = 0; j <= ny; j++) { const y = T + j * ph / ny; ctx.beginPath(); ctx.moveTo(L, y); ctx.lineTo(L + pw, y); ctx.stroke(); }
+  ctx.strokeStyle = C.axis; ctx.strokeRect(L + .5, T + .5, pw - 1, ph - 1);
+  ctx.fillStyle = C.text; ctx.font = font(sz());
+  if (o.xt) { ctx.textAlign = "center"; ctx.textBaseline = "top"; for (const [v, lab] of o.xt) ctx.fillText(lab, X(v), T + ph + 7); }
+  if (o.yt) { ctx.textAlign = "right"; ctx.textBaseline = "middle"; for (const [v, lab] of o.yt) ctx.fillText(lab, L - 7, Y(v)); }
+  let tw = 0;
+  if (o.title) { ctx.textAlign = "left"; ctx.textBaseline = "alphabetic"; ctx.font = font(sz() + 1, 600, "disp"); ctx.fillStyle = C.text; ctx.fillText(o.title, L, T - 10); tw = ctx.measureText(o.title).width; }
+  // the note on the right only where it clears the title (it drops out on a phone)
+  if (o.right) { ctx.font = font(sz()); if (tw + 14 + ctx.measureText(o.right).width <= pw) { ctx.textAlign = "right"; ctx.textBaseline = "alphabetic"; ctx.fillStyle = C.text; ctx.fillText(o.right, L + pw, T - 10); } }
+  return { X, Y, L, T, pw, ph };
+}
+function clipTo(f) { ctx.save(); ctx.beginPath(); ctx.rect(f.L, f.T, f.pw, f.ph); ctx.clip(); }
+function vline(f, x, color, dash = [], text, at = "top") {
+  const px = f.X(x); if (px < f.L - 1 || px > f.L + f.pw + 1) return;
+  ctx.save(); ctx.strokeStyle = color; ctx.setLineDash(dash); ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.moveTo(px, f.T); ctx.lineTo(px, f.T + f.ph); ctx.stroke(); ctx.restore();
+  if (text) { ctx.fillStyle = color; ctx.font = font(sz()); const right = px > f.L + f.pw * 0.7; ctx.textAlign = right ? "right" : "left"; ctx.textBaseline = "top"; ctx.fillText(text, px + (right ? -6 : 6), at === "top" ? f.T + 6 : f.T + f.ph - 22); }
+}
+function band(f, x0, x1, color, y0, y1) { clipTo(f); ctx.fillStyle = color; const ya = y1 === undefined ? f.T : f.Y(y1), yb = y0 === undefined ? f.T + f.ph : f.Y(y0); ctx.fillRect(f.X(x0), ya, f.X(x1) - f.X(x0), yb - ya); ctx.restore(); }
+function box(f, x0, x1, y0, y1, color) { clipTo(f); ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.strokeRect(f.X(x0) + 1.5, f.Y(y1), f.X(x1) - f.X(x0) - 3, f.Y(y0) - f.Y(y1)); ctx.restore(); }
+function label(text, x, y, color, align = "left", size, w = 500) { ctx.fillStyle = color; ctx.font = font(size || sz(), w); ctx.textAlign = align; ctx.textBaseline = "middle"; ctx.fillText(text, x, y); }
+function tick(f, x, y0, y1, color, w = 2) { clipTo(f); ctx.strokeStyle = color; ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(f.X(x), f.Y(y0)); ctx.lineTo(f.X(x), f.Y(y1)); ctx.stroke(); ctx.restore(); }
+function dot(f, x, y, color, r = 3) { clipTo(f); ctx.fillStyle = color; ctx.beginPath(); ctx.arc(f.X(x), f.Y(y), r, 0, 2 * Math.PI); ctx.fill(); ctx.restore(); }
+function curve(f, xs, ys, color, w = 1.6, fillTo) {
+  if (xs.length < 2) return;
+  clipTo(f); ctx.beginPath(); ctx.moveTo(f.X(xs[0]), f.Y(ys[0]));
+  for (let i = 1; i < xs.length; i++) ctx.lineTo(f.X(xs[i]), f.Y(ys[i]));
+  if (fillTo !== undefined) {
+    ctx.save(); ctx.lineTo(f.X(xs[xs.length - 1]), f.Y(fillTo)); ctx.lineTo(f.X(xs[0]), f.Y(fillTo)); ctx.closePath();
+    ctx.fillStyle = rgba(color, 0.18); ctx.fill(); ctx.restore();
+    ctx.beginPath(); ctx.moveTo(f.X(xs[0]), f.Y(ys[0])); for (let i = 1; i < xs.length; i++) ctx.lineTo(f.X(xs[i]), f.Y(ys[i]));
+  }
+  ctx.strokeStyle = color; ctx.lineWidth = w; ctx.stroke(); ctx.restore();
+}
+function arrowTo(x0, y0, x1, y1, color, w = 2.5) {
+  const a = Math.atan2(y1 - y0, x1 - x0), len = Math.hypot(x1 - x0, y1 - y0);
+  ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = w;
+  ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+  if (len > 10) { ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x1 - 11 * Math.cos(a - 0.4), y1 - 11 * Math.sin(a - 0.4)); ctx.lineTo(x1 - 11 * Math.cos(a + 0.4), y1 - 11 * Math.sin(a + 0.4)); ctx.closePath(); ctx.fill(); }
+}
+const range = (k, f) => Array.from({ length: k }, (_, i) => f(i));
+const ticks = (vals, f) => vals.map((v) => [v, f(v)]);
+// the phase of click i at frequency f [turns], and the mean phasor
+const phaseAt = (f, i) => { const x = f * 1e-9 * STAMP[i]; return x - Math.floor(x); };
+function meanPhasor(f) {
+  let re = 0, im = 0;
+  for (let i = 0; i < n; i++) { const a = 2 * Math.PI * phaseAt(f, i); re += Math.cos(a); im += Math.sin(a); }
+  return [re / n, im / n];
+}
+const JIT = range(n, (i) => ((i * 7919) % 97) / 97 - 0.5);  // a fixed radial spread, to show density
+const kHz = (hz) => hz / 1e3;
+
+/* ---------- scenes ---------- */
+const scenes = {
+  table(t, s) {
+    const f = frame({ x: [0, 1], y: [0, 1], nx: 10, ny: 8, title: "VALUES" });
+    const rows = s.rows, lh = Math.min(f.ph / (rows.length + 1), 56);
+    // the columns follow the widest key and value
+    ctx.font = font(sz() + 3, 600);
+    const kw = Math.max(...rows.map((r) => ctx.measureText(r[0]).width)), vw = Math.max(...rows.map((r) => ctx.measureText(r[1]).width));
+    const xv = Math.max(f.L + f.pw * 0.22, f.L + 20 + kw + 18), xn = Math.max(f.L + f.pw * 0.56, xv + vw + 18);
+    // the notes only where they all fit (they drop out on a phone; the caption has them)
+    ctx.font = font(sz());
+    const notes = xn + Math.max(...rows.map((r) => ctx.measureText(r[2]).width)) <= f.L + f.pw - 6;
+    rows.forEach((r, i) => {
+      const y = f.T + lh * (i + 0.9), neu = r[3] === 1, a = neu ? ease(t) : 1;
+      ctx.globalAlpha = a;
+      label(r[0], f.L + 20, y, neu ? C.tr : C.text, "left", sz() + 3, 600);
+      label(r[1], xv, y, neu ? C.tr : C.strong, "left", sz() + 3, 600);
+      if (notes) label(r[2], xn, y, C.c4, "left", sz());
+      ctx.globalAlpha = 1;
+    });
+  },
+  record(t) {
+    const e = ease(t), zoom = 20;  // µs
+    const top = frame({ box: [0, 0.5], x: [0, SPAN_MS], y: [0, 1], nx: 8, ny: 2, xt: ticks([0, 0.5, 1, 1.5, 2].filter((v) => v <= SPAN_MS), (v) => nf(v, 1)), title: "BOB'S TIME STAMPS [ms]", right: `${fmt(n)} clicks` });
+    for (let i = 0; i < n; i++) { const x = (STAMP[i] - STAMP[0]) * 1e-6; if (x <= SPAN_MS * e) tick(top, x, 0.2, 0.8, rgba(C.tr, 0.55), 1); }
+    const bot = frame({ box: [0.5, 1], x: [0, zoom], y: [0, 1], nx: 10, ny: 2, xt: ticks([0, 5, 10, 15, 20], (v) => `${v}`), title: `THE FIRST ${zoom} µs`, right: `${us(N.dead_time)} µs dead time after each click` });
+    for (let i = 0; i < n; i++) {
+      const x = (STAMP[i] - STAMP[0]) * 1e-3;
+      if (x > zoom) break;
+      if (x <= zoom * e) { band(bot, x, x + N.dead_time * 1e6, rgba(C.c4, 0.12), 0.15, 0.85); tick(bot, x, 0.15, 0.85, C.tr, 2.5); }
+    }
+  },
+  scatter(t, s) {
+    const e = ease(t);
+    const fTo = s.f === "nom" ? N.f_nom : N.f, fFrom = s.from === "nom" ? N.f_nom : fTo;
+    const fNow = fFrom + (fTo - fFrom) * e;
+    const f = frame({ x: [0, SPAN_MS], y: [0, 1], nx: 8, ny: 4, xt: ticks([0, 0.5, 1, 1.5, 2].filter((v) => v <= SPAN_MS), (v) => nf(v, 1)), yt: ticks([0, 0.25, 0.5, 0.75, 1], (v) => nf(v, 2)), title: "WHERE IN A SYMBOL EACH CLICK FELL [ms, symbol]", right: s.f === "nom" ? "folded at f_nom" : (e < 1 && s.from ? `f − f_nom = ${sgn(fNow - N.f_nom, 1)} Hz` : "folded at f") });
+    const settled = !s.from || e >= 1;
+    if (s.theta && settled) {
+      const w = 1 / (2 * N.carve);
+      band(f, 0, SPAN_MS, rgba(C.c2, 0.10), N.theta - w, N.theta + w);
+      ctx.save(); ctx.strokeStyle = C.c3; ctx.setLineDash([5, 4]); ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(f.L, f.Y(N.theta)); ctx.lineTo(f.L + f.pw, f.Y(N.theta)); ctx.stroke(); ctx.restore();
+      label(`θ = ${nf(N.theta, 4)}`, f.L + f.pw - 8, f.Y(N.theta + w) - 10, C.c3, "right", sz(), 600);
+    }
+    clipTo(f); ctx.fillStyle = rgba(C.tr, 0.8);
+    for (let i = 0; i < n; i++) {
+      const x = (STAMP[i] - STAMP[0]) * 1e-6;
+      if (!s.from && x > SPAN_MS * e) continue;
+      ctx.fillRect(f.X(x) - 1.2, f.Y(phaseAt(fNow, i)) - 1.2, 2.4, 2.4);
+    }
+    ctx.restore();
+  },
+  bins(t) {
+    const e = ease(t), X0 = -24, X1 = 24;
+    const f = frame({ x: [X0, X1], y: [0, 6.2], nx: 12, ny: 6, xt: ticks([-20, -10, 0, 10, 20], (v) => (v > 0 ? "+" : v < 0 ? "−" : "") + Math.abs(v)), title: "ONE CLICK, ALICE'S PULSES AND THE BINS [ns]", right: `bin ${fmt(ZM.bin)}` });
+    const half = PULSE * 1e9 / 2;
+    for (const k of ZM.ticks) {
+      if (k.bit) band(f, k.x - half, k.x + half, rgba(C.light, 0.75), 4.3, 5.2);
+      tick(f, k.x, 4.0, 5.5, k.bit ? C.light : C.c4, 1.4);
+      label(k.bit ? "1" : "0", f.X(k.x), f.Y(5.8), k.bit ? C.strong : C.c4, "center", sz(), 600);
+    }
+    label("Alice", f.L - 7, f.Y(4.75), C.text, "right");
+    const dtn = N.dt * 1e9, e0 = ZM.edges[0];
+    for (let m = -40; m < 60; m++) { const a = e0 + m * dtn; if (a + dtn < X0 || a > X1) continue; box(f, a, a + dtn, 2.0, 3.1, C.axis); }
+    const j = Math.floor(-e0 / dtn), a = e0 + j * dtn;
+    band(f, a, a + dtn, rgba(C.tr, 0.4 * e), 2.0, 3.1);
+    if (e > 0.6) label("+1", f.X(a + dtn / 2), f.Y(2.55), C.strong, "center", sz(), 600);
+    label("bins", f.L - 7, f.Y(2.55), C.text, "right");
+    tick(f, 0, 0.5, 1.5, C.tr, 3);
+    label("click", f.L - 7, f.Y(1.0), C.text, "right");
+    if (e > 0.3) { ctx.save(); ctx.strokeStyle = rgba(C.tr, 0.7); ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(f.X(0), f.Y(1.55)); ctx.lineTo(f.X(0), f.Y(1.55 + 0.45 * Math.min(1, (e - 0.3) / 0.4))); ctx.stroke(); ctx.restore(); }
+    label(`${ns(N.dt)} ns bins, ${ns(PULSE, 1)} ns pulses, ${ns(1 / N.f_a, 0)} ns symbols`, f.X(0), f.Y(0.2), C.text, "center");
+  },
+  whole(t) {
+    const e = ease(t), k = WH.db.length, fmax = WH.f_max / 1e6, gw = WH.group_hz / 1e6;
+    const f = frame({ x: [0, fmax], y: [-50, 10], nx: 8, ny: 6, xt: ticks([0, 100, 200, 300, 400].filter((v) => v <= fmax + 1), (v) => `${v}`), yt: ticks([-40, -30, -20, -10, 0], (v) => `${v}`), title: "|rfft|² OF THE HISTOGRAM [MHz, dB]", right: `${fmt(N.fft_size)} frequencies` });
+    const upto = Math.max(2, Math.round(k * e));
+    curve(f, range(upto, (i) => (i + 0.5) * gw), WH.db.slice(0, upto), C.tr, 1.4, -50);
+    if (e > 0.9) [1, 2, 3].forEach((h) => { const x = h * N.f_a / 1e6; if (x < fmax) label(h === 1 ? "f_A" : `${h}f_A`, f.X(x), f.Y(harm(h)) - 12, C.strong, "center", sz(), 600); });
+  },
+  window(t, s) {
+    const e = ease(t), sp = N.fft_spacing, m = B.off.length;
+    const x0 = kHz(B.off[0] - sp / 2), x1 = kHz(B.off[m - 1] + sp / 2), half = kHz(HALF_HZ);
+    const f = frame({ x: [x0, x1], y: [-50, 10], nx: 12, ny: 6, xt: ticks([-10, -5, 0, 5, 10], (v) => (v > 0 ? "+" : v < 0 ? "−" : "") + Math.abs(v)), yt: ticks([-40, -30, -20, -10, 0], (v) => `${v}`), title: `THE SEARCH WINDOW [kHz from ${mhz(N.f_nom)} MHz, dB]`, right: `${N.window_bins} bins inside` });
+    band(f, -half, half, rgba(C.c2, 0.07));
+    label(`±${N.search_ppm} ppm`, f.X(-half) + 6, f.Y(-46), C.c2, "left");
+    for (let i = 0; i < m; i++) {
+      const x = kHz(B.off[i]), h = -50 + (Math.max(-50, B.db[i]) + 50) * e, isC = i === B.coarse;
+      const col = s.mark === "coarse" && isC ? C.strong : B.win[i] ? C.tr : C.c4;
+      band(f, x - kHz(sp) * 0.36, x + kHz(sp) * 0.36, rgba(col, B.win[i] ? 0.85 : 0.45), -50, h);
+    }
+    vline(f, 0, C.c4, [5, 4], "nominal");
+    vline(f, kHz(N.f_a - N.f_nom), C.c3, [2, 4], "Alice's clock", "bottom");
+    if (s.mark === "coarse" && e > 0.5) label(`coarse: ${sgn(kHz(N.coarse - N.f_nom), 3)} kHz`, f.X(kHz(N.coarse - N.f_nom)) + 10, f.Y(-3), C.strong, "left", sz(), 600);
+  },
+  scan(t) {
+    const e = ease(t), k = SAT.z.length;
+    const f = frame({ x: [-100, 100], y: [0, 1.35], nx: 8, ny: 4, xt: ticks([-100, -50, 0, 50, 100], (v) => (v > 0 ? "+" : v < 0 ? "−" : "") + Math.abs(v)), yt: ticks([0, 0.5, 1], (v) => nf(v, 1)), title: "SECOND RECORD: Z / MAX [ppm]", right: `${fmt(SAT.scan_n)} frequencies` });
+    const upto = Math.max(2, Math.round(k * e));
+    curve(f, range(upto, (i) => SAT.x0 + i * SAT.dx), SAT.z.slice(0, upto), C.tr, 1.3);
+    vline(f, SAT.f_a_ppm, C.c3, [2, 4], "Alice's clock", "bottom");
+    if (e > 0.95) {
+      const a = SAT.f_a_ppm - SAT.copy_ppm, b = SAT.f_a_ppm, y = 1.12;
+      ctx.save(); ctx.strokeStyle = C.c2; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(f.X(a), f.Y(y)); ctx.lineTo(f.X(b), f.Y(y)); ctx.stroke(); ctx.restore();
+      label(`${nf(SAT.copy_ppm, 1)} ppm`, f.X((a + b) / 2), f.Y(y) - 9, C.c2, "center", sz(), 600);
+    }
+  },
+  runner(t) {
+    const e = ease(t), sp = N.fft_spacing, m = B.off.length;
+    const x0 = kHz(B.off[0] - sp / 2), x1 = kHz(B.off[m - 1] + sp / 2);
+    const top = frame({ box: [0, 0.5], x: [x0, x1], y: [-50, 10], nx: 12, ny: 6, xt: ticks([-10, -5, 0, 5, 10], (v) => (v > 0 ? "+" : v < 0 ? "−" : "") + Math.abs(v)), yt: ticks([-40, -20, 0], (v) => `${v}`), title: "THIS RECORD [kHz, dB]", right: `runner-up ${nf(N.runner_up, 4)}` });
+    const c0 = kHz(B.off[B.coarse]);
+    band(top, c0 - 2.5 * kHz(sp), c0 + 2.5 * kHz(sp), rgba(C.c4, 0.18 * e));
+    for (let i = 0; i < m; i++) {
+      if (!B.win[i]) continue;
+      const x = kHz(B.off[i]), col = i === B.coarse ? C.strong : i === B.runner ? C.c3 : C.tr;
+      band(top, x - kHz(sp) * 0.36, x + kHz(sp) * 0.36, rgba(col, 0.85), -50, Math.max(-50, B.db[i]));
+    }
+    if (e > 0.5) label(`${nf(B.db[B.runner], 1)} dB`, top.X(kHz(B.off[B.runner])), top.Y(B.db[B.runner]) - 10, C.c3, "center", sz(), 600);
+    const bot = frame({ box: [0.5, 1], x: [-100, 100], y: [0, 1.25], nx: 8, ny: 4, xt: ticks([-100, -50, 0, 50, 100], (v) => (v > 0 ? "+" : v < 0 ? "−" : "") + Math.abs(v)), yt: ticks([0, 1], (v) => nf(v, 0)), title: "SATURATED RECORD [ppm]", right: `runner-up ${nf(SAT.runner_up, 4)}` });
+    curve(bot, range(SAT.z.length, (i) => SAT.x0 + i * SAT.dx), SAT.z, rgba(C.tr, 0.9), 1.1);
+    vline(bot, SAT.f_a_ppm, C.c3, [2, 4], "Alice's clock", "bottom");
+    if (e > 0.3) { dot(bot, SAT.coarse_ppm, 1, C.strong, 4.5); label("picked", bot.X(SAT.coarse_ppm) - 7, bot.Y(1.14), C.strong, "right", sz(), 600); }
+    if (e > 0.6) { dot(bot, SAT.runner_ppm, 1, C.c3, 4.5); label("runner-up", bot.X(SAT.runner_ppm) + 7, bot.Y(1.14), C.c3, "left", sz(), 600); }
+  },
+  grid(t) {
+    const e = ease(t), st = N.step, c0 = N.coarse;
+    const f = frame({ x: [-2.6 * st, 2.6 * st], y: [0, 1.15], nx: 10, ny: 4, xt: ticks([-2, -1, 0, 1, 2].map((v) => v * st), (v) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(Math.round(v / st))} bin`), yt: ticks([0, 0.5, 1], (v) => nf(v, 1)), title: "FFT BINS NEAR coarse, AND THE FINE GRID [power / peak]", right: `${N.fine_n} points` });
+    for (let j = B.coarse - 2; j <= B.coarse + 2; j++) {
+      const x = B.off[j] - (c0 - N.f_nom), h = Math.pow(10, B.db[j] / 10);
+      band(f, x - st * 0.4, x + st * 0.4, rgba(C.tr, 0.35), 0, h);
+    }
+    vline(f, N.f_a - c0, C.c3, [2, 4], "Alice's clock");
+    const shown = Math.round(N.fine_n * e);
+    clipTo(f); ctx.fillStyle = C.c2;
+    for (let j = 0; j < shown; j++) { const x = -2 * st + j * N.fine_spacing; ctx.fillRect(f.X(x) - 0.5, f.Y(0.1), 1, f.Y(0.02) - f.Y(0.1)); }
+    ctx.restore();
+    label(`${nf(N.fine_spacing, 2)} Hz apart`, f.X(0), f.Y(0.18), C.c2, "center", sz(), 600);
+  },
+  blocks(t) {
+    const e = ease(t), nb = N.blocks.length;
+    const f = frame({ x: [0, N.fine_n], y: [0, 6], nx: 8, ny: 6, xt: ticks([0, 256, 512, 768], (v) => `${v}`), title: "THE FINE GRID, BLOCK BY BLOCK", right: `${N.fine_n} frequencies` });
+    let a = 0;
+    N.blocks.forEach((sz0, b) => {
+      const on = Math.max(0, Math.min(1, e * nb - b));
+      band(f, a, a + sz0 * on, rgba(C.c2, 0.6), 3.6, 4.8);
+      box(f, a, a + sz0, 3.6, 4.8, C.axis);
+      label(`${sz0}`, f.X(a + sz0 / 2), f.Y(4.2), C.strong, "center", sz(), 600);
+      if (on > 0 && on < 1) label(`${sz0} × ${fmt(N.N)} phasors`, f.X(a + sz0 / 2), f.Y(5.3), C.c2, "center", sz(), 600);
+      a += sz0;
+    });
+    label("rows", f.L - 7, f.Y(4.2), C.text, "right");
+    label(`one block: ${fmt(256 * N.N)} complex numbers, ${MB(256)} MB`, f.X(N.fine_n / 2), f.Y(2.2), C.text, "center", sz() + 1, 600);
+    label("each row's sum gives one Z(f)", f.X(N.fine_n / 2), f.Y(1.3), C.c4, "center");
+  },
+  fine(t) {
+    const e = ease(t), st = N.step, c0 = N.coarse, k = FN.length;
+    const f = frame({ x: [-2 * st, 2 * st], y: [0, 1.15], nx: 8, ny: 4, xt: ticks([-1, 0, 1].map((v) => v * st), (v) => sgn(v)), yt: ticks([0, 0.5, 1], (v) => nf(v, 1)), title: "Z ON THE FINE GRID / ITS MAX [Hz from coarse]", right: `k = ${N.k}` });
+    const upto = Math.max(2, Math.round(k * e));
+    curve(f, range(upto, (j) => -2 * st + j * N.fine_spacing), FN.slice(0, upto), C.tr, 1.8, 0);
+    vline(f, N.f_a - c0, C.c3, [2, 4], "Alice's clock");
+    if (e > 0.95) {
+      dot(f, N.grid_max - c0, 1, C.strong, 4);
+      for (const sgnb of [-1, 1]) { const x = N.f_a - c0 + sgnb * st; tick(f, x, 0, 0.12, C.c2, 2); label("Z = 0", f.X(x), f.Y(0.2), C.c2, "center", sz(), 600); }
+    }
+  },
+  para(t) {
+    const e = ease(t), h = N.fine_spacing, js = [-3, -2, -1, 0, 1, 2, 3];
+    const xs = js.map((j) => P.x[1] + j * h);
+    const ys = js.map((j) => (j >= -1 && j <= 1 ? P.y[j + 1] : FN[N.k + j] * N.z_max));
+    const lo = Math.min(...ys), hi = N.z_max, pad = (hi - lo) * 0.3;
+    const f = frame({ x: [xs[0] - h, xs[6] + h], y: [lo - pad, hi + pad], nx: 8, ny: 4, xt: ticks([-8, -4, 0, 4, 8].filter((v) => v > xs[0] - h && v < xs[6] + h), (v) => sgn(v)), yt: ticks([lo, hi], (v) => nf(v, 2)), title: "THE TOP OF THE LINE [Hz from Alice's clock, Z]", right: `grid ${nf(h, 2)} Hz` });
+    const [y0, y1, y2] = P.y, x1 = P.x[1];
+    const a2 = (y0 - 2 * y1 + y2) / (2 * h * h), b1 = (y2 - y0) / (2 * h);
+    const pxs = range(121, (i) => xs[0] - h + i * (xs[6] - xs[0] + 2 * h) / 120);
+    const upto = Math.max(2, Math.round(pxs.length * e));
+    curve(f, pxs.slice(0, upto), pxs.slice(0, upto).map((x) => y1 + b1 * (x - x1) + a2 * (x - x1) ** 2), C.c2, 1.6);
+    js.forEach((j, i) => dot(f, xs[i], ys[i], Math.abs(j) <= 1 ? C.tr : rgba(C.tr, 0.45), Math.abs(j) <= 1 ? 4.5 : 3));
+    vline(f, 0, C.c3, [2, 4], "Alice's clock", "bottom");
+    if (e > 0.9) {
+      const yv = y1 - b1 * b1 / (4 * a2);
+      dot(f, P.vertex, yv, C.strong, 5);
+      label(`f: ${sgn(P.vertex, 2)} Hz`, f.X(P.vertex) + 8, f.Y(yv) - 12, C.strong, "left", sz(), 600);
+      label("fine[k]", f.X(x1), f.Y(y1) + 16, C.tr, "center", sz(), 600);
+    }
+  },
+  phasors(t, s) {
+    clear();
+    const e = ease(t);
+    const fNow = s.mode === "sweep" ? N.f_nom + (N.f - N.f_nom) * e : N.f;
+    const cx = W * 0.3, cy = H * 0.54, R = Math.min(H * 0.36, W * 0.24);
+    ctx.strokeStyle = C.grid; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(cx - R * 1.2, cy); ctx.lineTo(cx + R * 1.2, cy); ctx.moveTo(cx, cy - R * 1.2); ctx.lineTo(cx, cy + R * 1.2); ctx.stroke();
+    ctx.strokeStyle = C.axis; ctx.beginPath(); ctx.arc(cx, cy, R, 0, 2 * Math.PI); ctx.stroke();
+    ctx.fillStyle = rgba(C.tr, 0.55);
+    for (let i = 0; i < n; i++) { const a = 2 * Math.PI * phaseAt(fNow, i), r = R * (1 + 0.1 * JIT[i]); ctx.fillRect(cx + r * Math.cos(a) - 1.2, cy - r * Math.sin(a) - 1.2, 2.4, 2.4); }
+    const [re, im] = meanPhasor(fNow), len = Math.hypot(re, im), ang = Math.atan2(im, re);
+    if (s.mode === "depth") {
+      ctx.save(); ctx.strokeStyle = C.c2; ctx.setLineDash([5, 4]); ctx.beginPath(); ctx.arc(cx, cy, R * SINC, 0, 2 * Math.PI); ctx.stroke(); ctx.restore();
+    }
+    if (s.mode === "theta") {
+      const th = ((ang / (2 * Math.PI)) % 1 + 1) % 1, r0 = R * 0.28;
+      ctx.save(); ctx.strokeStyle = C.c3; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(cx, cy, r0, 0, -2 * Math.PI * th * e, true); ctx.stroke(); ctx.restore();
+      // angle 0: a click at one of Bob's own symbol starts, t = k/f
+      ctx.strokeStyle = C.c4; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(cx + R * 0.94, cy); ctx.lineTo(cx + R * 1.08, cy); ctx.stroke();
+      label("0", cx + R * 1.12, cy, C.c4, "left", sz(), 600);
+    }
+    arrowTo(cx, cy, cx + R * re, cy - R * im, s.mode === "theta" ? C.c3 : C.strong, 3);
+    ctx.fillStyle = C.text; ctx.font = font(sz() + 1, 600, "disp"); ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+    ctx.fillText(s.mode === "theta" ? "THE MEAN PHASOR'S ANGLE" : s.mode === "depth" ? "THE MEAN PHASOR'S LENGTH" : "ONE PHASOR PER CLICK, e^{2πi f tᵢ}", 16, 26);
+    const tx = W * 0.6, lines = [];
+    lines.push([`f − f_nom`, `${sgn(fNow - N.f_nom, 1)} Hz`]);
+    lines.push(["|mean phasor|", nf(len, 3)]);
+    lines.push(["Z = N·|mean|²", nf(n * len * len, 1)]);
+    if (s.mode === "depth") lines.push([`sinc(π/${N.carve})`, nf(SINC, 3)]);
+    if (s.mode === "theta") { const th = ((ang / (2 * Math.PI)) % 1 + 1) % 1; lines.push(["angle / 2π = θ", nf(th, 4)]); lines.push(["θ/f", `${ns(th / N.f, 3)} ns`]); }
+    lines.forEach(([k, v], i) => { label(k, tx, H * 0.3 + i * 34, C.text, "left", sz() + 1); label(v, tx, H * 0.3 + i * 34 + 15, i === 0 ? C.c2 : C.strong, "left", sz() + 3, 600); });
+  },
+};
+
+/* ---------- player ---------- */
+const track = document.getElementById("track");
+S.forEach((s, i) => {
+  const b = document.createElement("button");
+  b.className = "seg"; b.dataset.m = s.m; b.type = "button"; b.setAttribute("role", "tab");
+  b.setAttribute("aria-label", `Step ${i + 1}: ${s.t}`);
+  b.addEventListener("click", () => go(i));
+  track.appendChild(b);
+});
+const segs = [...track.children];
+const codeBox = document.getElementById("code");
+const capWhere = document.getElementById("capWhere"), capTitle = document.getElementById("capTitle"), capBody = document.getElementById("capBody"), capChips = document.getElementById("capChips");
+const counter = document.getElementById("counter"), playBtn = document.getElementById("play"), state = document.getElementById("scrState");
+let cur = 0, start = 0, playing = !reduceMotion, raf = 0, t = 1;
+const DUR = 1100, DWELL = 7000;
+const MC = { synchronize: "--m-sync", recover_clock: "--m-clock", periodogram: "--m-pgram", symbol_phase: "--m-phase" };
+
+function render() { colors(); const s = S[cur]; scenes[s.sc](Math.min(1, t), s); }
+function setCode(s) {
+  codeBox.classList.add("active");
+  document.querySelectorAll(".ln.on").forEach((e) => e.classList.remove("on"));
+  document.querySelectorAll(".method").forEach((e) => e.classList.toggle("cur", e.dataset.m === s.m));
+  const rows = LINES[s.m].slice(s.a, s.b + 1);
+  rows.forEach((r) => r.classList.add("on"));
+  const top = rows[0].offsetTop, bottom = rows[rows.length - 1].offsetTop + rows[rows.length - 1].offsetHeight;
+  codeScroll.scrollTo({ top: Math.max(0, (top + bottom) / 2 - codeScroll.clientHeight / 2), behavior: reduceMotion ? "auto" : "smooth" });
+}
+function setCaption(s, i) {
+  capWhere.style.setProperty("--mc", `var(${MC[s.m]})`);
+  capWhere.textContent = `${s.m}() · line${s.a === s.b ? "" : "s"} ${s.a + 1}${s.a === s.b ? "" : "–" + (s.b + 1)}`;
+  capTitle.textContent = s.t; capBody.textContent = s.p;
+  capChips.innerHTML = (s.c || []).map(([k, v]) => `<span class="chip">${esc(k)} <b>${esc(v)}</b></span>`).join("");
+  counter.textContent = `${i + 1} / ${S.length}`;
+  segs.forEach((g, j) => { g.classList.toggle("cur", j === i); g.classList.toggle("done", j < i); g.setAttribute("aria-selected", j === i ? "true" : "false"); });
+}
+function go(i) {
+  cur = (i + S.length) % S.length; start = performance.now(); t = reduceMotion ? 1 : 0;
+  setCode(S[cur]); setCaption(S[cur], cur); render(); loop();
+}
+function loop() {
+  cancelAnimationFrame(raf);
+  raf = requestAnimationFrame(function tickf(now) {
+    const el = now - start;
+    t = reduceMotion ? 1 : Math.min(1, el / DUR);
+    render();
+    if (playing && el > DWELL) { go(cur + 1); return; }
+    if (t < 1 || playing) raf = requestAnimationFrame(tickf);
+  });
+}
+function setPlay(p) { playing = p; playBtn.textContent = p ? "Pause" : "Play"; state.textContent = p ? "RUN" : "STOP"; if (p) { start = performance.now() - DUR; loop(); } }
+playBtn.addEventListener("click", () => setPlay(!playing));
+document.getElementById("prev").addEventListener("click", () => go(cur - 1));
+document.getElementById("next").addEventListener("click", () => go(cur + 1));
+document.addEventListener("keydown", (e) => {
+  if (e.target.closest && e.target.closest("button") && e.key === " ") return;
+  if (e.key === "ArrowRight") { go(cur + 1); e.preventDefault(); }
+  else if (e.key === "ArrowLeft") { go(cur - 1); e.preventDefault(); }
+  else if (e.key === " ") { setPlay(!playing); e.preventDefault(); }
+});
+window.addEventListener("resize", () => { resize(); render(); });
+resize();
+setPlay(playing);
+go(0);
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => render());
+})();
+</script>
