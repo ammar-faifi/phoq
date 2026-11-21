@@ -333,7 +333,8 @@ SPADs are, and a 10 ms record in 250 ps tagger bins (`LONG`). It takes about 20 
   VOA in the long arm evens out the arms' losses, and the phase shifter is locked so that a pulse
   adds to the one before it on the bright SPAD.
 
-Two steps change. The clock comes once from all three lines: each line has its own delay, and so
+The example leaves out the blind frame check, since the delay uses the agreed L, and changes the
+other two steps. The clock comes once from all three lines: each line has its own delay, and so
 its own phase of the clock line, so their periodograms add as powers. Each line's delay comes from
 its own pattern, the light it should see in each symbol, in units of a "1" pulse at the line's
 input:
@@ -365,7 +366,6 @@ phoq run examples/clock_sync_dli.py --plot sync_dli.png
 | --- | --- | --- | --- |
 | Clicks in 10 ms | 996 | 902 | 735 |
 | A live SPAD's mean wait W | 0.004 τd: saturated | 0.11 τd | 0.36 τd |
-| Frame check (σ; best coprime) | 3347, wrong (23 σ; 19.4 σ) | 1000 (17 σ; 3.8 σ) | 1000 (16 σ; 3.6 σ) |
 | Cross-correlation peak against the line's pattern | D = 672, 23 σ | D = 683, 17 σ | D = 683, 20 σ |
 | Δ mod P, error against the traced flight time + epoch | −1 ps | +1 ps | −3 ps |
 | Clicks given their true symbol index | 100 % | 100 % | 100 % |
@@ -373,21 +373,17 @@ phoq run examples/clock_sync_dli.py --plot sync_dli.png
 
 **The hold-off splits the lines in two.** The direct SPAD, with 90 % of the light, waits only
 40 ns once live. Saturated, it clicks almost every 10 µs, and as with the long hold-offs above,
-that rhythm strobes Alice's clock:
-
-- On the direct line alone the clock line has copies every 1/τd, 100 ppm of the clock. The one
-  inside Bob's ±100 ppm search, 76 kHz below nominal, stands 0.95 as tall as the line itself, so
-  which one step 1 picks would be chance. [spad_tones.py](spad_tones.py) shows the same copies on
-  the spectrum analyzer: with W ≪ τd they stand every 1/(τd + W) on each side of the clock line,
-  nearly as tall as the line itself.
-- The rhythm also pulls the direct line's frame check onto 3347, a third of its 10,040 symbols.
+that rhythm strobes Alice's clock. On the direct line alone the clock line has copies every 1/τd,
+100 ppm of the clock. The one inside Bob's ±100 ppm search, 76 kHz below nominal, stands 0.95 as
+tall as the line itself, so which one step 1 picks would be chance. [spad_tones.py](spad_tones.py)
+shows the same copies on the spectrum analyzer: with W ≪ τd they stand every 1/(τd + W) on each
+side of the clock line, nearly as tall as the line itself.
 
 The DLI's lines get a tenth of the light, less the DLI's losses, and wait 1 and 4 µs. Their waits
-scatter the rhythm, so they show one clock line and confirm L. Added to the direct line's, their
-periodograms bring the copy down to 0.40 of the line, and the shared clock lands within a ppb of
-Alice's. Every line's delay then comes to a few ps. The DLI's lines sit 11.245 ns behind the
-direct one (traced 11.243 ns): the 1 m cord into the DLI, the short arm's 1.25 m and the delay
-line.
+scatter the rhythm, so they show one clock line. Added to the direct line's, their periodograms
+bring the copy down to 0.40 of the line, and the shared clock lands within a ppb of Alice's. Every
+line's delay then comes to a few ps. The DLI's lines sit 11.245 ns behind the direct one (traced
+11.243 ns): the 1 m cord into the DLI, the short arm's 1.25 m and the delay line.
 
 `tests/test_sync_dli.py` runs this setting. It checks each line's clicks against its pattern,
 symbol by symbol, that the string alone cannot place the DLI's lines, and that the DLI's lines

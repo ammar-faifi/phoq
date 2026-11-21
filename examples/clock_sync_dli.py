@@ -13,8 +13,8 @@ of a COW link: a 90:10 tap sends 90 % of the light to the direct line's SPAD and
 rest through a delay-line interferometer (DLI) to the bright and the dark line's SPADs.
 The SPADs are held off 10 µs, as free-running InGaAs SPADs are, and all three feed one
 free-running tagger with 250 ps bins (clock_sync.py's ``LONG``), every channel delayed
-by Bob's unknown epoch. Alice, her random string and the three steps of the analysis are
-clock_sync.py's, with two changes:
+by Bob's unknown epoch. Alice, her random string and the analysis are clock_sync.py's,
+without step 2's blind frame check (step 3 uses the agreed L), and with two changes:
 
 1. Step 1 recovers the clock once, from all three lines. Each line's periodogram peaks
    at f_A, but each line has its own delay, and so its own phase of the clock line: the
@@ -45,12 +45,11 @@ only 40 ns once live: saturated, it clicks almost every 10 µs, about a thousand
 the 10 ms record. That rhythm strobes Alice's clock, as clock_sync.py's long hold-offs
 do. On the direct line alone the clock line has copies every 1/τd, 100 ppm of the clock,
 and one of them inside Bob's ±100 ppm search stands almost as tall as the line itself
-(runner-up 0.95): which one step 1 picks is chance. The rhythm also pulls the direct
-line's frame check onto a divisor of its 10,040 symbols. The DLI's lines get a tenth of
-the light, less the DLI's losses, and wait 1 and 4 µs: their waits scatter the rhythm,
-so their roughly 900 bright and 700 dark clicks show one clock line and confirm L at
-about 16 σ. Added to the direct line's, their periodograms bring the copy down to 0.40
-of the line. Each line's delay then comes to a few ps. The DLI's lines sit 11.24 ns
+(runner-up 0.95): which one step 1 picks is chance. The DLI's lines get a tenth of the
+light, less the DLI's losses, and wait 1 and 4 µs: their waits scatter the rhythm, so
+their roughly 900 bright and 700 dark clicks show one clock line. Added to the direct
+line's, their periodograms bring the copy down to 0.40 of the line. Each line's delay
+then comes to a few ps. The DLI's lines sit 11.24 ns
 behind the direct one: the 1 m cord from the tap into the DLI, the short arm's 1.25 m
 and the delay line.
 """
@@ -89,7 +88,6 @@ from clock_sync import (  # noqa: E402
     MU,
     PPM,
     SEARCH_PPM,
-    check_frame,
     periodogram,
     symbol_phase,
 )
@@ -346,12 +344,11 @@ def synchronize_lines(
     stamps: dict[str, np.ndarray], string: np.ndarray, f_nom: float = RATE
 ) -> dict:
     """Bob's receiver: step 1 once, on every line's clicks (one Alice, one tagger), then
-    steps 2 and 3 on each line, its delay against its own pattern (``patterns``)."""
+    step 3 on each line, its delay against its own pattern (``patterns``)."""
     clock = recover_clock(list(stamps.values()), f_nom)
     expect = patterns(string)
     lines = {
         line: {
-            "frame": check_frame(t, clock["f"]),
             "delay": recover_delay(t, clock["f"], expect[line]),
             "clicks": t.size,
         }
@@ -432,23 +429,15 @@ if __name__ == "__main__":
         f"     the direct line's clicks alone: runner-up {alone['runner-up']:.2f},"
         f" clock {(alone['f'] / r['setup'].symbol_rate - 1) * 1e9:+.0f} ppb off"
     )
+    print("  3. delay  each line's folded clicks against the light it should see")
     print(
-        "  2. frame  epoch folding, line by line   3. delay  each line's folded"
-        " clicks against the light it should see"
-    )
-    print(
-        f"     {'line':6} {'pattern':18} {'frame check (σ; coprime best)':>29}"
-        f" {'D':>4} {'peak':>5} {'Δ mod P':>12} {'error':>7} {'on light':>8}"
-        f" {'assigned':>8}"
+        f"     {'line':6} {'pattern':18} {'D':>4} {'peak':>5} {'Δ mod P':>12}"
+        f" {'error':>7} {'on light':>8} {'assigned':>8}"
     )
     for line, x in lines.items():
-        fr, d = x["frame"], x["delay"]
-        check = (
-            f"{fr['L']} {'ok' if fr['L'] == L else 'wrong'}"
-            f" ({fr['significance']:.0f} σ; {fr['noise']:.1f} σ)"
-        )
+        d = x["delay"]
         print(
-            f"     {line:6} {shape[line]:18} {check:>29} {d['D']:4d}"
+            f"     {line:6} {shape[line]:18} {d['D']:4d}"
             f" {d['peak / rms']:3.0f} σ {fmt_si(d['delay mod P'], 's', 7):>12}"
             f" {x['delay error'] * 1e12:+4.0f} ps {d['on light'] * 100:7.2f} %"
             f" {x['assigned'] * 100:7.2f} %"
@@ -490,42 +479,36 @@ if __name__ == "__main__":
         muted = "#898781"  # what the lines are compared with
 
         string = r["setup"].string
-        fig, ax = plt.subplots(2, 3, figsize=(13.5, 7.2), constrained_layout=True)
+        fig, ax = plt.subplot_mosaic(
+            [["clock", "clock", "patterns"], list(LINES)],
+            figsize=(13.5, 7.2),
+            constrained_layout=True,
+        )
         # 1. each line's periodogram across Bob's search, scaled to its own peak: the
         # saturated direct line's rhythm puts a copy of the clock line 1/τd away
         for line, x in lines.items():
             freq, spec = recover_clock(x["t"])["spectrum"]
             near = np.abs(freq - RATE) <= RATE * SEARCH_PPM * 1e-6
-            ax[0, 0].plot(
+            ax["clock"].plot(
                 (freq[near] - RATE) / 1e3,
                 spec[near] / spec[near].max(),
                 lw=0.8,
                 color=color[line],
                 label=line,
             )
-        ax[0, 0].axvline(
+        ax["clock"].axvline(
             (r["setup"].symbol_rate - RATE) / 1e3,
             color=muted,
             ls="--",
             lw=1,
             label="Alice's clock",
         )
-        ax[0, 0].set(
+        ax["clock"].set(
             title="1. the clock line across Bob's search",
             xlabel=f"f − {fmt_si(RATE, 'Hz')} [kHz]",
             ylabel="periodogram / its peak",
         )
-        ax[0, 0].legend(fontsize=8)
-        # 2. epoch folding, line by line: the DLI's lines over the direct line's rhythm
-        for line, x in lines.items():
-            lengths, sig = x["frame"]["scan"]
-            ax[0, 1].plot(lengths, sig, lw=0.6, color=color[line], label=line)
-        ax[0, 1].set(
-            title="2. epoch folding, line by line",
-            xlabel="trial frame length [symbols]",
-            ylabel="significance [σ]",
-        )
-        ax[0, 1].legend(fontsize=8)
+        ax["clock"].legend(fontsize=8)
         # the patterns as Bob reads them once synchronized: clicks per symbol, by the
         # bits the symbol and the one before it carry, with their Poisson errors
         kind = 2 * np.roll(string, 1) + string  # (s_{k−1}, s_k): 00, 01, 10, 11
@@ -535,7 +518,7 @@ if __name__ == "__main__":
             per_symbol = d["folded"][(np.arange(L) + d["D"]) % L]
             n = np.bincount(kind, weights=per_symbol, minlength=4)
             ratio = n / size / (n[1] / size[1])
-            ax[0, 2].bar(
+            ax["patterns"].bar(
                 np.arange(4) + (i - 1) * 0.27,
                 ratio,
                 width=0.25,
@@ -544,19 +527,19 @@ if __name__ == "__main__":
                 color=color[line],
                 label=line,
             )
-        ax[0, 2].set(
+        ax["patterns"].set(
             title="the patterns Bob reads once synchronized",
             xticks=range(4),
             xticklabels=["00", "01", "10", "11"],
             xlabel=r"the symbol's bits $s_{k-1}\,s_k$",
             ylabel="clicks per symbol, relative to 01",
         )
-        ax[0, 2].legend(fontsize=8)
+        ax["patterns"].legend(fontsize=8)
         # 3. each line's cross-correlation near its peak: against its own pattern, and
         # against the string, which is the direct line's own
         expect = patterns(string)
-        for a, (line, x) in zip(ax[1], lines.items()):
-            d = x["delay"]
+        for line, x in lines.items():
+            a, d = ax[line], x["delay"]
             lags = np.arange(d["D"] - 20, d["D"] + 21)
             guides = [(expect[line], color[line], "its pattern")]
             if line != "direct":
@@ -579,7 +562,7 @@ if __name__ == "__main__":
                 ylabel="cross-correlation [σ]",
             )
             a.legend(fontsize=8)
-        for a in ax.flat:
+        for a in ax.values():
             a.grid(True, color="#2c2c2a", lw=0.8)
         fig.savefig(args.plot, dpi=140)
         print(f"saved {args.plot}")

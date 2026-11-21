@@ -32,9 +32,6 @@ def test_bob_recovers_clock_and_every_lines_delay(run):
     assert lines["bright"]["clicks"] > 800 and lines["dark"]["clicks"] > 650
     # ≈ 0.7 ppb rms from 2600 clicks over 10 ms, against tens of ppm
     assert abs(run["f error ppm"]) < 0.005
-    for line in ("bright", "dark"):
-        frame = lines[line]["frame"]
-        assert frame["L"] == EX["L"] and frame["significance"] > 3 * frame["noise"]
     for line, x in lines.items():
         spread = 0.1e-9 / math.sqrt(x["clicks"])
         # 10 ps for the clock error: 5 ps per ppb at the record's middle, 5 ms in
@@ -54,14 +51,12 @@ def test_bob_recovers_clock_and_every_lines_delay(run):
 def test_the_dli_lines_rescue_the_saturated_direct_line(run):
     """The direct SPAD waits 40 ns against its 10 µs hold-off: its clicks come almost
     every 10 µs and strobe the clock, a copy of the line 100 ppm away standing nearly as
-    tall, and the rhythm fools its frame check. The DLI's lines, below saturation, wash
-    the copy out of the shared clock and confirm L."""
+    tall. The DLI's lines, below saturation, wash the copy out of the shared clock."""
     direct = run["lines"]["direct"]
     hold_off = run["setup"]["SPD-DIRECT"].dead_time
     assert np.median(np.diff(direct["t"])) < 1.02 * hold_off
     assert EX["recover_clock"](direct["t"])["runner-up"] > 0.8
     assert run["clock"]["runner-up"] < 0.6
-    assert direct["frame"]["L"] != EX["L"]
 
 
 def test_the_lines_see_their_patterns(run):
