@@ -48,9 +48,12 @@ being a live detector's mean wait. Saturated (W ≪ τd) the clicks come almost 
 and strobe Alice's clock: the line has copies every 1/τd (25 ppm of a 1 GHz clock at 40
 µs, 10 ppm at 100 µs), several inside the search, and which one step 1 picks is chance.
 ``recover_clock``'s "runner-up", the tallest other peak over the chosen one, flags it
-near 1. Attenuating until W ≈ τd/10 (``mu=``) jitters the rhythm enough to wash the
-copies out. ``LONG`` uses 250 ps tagger bins: bins must stay under half a symbol, or the
-tagger's Nyquist frequency lands on the clock and mirrors the line about it.
+near 1. Step 3 tells them apart (``break_tie``): at a copy k/τd from Alice's line,
+click i's phase gains about k·i whole turns, which the periodogram cannot see but the
+symbol index counts, so the fold no longer follows the string. Attenuating until
+W ≈ τd/10 (``mu=``) jitters the rhythm enough to wash the copies out. ``LONG`` uses
+250 ps tagger bins: bins must stay under half a symbol, or the tagger's Nyquist
+frequency lands on the clock and mirrors the line about it.
 
 The carving matters for step 1. A pulse filling a fraction d of the symbol spreads its
 clicks over a phase 2πd of the clock, so the line keeps a depth sinc(πd) = sin(πd)/(πd):
@@ -328,6 +331,51 @@ def synchronize(t: np.ndarray, string: np.ndarray, f_nom: float = F_NOM) -> dict
     return {"clock": clock, "frame": frame, "delay": delay, "clicks": t.size}
 
 
+def break_tie(
+    t: np.ndarray,
+    f: float,
+    string: np.ndarray,
+    f_nom: float = F_NOM,
+    search_ppm: float = SEARCH_PPM,
+) -> dict:
+    """Step 1's line against its copies. A saturated detector clicks about every
+    τ̄ = (t_N − t_1)/(N − 1), which puts copies of the clock line at f + j/τ̄, as tall
+    as Alice's (step 1's runner-up near 1): there click i's phase gains about j·i whole
+    turns, which the periodogram cannot see. Its symbol index counts them, so the fold
+    no longer follows the string. Each copy inside the search window is refined as step
+    1 refines its peak, step 3 runs at every line, and the line that puts the most
+    clicks on the string's 1s wins. j = 0 is step 1's line, as step 1 left it; below
+    saturation there are no copies, and it wins."""
+    span = t[-1] - t[0]
+    tau, step = span / (t.size - 1), 1 / span
+    half = f_nom * search_ppm * 1e-6
+    lines = []
+    for j in range(
+        math.ceil((f_nom - half - f) * tau), math.floor((f_nom + half - f) * tau) + 1
+    ):
+        fj = f
+        if j:  # the copy's peak, found as step 1 finds its own
+            fine = f + j / tau + np.linspace(-2, 2, 801) * step
+            z = periodogram(t, fine)
+            k = int(np.argmax(z))
+            fj = float(fine[k])
+            if 0 < k < fine.size - 1:  # parabolic peak between grid points
+                y0, y1, y2 = z[k - 1], z[k], z[k + 1]
+                fj += 0.5 * (y0 - y2) / (y0 - 2 * y1 + y2) * (fine[1] - fine[0])
+        lines.append((j, fj, recover_delay(t, fj, string)))
+    j, fj, delay = max(lines, key=lambda line: line[2]["on ones"])
+    return {
+        "f": fj,
+        "j": j,
+        "delay": delay,
+        "lines": len(lines),
+        # the best share on the 1s among the other lines
+        "next best": max(
+            (d["on ones"] for i, _, d in lines if i != j), default=math.nan
+        ),
+    }
+
+
 def waiting_time(setup: Setup) -> float:
     """Mean wait W of a live detector for its next click:
     1/(f·⟨s⟩·(1 − e^{−ημ}) + dark rate)."""
@@ -464,6 +512,7 @@ if __name__ == "__main__":
         f" {'W/τd':>6} {'runner-up':>9} {'clock error':>11}"
         f" {'frame check (σ; coprime best)':>30} {'delay error':>11} {'assigned':>8}"
     )
+    ties = []
     for dead, mu, rec in DEAD_CASES:
         r = report(record=rec, dead_time=dead, mu=mu, **LONG)
         s, fr = r["sync"], r["sync"]["frame"]
@@ -478,6 +527,8 @@ if __name__ == "__main__":
             f" {r['f error ppm'] * 1e3:+8.0f} ppb {check:>30}"
             f" {r['delay error'] * 1e12:+8.1f} ps {r['assigned'] * 100:7.1f} %"
         )
+        tie = break_tie(r["t"], s["clock"]["f"], r["setup"].string, r["setup"].nominal)
+        ties.append((dead, mu, rec, r, tie))
     print(
         "   (W: a live detector's mean wait for its next click. Saturated, W ≪ τd: the"
         " clicks come almost every τd\n    and strobe Alice's clock, so the line has"
@@ -485,6 +536,39 @@ if __name__ == "__main__":
         " search holds several (runner-up ≈ 1): which one wins is chance, and the"
         " rhythm also\n    fools the frame check. With W ≈ τd/10 the waits scatter the"
         " copies.)\n"
+    )
+
+    print(
+        "The string breaks the tie: step 3 at step 1's line and at each of its copies"
+        " f + j/τ̄ in the search window\n(τ̄: the mean interval between Bob's clicks),"
+        " keeping the line that puts the most clicks on the string's 1s"
+    )
+    print(f"   {'':52}{'clock error':^23}".rstrip())
+    print(
+        f"   {'dead time':>9} {'μ':>6} {'record':>6} {'lines':>5} {'j':>3}"
+        f" {'on 1s':>7} {'next best':>9} {'step 1':>11} {'string':>11}"
+        f" {'delay error':>11} {'assigned':>8}"
+    )
+    for dead, mu, rec, r, tie in ties:
+        true, d = r["truth"], tie["delay"]
+        p = true["L"] / true["f"]
+        err = (d["delay mod P"] - true["delay mod P"] + p / 2) % p - p / 2
+        got = assigned(r["t"], {"clock": tie, "delay": d}, true)
+        print(
+            f"   {fmt_si(dead, 's'):>9} {mu:6g} {fmt_si(rec, 's'):>6} {tie['lines']:5d}"
+            f" {tie['j']:+3d} {d['on ones'] * 100:5.1f} %"
+            f" {tie['next best'] * 100:7.1f} % {r['f error ppm'] * 1e3:+7.0f} ppb"
+            f" {(tie['f'] / true['f'] - 1) * 1e9:+7.0f} ppb {err * 1e12:+8.1f} ps"
+            f" {got * 100:7.1f} %"
+        )
+    print(
+        "   (lines: step 1's line and its copies inside ±100 ppm; j: the string's line,"
+        " in copies from step 1's;\n    on 1s: the share of the clicks its fold puts on"
+        " the string's 1s; next best: the best other line's. At a\n    copy k/τ̄ from"
+        " Alice's line, click i's symbol index is off by about k·i, so its clicks land"
+        " on the 1s\n    only by chance: half of them at any one lag, more at the best"
+        " of the 1000 lags, and more still with\n    fewer clicks. Below saturation"
+        " there are no copies, and the string keeps step 1's line.)\n"
     )
 
     print(

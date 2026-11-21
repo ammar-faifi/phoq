@@ -251,6 +251,18 @@ condition, $Ns^2 \gg 1$, reads $`W \gg P/(2\pi\sqrt N)`$: with fewer clicks the 
 more. An oscillator known to better than half the copy spacing, 1/(2τ_d f), picks the right copy
 too: ±12 ppm at 40 µs, ±5 ppm at 100 µs.
 
+**Or the string picks the copy.** The walk above is the phase modulo whole turns. Click $i$'s full
+phase difference at $f_A + k/P$ is $2\pi k\,i + 2\pi k J_i/P$, and $Z$ cannot see the $k\,i$ turns.
+The symbol indices count them: at a copy, click $i$'s index is off by $k\,i$ plus a constant, while
+the walk $kJ_i/P$ stays under half a symbol. Folded at L, the indices no longer follow the string,
+and the clicks fall on its 1s only by chance: half of them at any one lag, a little more at the
+best of the L lags. `break_tie` runs the delay step at step 1's line $f$ and at each copy
+$f + j/\bar P$ in the window, with $`\bar P = (t_N - t_1)/(N-1)`$ from Bob's own time stamps, and
+keeps the line that puts the most clicks on the string's 1s. Saturated, Alice's line puts 99.4 %
+(40 µs) and 100 % (100 µs) of the clicks there, and the best copy about 61 %. The 100 µs run, two
+copies off, gets its clock and delay back (+0.4 ps). The frame check stays fooled, since the
+rhythm is in the clicks whatever the clock.
+
 **The runner-up.** Next to the coarse peak, `recover_clock` reports the tallest other peak in the
 window, more than two FFT bins away, divided by the chosen one. It needs only the time stamps.
 Near 1, the clock cannot be trusted. Below saturation it reads about 0.13 rather than the mean

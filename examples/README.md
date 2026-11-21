@@ -263,6 +263,32 @@ From there:
 - An oscillator known to better than half the copy spacing (±12 ppm at 40 µs, ±5 ppm at 100 µs)
   would also pick the right copy.
 
+**The string breaks the tie.** A copy $k/\bar\tau$ from Alice's line, $\bar\tau$ being the mean
+interval between clicks, stands as tall as hers because there click i's phase gains about $k\,i$
+whole turns, which the periodogram cannot see. Step 3's symbol indices count those turns: off by
+$k\,i$, they no longer follow the string when folded, and the clicks land on its 1s only by chance.
+`break_tie` refines each copy in the search window as step 1 refines its peak, runs step 3 at every
+line, and keeps the one that puts the most clicks on the string's 1s. Bob gets $\bar\tau$ from his
+own time stamps. On the same records:
+
+| Dead time | μ | Record | Lines | j | On 1s | Next best | Clock error, step 1 | Clock error, string | Delay error | Assigned |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 40 µs | 0.2 | 20 ms | 8 | 0 | 99.4 % | 60.6 % | +0 ppb | +0 ppb | −0.1 ps | 100 % |
+| 40 µs | 0.002 | 2 ms | 9 | 0 | 100 % | 77.8 % | +43 ppb | +43 ppb | +48 ps | 100 % |
+| 40 µs | 0.002 | 20 ms | 9 | 0 | 100 % | 59.2 % | −1 ppb | −1 ppb | −14 ps | 100 % |
+| 100 µs | 0.2 | 50 ms | 20 | +2 | 100 % | 60.8 % | −19 991 ppb | −0 ppb | +0.4 ps | 100 % |
+| 100 µs | 0.0008 | 50 ms | 22 | 0 | 99.6 % | 60.7 % | +0 ppb | +0 ppb | +1.0 ps | 100 % |
+
+"Lines" are step 1's line and its copies in the window, and j counts the copies from step 1's line
+to the string's. "On 1s" is the share of the clicks that line's fold puts on the string's 1s, and
+"next best" is the best other line's share. Chance puts half the clicks on the 1s at any one lag,
+more at the best of the 1000 lags, and more still with fewer clicks: about 60 % of 500 clicks and
+78 % of 45. The 100 µs run moves up two copies and gets its clock and delay back. The 40 µs run
+keeps its line, now by a margin of 99.4 % to 60.6 % rather than by chance. Below saturation there
+are no copies, and the string keeps step 1's line. The frame check is still fooled by the rhythm,
+but step 3 uses the agreed L. On a 5 ms record, `tests/test_sync.py` starts `break_tie` from step
+1's own pick and from a copy two lines off, and checks that both come back to Alice's line.
+
 [docs/photon-counter.md](../docs/photon-counter.md) derives these results and walks through the
 tagger's acquisition. Two engine details matter here:
 

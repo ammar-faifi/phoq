@@ -148,6 +148,23 @@ def test_saturated_long_dead_time_strobes_the_clock():
     assert r["sync"]["clock"]["runner-up"] > 0.9
 
 
+def test_the_string_breaks_the_saturated_tie():
+    """Saturated, step 1 cannot tell Alice's line from its copies every 1/τ̄, but step 3
+    can. From step 1's own pick, whichever line that is, or handed a copy two lines
+    off, break_tie moves to Alice's line: there the fold puts nearly every click on the
+    string's 1s, at a copy only what chance gives the best lag.
+    """
+    r = EX["report"](record=5e-3, dead_time=40e-6, **EX["LONG"])
+    t, true, setup = r["t"], r["truth"], r["setup"]
+    tie = EX["break_tie"](t, r["sync"]["clock"]["f"], setup.string, setup.nominal)
+    assert abs(tie["f"] / true["f"] - 1) < 30e-9
+    tau = (t[-1] - t[0]) / (t.size - 1)
+    for j in (-2, 0, 2):
+        tie = EX["break_tie"](t, true["f"] + j / tau, setup.string, setup.nominal)
+        assert tie["j"] == -j and abs(tie["f"] / true["f"] - 1) < 30e-9
+        assert tie["delay"]["on ones"] > 0.95 and tie["next best"] < 0.8
+
+
 def test_long_dead_time_frame_check_needs_hundreds_of_clicks():
     """20 ms at 40 µs below saturation: ~450 clicks, enough for N/√(2L) to clear the
     noise."""
