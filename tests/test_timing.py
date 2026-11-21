@@ -1,5 +1,5 @@
 """Rise time and jitter: the AWG's output edges, and the single-photon detector's click
-times and output pulse."""
+times and output pulse; and the stamps folded before and after sync (plot_sync)."""
 
 from pathlib import Path
 
@@ -349,3 +349,38 @@ def test_awg_rise_time_spills_a_carved_pulse_into_its_neighbors():
     dark = (bins % 2 == 1).mean()  # the modulator's leak, 30 dB down
     assert dark == pytest.approx(0.002, abs=0.002)
     assert (spilled % 2 == 1).mean() == pytest.approx(2 * 0.0196 + 0.002, abs=0.012)
+
+
+# ---- the stamps before and after sync ------------------------------------------------
+def test_plot_sync_shows_the_phase_walk_then_the_pulses():
+    """Stamps of 2 ns pulses on a clock 25 ppm fast. Folded at the nominal 10 ns from
+    time zero, their phase walks back through the slot 5 times in 2 ms; folded at the
+    true clock from its offset, they lie in their pulses, all inside a ±1 ns window."""
+    pytest.importorskip("matplotlib")
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    from phoq.timing import plot_sync
+
+    rng = np.random.default_rng(1)
+    period, t0 = 10e-9, 3.2e-9
+    true = period / (1 + 25e-6)
+    n = np.sort(rng.choice(200_000, 2_000, replace=False))
+    t = t0 + n * true + rng.uniform(-1e-9, 1e-9, n.size)
+    axes = plot_sync(t, (0.0, period), (t0, true), window=(-1e-9, 1e-9))
+    before, after = (ax.lines[0].get_ydata() for ax in axes)
+    # the phases fold gives, in ns, against the stamps in ms
+    assert axes[0].lines[0].get_xdata() == pytest.approx(t * 1e3)
+    assert before == pytest.approx(fold(t, 0.0, period)[1] * 1e9)
+    assert after == pytest.approx(fold(t, t0, true)[1] * 1e9)
+    assert axes[0].get_xlabel() == "time stamp [ms]"
+    assert axes[0].get_ylabel() == "phase φ in the slot [ns]"
+    # before: 5 turns of the slot, backward; after: flat, in the pulses
+    walk = np.unwrap(before, period=10.0)
+    assert walk[-1] - walk[0] == pytest.approx(-50.0, abs=2.5)
+    assert np.abs(after).max() <= 1.0
+    legend = axes[1].get_legend().get_texts()[0].get_text()
+    assert legend == "click window: 100.0 % of the stamps"
+    plt.close("all")

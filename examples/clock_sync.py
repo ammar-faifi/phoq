@@ -2,7 +2,7 @@
 
     # recover Alice's clock and the delay
     uv run phoq run examples/clock_sync.py
-    # the spectrum, periodogram and correlations
+    # the spectrum, periodogram, correlations and the stamps before and after sync
     uv run phoq run examples/clock_sync.py --plot sync.png
     # the bench in 3D
     uv run phoq serve examples/clock_sync.py
@@ -78,6 +78,7 @@ from phoq import (
     SinglePhotonDetector,
 )
 from phoq.engine import trace
+from phoq.timing import plot_sync
 from phoq.units import fmt_si, photon_energy
 
 F_NOM = 100e6  # the symbol rate both sides agreed on (``rate=``)
@@ -375,7 +376,10 @@ def report(km: float = 0.0, seed: int = 1, **bench) -> dict:
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument(
-        "--plot", metavar="PNG", help="save the spectrum, periodogram and correlations"
+        "--plot",
+        metavar="PNG",
+        help="save the spectrum, periodogram, correlations and the stamps before and"
+        " after sync",
     )
     args = ap.parse_args()
     print(
@@ -516,7 +520,7 @@ if __name__ == "__main__":
 
         r = runs[25.0]
         c, fr, d = r["sync"]["clock"], r["sync"]["frame"], r["sync"]["delay"]
-        fig, ax = plt.subplots(2, 2, figsize=(10, 6.4))
+        fig, ax = plt.subplots(3, 2, figsize=(10, 9.6))
         freq, spec = c["spectrum"]
         sel = np.abs(freq - F_NOM) < 2e6
         ax[0, 0].semilogy((freq[sel] - F_NOM) / 1e3, spec[sel], lw=0.8, color="#60a5fa")
@@ -551,6 +555,16 @@ if __name__ == "__main__":
         ax[1, 1].set(
             title=f"3. cross-correlation with the string: D = {d['D']}",
             xlabel="lag d [symbols]",
+        )
+        # the stamps folded at the nominal clock from Bob's time zero, then at the
+        # recovered clock from the recovered delay: the slots are Alice's pulses
+        pulse = 1 / (CARVE * c["f"])
+        plot_sync(
+            r["t"],
+            (0.0, 1 / F_NOM),
+            (d["delay mod P"], 1 / c["f"]),
+            window=(-pulse / 2, pulse / 2),
+            axes=ax[2],
         )
         for a in ax.flat:
             a.grid(alpha=0.3)
