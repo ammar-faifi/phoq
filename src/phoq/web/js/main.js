@@ -9,9 +9,9 @@ import { ScopePanel } from './scope.js';
 import { Interaction } from './interaction.js';
 import { UI } from './ui.js';
 import { ConsoleDrawer } from './console.js';
-import { Laptop, Switch, EthernetCable, LAPTOP, SWITCH, FRONT_STRIP } from './laptop.js';
-import { autoLayout, layoutShelf, placeNew, restFibers, suggestTableSize, reserveFront } from './layout.js';
-import { TABLE, TABLE_PRESETS } from './util.js';
+import { Laptop, Switch, EthernetCable, LAPTOP, SWITCH } from './laptop.js';
+import { autoLayout, layoutShelf, placeNew, restFibers, suggestTableSize } from './layout.js';
+import { TABLE, TABLE_PRESETS, SHELF } from './util.js';
 
 const split = (path) => { const i = path.lastIndexOf('.'); return [path.slice(0, i), path.slice(i + 1)]; };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -90,7 +90,7 @@ class Lab {
     if (first) this.clearScene();
     this.state = s;
     this.ui.setTitle(s.name);
-    if (s.laptops?.length) { reserveFront(LAPTOP.d + 11); this.ensureLaptops(s.laptops); }
+    if (s.laptops?.length) this.ensureLaptops(s.laptops);
     const names = new Set(s.components.map((c) => c.name));
     for (const [n, p] of this.parts) if (!names.has(n)) { p.dispose(); this.parts.delete(n); }
     for (const [n, f] of this.fibers) if (!names.has(n)) { f.dispose(); this.fibers.delete(n); }
@@ -273,13 +273,15 @@ class Lab {
     if (added) this.placeLaptops();
   }
 
-  /** Laptops along the front strip of the table, the switch in the front-right corner. */
+  /** Laptops along the shelf's lower board, flush with its front edge, the switch at its right
+   * end; their cables run along the board behind them. */
   placeLaptops() {
     if (!this.netSwitch) return;
-    const z = TABLE.depth / 2 - FRONT_STRIP;
-    this.netSwitch.place(TABLE.width / 2 - SWITCH.w / 2 - 3, z);
+    const front = SHELF.z + SHELF.depth / 2 - 1;
+    this.netSwitch.place(SHELF.xMax - SWITCH.w / 2 - 1, front - SWITCH.d / 2);
     const n = this.laptops.size;
-    const xMin = -TABLE.width / 2 + LAPTOP.w / 2 + 3, xMax = TABLE.width / 2 - SWITCH.w - 8 - LAPTOP.w / 2;
+    const xMin = SHELF.xMin + LAPTOP.w / 2 + 1, xMax = SHELF.xMax - SWITCH.w - 6 - LAPTOP.w / 2;
+    const z = front - LAPTOP.d / 2;
     [...this.laptops.values()].forEach((l, i) => l.place(n > 1 ? xMin + (i * (xMax - xMin)) / (n - 1) : (xMin + xMax) / 2, z));
     for (const c of this.ethernet.values()) c.key = '';
   }

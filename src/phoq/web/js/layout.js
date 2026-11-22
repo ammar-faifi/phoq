@@ -5,9 +5,7 @@ import * as THREE from 'three';
 import { TABLE, SHELF, TABLE_PRESETS, clamp } from './util.js';
 
 const GAP_X = 6, GAP_Z = 8;
-let FRONT_RESERVE = 8;
-/** Keep this many cm free along the front edge (laptops and their cables live there). */
-export function reserveFront(cm) { FRONT_RESERVE = Math.max(8, cm); }
+const FRONT_RESERVE = 8;
 // Table-relative strips: loose cords lie along the front edge, unconnected parts along the back.
 const frontZ = () => TABLE.depth / 2 - FRONT_RESERVE;
 const backZ = () => -TABLE.depth / 2 + 11;

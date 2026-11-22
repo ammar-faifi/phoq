@@ -199,7 +199,9 @@ function buildTable(boardTex) {
   return g;
 }
 
-/** Instrument shelf behind the table; oscilloscopes and counters from the setup sit here. */
+/** Two-board shelf behind the table: the setup's oscilloscopes and counters sit on the upper
+ * board, the laptops and the network switch on the lower one. The posts stand at the boards'
+ * back edge, out of the way of what sits on them. */
 function buildShelf() {
   const { width: W } = TABLE;
   const z0 = SHELF.z;
@@ -209,16 +211,16 @@ function buildShelf() {
   const posts = W > 330 ? 4 : W > 200 ? 3 : 2;
   for (let i = 0; i < posts; i++) {
     const post = new THREE.Mesh(new THREE.BoxGeometry(3, 82, 3), postMat);
-    post.position.set(-(W / 2 - 2) + (i * (W - 4)) / (posts - 1), 21, z0);
+    post.position.set(-(W / 2 - 2) + (i * (W - 4)) / (posts - 1), 21, z0 - SHELF.depth / 2 + 1.5);
     post.castShadow = true;
     g.add(post);
   }
-  const board = new THREE.Mesh(
-    new THREE.BoxGeometry(W, 1.6, 28),
-    new THREE.MeshStandardMaterial({ color: 0x1a1f28, metalness: 0.5, roughness: 0.5 }),
-  );
-  board.position.set(0, SHELF.y - 0.8, z0);
-  board.castShadow = board.receiveShadow = true;
-  g.add(board);
+  const boardMat = new THREE.MeshStandardMaterial({ color: 0x1a1f28, metalness: 0.5, roughness: 0.5 });
+  for (const top of [SHELF.y, SHELF.lowerY]) {
+    const board = new THREE.Mesh(new THREE.BoxGeometry(W, 1.6, SHELF.depth), boardMat);
+    board.position.set(0, top - 0.8, z0);
+    board.castShadow = board.receiveShadow = true;
+    g.add(board);
+  }
   return g;
 }

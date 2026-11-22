@@ -1,7 +1,7 @@
-// Laptops on the table (one per party or lab PC), a dummy layer-3 switch, and the Ethernet cables
-// between them — the classical network, drawn next to the optics.
+// Laptops on the shelf's lower board (one per party or lab PC), a dummy layer-3 switch, and the
+// Ethernet cables between them — the classical network, drawn next to the optics.
 import * as THREE from 'three';
-import { TABLE } from './util.js';
+import { SHELF } from './util.js';
 import { STATUS_COLOR } from './console.js';
 import { AboveTable } from './fiber.js';
 
@@ -15,8 +15,7 @@ const MAT = {
 };
 export const LAPTOP = { w: 28, d: 19, h: 1.4, open: 100 };   // lid opened 100° from the base
 export const SWITCH = { w: 22, d: 12, h: 3.2, ports: 8 };
-const LANE = 23;                    // cm from the front edge: the cable lane behind the laptops
-export const FRONT_STRIP = 11;      // laptops' center line, cm from the front edge
+const LANE = 10;                    // cm behind the shelf's center line: the cable lane behind the laptops
 
 export class Laptop {
   constructor(lab, info, index) {
@@ -63,8 +62,9 @@ export class Laptop {
     return out.set(-LAPTOP.w / 2 + 3, LAPTOP.h / 2, -LAPTOP.d / 2 - 0.5).applyMatrix4(this.group.matrixWorld);
   }
 
+  /** On the shelf's lower board, centered at (x, z). */
   place(x, z) {
-    this.group.position.set(x, 0, z);
+    this.group.position.set(x, SHELF.lowerY, z);
     this.group.updateMatrixWorld(true);
   }
 
@@ -112,7 +112,8 @@ export class Laptop {
   dispose() { this.group.removeFromParent(); this.tex.dispose(); }
 }
 
-/** Dummy layer-3 switch: ports with link LEDs that blink when a laptop talks. */
+/** Dummy layer-3 switch: ports on the back, toward the cable lane, and a link LED per port on the
+ * front, facing the user, that blinks when its laptop talks. */
 export class Switch {
   constructor(lab) {
     this.lab = lab;
@@ -125,9 +126,9 @@ export class Switch {
     for (let i = 0; i < SWITCH.ports; i++) {
       const x = -SWITCH.w / 2 + 2.2 + i * 2.5;
       const port = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.1, 0.4), MAT.port);
-      port.position.set(x, 1.1, -SWITCH.d / 2 - 0.1);          // ports on the back face, toward the lane
-      const led = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.3, 0.2), new THREE.MeshStandardMaterial({ color: 0x0a2016, emissive: 0x34d399, emissiveIntensity: 0 }));
-      led.position.set(x, 2.2, -SWITCH.d / 2 - 0.1);
+      port.position.set(x, 1.1, -SWITCH.d / 2 - 0.1);
+      const led = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.55, 0.2), new THREE.MeshStandardMaterial({ color: 0x0a2016, emissive: 0x34d399, emissiveIntensity: 0 }));
+      led.position.set(x, SWITCH.h / 2, SWITCH.d / 2 + 0.1);
       g.add(port, led);
       this.leds.push({ mesh: led, until: 0 });
     }
@@ -140,7 +141,8 @@ export class Switch {
     lab.scene.add(g);
   }
 
-  place(x, z) { this.group.position.set(x, 0, z); this.group.updateMatrixWorld(true); }
+  /** On the shelf's lower board, centered at (x, z). */
+  place(x, z) { this.group.position.set(x, SHELF.lowerY, z); this.group.updateMatrixWorld(true); }
 
   portWorld(i, out) {
     const x = -SWITCH.w / 2 + 2.2 + (i % SWITCH.ports) * 2.5;
@@ -177,7 +179,7 @@ function switchLabel() {
   return t;
 }
 
-/** Blue Ethernet cable from a laptop's port along the lane to a switch port. */
+/** Blue Ethernet cable from a laptop's port along the lane on the lower board to a switch port. */
 export class EthernetCable {
   constructor(lab, laptop, sw, portIndex) {
     this.lab = lab;
@@ -194,10 +196,10 @@ export class EthernetCable {
   update() {
     const a = this.laptop.portWorld(new THREE.Vector3());
     const b = this.sw.portWorld(this.port, new THREE.Vector3());
-    const key = `${a.toArray().map((v) => v.toFixed(1))}|${b.toArray().map((v) => v.toFixed(1))}|${TABLE.depth}`;
+    const key = `${a.toArray().map((v) => v.toFixed(1))}|${b.toArray().map((v) => v.toFixed(1))}`;
     if (key === this.key) return;
     this.key = key;
-    const y = 0.26, lane = TABLE.depth / 2 - LANE;
+    const y = SHELF.lowerY + 0.26, lane = SHELF.z - LANE;
     const pts = [a, new THREE.Vector3(a.x, a.y, a.z - 2), new THREE.Vector3(a.x, y, lane), new THREE.Vector3(b.x, y, lane), new THREE.Vector3(b.x, b.y, b.z - 2), b];
     const curve = new AboveTable(new THREE.CatmullRomCurve3(pts, false, 'centripetal', 0.8), y);
     this.mesh.geometry.dispose();

@@ -3,7 +3,9 @@
 
 export const GRID = 2.5;                // M6 hole pitch: 25 mm
 export const TABLE = { width: 150, depth: 90, thickness: 20, legHeight: 72 };
-export const SHELF = { y: 48.8, z: -59, xMin: -72, xMax: 72 };
+// The shelf behind the table: the setup's instruments on the upper board (top at y), the laptops
+// and the network switch on the lower one (top at lowerY); both boards are `depth` deep.
+export const SHELF = { y: 48.8, lowerY: 18, depth: 28, z: -59, xMin: -72, xMax: 72 };
 
 // Common optical-table / breadboard sizes [cm] (width along x, depth along z).
 export const TABLE_PRESETS = [
