@@ -1,8 +1,8 @@
-// Renderer, camera, lights, room, the optical table and the instrument shelf.
+// Renderer, camera, lights, room, the optical tables and their instrument shelves.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { TABLE, GRID, SHELF, setTableDims } from './util.js';
+import { TABLE, TABLES, GRID, SHELF, setTableDims, rowSpan } from './util.js';
 import { makeBreadboardTexture } from './textures.js';
 
 export const HOME_VIEW = { pos: new THREE.Vector3(0, 122, 176), target: new THREE.Vector3(0, 9, -6) };
@@ -41,40 +41,76 @@ export function createScene(container) {
   controls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
 
   const { key, accents } = addLights(scene);
-  addRoom(scene);
+  const wall = addRoom(scene);
   const boardTex = makeBreadboardTexture(renderer);
-  let table = null, shelf = null;
+  let built = [];
+  let home = { s: 1, sc: 1 };
 
-  /** Rebuild the table and shelf at a new size and fit the camera, shadows and fog to it. */
+  /** Rebuild the tables and shelves at a new size and fit the camera, shadows and fog to the row. */
   function setTableSize(w, d) {
     const dims = setTableDims(w, d);
-    for (const g of [table, shelf]) if (g) { g.removeFromParent(); disposeGroup(g); }
-    table = buildTable(boardTex);
-    shelf = buildShelf();
-    scene.add(table, shelf);
+    for (const g of built) { g.removeFromParent(); disposeGroup(g); }
+    built = TABLES.flatMap((t) => {
+      const table = buildTable(boardTex), shelf = buildShelf();
+      table.position.x = shelf.position.x = t.x;
+      return [table, shelf];
+    });
+    scene.add(...built);
+    const row = rowSpan().width;
     const s = Math.max(TABLE.width / BASE.w, TABLE.depth / BASE.d);
-    const sc = Math.max(s, 0.85);          // small tables: keep the shelf in frame
-    HOME_VIEW.pos.set(0, 9 + 113 * sc, -6 + 182 * sc);
-    HOME_VIEW.target.set(0, 9, -6 * sc);
-    controls.maxDistance = 420 * s;
-    camera.far = 2500 * Math.max(1, s);
-    camera.updateProjectionMatrix();
-    scene.fog.near = 320 * s;
-    scene.fog.far = 720 * s;
+    home = { s, sc: Math.max(s, 0.85) };   // small tables: keep the shelf in frame
+    fitView();
     key.position.set(70 * s, 170 * Math.max(1, s * 0.8), 90 * s);
     Object.assign(key.shadow.camera, {
-      left: -(TABLE.width / 2 + 40), right: TABLE.width / 2 + 40,
+      left: -(row / 2 + 40), right: row / 2 + 40,
       top: TABLE.depth / 2 + 50, bottom: -(TABLE.depth / 2 + 50), far: 450 * Math.max(1, s),
     });
     key.shadow.camera.updateProjectionMatrix();
-    // Accent lights stay outside the table's footprint so they never glare on the breadboard.
-    accents[0].position.set(-(TABLE.width / 2 + 65), 60, -(TABLE.depth / 2 + 75));
-    accents[1].position.set(TABLE.width / 2 + 75, 40, -(TABLE.depth / 2 + 55));
+    // Accent lights stay outside the tables' footprint so they never glare on a breadboard.
+    accents[0].position.set(-(row / 2 + 65), 60, -(TABLE.depth / 2 + 75));
+    accents[1].position.set(row / 2 + 75, 40, -(TABLE.depth / 2 + 55));
     return dims;
+  }
+
+  /**
+   * The home view for the viewport's current shape: framed on one table, then, for a row of
+   * tables, backed off along the same line of sight until the whole row fits across. The zoom-out
+   * limit, far plane and fog follow the distance.
+   */
+  function fitView() {
+    const { s, sc } = home;
+    HOME_VIEW.pos.set(0, 9 + 113 * sc, -6 + 182 * sc);
+    HOME_VIEW.target.set(0, 9, -6 * sc);
+    let k = s;
+    if (TABLES.length > 1) {
+      const row = rowSpan();
+      const ends = [row.xMin, row.xMax].flatMap((x) => [new THREE.Vector3(x, 0, TABLE.depth / 2), new THREE.Vector3(x, SHELF.y + 25, SHELF.z)]);
+      const cam = camera.clone();
+      const back = new THREE.Vector3().subVectors(HOME_VIEW.pos, HOME_VIEW.target);
+      const fits = () => {
+        cam.position.copy(HOME_VIEW.target).add(back);
+        cam.lookAt(HOME_VIEW.target);
+        cam.updateMatrixWorld();
+        return ends.every((e) => Math.abs(e.clone().project(cam).x) < 0.9);   // clear of the toolbox tab
+      };
+      let grow = 1;
+      while (!fits() && grow < 8) { back.multiplyScalar(1.03); grow *= 1.03; }
+      HOME_VIEW.pos.copy(HOME_VIEW.target).add(back);
+      k = s * grow;
+    }
+    // the back wall grows with a row, so a camera this far out never sees its edges
+    const wide = TABLES.length > 1 ? Math.max(1, (rowSpan().width + 800) / 900) : 1;
+    wall.scale.set(wide, Math.max(1, wide * 0.8), 1);
+    wall.position.y = -(TABLE.thickness + TABLE.legHeight) + 160 * wall.scale.y;
+    controls.maxDistance = 420 * k;
+    camera.far = 2500 * Math.max(1, k);
+    camera.updateProjectionMatrix();
+    scene.fog.near = 320 * k;
+    scene.fog.far = 720 * k;
   }
   setTableSize(TABLE.width, TABLE.depth);
 
-  return { renderer, scene, camera, controls, setTableSize };
+  return { renderer, scene, camera, controls, setTableSize, fitView };
 }
 
 function disposeGroup(g) {
@@ -136,6 +172,7 @@ function addRoom(scene) {
   const strip = new THREE.Mesh(new THREE.PlaneGeometry(700, 1.2), new THREE.MeshBasicMaterial({ color: 0x1fb6d1 }));
   strip.position.set(0, floorY + 230, -229.5);
   scene.add(strip);
+  return wall;
 }
 
 function buildTable(boardTex) {
@@ -199,9 +236,9 @@ function buildTable(boardTex) {
   return g;
 }
 
-/** Two-board shelf behind the table: the setup's oscilloscopes and counters sit on the upper
- * board, the laptops and the network switch on the lower one. The posts stand at the boards'
- * back edge, out of the way of what sits on them. */
+/** Two-board shelf behind a table (built at x = 0): the setup's oscilloscopes and counters sit
+ * on the upper board, the laptops and the network switch on the lower one. The posts stand at
+ * the boards' back edge, out of the way of what sits on them. */
 function buildShelf() {
   const { width: W } = TABLE;
   const z0 = SHELF.z;

@@ -2,7 +2,7 @@
 // or green FC/APC) and a cable that drapes onto the table. Light flow and open-end glow come from
 // the server report.
 import * as THREE from 'three';
-import { TABLE, clamp, connectorColor, wavelengthColor } from './util.js';
+import { TABLE, clamp, connectorColor, wavelengthColor, onATable, tableAt, tableSpan } from './util.js';
 import { getGlowTexture, makeFlowTexture } from './textures.js';
 
 const Z = new THREE.Vector3(0, 0, 1);
@@ -30,10 +30,11 @@ export class AboveTable extends THREE.Curve {
   }
 }
 
-const onTable = (p, margin = 2) => Math.abs(p.x) <= TABLE.width / 2 - margin && Math.abs(p.z) <= TABLE.depth / 2 - margin;
-/** Pull a point that lies on the table surface back inside the table outline. */
+const onTable = (p, margin = 2) => onATable(p.x, p.z, margin);
+/** Pull a point that lies on the table surface back inside the outline of the table nearest it. */
 const keepOn = (p, margin = 1.5) => {
-  p.x = clamp(p.x, -TABLE.width / 2 + margin, TABLE.width / 2 - margin);
+  const t = tableSpan(tableAt(p.x));
+  p.x = clamp(p.x, t.xMin + margin, t.xMax - margin);
   p.z = clamp(p.z, -TABLE.depth / 2 + margin, TABLE.depth / 2 - margin);
   return p;
 };
@@ -137,7 +138,8 @@ export class FiberVisual {
     this.flow = { fwd: 0, bwd: 0, wavelength: 1550e-9 };
     this.key = '';
     lab.scene.add(this.mesh, this.ends[0].group, this.ends[1].group);
-    this.ends.forEach((e, i) => this.rest(e, -10 + i * 20, TABLE.depth / 2 - 9));
+    const x0 = tableAt(lab.controls.target.x).x;             // a new cord lies on the table in view
+    this.ends.forEach((e, i) => this.rest(e, x0 - 10 + i * 20, TABLE.depth / 2 - 9));
   }
 
   get group() { return this.mesh; }

@@ -558,8 +558,17 @@ class Experiment:
         return [*self.party_workers, *self.task_workers]
 
     def laptops(self) -> list[dict]:
+        """One laptop per party, in the declared order, with the instruments its station
+        owns (the lab puts each station on a table of its own), plus the lab PC when
+        analysis tasks run."""
         out = [
-            {"name": w.cls.name, "kind": "party", "port": w.port, "host": HOST}
+            {
+                "name": w.cls.name,
+                "kind": "party",
+                "port": w.port,
+                "host": HOST,
+                "instruments": list(w.cls.instruments),
+            }
             for w in self.party_workers
         ]
         if any(t.laptop == "LAB" for t in self.task_workers):

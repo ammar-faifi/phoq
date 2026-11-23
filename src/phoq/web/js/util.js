@@ -2,10 +2,16 @@
 // No physics lives here: every number shown comes from the Python lab server.
 
 export const GRID = 2.5;                // M6 hole pitch: 25 mm
+// Size of each optical table (they are all alike).
 export const TABLE = { width: 150, depth: 90, thickness: 20, legHeight: 72 };
-// The shelf behind the table: the setup's instruments on the upper board (top at y), the laptops
+// The tables, side by side along x and centered on x = 0: one per party when the lab runs
+// parties (left to right in their declared order, unless another order keeps linked stations
+// closer), else a single one. `x` is a table's center.
+export const TABLES = [{ name: '', x: 0 }];
+export const TABLE_GAP = 30;            // cm between neighboring tables; a multiple of 5 keeps the hole grid
+// The shelf behind each table: the setup's instruments on the upper board (top at y), the laptops
 // and the network switch on the lower one (top at lowerY); both boards are `depth` deep.
-export const SHELF = { y: 48.8, lowerY: 18, depth: 28, z: -59, xMin: -72, xMax: 72 };
+export const SHELF = { y: 48.8, lowerY: 18, depth: 28, z: -59 };
 
 // Common optical-table / breadboard sizes [cm] (width along x, depth along z).
 export const TABLE_PRESETS = [
@@ -20,15 +26,38 @@ export const TABLE_PRESETS = [
 ];
 export const TABLE_LIMITS = { wMin: 60, wMax: 500, dMin: 45, dMax: 200 };
 
-/** Resize the table (multiples of 5 cm keep the hole grid aligned with the edges). */
+/** Resize the tables (multiples of 5 cm keep the hole grid aligned with the edges). */
 export function setTableDims(w, d) {
   const r5 = (v) => Math.round(v / 5) * 5;
   TABLE.width = clamp(r5(w), TABLE_LIMITS.wMin, TABLE_LIMITS.wMax);
   TABLE.depth = clamp(r5(d), TABLE_LIMITS.dMin, TABLE_LIMITS.dMax);
   SHELF.z = -TABLE.depth / 2 - 14;
-  SHELF.xMin = -TABLE.width / 2 + 3;
-  SHELF.xMax = TABLE.width / 2 - 3;
+  const pitch = TABLE.width + TABLE_GAP;
+  TABLES.forEach((t, i) => { t.x = (i - (TABLES.length - 1) / 2) * pitch; });
   return { w: TABLE.width, d: TABLE.depth };
+}
+
+/** One table per name, left to right (none or one name: the single table). */
+export function setTables(names) {
+  TABLES.length = 0;
+  for (const name of names.length > 1 ? names : ['']) TABLES.push({ name, x: 0 });
+  setTableDims(TABLE.width, TABLE.depth);
+}
+
+/** The table nearest x. */
+export const tableAt = (x) => TABLES.reduce((a, b) => (Math.abs(b.x - x) < Math.abs(a.x - x) ? b : a));
+export const tableNamed = (name) => TABLES.find((t) => t.name === name);
+/** x range of a table's top, or of its shelf boards. */
+export const tableSpan = (t) => ({ xMin: t.x - TABLE.width / 2, xMax: t.x + TABLE.width / 2 });
+export const shelfSpan = (t) => ({ xMin: t.x - TABLE.width / 2 + 3, xMax: t.x + TABLE.width / 2 - 3 });
+/** x range of the whole row of tables. */
+export function rowSpan() {
+  const half = (TABLES.length * TABLE.width + (TABLES.length - 1) * TABLE_GAP) / 2;
+  return { xMin: -half, xMax: half, width: 2 * half };
+}
+/** Whether (x, z) lies on a table top, at least `margin` in from its edges. */
+export function onATable(x, z, margin = 0) {
+  return Math.abs(x - tableAt(x).x) <= TABLE.width / 2 - margin && Math.abs(z) <= TABLE.depth / 2 - margin;
 }
 
 /** Table size as meters, e.g. "1.5 × 0.9 m". */

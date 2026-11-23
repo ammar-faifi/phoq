@@ -1,7 +1,7 @@
 // 3D models of the Python lab components. A Part only renders; the physics lives in Python.
 // Each builder places the ports named exactly like the Python ports (laser.out, pd.inp, pd.rf …).
 import * as THREE from 'three';
-import { clamp, snapToHole, TABLE, SHELF, fmtSI, wavelengthColor, CH_COLORS, CONNECTOR_COLORS, connectorColor } from './util.js';
+import { clamp, snapToHole, TABLE, SHELF, tableAt, tableSpan, shelfSpan, fmtSI, wavelengthColor, CH_COLORS, CONNECTOR_COLORS, connectorColor } from './util.js';
 import { makeLabel, makeBadge, makeWindingTexture, getGlowTexture } from './textures.js';
 import { ScopeDisplay, SpectrumDisplay } from './scope.js';
 import { AboveTable } from './fiber.js';
@@ -55,6 +55,7 @@ export class Part {
     this.mount = null;          // { part, port } for a plug mated straight onto another part's port
     this.glows = new Map();     // open bulkheads that emit light: port name → sprite
     this.label = null;
+    this.labelMeshes = [];      // the label decals, turned to face the user when the part is turned round
     this.comp = comp;
     (BUILDERS[comp.type] ?? buildGeneric)(this, comp);
     this.addMissingPorts(comp);
@@ -107,7 +108,9 @@ export class Part {
     m.position.set(x, y, z);
     if (faceUp) m.rotation.x = -Math.PI / 2;
     m.userData.part = this;
+    m.userData.decal = { z, faceUp };
     this.group.add(m);
+    this.labelMeshes.push(m);
     this.label = lab;
     return lab;
   }
@@ -203,19 +206,35 @@ export class Part {
     const { w, d } = this.footprint;
     return this.rot % 2 ? [d / 2, w / 2] : [w / 2, d / 2];
   }
+  /** On the table nearest x (a lab running parties has several), pulled in from its edges. */
   setPose(x, z, rot = this.rot) {
     if (this.onShelf) { this.setShelf(x); return; }
     this.rot = ((rot % 4) + 4) % 4;
     const [hw, hd] = this.halfExtents();
-    x = clamp(snapToHole(x), -TABLE.width / 2 + hw, TABLE.width / 2 - hw);
+    const t = tableSpan(tableAt(x));
+    x = clamp(snapToHole(x), t.xMin + hw, t.xMax - hw);
     z = clamp(snapToHole(z), -TABLE.depth / 2 + hd, TABLE.depth / 2 - hd);
     this.group.position.set(x, 0, z);
     this.group.rotation.y = -this.rot * Math.PI / 2;
+    this.turnLabels();
     this.group.updateMatrixWorld(true);
   }
+
+  /** A part turned round (as on a mirrored table) keeps its label readable from the front: a label
+   * on the top spins in place, one on the front panel goes onto the back panel, now facing the user. */
+  turnLabels() {
+    const back = this.rot === 2;
+    for (const m of this.labelMeshes) {
+      const { z, faceUp } = m.userData.decal;
+      if (faceUp) m.rotation.z = back ? Math.PI : 0;
+      else { m.position.z = back ? -z : z; m.rotation.y = back ? Math.PI : 0; }
+    }
+  }
+  /** On the upper board of the shelf nearest x. */
   setShelf(x) {
     const hw = this.footprint.w / 2;
-    this.group.position.set(clamp(x, SHELF.xMin + hw, SHELF.xMax - hw), SHELF.y, SHELF.z + 1);
+    const s = shelfSpan(tableAt(x));
+    this.group.position.set(clamp(x, s.xMin + hw, s.xMax - hw), SHELF.y, SHELF.z + 1);
     this.group.rotation.y = 0;
     this.group.updateMatrixWorld(true);
   }

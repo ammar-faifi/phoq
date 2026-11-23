@@ -10,8 +10,8 @@ import { Interaction } from './interaction.js';
 import { UI } from './ui.js';
 import { ConsoleDrawer } from './console.js';
 import { Laptop, Switch, EthernetCable, LAPTOP, SWITCH } from './laptop.js';
-import { autoLayout, layoutShelf, placeNew, restFibers, suggestTableSize } from './layout.js';
-import { TABLE, TABLE_PRESETS, SHELF } from './util.js';
+import { autoLayout, layoutShelf, partyOrder, placeNew, restFibers, suggestTableSize } from './layout.js';
+import { TABLES, TABLE_PRESETS, SHELF, setTables, tableAt, tableNamed, shelfSpan, onATable } from './util.js';
 
 const split = (path) => { const i = path.lastIndexOf('.'); return [path.slice(0, i), path.slice(i + 1)]; };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -86,7 +86,10 @@ class Lab {
 
   // ---- server → scene ----------------------------------------------------------------------
   applyState(s) {
-    const first = !this.state || this.state.name !== s.name;
+    // a new setup, or the server came back with other parties: a fresh scene and tables
+    const parties = (s.laptops ?? []).filter((l) => l.kind === 'party').map((l) => l.name);
+    const first = !this.state || this.state.name !== s.name || parties.join('|') !== this.parties?.join('|');
+    this.parties = parties;
     if (first) this.clearScene();
     this.state = s;
     this.ui.setTitle(s.name);
@@ -137,7 +140,11 @@ class Lab {
       else if (was) placeNew(this, p);
     }
 
-    if (first) { this.initialTable(); this.initialLayout(); }
+    if (first) {
+      setTables(partyOrder(this, parties));               // a table per party, left to right
+      this.initialTable();
+      this.initialLayout();
+    }
     else {
       for (const p of added) {
         if (p.mount) continue;
@@ -167,7 +174,9 @@ class Lab {
   }
 
   // ---- table size (a visual choice, remembered per setup in this browser) ------------------
-  tableKey() { return `phoq.table.${this.state?.name}`; }
+  /** Storage keys name the tables too: a single-table layout is no use for a table per party. */
+  tablesTag() { return TABLES.length > 1 ? `@${TABLES.map((t) => t.name).join('|')}` : ''; }
+  tableKey() { return `phoq.table.${this.state?.name}${this.tablesTag()}`; }
 
   /** Saved size for this setup, else the smallest preset the auto layout fits (≥ standard). */
   initialTable() {
@@ -181,10 +190,16 @@ class Lab {
   }
 
   /**
-   * Rebuild the table at w × d cm. Parts stay where they are (pulled back onto smaller tables),
-   * or are re-arranged to use the space when `relayout` is set.
+   * Rebuild the tables at w × d cm each. Parts stay where they are on their table (pulled back
+   * onto smaller tables), or are re-arranged to use the space when `relayout` is set.
    */
   resizeTable(w, d, { relayout = false, initial = false } = {}) {
+    // a table's center moves with the size: keep everything at its offset from its own table
+    const offsets = new Map();
+    const keep = (obj, x) => { const t = tableAt(x); offsets.set(obj, [t, x - t.x]); };
+    for (const p of this.parts.values()) if (!p.onShelf && !p.mount) keep(p, p.group.position.x);
+    for (const f of this.fibers.values()) for (const e of f.ends) if (!e.attached) keep(e, e.position.x);
+    const moved = (obj, x) => { const o = offsets.get(obj); return o ? o[0].x + o[1] : x; };
     const dims = this.setTableSize(w, d);
     this.ui.setTableSize(dims);
     this.placeLaptops();
@@ -196,11 +211,13 @@ class Lab {
     try { localStorage.setItem(this.tableKey(), JSON.stringify(dims)); } catch { /* storage unavailable */ }
     if (relayout) this.relayout();
     else {
-      for (const p of this.parts.values()) if (!p.onShelf && !p.mount) p.setPose(p.group.position.x, p.group.position.z);
+      for (const p of this.parts.values()) if (!p.onShelf && !p.mount) p.setPose(moved(p, p.group.position.x), p.group.position.z);
       layoutShelf(this);
       for (const f of this.fibers.values()) {
         for (const e of f.ends) {
-          if (!e.attached && (Math.abs(e.position.x) > TABLE.width / 2 || Math.abs(e.position.z) > TABLE.depth / 2)) e.placed = false;
+          if (e.attached) continue;
+          e.group.position.x = moved(e, e.position.x);
+          if (!onATable(e.position.x, e.position.z)) e.placed = false;
         }
       }
       restFibers(this, false);
@@ -212,9 +229,11 @@ class Lab {
 
   initialLayout() {
     const saved = this.loadLayout();
-    const known = [...this.parts.values()].filter((p) => !p.onShelf && !p.mount && saved[p.name]);
+    // each saved spot is [x from its table's center, z, quarter turns, table]
+    const tableOf = (name) => tableNamed(saved[name]?.[3] ?? '');
+    const known = [...this.parts.values()].filter((p) => !p.onShelf && !p.mount && saved[p.name] && tableOf(p.name));
     if (!known.length) { autoLayout(this); for (const p of this.parts.values()) p.placed = true; this.rememberLayout(); return; }
-    for (const p of known) { const [x, z, rot] = saved[p.name]; p.setPose(x, z, rot); p.placed = true; }
+    for (const p of known) { const [dx, z, rot] = saved[p.name]; p.setPose(tableOf(p.name).x + dx, z, rot); p.placed = true; }
     layoutShelf(this);
     for (const p of this.parts.values()) if (!p.placed) { placeNew(this, p); p.placed = true; }
   }
@@ -273,16 +292,21 @@ class Lab {
     if (added) this.placeLaptops();
   }
 
-  /** Laptops along the shelf's lower board, flush with its front edge, the switch at its right
-   * end; their cables run along the board behind them. */
+  /** Laptops along the shelves' lower boards, flush with their front edge: a party's on its own
+   * table's shelf, the lab PC with the switch, which sits at the right end of the middle table's
+   * board. The cables run along the boards behind the laptops. */
   placeLaptops() {
     if (!this.netSwitch) return;
     const front = SHELF.z + SHELF.depth / 2 - 1;
-    this.netSwitch.place(SHELF.xMax - SWITCH.w / 2 - 1, front - SWITCH.d / 2);
-    const n = this.laptops.size;
-    const xMin = SHELF.xMin + LAPTOP.w / 2 + 1, xMax = SHELF.xMax - SWITCH.w - 6 - LAPTOP.w / 2;
+    const hub = TABLES[Math.floor((TABLES.length - 1) / 2)];
+    this.netSwitch.place(shelfSpan(hub).xMax - SWITCH.w / 2 - 1, front - SWITCH.d / 2);
     const z = front - LAPTOP.d / 2;
-    [...this.laptops.values()].forEach((l, i) => l.place(n > 1 ? xMin + (i * (xMax - xMin)) / (n - 1) : (xMin + xMax) / 2, z));
+    for (const t of TABLES) {
+      const mine = [...this.laptops.values()].filter((l) => (tableNamed(l.name) ?? hub) === t);
+      const s = shelfSpan(t), n = mine.length;
+      const xMin = s.xMin + LAPTOP.w / 2 + 1, xMax = s.xMax - (t === hub ? SWITCH.w + 6 : 1) - LAPTOP.w / 2;
+      mine.forEach((l, i) => l.place(n > 1 ? xMin + (i * (xMax - xMin)) / (n - 1) : (xMin + xMax) / 2, z));
+    }
     for (const c of this.ethernet.values()) c.key = '';
   }
   taskAction(name, action) { return this.call(this.api.taskAction(name, action)); }
@@ -358,13 +382,17 @@ class Lab {
   }
 
   // ---- layout memory (per setup, in this browser only) ----------------------------------
-  layoutKey() { return `phoq.layout.${this.state?.name}`; }
+  layoutKey() { return `phoq.layout.${this.state?.name}${this.tablesTag()}`; }
   loadLayout() {
     try { return JSON.parse(localStorage.getItem(this.layoutKey()) ?? '{}'); } catch { return {}; }
   }
   rememberLayout() {
     const out = {};
-    for (const p of this.parts.values()) if (!p.onShelf && !p.mount) out[p.name] = [p.group.position.x, p.group.position.z, p.rot];
+    for (const p of this.parts.values()) {
+      if (p.onShelf || p.mount) continue;
+      const t = tableAt(p.group.position.x);
+      out[p.name] = [p.group.position.x - t.x, p.group.position.z, p.rot, t.name];
+    }
     try { localStorage.setItem(this.layoutKey(), JSON.stringify(out)); } catch { /* storage unavailable */ }
   }
   relayout() {
@@ -380,6 +408,7 @@ class Lab {
     this.renderer.setSize(w, h);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
+    this.fitView();                                  // a row of tables: the home view fits the new shape
   }
 
   resetView() {

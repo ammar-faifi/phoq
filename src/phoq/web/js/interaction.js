@@ -1,7 +1,7 @@
 // Pointer & keyboard handling. Moving parts is a local layout choice; plugging/unplugging fiber
 // connectors, deleting parts and toggling lasers are sent to the Python server.
 import * as THREE from 'three';
-import { TABLE, clamp, isAngled } from './util.js';
+import { TABLE, clamp, isAngled, onATable, tableAt, tableSpan } from './util.js';
 import { REST_Y } from './fiber.js';
 
 const SNAP_DIST = 5;      // cm: connector-to-port capture radius
@@ -43,7 +43,7 @@ export class Interaction {
       if (!type) return;
       e.preventDefault();
       const p = this.planePoint(e, 0);
-      const onTable = p && Math.abs(p.x) < TABLE.width / 2 && Math.abs(p.z) < TABLE.depth / 2;
+      const onTable = p && onATable(p.x, p.z);
       this.lab.add(type, onTable ? { x: p.x, z: p.z } : null);
     });
   }
@@ -141,7 +141,8 @@ export class Interaction {
       const v = new THREE.Vector3().subVectors(p, other.position).setY(0);
       if (v.length() > end.fiber.reach) { v.setLength(end.fiber.reach); p.set(other.position.x + v.x, LIFT, other.position.z + v.z); }
     }
-    p.x = clamp(p.x, -TABLE.width / 2 - 4, TABLE.width / 2 + 4);
+    const t = tableSpan(tableAt(p.x));                 // never left hanging in a gap between tables
+    p.x = clamp(p.x, t.xMin - 4, t.xMax + 4);
     p.z = clamp(p.z, -TABLE.depth / 2 - 4, TABLE.depth / 2 + 4);
     end.group.position.set(p.x, LIFT, p.z);
     end.faceAwayFrom(other.position);

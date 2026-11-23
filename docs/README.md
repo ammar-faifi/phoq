@@ -238,7 +238,7 @@ goes on with the next batch.
 In the virtual lab every process lives on a laptop (its party's, or the lab PC for plain tasks):
 the **Laptops** drawer shows one tab per laptop with its processes' output, status, read-outs,
 Stop / Restart / Clear, and "Load script" to attach another file by path; clicking a laptop on
-the table opens it, and dragging the drawer's top edge resizes it. The API is `GET /api/tasks`,
+its shelf opens it, and dragging the drawer's top edge resizes it. The API is `GET /api/tasks`,
 `POST /api/tasks {path}` and `POST /api/tasks/{name}/{restart|stop|start|clear}`; the WebSocket
 streams `console` messages.
 
@@ -282,9 +282,9 @@ that defines a `Party` subclass (an eavesdropper on the switch, for instance). A
 many blocks as it was asked, however long that takes. It gives up only when no block has come for
 120 s (`Experiment.run(timeout=…)`), a party being stuck, and then prints how many blocks it ran
 and why it stopped. In the virtual lab
-every party gets a laptop on the table showing its console, read-outs and TCP port, wired with
-an Ethernet cable to a (purely visual) layer-3 switch whose port LEDs blink with the traffic;
-clicking a laptop opens its console.
+every party gets a table of its own for its station, and a laptop on that table's shelf showing
+its console, read-outs and TCP port, wired with an Ethernet cable to a (purely visual) layer-3
+switch whose port LEDs blink with the traffic; clicking a laptop opens its console.
 
 A station that re-encodes what it detects — a relay, a trusted node, an eavesdropper — sets
 `stage = 1`. The lab then records its counters first, hands it the batch, waits for its

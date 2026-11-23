@@ -32,7 +32,7 @@ pass your own script that defines `setup`. To use another server, open the page 
 | AUTOSET / RUN | `Oscilloscope.autoset()` / the `running` parameter |
 | SINGLE | `Oscilloscope.arm()`: the scope waits for the first trigger, shows that one sweep and holds it (RUN resumes) |
 | BW / Sample in the scope window | the `bandwidth` and `sample_rate` parameters; the screen's status line shows the effective rate, bandwidth and record length |
-| Laptops (top bar) | one tab per laptop — a party's (`--protocol` / `--party`) or the lab PC (`--analysis`) — with its processes' output, status, read-outs and network counters, Stop / Restart (re-imports the script) / Clear; "Load script" attaches another file. Drag the drawer's top edge to resize it (remembered in this browser). Laptops sit along the front of the table and open their tab when clicked |
+| Laptops (top bar) | one tab per laptop — a party's (`--protocol` / `--party`) or the lab PC (`--analysis`) — with its processes' output, status, read-outs and network counters, Stop / Restart (re-imports the script) / Clear; "Load script" attaches another file. Drag the drawer's top edge to resize it (remembered in this browser). Laptops sit on the shelf's lower board and open their tab when clicked |
 | Switch and Ethernet cables | the parties' classical channel (TCP on localhost); the switch is visual only, its port LEDs blink when a laptop sends or receives |
 | Export .py | downloads `setup.to_python()` |
 
@@ -47,6 +47,14 @@ setup** chooses the smallest preset the current layout fits on. A setup you open
 time gets that size automatically (at least the standard 1.5 × 0.9 m), and each setup remembers
 its table. The table size is a view setting only; the Python setup doesn't change.
 
+A lab running parties (`--protocol`, `--party`) gets a table per party, side by side in the
+order `PARTIES` declares them; an eavesdropper loaded with `--party` goes between the stations
+whose link she taps. A station's table holds the parts its `instruments` tuple names; any other
+part goes with the station whose named part is nearest along the cords and cables (a fiber spool
+goes with the station that feeds it). The station's instruments and laptop sit on that table's
+shelf. The table button then sizes every table alike. Auto layout mirrors a station whose light
+leaves toward the left, its parts turned round so that its output faces the table it feeds.
+
 If the server stops, the page shows the start command and reconnects on its own.
 
 ## Files
@@ -58,11 +66,11 @@ js/main.js          Lab: mirrors server state into the scene, routes commands
 js/api.js           REST + WebSocket client
 js/parts.js         3D models per Python type (generic fallback) and coax cables
 js/fiber.js         patch-cord visuals: draggable connectors, light flow, open-end glow
-js/layout.js        automatic placement
+js/layout.js        automatic placement, a table per party
 js/scope.js         scope display (also the 3D screen texture) and scope window
 js/interaction.js   picking, dragging, port snapping, keyboard, toolbox drops
 js/ui.js            toolbox, generated inspector, warnings, toasts, help
-js/scene.js         renderer, camera, lights, table, shelf
+js/scene.js         renderer, camera, lights, tables, shelves
 js/textures.js      procedural canvas textures
 js/util.js          formatting helpers
 walkthroughs/       animated walkthroughs of the spectrum analyzer, oscilloscope and photon

@@ -771,8 +771,20 @@ def test_classical_channel_between_party_processes(tmp_path):
         for l in w_pong.lines
     )
     assert exp.laptops() == [
-        {"name": "PING", "kind": "party", "port": w_ping.port, "host": "127.0.0.1"},
-        {"name": "PONG", "kind": "party", "port": w_pong.port, "host": "127.0.0.1"},
+        {
+            "name": "PING",
+            "kind": "party",
+            "port": w_ping.port,
+            "host": "127.0.0.1",
+            "instruments": ["CNT-1"],
+        },
+        {
+            "name": "PONG",
+            "kind": "party",
+            "port": w_pong.port,
+            "host": "127.0.0.1",
+            "instruments": [],
+        },
     ]
 
 

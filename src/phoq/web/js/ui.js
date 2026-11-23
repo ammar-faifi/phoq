@@ -1,6 +1,6 @@
 // Side panels: toolbox (from the Python catalog), inspector (from each component's Param specs),
 // warnings, toasts, help and the server-connection banner. Every edit goes to the API.
-import { fmtSI, fmtParam, esc, wavelengthColor, fmtTable, TABLE, TABLE_PRESETS, TABLE_LIMITS, connectorCss, EditGuard } from './util.js';
+import { fmtSI, fmtParam, esc, wavelengthColor, fmtTable, TABLE, TABLES, TABLE_PRESETS, TABLE_LIMITS, connectorCss, EditGuard } from './util.js';
 import { suggestTableSize } from './layout.js';
 
 const svg = (body) => `<svg viewBox="0 0 32 32" width="28" height="28" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
@@ -135,7 +135,7 @@ export class UI {
       </button>`).join('');
     const apply = (w, d) => {
       this.lab.resizeTable(w, d, { relayout: $('table-relayout').checked });
-      this.toast(`Table: ${fmtTable(TABLE.width, TABLE.depth)}`);
+      this.toast(TABLES.length > 1 ? `Tables: ${fmtTable(TABLE.width, TABLE.depth)} each` : `Table: ${fmtTable(TABLE.width, TABLE.depth)}`);
       this.toggleTablePicker(false);
     };
     for (const b of pop.querySelectorAll('.preset')) {
@@ -171,7 +171,11 @@ export class UI {
   }
 
   setTableSize({ w, d }) {
-    document.getElementById('table-size').textContent = fmtTable(w, d);
+    const n = TABLES.length;
+    document.getElementById('table-size').textContent = n > 1 ? `${n} tables · ${fmtTable(w, d)}` : fmtTable(w, d);
+    document.getElementById('btn-table').title = n > 1 ? 'Choose the size of the optical tables (one per party)' : 'Choose the optical table size';
+    document.getElementById('table-pop-title').textContent = n > 1 ? 'Optical tables, one per party' : 'Optical table';
+    document.getElementById('table-fit').title = n > 1 ? 'Smallest table every party\'s parts fit on' : 'Smallest table the current setup fits on';
     document.querySelectorAll('#table-presets .preset').forEach((b) => {
       const t = TABLE_PRESETS[Number(b.dataset.i)];
       b.classList.toggle('on', t.w === w && t.d === d);
