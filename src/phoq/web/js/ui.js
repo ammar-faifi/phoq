@@ -48,11 +48,14 @@ export class UI {
     this.help = $('help');
     this.offline = $('offline');
     this.scopeBtn = $('btn-scope');
+    this.inspectorBtn = $('btn-inspector');
     this.lastWarn = '';
     this.throttle = new Map();
 
     $('btn-flow').onclick = (e) => { lab.showFlow = !lab.showFlow; e.currentTarget.classList.toggle('on', lab.showFlow); };
     this.scopeBtn.onclick = () => this.showScope(document.getElementById('scope-panel').classList.contains('hidden'));
+    this.inspectorBtn.onclick = () => this.toggleInspector();
+    this.toggleInspector(!document.documentElement.classList.contains('no-inspector'));   // as the page loaded it
     $('btn-layout').onclick = () => lab.relayout();
     this.buildTablePicker();
     $('btn-view').onclick = () => lab.resetView();
@@ -197,6 +200,14 @@ export class UI {
   showScope(show) {
     document.getElementById('scope-panel').classList.toggle('hidden', !show);
     this.scopeBtn.classList.toggle('on', show);
+  }
+  /** Show or hide the inspector. It stays as set, also across reloads (remembered in this
+   * browser): selecting a part neither opens it nor does anything close it but this toggle. */
+  toggleInspector(show = document.documentElement.classList.contains('no-inspector')) {
+    document.documentElement.classList.toggle('no-inspector', !show);
+    this.inspectorBtn.classList.toggle('on', show);
+    this.inspectorBtn.setAttribute('aria-expanded', String(show));
+    try { localStorage.setItem('phoq.inspector', show ? 'shown' : 'hidden'); } catch { /* storage unavailable */ }
   }
   toast(msg, cls = '') {
     const el = document.createElement('div');

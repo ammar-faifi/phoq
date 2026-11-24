@@ -39,6 +39,10 @@ pass your own script that defines `setup`. To use another server, open the page 
 Moving or rotating parts (`R`) only changes the layout. That is remembered in this browser per
 setup, and **Auto layout** re-arranges everything along the light path.
 
+The **Inspector** button in the top bar (or `I`) hides the inspector, and the 3D view takes its
+width. Unlike the toolbox it never opens or closes by itself: it stays as you set it, also after
+a reload, until you press the button again.
+
 The **table** button in the top bar picks the optical-table size: presets from a 0.9 × 0.6 m
 breadboard to a 4.8 × 1.8 m (16′ × 6′) table, or any custom width × depth from 600 × 450 mm to
 5000 × 2000 mm. By default the parts are re-arranged to use the new space. Untick that to keep

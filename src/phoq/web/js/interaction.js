@@ -258,6 +258,10 @@ export class Interaction {
       case '?':
         lab.ui.toggleHelp();
         break;
+      case 'i':
+      case 'I':
+        lab.ui.toggleInspector();
+        break;
     }
   }
 }

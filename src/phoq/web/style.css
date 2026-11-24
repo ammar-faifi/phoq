@@ -82,6 +82,9 @@ button.danger:hover { border-color: var(--bad); }
 #toolbox-tab:hover, #toolbox-tab[aria-expanded="true"] { background: color-mix(in srgb, var(--accent) 16%, var(--panel)); }
 @media (prefers-reduced-motion: reduce) { #toolbox, #toolbox.open { transition: none; } }
 #inspector { grid-area: insp; border-left: 1px solid var(--line); }
+/* Hidden with the top bar's Inspector toggle (remembered in this browser): the view takes its place. */
+.no-inspector #app { grid-template-columns: minmax(0, 1fr); grid-template-rows: 54px minmax(0, 1fr); grid-template-areas: "top" "view"; }
+.no-inspector #inspector { display: none; }
 #toolbox h2, #inspector h2 { margin: 2px 2px 10px; font-size: 11px; letter-spacing: 1.4px; text-transform: uppercase; color: var(--muted); font-weight: 600; }
 
 .tool {
