@@ -1,0 +1,683 @@
+<title>Engine Run, Line by Line</title>
+<meta name="viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: source listing on the left, the screen and the step's story on the right; one
+   column on phones, screen first. Dark theme only, like an instrument's screen. */
+:root {
+  --bg: #0d1116;
+  --panel: #141a21;
+  --fg: #e4ebf1;
+  --muted: #93a1af;
+  --line: #26303b;
+  --accent: #facc15;
+  --hl: rgba(250, 204, 21, 0.13);
+  --m-run: #fbbf24;
+  --m-trace: #2dd4bf;
+  --m-enter: #60a5fa;
+  --m-synth: #e879f9;
+  --m-volts: #fb923c;
+  --m-trans: #f472b6;
+  --m-detect: #4ade80;
+  --tok-kw: #c4b5fd;
+  --tok-str: #6ee7b7;
+  --tok-num: #fdba74;
+  --tok-com: #6b7a89;
+  --tok-fn: #93c5fd;
+  --scr-bg: #05080a;
+  --scr-bezel: #1b2127;
+  --scr-grid: rgba(134, 178, 150, 0.15);
+  --scr-axis: rgba(134, 178, 150, 0.45);
+  --scr-text: #a9bdb0;
+  --scr-strong: #e8efe9;
+  --scr-trace: #facc15;
+  --scr-2: #22d3ee;
+  --scr-3: #f472b6;
+  --scr-4: #94a3b8;
+  --scr-5: #4ade80;
+  --scr-light: #ff5cc0;
+  --font-display: "Chakra Petch", "Rajdhani", "Segoe UI", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 28px;
+}
+.wrap { max-width: 1440px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; }
+header.top { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
+.eyebrow { font-family: var(--font-mono); font-size: 12px; letter-spacing: .06em; color: var(--muted); text-transform: uppercase; }
+h1 { font-family: var(--font-display); font-weight: 600; font-size: clamp(26px, 3.4vw, 38px); line-height: 1.1; margin: 0; text-wrap: balance; letter-spacing: .01em; }
+.lede { margin: 0; max-width: 78ch; color: var(--muted); }
+.lede code { font-family: var(--font-mono); font-size: .92em; color: var(--fg); }
+.bench { font-family: var(--font-mono); font-size: 12.5px; color: var(--muted); margin: 0; max-width: 100%; overflow-x: auto; }
+
+.main { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+@media (max-width: 900px) { .main { grid-template-columns: minmax(0, 1fr); } .right { order: -1; } }
+
+.code { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; min-width: 0; overflow: hidden; }
+.code-scroll { position: relative; max-height: min(78vh, 860px); overflow: auto; padding: 6px 0 14px; scroll-behavior: smooth; }
+@media (max-width: 900px) { .code-scroll { max-height: 46vh; } }
+.method { padding-top: 10px; }
+.method h2 { margin: 0 0 4px; padding: 4px 16px; font-family: var(--font-mono); font-weight: 500; font-size: 13px; display: flex; align-items: center; gap: 8px; color: var(--muted); }
+.method h2 .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--mc); flex: none; }
+.method h2 b { color: var(--fg); font-weight: 500; }
+[data-m="run"] { --mc: var(--m-run); }
+[data-m="trace"] { --mc: var(--m-trace); }
+[data-m="_enter"] { --mc: var(--m-enter); }
+[data-m="synthesize"] { --mc: var(--m-synth); }
+[data-m="drive_voltage"] { --mc: var(--m-volts); }
+[data-m="transmission"] { --mc: var(--m-trans); }
+[data-m="detect"] { --mc: var(--m-detect); }
+pre { margin: 0; font-family: var(--font-mono); font-size: 12.5px; line-height: 1.6; width: max-content; min-width: 100%; }
+.ln { display: grid; grid-template-columns: 3.2em auto; padding-right: 14px; border-left: 3px solid transparent; transition: background .35s ease, border-color .35s ease, opacity .35s ease; }
+.ln .no { color: var(--tok-com); text-align: right; padding-right: 1em; user-select: none; }
+.ln .tx { white-space: pre; }
+.code.active .ln { opacity: .55; }
+.code.active .method.cur .ln { opacity: .8; }
+.code.active .ln.on, .code.active .method.cur .ln.on { opacity: 1; background: var(--hl); border-left-color: var(--mc); }
+.k { color: var(--tok-kw); } .s { color: var(--tok-str); } .n { color: var(--tok-num); } .c { color: var(--tok-com); font-style: italic; } .f { color: var(--tok-fn); } .sf { color: var(--m-run); }
+
+.right { display: grid; gap: 12px; min-width: 0; }
+.instrument { background: var(--scr-bezel); border-radius: 12px; padding: 10px; box-shadow: 0 1px 0 rgba(255,255,255,.05) inset, 0 8px 24px rgba(0,0,0,.18); }
+.instrument .bar { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 0 4px 8px; font-family: var(--font-display); color: var(--scr-text); font-size: 13px; letter-spacing: .05em; }
+.instrument .bar .run { font-family: var(--font-mono); font-size: 11px; padding: 2px 8px; border-radius: 4px; background: rgba(52, 211, 153, .15); color: var(--scr-5); }
+canvas { display: block; width: 100%; aspect-ratio: 16 / 10; max-width: 100%; background: var(--scr-bg); border-radius: 6px; }
+
+.caption { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px 16px; display: grid; gap: 8px; min-height: 9.5em; }
+.cap-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.cap-head .where { font-family: var(--font-mono); font-size: 12px; color: var(--mc, var(--muted)); }
+.cap-head h3 { margin: 0; font-family: var(--font-display); font-weight: 600; font-size: 19px; line-height: 1.25; text-wrap: balance; }
+.caption p { margin: 0; max-width: 68ch; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-family: var(--font-mono); font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); font-variant-numeric: tabular-nums; }
+.chip b { color: var(--fg); font-weight: 500; }
+
+.controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.controls button { font: 500 14px var(--font-body); color: var(--fg); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 7px 14px; cursor: pointer; min-width: 44px; }
+.controls button:hover { border-color: var(--accent); }
+.controls button:focus-visible, .seg:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.controls button.primary { background: var(--fg); color: var(--bg); border-color: var(--fg); min-width: 88px; }
+.counter { font-family: var(--font-mono); font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; margin-left: auto; }
+.track { display: flex; gap: 3px; width: 100%; }
+.seg { flex: 1 1 0; height: 9px; border-radius: 3px; background: var(--mc); opacity: .28; border: 0; padding: 0; cursor: pointer; transition: opacity .25s, transform .25s; }
+.seg.done { opacity: .6; } .seg.cur { opacity: 1; transform: scaleY(1.45); }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; background: var(--mc); }
+footer { color: var(--muted); font-size: 13px; max-width: 90ch; }
+footer code { font-family: var(--font-mono); font-size: .92em; }
+@media (prefers-reduced-motion: reduce) { .ln, .seg { transition: none; } .code-scroll { scroll-behavior: auto; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="eyebrow">phoq · src/phoq/engine.py · examples/modulated_link.py</div>
+    <h1>Engine Run, Line by Line</h1>
+    <p class="lede">How phoq gets from a setup to the current a detector puts out, on the simplest bench with a modulator, <code>examples/modulated_link.py</code>. The walk follows <code>setup.run()</code> through <code>trace()</code>, which finds every route the light takes, and <code>synthesize()</code>, which puts each route's field on a time grid, then through the modulator's <code>drive_voltage()</code> and <code>transmission()</code> to <code>Photodiode.detect()</code>. Every curve on the screen is the array that line produced: the lines were replayed with <code>setup.run()</code>'s own random draws, checked against the functions themselves, and give the CH1 trace <code>setup.run()</code> returns, sample for sample.</p>
+    <pre class="bench" id="bench"></pre>
+  </header>
+
+  <div class="main">
+    <div class="code" id="code" aria-label="Source code of the functions setup.run() goes through"><div class="code-scroll" id="codeScroll"></div></div>
+
+    <div class="right">
+      <div class="instrument">
+        <div class="bar"><span>modulated_link.py · setup.run()</span><span class="run" id="scrState">RUN</span></div>
+        <canvas id="scr" width="960" height="600" role="img" aria-label="Screen showing the effect of the highlighted lines"></canvas>
+      </div>
+      <div class="controls">
+        <button id="prev" type="button" aria-label="Previous step">◀</button>
+        <button id="play" type="button" class="primary">Pause</button>
+        <button id="next" type="button" aria-label="Next step">▶</button>
+        <span class="counter" id="counter">1 / 1</span>
+      </div>
+      <div class="track" id="track" role="tablist" aria-label="Steps"></div>
+      <div class="legend">
+        <span data-m="run"><i></i>run()</span>
+        <span data-m="trace"><i></i>trace()</span>
+        <span data-m="_enter"><i></i>_enter()</span>
+        <span data-m="synthesize"><i></i>synthesize()</span>
+        <span data-m="drive_voltage"><i></i>drive_voltage()</span>
+        <span data-m="transmission"><i></i>transmission()</span>
+        <span data-m="detect"><i></i>detect()</span>
+      </div>
+      <div class="caption" id="caption" aria-live="polite">
+        <div class="cap-head"><span class="where" id="capWhere"></span><h3 id="capTitle"></h3></div>
+        <p id="capBody"></p>
+        <div class="chips" id="capChips"></div>
+      </div>
+    </div>
+  </div>
+  <footer>Keys: ← and → step, Space plays or pauses. Data: the first <code>setup.run()</code> of <code>examples/modulated_link.py</code> as it stands, the first summary <code>uv run phoq run examples/modulated_link.py</code> prints: the setup's seed, so the same random start, phase walk and noise. The walk stops where the photocurrent reaches the scope; the oscilloscope walkthrough follows <code>acquire()</code> from there, and <code>docs/engine.md</code> covers the engine in full.</footer>
+</div>
+
+<script id="data" type="application/json">/*DATA*/</script>
+<script>
+(() => {
+"use strict";
+const D = JSON.parse(document.getElementById("data").textContent);
+const N = D.nums;
+const ORDER = ["run", "trace", "_enter", "synthesize", "drive_voltage", "transmission", "detect"];
+const MODULE_LEVEL = new Set(["trace", "_enter", "synthesize"]);
+const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/* ---------- source listing with a small Python highlighter ---------- */
+const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const KW = new Set(["def", "return", "if", "elif", "else", "for", "in", "and", "or", "not", "is", "None", "True", "False", "import", "from", "as", "with", "while", "lambda", "continue"]);
+function hl(line, st) {
+  let out = "", i = 0;
+  if (st.doc) {
+    const j = line.indexOf('"""');
+    if (j < 0) return [`<span class="s">${esc(line)}</span>`, st];
+    out += `<span class="s">${esc(line.slice(0, j + 3))}</span>`; i = j + 3; st = { doc: false };
+  }
+  const re = /(#.*$)|("""|f?"(?:[^"\\]|\\.)*"|f?'(?:[^'\\]|\\.)*')|(\b\d[\d_]*(?:\.\d*)?(?:e[-+]?\d+)?\b)|([A-Za-z_]\w*)/g;
+  re.lastIndex = i;
+  let m, last = i;
+  while ((m = re.exec(line))) {
+    out += esc(line.slice(last, m.index));
+    if (m[1]) out += `<span class="c">${esc(m[1])}</span>`;
+    else if (m[2] === '"""') {
+      const j = line.indexOf('"""', m.index + 3);
+      if (j < 0) { out += `<span class="s">${esc(line.slice(m.index))}</span>`; return [out, { doc: true }]; }
+      out += `<span class="s">${esc(line.slice(m.index, j + 3))}</span>`; re.lastIndex = j + 3; last = j + 3; continue;
+    } else if (m[2]) out += `<span class="s">${esc(m[2])}</span>`;
+    else if (m[3]) out += `<span class="n">${m[3]}</span>`;
+    else if (m[4]) {
+      const w = m[4], nxt = line[m.index + w.length];
+      if (KW.has(w)) out += `<span class="k">${w}</span>`;
+      else if (w === "self") out += `<span class="sf">${w}</span>`;
+      else if (nxt === "(") out += `<span class="f">${w}</span>`;
+      else out += w;
+    }
+    last = re.lastIndex;
+  }
+  out += esc(line.slice(last));
+  return [out, st];
+}
+const LABELS = {
+  run: "Runner.run(self, *instruments)",
+  trace: "trace(setup)",
+  _enter: "_enter(net, stack, src, port, amp, delay, mods, hops, refl, site)",
+  synthesize: "synthesize(net, detectors, t, dt, rng, offsets=None)",
+  drive_voltage: "_Modulator.drive_voltage(self, t_mod, t_emit=None)",
+  transmission: "IntensityModulator.transmission(self, volts)",
+  detect: "Photodiode.detect(self, fields, dt, rng, n, filtered=True)",
+};
+const codeScroll = document.getElementById("codeScroll");
+const LINES = {};
+for (const m of ORDER) {
+  const sec = document.createElement("section");
+  sec.className = "method"; sec.dataset.m = m;
+  sec.innerHTML = `<h2><span class="dot"></span><b>${esc(LABELS[m])}</b></h2>`;
+  const pre = document.createElement("pre");
+  let st = { doc: false };
+  const raw = D.src[m].replace(/\n+$/, "").split("\n");
+  const indent = MODULE_LEVEL.has(m) ? "" : "    ";
+  LINES[m] = [];
+  raw.forEach((ln, i) => {
+    const [html, s2] = hl(indent && ln.startsWith(indent) ? ln.slice(indent.length) : ln, st); st = s2;
+    const row = document.createElement("div");
+    row.className = "ln";
+    row.innerHTML = `<span class="no">${i + 1}</span><span class="tx">${html || " "}</span>`;
+    pre.appendChild(row); LINES[m].push(row);
+  });
+  sec.appendChild(pre); codeScroll.appendChild(sec);
+}
+
+/* ---------- numbers used in the story ---------- */
+const neg = (s) => s.replace(/^-/, "−");
+const fx = (v, d) => neg(v.toFixed(d));
+const uW = (w, d = 1) => `${fx(w * 1e6, d)} µW`;
+const nW = (w, d = 2) => `${fx(w * 1e9, d)} nW`;
+const uA = (a, d = 1) => `${fx(a * 1e6, d)} µA`;
+const ns = (s, d = 2) => `${fx(s * 1e9, d)} ns`;
+const ps = (s) => `${Math.round(s * 1e12)} ps`;
+const dB = (r, d = 2) => `${fx(10 * Math.log10(r), d)} dB`;
+const dBm = (w, d = 1) => `${fx(10 * Math.log10(w / 1e-3), d)} dBm`;
+const SUP = "⁰¹²³⁴⁵⁶⁷⁸⁹";
+const sup = (e) => String(e).replace("-", "⁻").replace(/\d/g, (c) => SUP[c]);
+const p10 = (v) => `10${sup(Math.round(Math.log10(v)))}`;
+const sci = (v, d = 1) => { const e = Math.floor(Math.log10(Math.abs(v))); return `${(v / 10 ** e).toFixed(d)} × 10${sup(e)}`; };
+const R = D.route;                                     // the light's way to PD-1: one _enter() per port
+const IL = 10 ** (-N.il_db / 10);
+const back = Object.fromEntries(N.returned.map(([where, w]) => [where.split(" ")[0], w]));
+const strongest = N.returned.reduce((a, b) => (b[1] > a[1] ? b : a));
+const site = (where) => where.replace(/ \([^)]*\)/g, "");   // "A.p (FC/UPC) ↔ B.q (FC/UPC)" → "A.p ↔ B.q"
+const MHz = (f) => `${(f / 1e6).toFixed(0)} MHz`;
+const cycles = N.n * N.dt * N.rf_freq;
+
+document.getElementById("bench").textContent =
+  `LD-1 CW ${fx(N.power_dbm, 0)} dBm (${uW(N.power)}) at ${(N.wavelength * 1e9).toFixed(0)} nm, ${(N.linewidth / 1e3).toFixed(0)} kHz linewidth → FIB-1 1 m → IM-1 (Vπ ${N.v_pi} V, ${N.extinction_db} dB extinction, ${N.il_db} dB loss) → FIB-2 1 m → PD-1 (${N.resp} A/W, ${N.pd_bw / 1e9} GHz, ${N.load} Ω) → OSC-1 CH1\n` +
+  `FG-1 CH1: ${N.rf_vpp} Vpp sine at ${MHz(N.rf_freq)} → IM-1 rf · PSU-1 CH1: ${N.bias.toFixed(3)} V = Vπ/2 → IM-1 bias · FG-1 CH2 → OSC-1 CH2\n` +
+  `OSC-1: ${(N.timebase * 1e9).toFixed(0)} ns/div, ${N.fs / 1e9} GS/s, ${N.scope_bw / 1e9} GHz front end, sync trigger, CH1 ${(N.ch1_scale * 1e6).toFixed(0)} µA/div, CH2 ${N.ch2_scale} V/div; seed ${N.seed}`;
+
+/* ---------- the steps ---------- */
+const S = [
+  { m: "run", at: "run", sc: "bench", t: "setup.run(): one trace, then the instruments", parts: ["OSC-1"], card: ["Runner(setup, seed=" + N.seed + ").run()", "net = trace(setup)        once", "OSC-1.acquire(net, rng)   the only acquire()"],
+    p: `setup.run() hands the setup to a Runner seeded with the setup's seed, ${N.seed}. run() traces the light's routes once, then has every instrument acquire on that one snapshot of the network. Only OSC-1 has an acquire(): FG-1 and PSU-1 are read by whatever they drive. The rest of this walk is what OSC-1's acquire() asks of the engine.`,
+    c: [["seed", `${N.seed}`], ["instruments", "OSC-1"]] },
+  { m: "trace", at: "stack", sc: "bench", t: "Start at the laser", parts: ["LD-1"], card: ["stack = [(LD-1.out, amp 1, delay 0, mods ())]", "pop → drop if |amp|² < 10⁻¹⁸, hops > 40,", "      or reflected twice and |amp|² < 10⁻⁹"],
+    p: `trace() follows each laser's light, here LD-1's, CW at ${fx(N.power_dbm, 0)} dBm (${uW(N.power)}). The stack holds the light still to be followed. It starts with what leaves LD-1.out: amplitude 1, relative to the laser's √P, so |amp|² is a share of the laser's power; delay 0; no modulators yet. Each pass pops an entry and drops it if it carries less than ${p10(N.min_gain)} of the laser's power, has made over ${N.max_hops} hops, or was reflected twice and carries less than ${p10(N.min_twice)}.`,
+    c: [["P", uW(N.power)], ["stack", "1 entry"]] },
+  { m: "trace", at: "mating", sc: "mating", t: "A connector pair: through, and a little back",
+    p: `LD-1.out is mated to FIB-1.a, FC/UPC to FC/UPC. mating() gives the share of the power transmitted, t = ${N.t_mate.toFixed(3)} (${dB(N.t_mate)}), and the share reflected back, ${p10(N.r_back)} (${dB(N.r_back, 0)}). The reflection enters LD-1.out again with one more reflection counted; the rest enters FIB-1.a with its amplitude times √t, ${uW(R[0].w)}. _enter() handles both.`,
+    c: [["t", `${N.t_mate.toFixed(3)} (${dB(N.t_mate)})`], ["back", `${p10(N.r_back)} (${dB(N.r_back, 0)})`], ["into FIB-1", uW(R[0].w)]] },
+  { m: "_enter", at: "scatter", sc: "bench", t: "scatter(): where the light goes next", route: 3, parts: ["IM-1"], card: ["FIB-1: a → b, |amp|² " + N.cord_t.toFixed(5) + ", +" + ns(N.cord_delay), "IM-1: p1 → p2, amp " + N.im_amp.toFixed(3) + " (" + N.il_db + " dB)", "      mods += (IM-1, " + ns(N.mod_at) + ")"],
+    p: `_enter() first books the power at the port, for the lab's light-flow animation and its readouts. Then it asks the part where light entering that port goes: scatter() returns one Transfer per exit. FIB-1, a meter of fiber, sends it to its b end with a phase, no loss to speak of, and ${ns(N.cord_delay)} of delay. IM-1 adds its ${N.il_db} dB insertion loss (amplitude × ${N.im_amp.toFixed(3)}) and names itself a modulator. The trace can't know the voltage at any instant, so it notes (IM-1, ${ns(N.mod_at)}): apply IM-1's factor at the time the light passes it.`,
+    c: [["FIB-1", `+${ns(N.cord_delay)}`], ["IM-1", `× ${N.im_amp.toFixed(3)}`], ["mods", `(IM-1, ${ns(N.mod_at)})`]] },
+  { m: "_enter", at: "path", sc: "bench", t: "PD-1: the route becomes a Path", route: 4, parts: ["PD-1"], card: ["Path(LD-1, amp " + N.path_amp.toFixed(3) + ", delay " + ns(N.path_delay) + ",", "     mods ((IM-1, " + ns(N.mod_at) + "),), port 'inp')", "|amp|² = " + N.t_mate.toFixed(3) + "⁴ × " + IL.toFixed(3) + " = " + N.path_gain.toFixed(3)],
+    p: `After FIB-2, another ${ns(N.cord_delay)}, and the fourth mating, the light enters PD-1, a detector: the route ends there as a Path from LD-1, with amplitude ${N.path_amp.toFixed(3)}, delay ${ns(N.path_delay)} and one modulator, IM-1 at ${ns(N.mod_at)}. |amp|² = ${N.t_mate.toFixed(3)}⁴ (four matings) × ${IL.toFixed(3)} (${N.il_db} dB) = ${N.path_gain.toFixed(3)}: ${uW(R[R.length - 1].w)} of the laser's ${uW(N.power)} reach PD-1, before the modulator's transmission.`,
+    c: [["delay", ns(N.path_delay)], ["|amp|²", N.path_gain.toFixed(3)], ["at PD-1", uW(R[R.length - 1].w)]] },
+  { m: "_enter", at: "returned", sc: "bench", t: "The reflections end at the laser", route: 4, back: true,
+    p: `Each of the four matings sent ${p10(N.r_back)} back. Those entries travel back to LD-1, where _enter() adds them to net.returned: ${nW(N.returned_total)} in all. report() turns them into LD-1's Back-reflection readout in the lab, ${dB(N.returned_total / N.power, 1)}, the strongest at ${site(strongest[0])} (${dB(strongest[1] / N.power, 1)}). Light reflected a second time would head for PD-1 again at ${p10(N.r_back ** 2)} of the power, below the ${p10(N.min_twice)} the trace keeps, so PD-1 has exactly ${N.n_paths === 1 ? "one path" : N.n_paths + " paths"}. In all, _enter() ran ${N.n_calls} times.`,
+    c: [["returned", nW(N.returned_total)], ["paths to PD-1", `${N.n_paths}`], ["_enter calls", `${N.n_calls}`]] },
+  { m: "synthesize", at: "grid", sc: "grid", t: "The scope's time grid",
+    p: `OSC-1's acquire() calls synthesize(net, {PD-1}, t, dt, rng). Its time grid t is a row of bins, each dt = ${ps(N.dts)} wide, and every field is averaged over its bin. The screen's ${(N.n * N.dt * 1e6).toFixed(0)} µs record is ${N.n.toLocaleString("en-US")} samples at a sample interval of ${ps(N.dt)}, simulated ${N.k} bins per sample so the scope's ${N.scope_bw / 1e9} GHz front end is resolved, plus ${N.warm} bins of warm-up for the filters: ${N.nsim.toLocaleString("en-US")} bins. CW light gives the sync trigger no clock, so the sweep starts at a random time, ${(N.t0 * 1e3).toFixed(3)} ms. synthesize() then groups PD-1's paths by laser and starts the generators that drive a modulator on them: ${N.gens.join(" and ")}.`,
+    c: [["bins", N.nsim.toLocaleString("en-US")], ["dt", ps(N.dts)], ["sample interval", ps(N.dt)]] },
+  { m: "synthesize", at: "emit", sc: "delays", t: "When did this light leave the laser?",
+    p: `The light in a bin at PD-1 left LD-1 one path delay earlier: emit = t − ${ns(N.path_delay)} is the start of each bin's emission, and mid = emit + ${ps(N.dts / 2)} its center. A setup with several paths gets one row per path here, each with its own delay.`,
+    c: [["delay", ns(N.path_delay)], ["mid", `emit + ${ps(N.dts / 2)}`]] },
+  { m: "synthesize", at: "field", sc: "phase", t: "The laser's field",
+    p: `field_ is the laser's complex field E, in √W, so that |E|² is a power. envelope() is the square root of the power averaged over each bin: √(${uW(N.power)}) = ${N.envelope.toFixed(4)} √W, the same in every bin for CW light. phase() starts at a random angle and adds a random walk whose variance grows by 2π·Δν per second, with Δν = ${(N.linewidth / 1e3).toFixed(0)} kHz the laser's linewidth: ${N.phase_rms.toFixed(2)} rad rms over this ${(N.n * N.dt * 1e6).toFixed(0)} µs sweep. One path's |E|² never sees the phase; it matters where two paths of one laser meet, as in an unbalanced interferometer. LD-1 has no excess RIN, so intensity_factor() returns None.`,
+    c: [["envelope", `${N.envelope.toFixed(4)} √W`], ["Δν", `${(N.linewidth / 1e3).toFixed(0)} kHz`], ["phase span", `${N.phase_span.toFixed(2)} rad`]] },
+  { m: "synthesize", at: "factor", sc: "factor", t: "Along the path: × amp, × the modulator",
+    p: `The path's amplitude scales the field: ${uW(R[R.length - 1].w)} at PD-1 so far. Then each modulator on the path multiplies it, at t_mod = mid + ${ns(N.mod_at)}, when this light passed IM-1, with t_emit = mid. mod.factor() is response(drive_voltage(t_mod, t_emit)), and an intensity modulator's response is √T(V). The next two functions give V and T.`,
+    c: [["|amp|", N.path_amp.toFixed(3)], ["t_mod", `mid + ${ns(N.mod_at)}`]] },
+  { m: "drive_voltage", at: "volts", sc: "volts", t: "IM-1's voltage: rf + bias",
+    p: `drive_voltage() adds up whatever is plugged into the rf and bias inputs. FG-1 CH1, on rf, is a ${N.rf_vpp} Vpp sine at ${MHz(N.rf_freq)}. Its aligned time base evaluates it at t_emit, the light's emission time, so that a loaded pattern's symbol k meets pulse k at the modulator. PSU-1 CH1, on bias, is ${N.bias.toFixed(3)} V at every time. V = ${N.bias.toFixed(0)} + ${(N.rf_vpp / 2).toFixed(1)}·sin(2π·${MHz(N.rf_freq)}·t_emit), ${N.v_min.toFixed(3)} to ${N.v_max.toFixed(3)} V.`,
+    c: [["bias", `${N.bias.toFixed(3)} V`], ["rf", `${N.rf_vpp} Vpp, ${MHz(N.rf_freq)}`], ["V", `${N.v_min.toFixed(2)}–${N.v_max.toFixed(2)} V`]] },
+  { m: "transmission", at: "cosine", sc: "tcurve", t: "The Mach–Zehnder cosine",
+    p: `transmission() is T(V) = ½[1 + k·cos(πV/Vπ + φ₀)]. Vπ = ${N.v_pi} V is the voltage that shifts the phase difference between the arms by π, k = ${N.contrast.toFixed(3)} is how fully the arms interfere, set by the ${N.extinction_db} dB extinction ratio, and φ₀ = ${N.phi0} is their static path imbalance. ${N.bias.toFixed(0)} V = Vπ/2 is quadrature, the steepest and most linear point: the ±${(N.rf_vpp / 2).toFixed(1)} V swing moves T between ${N.t_min.toFixed(3)} and ${N.t_max.toFixed(3)}, and T falls as V rises. response() takes √T, the factor on the field.`,
+    c: [["Vπ", `${N.v_pi} V`], ["k", N.contrast.toFixed(3)], ["T", `${N.t_min.toFixed(3)}–${N.t_max.toFixed(3)}`]] },
+  { m: "synthesize", at: "acc", sc: "power", t: "The field at PD-1",
+    p: `PD-1 has one optical input, so its fields are keyed by wavelength alone, and its one path makes the ${(N.wavelength * 1e9).toFixed(0)} nm entry. |E|² = ${uW(R[R.length - 1].w)} × T(V): ${uW(N.p_min)} to ${uW(N.p_max)} over the sweep, ${uW(N.p_mean)} on average. That dict is what synthesize() returns for PD-1.`,
+    c: [["|E|²", `${uW(N.p_min)}–${uW(N.p_max)}`], ["mean", uW(N.p_mean)]] },
+  { m: "detect", at: "current", sc: "current", t: "Light to current",
+    p: `detect() turns each wavelength's |E|² into current with the responsivity ℜ, the amperes of photocurrent per watt of light: ${N.resp} A/W for this InGaAs photodiode at ${(N.wavelength * 1e9).toFixed(0)} nm, plus ${(N.dark * 1e9).toFixed(0)} nA of dark current. ${uA(N.i_min)} to ${uA(N.i_max)}, ${uA(N.i_mean)} on average.`,
+    c: [["ℜ", `${N.resp} A/W`], ["I", `${uA(N.i_min)}–${uA(N.i_max)}`], ["mean", uA(N.i_mean)]] },
+  { m: "detect", at: "noise", sc: "noise", t: "Noise, then the photodiode's pole",
+    p: `Shot noise has the one-sided density 2qI, with q the electron's charge: ${sci(N.shot)} A²/Hz at ${uA(N.i_mean, 0)}. The load's thermal noise has 4k_B·T/R, with k_B Boltzmann's constant, T = ${N.temperature} K and R = ${N.load} Ω: ${sci(N.thermal)} A²/Hz, ${(N.thermal / N.shot).toFixed(0)} times more. White noise in ${ps(N.dts)} bins has the rms √(density/2dt): ${uA(N.rms_before, 2)}. Then the ${N.pd_bw / 1e9} GHz pole, a first-order low-pass whose coefficient per bin is alpha = 1 − exp(−2π·${N.pd_bw / 1e9} GHz·${ps(N.dts)}) = ${N.alpha.toFixed(3)}. ${N.pd_bw / 1e9} GHz is the grid's Nyquist frequency, 1/(2dt), so the pole barely smooths: ${uA(N.rms_after, 2)} rms after it. The two lines after these, a soft saturation near ${(N.saturation * 1e3).toFixed(0)} mA, leave tens of µA alone.`,
+    c: [["thermal ÷ shot", `${(N.thermal / N.shot).toFixed(0)}`], ["rms", `${uA(N.rms_before, 2)} → ${uA(N.rms_after, 2)}`]] },
+  { m: "run", at: "acquire", sc: "screen", t: "Back in OSC-1",
+    p: `acquire() runs this current through its ${N.scope_bw / 1e9} GHz front end and keeps every ${N.k === 2 ? "2nd" : N.k + "th"} bin: ${N.n.toLocaleString("en-US")} samples at ${N.fs / 1e9} GS/s, the CH1 trace setup.run() returns, ${uA(N.ch1_mean)} on average. CH2 reads FG-1 CH2 at the scope's own time. CH1 is an inverted copy of the drive, ${ns(N.lag)} behind CH2. The light reaching PD-1 left the laser ${ns(N.path_delay, 3)} earlier, and FG-1's aligned time base reads the drive at that emission time. It reads it at each bin's center, ${ps(N.dts / 2)} in, while CH2 reads its bins' starts, and the photodiode's pole adds ${(N.pole_delay * 1e12).toFixed(1)} ps: ${ns(N.path_delay, 3)} − ${ps(N.dts / 2)} + ${(N.pole_delay * 1e12).toFixed(1)} ps = ${ns(N.lag, 3)}. The sweep is untriggered, as the summary prints: CW light gives the sync trigger no clock. The oscilloscope walkthrough follows acquire() from here.`,
+    c: [["CH1 mean", uA(N.ch1_mean)], ["CH1 behind CH2", ns(N.lag, 3)], ["trigger", "untriggered"]] },
+];
+for (const s of S) {
+  const r = D.lines[s.at];
+  if (!r) throw new Error(`no lines for step ${s.at}`);
+  [s.a, s.b] = r;
+}
+
+/* ---------- canvas helpers ---------- */
+const cv = document.getElementById("scr");
+const ctx = cv.getContext("2d");
+let W = 960, H = 600;
+function resize() {
+  const r = cv.getBoundingClientRect();
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  W = Math.max(320, r.width); H = W * 10 / 16;
+  cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+let C = {};
+function colors() { C = { grid: css("--scr-grid"), axis: css("--scr-axis"), text: css("--scr-text"), strong: css("--scr-strong"), tr: css("--scr-trace"), c2: css("--scr-2"), c3: css("--scr-3"), c4: css("--scr-4"), c5: css("--scr-5"), light: css("--scr-light"), bg: css("--scr-bg"), panel: css("--scr-bezel") }; }
+const ease = (t) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+const font = (px, w = 500, fam = "mono") => `${w} ${px}px ${fam === "mono" ? '"IBM Plex Mono", ui-monospace, monospace' : '"Chakra Petch", system-ui, sans-serif'}`;
+const sz = () => Math.max(10, Math.min(13, W / 64));
+const compact = () => W < 560;                          // a phone: shorter labels
+function rgba(hex, a) {
+  const m = hex.replace("#", ""); const n = parseInt(m.length === 3 ? m.split("").map((c) => c + c).join("") : m, 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
+}
+function frame(o) {
+  const L = Math.max(58, W * 0.08), Rm = 14, T = 30, B = 30;
+  const pw = W - L - Rm, ph = H - T - B;
+  const [x0, x1] = o.x, [y0, y1] = o.y;
+  const X = (x) => L + (x - x0) / (x1 - x0) * pw;
+  const Y = (y) => T + (1 - (y - y0) / (y1 - y0)) * ph;
+  ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = C.grid; ctx.lineWidth = 1;
+  const nx = o.nx || 10, ny = o.ny || 8;
+  for (let i = 0; i <= nx; i++) { const x = L + i * pw / nx; ctx.beginPath(); ctx.moveTo(x, T); ctx.lineTo(x, T + ph); ctx.stroke(); }
+  for (let j = 0; j <= ny; j++) { const y = T + j * ph / ny; ctx.beginPath(); ctx.moveTo(L, y); ctx.lineTo(L + pw, y); ctx.stroke(); }
+  if (o.scope) {  // minor ticks on the center lines, as on a scope graticule
+    ctx.strokeStyle = C.axis;
+    for (let i = 0; i <= nx * 5; i++) { const x = L + i * pw / (nx * 5); ctx.beginPath(); ctx.moveTo(x, T + ph / 2 - 3); ctx.lineTo(x, T + ph / 2 + 3); ctx.stroke(); }
+    for (let j = 0; j <= ny * 5; j++) { const y = T + j * ph / (ny * 5); ctx.beginPath(); ctx.moveTo(L + pw / 2 - 3, y); ctx.lineTo(L + pw / 2 + 3, y); ctx.stroke(); }
+  }
+  ctx.strokeStyle = C.axis; ctx.strokeRect(L + .5, T + .5, pw - 1, ph - 1);
+  ctx.fillStyle = C.text; ctx.font = font(sz());
+  if (o.xt) { ctx.textAlign = "center"; ctx.textBaseline = "top"; for (const [v, lab] of o.xt) ctx.fillText(lab, X(v), T + ph + 7); }
+  if (o.yt) { ctx.textAlign = "right"; ctx.textBaseline = "middle"; for (const [v, lab] of o.yt) ctx.fillText(lab, L - 7, Y(v)); }
+  if (o.title) { ctx.textAlign = "left"; ctx.textBaseline = "alphabetic"; ctx.font = font(sz() + 1, 600, "disp"); ctx.fillStyle = C.text; ctx.fillText(o.title, L, T - 10); }
+  if (o.right) {
+    ctx.font = font(sz() + 1, 600, "disp"); const tw = o.title ? ctx.measureText(o.title).width : 0;
+    ctx.font = font(sz()); const rw = ctx.measureText(o.right).width;
+    if (tw + rw + 16 <= pw) { ctx.textAlign = "right"; ctx.fillStyle = C.text; ctx.fillText(o.right, L + pw, T - 10); }
+  }
+  return { X, Y, L, T, pw, ph };
+}
+function clipTo(f) { ctx.save(); ctx.beginPath(); ctx.rect(f.L, f.T, f.pw, f.ph); ctx.clip(); }
+function line(f, xs, ys, color, width = 1.4, reveal = 1, alpha = 1) {
+  const n = xs.length, m = Math.max(2, Math.floor(n * reveal));
+  clipTo(f); ctx.globalAlpha = alpha; ctx.strokeStyle = color; ctx.lineWidth = width; ctx.lineJoin = "round";
+  ctx.beginPath();
+  for (let i = 0; i < m && i < n; i++) { const x = f.X(xs[i]), y = f.Y(ys[i]); if (!i) ctx.moveTo(x, y); else ctx.lineTo(x, y); }
+  ctx.stroke(); ctx.globalAlpha = 1; ctx.restore();
+}
+function dots(f, xs, ys, color, r = 2.4, reveal = 1) {
+  const m = Math.floor(xs.length * reveal);
+  clipTo(f); ctx.fillStyle = color;
+  for (let i = 0; i < m; i++) { ctx.beginPath(); ctx.arc(f.X(xs[i]), f.Y(ys[i]), r, 0, 7); ctx.fill(); }
+  ctx.restore();
+}
+function vline(f, x, color, dash = [], text, at = "top") {
+  const px = f.X(x); ctx.save(); ctx.strokeStyle = color; ctx.setLineDash(dash); ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.moveTo(px, f.T); ctx.lineTo(px, f.T + f.ph); ctx.stroke(); ctx.restore();
+  if (text) { ctx.fillStyle = color; ctx.font = font(sz()); const right = px > f.L + f.pw * 0.7; ctx.textAlign = right ? "right" : "left"; ctx.textBaseline = "top"; ctx.fillText(text, px + (right ? -6 : 6), at === "top" ? f.T + 6 : f.T + f.ph - 22); }
+}
+function hline(f, y, color, dash = [], text, side = "right") {
+  const py = f.Y(y); ctx.save(); ctx.strokeStyle = color; ctx.setLineDash(dash); ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.moveTo(f.L, py); ctx.lineTo(f.L + f.pw, py); ctx.stroke(); ctx.restore();
+  if (text) { ctx.fillStyle = color; ctx.font = font(sz()); ctx.textAlign = side === "right" ? "right" : "left"; ctx.textBaseline = "bottom"; ctx.fillText(text, side === "right" ? f.L + f.pw - 6 : f.L + 6, py - 3); }
+}
+function band(f, x0, x1, color) { clipTo(f); ctx.fillStyle = color; ctx.fillRect(f.X(x0), f.T, f.X(x1) - f.X(x0), f.ph); ctx.restore(); }
+function hband(f, y0, y1, color) { clipTo(f); ctx.fillStyle = color; ctx.fillRect(f.L, f.Y(y1), f.pw, f.Y(y0) - f.Y(y1)); ctx.restore(); }
+function label(text, x, y, color, align = "left", size, w = 500) { ctx.fillStyle = color; ctx.font = font(size || sz(), w); ctx.textAlign = align; ctx.textBaseline = "middle"; ctx.fillText(text, x, y); }
+function arrow(x0, y0, x1, y1, color, width = 1.6, dash = [], head = 7) {
+  ctx.save(); ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = width; ctx.setLineDash(dash);
+  ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); ctx.setLineDash([]);
+  const a = Math.atan2(y1 - y0, x1 - x0);
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x1 - head * Math.cos(a - 0.4), y1 - head * Math.sin(a - 0.4)); ctx.lineTo(x1 - head * Math.cos(a + 0.4), y1 - head * Math.sin(a + 0.4)); ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+function card(lines, x, y, color) {
+  ctx.font = font(sz());
+  const w = Math.max(...lines.map((l) => ctx.measureText(l).width)) + 20, lh = sz() * 1.55, h = lines.length * lh + 14;
+  const x0 = Math.min(x, W - w - 8);
+  ctx.fillStyle = rgba(C.panel, 0.94); ctx.strokeStyle = rgba(color, 0.7); ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.roundRect(x0, y, w, h, 6); ctx.fill(); ctx.stroke();
+  lines.forEach((l, i) => label(l, x0 + 10, y + 7 + lh * (i + 0.5), i ? C.strong : color));
+}
+const range = (n, f) => Array.from({ length: n }, (_, i) => f(i));
+const ticks = (vals, f) => vals.map((v) => [v, f(v)]);
+
+/* ---------- derived arrays ---------- */
+const tSweep = range(D.p_uW.length, (i) => i * N.every * N.dts * 1e9);   // ns from the sweep's start
+const sweepX = [0, (D.p_uW.length - 1) * N.every * N.dts * 1e9];
+const sweepTicks = ticks([0, 200, 400, 600, 800, 1000], (v) => `${v}`);
+const tZoom = range(D.zoom_clean_uA.length, (i) => (N.zoom[0] + i - N.warm) * N.dts * 1e9);
+
+/* ---------- the bench, as a diagram ---------- */
+const PARTS = {
+  "LD-1": [0.03, 0.30, 0.15, 0.46],
+  "IM-1": [0.34, 0.31, 0.48, 0.45],
+  "PD-1": [0.66, 0.31, 0.76, 0.45],
+  "OSC-1": [0.84, 0.24, 0.98, 0.62],
+  "PSU-1": [0.14, 0.72, 0.28, 0.88],
+  "FG-1": [0.36, 0.72, 0.52, 0.88],
+};
+const JOINTS = [0.15, 0.34, 0.48, 0.66];                // LD-1|FIB-1.a, FIB-1.b|IM-1.p1, IM-1.p2|FIB-2.a, FIB-2.b|PD-1
+const JOINT_PORT = ["LD-1.out", "FIB-1.b", "IM-1.p2", "FIB-2.b"];
+const ROW = 0.38;
+function bench(t, s) {
+  ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
+  const P = (x, y) => [x * W, y * H];
+  const hiAll = !s.parts && !s.route && !s.back;
+  const lit = (name) => hiAll || (s.parts || []).includes(name);
+  // electrical: PD-1 → CH1, FG-1 CH1 → rf, PSU-1 CH1 → bias, FG-1 CH2 → CH2
+  ctx.save(); ctx.strokeStyle = rgba(C.c4, 0.55); ctx.lineWidth = 1.3;
+  const wire = (pts) => { ctx.beginPath(); pts.forEach(([x, y], i) => (i ? ctx.lineTo(x * W, y * H) : ctx.moveTo(x * W, y * H))); ctx.stroke(); };
+  wire([[0.76, ROW], [0.84, ROW]]);
+  wire([[0.45, 0.72], [0.45, 0.45]]);
+  wire([[0.21, 0.72], [0.21, 0.62], [0.38, 0.62], [0.38, 0.45]]);
+  wire([[0.52, 0.80], [0.80, 0.80], [0.80, 0.52], [0.84, 0.52]]);
+  ctx.restore();
+  label("rf", 0.455 * W, 0.50 * H, C.c4, "left", sz() - 1);
+  label("bias", 0.375 * W, 0.50 * H, C.c4, "right", sz() - 1);
+  label("CH1", 0.845 * W, ROW * H - 9, C.c4, "left", sz() - 1);
+  label("CH2", 0.845 * W, 0.52 * H - 9, C.c4, "left", sz() - 1);
+  // fibers (yellow jackets), lit with the light's false color as the trace walks them
+  const hops = s.route ? Math.min(s.route, s.route * ease(t) + 1) : 0;
+  const seg = (x0, x1, on) => { ctx.strokeStyle = on ? C.light : rgba(C.tr, 0.55); ctx.lineWidth = on ? 3 : 2; ctx.beginPath(); ctx.moveTo(x0 * W, ROW * H); ctx.lineTo(x1 * W, ROW * H); ctx.stroke(); };
+  seg(0.15, 0.34, hops >= 2); seg(0.48, 0.66, hops >= 4);
+  if (hops >= 3) seg(0.34, 0.48, true);
+  label("FIB-1 · 1 m", 0.245 * W, (ROW - 0.06) * H, C.tr, "center", sz() - 1);
+  label("FIB-2 · 1 m", 0.57 * W, (ROW - 0.06) * H, C.tr, "center", sz() - 1);
+  // parts
+  for (const [name, [x0, y0, x1, y1]] of Object.entries(PARTS)) {
+    const on = lit(name);
+    ctx.fillStyle = C.bg;                                   // opaque: the light's line stops at the box
+    ctx.beginPath(); ctx.roundRect(x0 * W, y0 * H, (x1 - x0) * W, (y1 - y0) * H, 5); ctx.fill();
+    ctx.fillStyle = on ? rgba(C.tr, 0.14) : rgba(C.c4, 0.08);
+    ctx.strokeStyle = on ? C.tr : rgba(C.c4, 0.6); ctx.lineWidth = on ? 1.8 : 1.1;
+    ctx.beginPath(); ctx.roundRect(x0 * W, y0 * H, (x1 - x0) * W, (y1 - y0) * H, 5); ctx.fill(); ctx.stroke();
+    label(name, (x0 + x1) / 2 * W, (y0 + y1) / 2 * H, on ? C.strong : C.text, "center", sz() + 1, 600);
+  }
+  // matings
+  JOINTS.forEach((x, i) => { ctx.fillStyle = hops > i ? C.light : C.c4; ctx.beginPath(); ctx.arc(x * W, ROW * H, 4, 0, 7); ctx.fill(); });
+  if (s.back) {
+    const e = ease(t);
+    JOINTS.forEach((x, i) => {
+      const w = back[JOINT_PORT[i]] ?? 0, y = (0.18 - i * 0.03) * H;
+      if (e < i / 4) return;
+      ctx.save(); ctx.strokeStyle = C.c2; ctx.setLineDash([4, 4]); ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.moveTo(x * W, ROW * H - 5); ctx.lineTo(x * W, y); ctx.lineTo(0.09 * W, y); ctx.stroke(); ctx.restore();
+      arrow(0.09 * W, y, 0.09 * W, 0.30 * H - 2, C.c2, 1.2);
+      if (!compact()) label(nW(w), x * W + 5, y - 7, C.c2, "left", sz() - 1);
+    });
+    label(`LD-1 gets back ${nW(N.returned_total)}`, 0.03 * W, 0.53 * H, C.c2, "left", sz(), 600);
+  }
+  // on a phone the card would cover the parts; the caption's chips carry the same numbers
+  if (s.card && W >= 560) card(s.card, 0.03 * W, 0.04 * H, s.m === "run" ? C.tr : s.m === "trace" ? css("--m-trace") : css("--m-enter"));
+  if (s.m === "run") label("FG-1 and PSU-1: no acquire()", 0.30 * W, 0.94 * H, C.c4, "left", sz() - 1);
+}
+
+/* ---------- scenes ---------- */
+const scenes = {
+  bench,
+  mating(t) {
+    ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
+    const cy = 0.48 * H, gap = 0.035 * W, cx = 0.5 * W, e = ease(t);
+    // two ferrules butted together, FC/UPC on both sides
+    const ferrule = (x0, x1, name) => {
+      ctx.fillStyle = rgba(C.c4, 0.22); ctx.strokeStyle = C.c4; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.roundRect(Math.min(x0, x1), cy - 0.07 * H, Math.abs(x1 - x0), 0.14 * H, 6); ctx.fill(); ctx.stroke();
+      label(name, (x0 + x1) / 2, cy + 0.11 * H, C.text, "center", sz(), 600);
+      label("FC/UPC", (x0 + x1) / 2, cy + 0.16 * H, C.c4, "center", sz() - 1);
+    };
+    ferrule(0.10 * W, cx - gap / 2, "LD-1.out");
+    ferrule(cx + gap / 2, 0.90 * W, "FIB-1.a");
+    ctx.strokeStyle = C.light; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(0.10 * W, cy); ctx.lineTo(cx - gap / 2, cy); ctx.stroke();
+    label(uW(N.power), 0.12 * W, cy - 0.12 * H, C.strong, "left", sz() + 2, 600);
+    if (e > 0.25) {
+      ctx.strokeStyle = C.light; ctx.lineWidth = 3 * Math.min(1, (e - 0.25) * 2);
+      ctx.beginPath(); ctx.moveTo(cx + gap / 2, cy); ctx.lineTo(cx + gap / 2 + (0.40 * W - gap / 2) * Math.min(1, (e - 0.25) * 2), cy); ctx.stroke();
+      label(`t = ${N.t_mate.toFixed(3)} (${dB(N.t_mate)})`, 0.88 * W, cy - 0.21 * H, C.light, "right", sz(), 600);
+      label(`→ ${uW(R[0].w)} into FIB-1`, 0.88 * W, cy - 0.12 * H, C.light, "right", sz() + 1, 600);
+    }
+    if (e > 0.6) {
+      arrow(cx - gap / 2 - 2, cy - 0.025 * H, 0.22 * W, cy - 0.025 * H, C.c2, 1.2, [4, 3]);
+      label(`back ${p10(N.r_back)} (${dB(N.r_back, 0)}) → ${nW(back["LD-1.out"])} into LD-1`, 0.12 * W, cy + 0.27 * H, C.c2, "left", sz(), 600);
+    }
+    label("mating(\"FC/UPC\", \"FC/UPC\")", 0.5 * W, 0.12 * H, C.text, "center", sz() + 1, 600);
+  },
+  grid(t) {
+    const nb = 26, e = ease(t);
+    const f = frame({ x: [-0.5, nb + 0.5], y: [0, 3], nx: 13, ny: 3, xt: ticks([0, 10, 12, 14, 20, 26], (v) => `${v}`), title: `THE FIRST BINS OF ${N.nsim.toLocaleString("en-US")}`, right: compact() ? "" : `dt = ${ps(N.dts)} per bin` });
+    for (let i = 0; i < nb * Math.max(0.15, e); i++) {
+      const warm = i < N.warm;
+      clipTo(f); ctx.fillStyle = warm ? rgba(C.c4, 0.35) : rgba(C.c2, 0.45);
+      ctx.fillRect(f.X(i - 0.42), f.Y(2.1), f.X(0.84) - f.X(0), f.Y(1.5) - f.Y(2.1)); ctx.restore();
+    }
+    const samples = range(Math.ceil((nb - N.warm) / N.k), (j) => N.warm + j * N.k).filter((i) => i < nb);
+    dots(f, samples, samples.map(() => 0.95), C.tr, 4.2, Math.max(0, (e - 0.4) / 0.6));
+    label(`warm-up: ${N.warm} bins`, f.X(N.warm / 2 - 0.5), f.Y(2.5), C.c4, "center");
+    label(compact() ? `${N.k} per sample` : `${N.k} bins per sample: a sample interval of ${ps(N.dt)}`, f.X(N.warm + 0.5), f.Y(2.5), C.c2, "left");
+    label(`samples, ${N.fs / 1e9} GS/s`, f.X(N.warm + 0.5), f.Y(0.5), C.tr, "left");
+    if (e > 0.8) label(`${N.warm} + ${N.k} × ${N.n.toLocaleString("en-US")} = ${N.nsim.toLocaleString("en-US")} bins${compact() ? "" : `, ${(N.nsim * N.dts * 1e6).toFixed(3)} µs`}`, f.X(nb / 2), f.Y(compact() ? 0.25 : 2.85), C.strong, "center", sz() + 1, 600);
+  },
+  delays(t) {
+    const d = N.path_delay * 1e9, m = N.mod_at * 1e9, e = ease(t);
+    const f = frame({ x: [-d - 2, 2], y: [0, 3.6], nx: 12, ny: 4, xt: ticks([-d, -d + m, 0], (v) => (v ? fx(v, 2) : "0")), title: "TIME, ns FROM A BIN AT PD-1", right: "one path" });
+    const rows = [["LD-1 emits", 2.8], ["IM-1 passes", 1.8], ["PD-1 receives", 0.8]];
+    for (const [name, y] of rows) { hline(f, y, rgba(C.c4, 0.5), [2, 4]); label(name, f.L + 8, f.Y(y) - 10, C.text, "left"); }
+    const pts = [[-d, 2.8], [-d + m, 1.8], [0, 0.8]];
+    const k = Math.min(2, e * 2.4);
+    for (let i = 0; i < Math.floor(k); i++) arrow(f.X(pts[i][0]), f.Y(pts[i][1]), f.X(pts[i + 1][0]), f.Y(pts[i + 1][1]), C.light, 2);
+    dots(f, pts.map((p) => p[0]), pts.map((p) => p[1]), C.light, 5);
+    label(`emit = t − ${ns(N.path_delay)}`, f.X(-d) + 8, f.Y(compact() ? 3.45 : 3.25), C.light, "left", sz(), 600);
+    label(`t_mod = mid + ${ns(N.mod_at)}`, f.X(-d + m) + 8, f.Y(2.25), C.light, "left", sz(), 600);
+    label("t: the bin", f.X(0) - 8, f.Y(1.25), C.light, "right", sz(), 600);
+  },
+  phase(t) {
+    const lo = Math.min(...D.phase), hi = Math.max(...D.phase), pad = 0.3;
+    const f = frame({ x: sweepX, y: [Math.min(-N.phase_rms, lo) - pad, Math.max(N.phase_rms, hi) + pad], xt: sweepTicks, yt: ticks([-1, 0, 1, 2].filter((v) => v > lo - pad && v < hi + pad), (v) => `${v}`), title: "LD-1's PHASE WALK [rad] vs TIME [ns]", right: `Δν = ${(N.linewidth / 1e3).toFixed(0)} kHz` });
+    hband(f, -N.phase_rms, N.phase_rms, rgba(C.c2, 0.08));
+    hline(f, N.phase_rms, rgba(C.c2, 0.7), [4, 4], `± ${N.phase_rms.toFixed(2)} rad: the rms after ${(N.n * N.dt * 1e6).toFixed(0)} µs`, "left");
+    hline(f, -N.phase_rms, rgba(C.c2, 0.7), [4, 4]);
+    line(f, tSweep, D.phase, C.tr, 1.6, ease(t));
+    label(`envelope: ${N.envelope.toFixed(4)} √W in every bin`, f.X(500), f.Y(lo - pad * 0.5), C.c4, "center");
+  },
+  factor(t) {
+    const top = R[R.length - 1].w * 1e6;
+    const f = frame({ x: sweepX, y: [0, top * 1.15], xt: sweepTicks, yt: ticks([0, 20, 40, 60, 80, 100].filter((v) => v <= top * 1.15), (v) => `${v}`), title: "POWER AT PD-1 [µW] vs TIME [ns]", right: "× amp, then × √T(V) on the field" });
+    hline(f, top, C.c4, [5, 4], `|amp × field|² = ${uW(top / 1e6)}`, "right");
+    line(f, tSweep, D.p_uW, C.light, 1.8, ease(t), 0.9);
+    label("× T(V(t)): the next two functions", f.X(500), f.Y(top * 0.12), C.light, "center", sz(), 600);
+  },
+  volts(t) {
+    const f = frame({ x: sweepX, y: [1, 3], nx: 10, ny: 8, xt: sweepTicks, yt: ticks([1, 1.5, 2, 2.5, 3], (v) => v.toFixed(1)), title: "IM-1's VOLTAGE [V] vs TIME [ns]", right: "rf + bias" });
+    hline(f, N.bias, C.c2, [5, 4], `bias: PSU-1 CH1, ${N.bias.toFixed(3)} V`, "left");
+    line(f, tSweep, D.volts, css("--m-volts"), 1.8, ease(t));
+    label(`rf: FG-1 CH1, ${N.rf_vpp} Vpp at ${MHz(N.rf_freq)}, ${cycles.toFixed(0)} cycles`, f.X(500), f.Y(2.85), css("--m-volts"), "center", sz(), 600);
+  },
+  tcurve(t) {
+    const vs = range(321, (i) => i * 0.025);
+    const T = (v) => 0.5 * (1 + N.contrast * Math.cos(Math.PI * v / N.v_pi + N.phi0));
+    const f = frame({ x: [0, 8], y: [0, 1.05], nx: 8, ny: 7, xt: ticks([0, 1, 2, 3, 4, 5, 6, 7, 8], (v) => `${v}`), yt: ticks([0, 0.25, 0.5, 0.75, 1], (v) => v.toFixed(2)), title: "T vs V [V]", right: `Vπ = ${N.v_pi} V, k = ${N.contrast.toFixed(3)}` });
+    const e = ease(t);
+    band(f, N.v_min, N.v_max, rgba(css("--m-volts"), 0.12));
+    hband(f, N.t_min, N.t_max, rgba(C.light, 0.08));
+    line(f, vs, vs.map(T), C.c4, 1.4, 1, 0.8);
+    const sw = range(41, (i) => N.v_min + (N.v_max - N.v_min) * i / 40);
+    line(f, sw, sw.map(T), C.light, 3.2, e);
+    dots(f, [N.bias], [T(N.bias)], C.tr, 5);
+    hline(f, N.t_max, rgba(C.light, 0.7), [4, 4], `T ${N.t_max.toFixed(3)}`, "right");
+    hline(f, N.t_min, rgba(C.light, 0.7), [4, 4], `T ${N.t_min.toFixed(3)}`, "right");
+    label("quadrature, Vπ/2", f.X(N.bias) + 10, f.Y(0.5) + 2, C.tr, "left", sz(), 600);
+    label("null at Vπ", f.X(N.v_pi), f.Y(0.06), C.c4, "center");
+    label("full at 0 V", f.X(0.2), f.Y(1.01), C.c4, "left");
+  },
+  power(t) {
+    const f = frame({ x: sweepX, y: [20, 75], nx: 10, ny: 11, xt: sweepTicks, yt: ticks([20, 30, 40, 50, 60, 70], (v) => `${v}`), title: "|E|² AT PD-1 [µW] vs TIME [ns]", right: `${(N.wavelength * 1e9).toFixed(0)} nm, one path` });
+    hline(f, N.p_mean * 1e6, rgba(C.c4, 0.9), [5, 4], `mean ${uW(N.p_mean)}`, "left");
+    line(f, tSweep, D.p_uW, C.light, 1.8, ease(t));
+  },
+  current(t) {
+    const f = frame({ x: sweepX, y: [20, 70], nx: 10, ny: 10, xt: sweepTicks, yt: ticks([20, 30, 40, 50, 60, 70], (v) => `${v}`), title: "PD-1's CURRENT [µA] vs TIME [ns]", right: `ℜ = ${N.resp} A/W` });
+    hline(f, N.i_mean * 1e6, rgba(C.c4, 0.9), [5, 4], `mean ${uA(N.i_mean)}`, "left");
+    line(f, tSweep, D.i_uA, C.tr, 1.8, ease(t));
+  },
+  noise(t) {
+    const all = [...D.zoom_noisy_uA, ...D.zoom_clean_uA], lo = Math.min(...all), hi = Math.max(...all), pad = (hi - lo) * 0.12;
+    const f = frame({ x: [tZoom[0], tZoom[tZoom.length - 1]], y: [lo - pad, hi + pad], xt: ticks([tZoom[0], tZoom[tZoom.length - 1]], (v) => v.toFixed(1)), yt: ticks([Math.ceil(lo / 5) * 5, Math.floor(hi / 5) * 5], (v) => `${v}`), title: "20 ns OF PD-1's CURRENT [µA] vs TIME [ns]", right: `${ps(N.dts)} bins` });
+    const e = ease(t);
+    line(f, tZoom, D.zoom_noisy_uA, C.c2, 1.1, Math.min(1, e * 2), 0.8);
+    line(f, tZoom, D.zoom_out_uA, C.tr, 1.6, Math.max(0, e * 2 - 1));
+    line(f, tZoom, D.zoom_clean_uA, C.strong, 1.6, 1, 0.9);   // on top, so it shows through the noise
+    if (compact()) {
+      label("white: clean   cyan: + noise", f.L + 8, f.T + 12, C.text, "left");
+      label("yellow: after the pole", f.L + 8, f.T + 12 + sz() * 1.4, C.text, "left");
+    } else label(`white: clean   cyan: + noise, ${uA(N.rms_before, 2)} rms   yellow: after the pole, ${uA(N.rms_after, 2)}`, f.L + 8, f.T + 14, C.text, "left");
+  },
+  screen(t) {
+    const x0 = D.scope_t_ns[0], x1 = x0 + 10 * N.timebase * 1e9;
+    const f = frame({ x: [x0, x1], y: [-4, 4], nx: 10, ny: 8, scope: true, xt: ticks([0, 200, 400, 600, 800], (v) => `${v}`), yt: ticks([-2, 0, 2], (v) => `${fx(v * N.ch1_scale * 1e6, 0)} µA`), title: compact() ? `CH1 ${(N.ch1_scale * 1e6).toFixed(0)} µA/div  CH2 ${N.ch2_scale} V/div` : `CH1 ${(N.ch1_scale * 1e6).toFixed(0)} µA/div   CH2 ${N.ch2_scale} V/div   ${(N.timebase * 1e9).toFixed(0)} ns/div`, right: compact() ? "untriggered" : "sync · untriggered" });
+    const e = ease(t);
+    line(f, D.scope_t_ns, D.ch2_V.map((v) => v / N.ch2_scale), C.c2, 1.5, e);
+    line(f, D.scope_t_ns, D.ch1_uA.map((v) => v / (N.ch1_scale * 1e6)), C.tr, 1.6, e);
+    // ground markers on the left edge: both channels sit at 0 div
+    ctx.fillStyle = C.tr; ctx.beginPath(); const y0 = f.Y(0); ctx.moveTo(f.L + 1, y0); ctx.lineTo(f.L - 9, y0 - 6); ctx.lineTo(f.L - 9, y0 + 6); ctx.fill();
+    label("CH1 ← PD-1", f.X(x0) + 8, f.Y(3.5), C.tr, "left", sz(), 600);
+    label("CH2 ← FG-1 CH2", f.X(x0) + 8, f.Y(-3.5), C.c2, "left", sz(), 600);
+    if (e > 0.85) label(compact() ? `CH1 inverted, ${ns(N.lag)} late` : `CH1 mean ${uA(N.ch1_mean)}, inverted, ${ns(N.lag, 3)} behind CH2`, f.X(x0 + 500), f.Y(-2.6), C.strong, "center", sz() + 1, 600);
+  },
+};
+
+/* ---------- player ---------- */
+const track = document.getElementById("track");
+S.forEach((s, i) => {
+  const b = document.createElement("button");
+  b.className = "seg"; b.dataset.m = s.m; b.type = "button"; b.setAttribute("role", "tab");
+  b.setAttribute("aria-label", `Step ${i + 1}: ${s.t}`);
+  b.addEventListener("click", () => go(i, true));
+  track.appendChild(b);
+});
+const segs = [...track.children];
+const codeBox = document.getElementById("code");
+const capWhere = document.getElementById("capWhere"), capTitle = document.getElementById("capTitle"), capBody = document.getElementById("capBody"), capChips = document.getElementById("capChips");
+const counter = document.getElementById("counter"), playBtn = document.getElementById("play"), state = document.getElementById("scrState");
+let cur = 0, start = 0, playing = !reduceMotion, raf = 0, t = 1;
+const DUR = 900, DWELL = 7200;
+const MC = { run: "--m-run", trace: "--m-trace", _enter: "--m-enter", synthesize: "--m-synth", drive_voltage: "--m-volts", transmission: "--m-trans", detect: "--m-detect" };
+
+function render() { colors(); const s = S[cur]; scenes[s.sc](Math.min(1, t), s); }
+function setCode(s) {
+  codeBox.classList.add("active");
+  document.querySelectorAll(".ln.on").forEach((e) => e.classList.remove("on"));
+  document.querySelectorAll(".method").forEach((e) => e.classList.toggle("cur", e.dataset.m === s.m));
+  const rows = LINES[s.m].slice(s.a, s.b + 1);
+  rows.forEach((r) => r.classList.add("on"));
+  const top = rows[0].offsetTop, bottom = rows[rows.length - 1].offsetTop + rows[rows.length - 1].offsetHeight;
+  codeScroll.scrollTo({ top: Math.max(0, (top + bottom) / 2 - codeScroll.clientHeight / 2), behavior: reduceMotion ? "auto" : "smooth" });
+}
+function setCaption(s, i) {
+  capWhere.style.setProperty("--mc", `var(${MC[s.m]})`);
+  capWhere.textContent = `${s.m}() · line${s.a === s.b ? "" : "s"} ${s.a + 1}${s.a === s.b ? "" : "–" + (s.b + 1)}`;
+  capTitle.textContent = s.t; capBody.textContent = s.p;
+  capChips.innerHTML = (s.c || []).map(([k, v]) => `<span class="chip">${esc(k)} <b>${esc(v)}</b></span>`).join("");
+  counter.textContent = `${i + 1} / ${S.length}`;
+  segs.forEach((g, j) => { g.classList.toggle("cur", j === i); g.classList.toggle("done", j < i); g.setAttribute("aria-selected", j === i ? "true" : "false"); });
+}
+function go(i) {
+  cur = (i + S.length) % S.length; start = performance.now(); t = reduceMotion ? 1 : 0;
+  setCode(S[cur]); setCaption(S[cur], cur); render(); loop();
+}
+function loop() {
+  cancelAnimationFrame(raf);
+  raf = requestAnimationFrame(function tick(now) {
+    const el = now - start;
+    t = reduceMotion ? 1 : Math.min(1, el / DUR);
+    render();
+    if (playing && el > DWELL) { go(cur + 1); return; }
+    if (t < 1 || playing) raf = requestAnimationFrame(tick);
+  });
+}
+function setPlay(p) { playing = p; playBtn.textContent = p ? "Pause" : "Play"; state.textContent = p ? "RUN" : "STOP"; if (p) { start = performance.now() - DUR; loop(); } }
+playBtn.addEventListener("click", () => setPlay(!playing));
+document.getElementById("prev").addEventListener("click", () => go(cur - 1));
+document.getElementById("next").addEventListener("click", () => go(cur + 1));
+document.addEventListener("keydown", (e) => {
+  if (e.target.closest && e.target.closest("button") && e.key === " ") return;
+  if (e.key === "ArrowRight") { go(cur + 1); e.preventDefault(); }
+  else if (e.key === "ArrowLeft") { go(cur - 1); e.preventDefault(); }
+  else if (e.key === " ") { setPlay(!playing); e.preventDefault(); }
+});
+window.addEventListener("resize", () => { resize(); render(); });
+resize();
+setPlay(playing);
+go(0);
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => render());
+})();
+</script>

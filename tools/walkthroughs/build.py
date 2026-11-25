@@ -3,9 +3,9 @@
     uv run python tools/walkthroughs/build.py
     uv run python tools/walkthroughs/build.py --fragments out/
 
-Each walkthrough steps through code line by line, an instrument's acquire() and the
-methods it calls, a station reading its tagger or Bob recovering Alice's clock, beside a
-screen that draws what each line produced. ``<name>.py`` replays those lines on a demo
+Each walkthrough steps through code line by line, setup.run() through the engine, an
+instrument's acquire() and the methods it calls, a station reading its tagger or Bob
+recovering Alice's clock, beside a screen that draws what each line produced. ``<name>.py`` replays those lines on a demo
 bench, checks the replay against the code itself and returns every intermediate array;
 ``<name>.html`` is the page, with ``/*DATA*/`` where the data go. The methods' source is
 embedded as it is now, so rebuild after changing them (tests/test_walkthroughs.py fails
@@ -25,6 +25,7 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 WEB = ROOT / "src" / "phoq" / "web" / "walkthroughs"
 PAGES = {  # capture module and template → published page
+    "engine": "engine.html",
     "spectrum_analyzer": "spectrum-analyzer.html",
     "oscilloscope": "oscilloscope.html",
     "photon_counter": "photon-counter.html",

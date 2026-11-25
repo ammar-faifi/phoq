@@ -332,14 +332,17 @@ detector dead time across records, and what long dead times do to the clicks.
 
 ## Theory: modulators, delay lines, balanced detection and the instruments
 
-The virtual lab's Help (?) window links five animated walkthroughs. Three step through one
-acquisition of an instrument line by line, beside a screen that draws the array each line produces
-on a real bench: the RF spectrum analyzer's sweep, the oscilloscope's front end, edge trigger, ADC
-and measurements, and the photon counter's clicks, dead time and coincidences. The fourth follows
-COW vacuum's Bob as he folds his tagger's time stamps onto Alice's slots, from `read_tagger` through
-`phoq.timing.fold` to one event per pair. The fifth follows `examples/clock_sync.py`'s Bob as he
-finds Alice's clock in his time stamps, through `recover_clock`, the `periodogram` it calls and
-`symbol_phase`. `phoq serve` serves them at `/walkthroughs/`. After changing those methods, rebuild
+The virtual lab's Help (?) window links six animated walkthroughs. The first follows
+`setup.run()` on `examples/modulated_link.py` through the engine: `trace()` finds the one route
+from the laser to the photodiode, `synthesize()` puts its field on the scope's time grid, the
+modulator's `drive_voltage()` and Mach–Zehnder `transmission()` scale it, and `Photodiode.detect()`
+turns it into a current. Three step through one acquisition of an instrument line by line, beside a
+screen that draws the array each line produces on a real bench: the RF spectrum analyzer's sweep,
+the oscilloscope's front end, edge trigger, ADC and measurements, and the photon counter's clicks,
+dead time and coincidences. The fifth follows COW vacuum's Bob as he folds his tagger's time stamps
+onto Alice's slots, from `read_tagger` through `phoq.timing.fold` to one event per pair. The sixth
+follows `examples/clock_sync.py`'s Bob as he finds Alice's clock in his time stamps, through
+`recover_clock`, the `periodogram` it calls and `symbol_phase`. `phoq serve` serves them at `/walkthroughs/`. After changing those methods, rebuild
 the pages with `uv run python tools/walkthroughs/build.py`; `tests/test_walkthroughs.py` fails until
 you do.
 

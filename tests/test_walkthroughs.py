@@ -14,6 +14,7 @@ from phoq.loading import import_source
 ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / "src" / "phoq" / "web"
 PAGES = (
+    "engine.html",
     "spectrum-analyzer.html",
     "oscilloscope.html",
     "photon-counter.html",

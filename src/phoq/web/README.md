@@ -77,8 +77,9 @@ js/ui.js            toolbox, generated inspector, warnings, toasts, help
 js/scene.js         renderer, camera, lights, tables, shelves
 js/textures.js      procedural canvas textures
 js/util.js          formatting helpers
-walkthroughs/       animated walkthroughs of the spectrum analyzer, oscilloscope and photon
-                    counter code, of a station folding its time stamps and of Bob recovering
-                    Alice's clock, linked from the Help (?) window; built by
+walkthroughs/       animated walkthroughs of setup.run() through the engine, of the spectrum
+                    analyzer, oscilloscope and photon counter code, of a station folding its
+                    time stamps and of Bob recovering Alice's clock, linked from the Help (?)
+                    window; built by
                     tools/walkthroughs/build.py, do not edit by hand
 ```

@@ -79,6 +79,9 @@ flowchart LR
     D -->|instrument model| A[ScopeResult,<br/>CounterResult,<br/>SpectrumResult]
 ```
 
+The lab's Help (?) window links an animated walkthrough of this pipeline, line by line, on
+`examples/modulated_link.py` (`walkthroughs/engine.html`).
+
 `trace()` runs once per snapshot of the setup and depends only on the setup. Everything random
 happens afterward, in `synthesize()` and the detector and instrument models, so one `Network` can
 feed many acquisitions. Three callers drive the pipeline:
