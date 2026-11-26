@@ -27,6 +27,9 @@ SHIPPED = {
     "excelitas/spcm-aqrh-13-fc",
     "hamamatsu/koheras-mikro-a15",
     "hamamatsu/koheras-mikro-e15",
+    "idq/id-qube-nir-fr-ln",
+    "idq/id-qube-nir-fr-uln",
+    "idq/id281-standard-1550",
     "mpd/pdm-ir",
     "mpd/pdm-ir-sff",
     "thorlabs/det08cfc",
@@ -266,10 +269,105 @@ def test_pdm_ir_desktop_and_small_form_factor_differ_only_in_dark_counts():
     assert spad.efficiency_at(1550e-9) == pytest.approx(0.25)
 
 
+def test_id_qube_low_noise_and_ultra_low_noise_differ_only_in_dark_counts():
+    """IDQ ID Qube Free-Running brochure G.192.0151-PB-1.1 (July 2026): p. 4 gives the
+    low-noise (LN) and ultra-low-noise (ULN) models the same rows except the noise and
+    the cooling time. At the 25 % efficiency level, where the timing jitter is specified
+    (150 ps typ, 200 ps max), their maximum dark count rates are 2 and 1.2 kHz, measured
+    with a 50 µs dead time (note 3)."""
+    ln = presets.get("idq/id-qube-nir-fr-ln")
+    uln = presets.get("idq/id-qube-nir-fr-uln")
+    assert (ln.part_number, uln.part_number) == (
+        "ID Qube-NIR-FR-MMF-LN",
+        "ID Qube-NIR-FR-MMF-ULN",
+    )
+    revision = "G.192.0151-PB-1.1, specifications as of July 2026"
+    assert ln.source["revision"] == uln.source["revision"] == revision
+    assert ln.source["document"] == uln.source["document"]
+    differ = {
+        k for k in ln.params | uln.params if ln.params.get(k) != uln.params.get(k)
+    }
+    assert differ == {"dark_count_rate"}
+    dcr = {
+        p.id: (p.params["dark_count_rate"], p.provenance["dark_count_rate"].kind)
+        for p in (ln, uln)
+    }
+    assert dcr == {
+        "idq/id-qube-nir-fr-ln": (2000.0, "datasheet-max"),
+        "idq/id-qube-nir-fr-uln": (1200.0, "datasheet-max"),
+    }
+    # one spectral-response plot for both (p. 2)
+    ln_pde, uln_pde = ln.curves["efficiency"], uln.curves["efficiency"]
+    assert (uln_pde.wavelength, uln_pde.value) == (ln_pde.wavelength, ln_pde.value)
+    for p in (ln, uln):
+        # every value names its brochure page
+        specs = [v.spec for v in p.provenance.values()]
+        specs += [c.provenance.spec for c in p.curves.values()]
+        assert all(s.startswith("p. ") for s in specs), p.id
+        jitter, dead = p.provenance["timing_jitter"], p.provenance["dead_time"]
+        assert (p.params["timing_jitter"], jitter.kind, jitter.max) == (
+            150e-12,
+            "datasheet-typ",
+            200e-12,
+        )
+        # the dark counts' 50 µs, within the settable 100 ns … 80 µs
+        assert (p.params["dead_time"], dead.kind, dead.min, dead.max) == (
+            50e-6,
+            "datasheet-condition",
+            100e-9,
+            80e-6,
+        )
+
+    spad = SinglePhotonDetector("SPD", preset="idq/id-qube-nir-fr-uln")
+    assert spad.dark_count_rate == 1200.0 and spad.connector == "FC/PC"
+    assert spad.efficiency_at(1550e-9) == pytest.approx(0.25)
+    # the 20 % series' shape: 20.7 % at 1310 nm against 20.1 % at 1550 nm
+    assert spad.efficiency_at(1310e-9) == pytest.approx(0.2575, abs=1e-4)
+    assert spad.efficiency_at(850e-9) == 0.0  # outside 900–1700 nm
+
+
+def test_id281_snspd_takes_the_brochures_guaranteed_ends_and_a_hard_dead_time():
+    """IDQ ID281 brochure G.192.0112-PB-1.2 (June 2026), p. 4: peak SDE 80% to 95% (or
+    better); maximum dark count rate < 100 cps to < 1 cps from 1300 nm to > 1600 nm;
+    timing jitter (FWHM) typ. < 30 ps; standard SNSPDs > 30 Mcps with a recovery time
+    typ. < 30 ns (to 50 % of the efficiency, note 2); output pulse > 5 ns."""
+    p = presets.get("idq/id281-standard-1550")
+    assert p.source["revision"] == "G.192.0112-PB-1.2, specifications as of June 2026"
+    assert {k: v.kind for k, v in p.provenance.items()} == {
+        "efficiency": "datasheet-min",
+        "dark_count_rate": "datasheet-max",
+        "dead_time": "derived",
+        "timing_jitter": "datasheet-typ",
+        "pulse_width": "datasheet-min",
+    }
+    assert all(v.spec.startswith("p. ") for v in p.provenance.values())
+    # no connector named and no curve (the p. 2 bands are approximate); what the model
+    # cannot do is kept
+    assert "connector" not in p.params and not p.curves
+    assert {"efficiency_recovery", "bias_current", "polarization"} <= set(p.unsupported)
+
+    snspd = SinglePhotonDetector("SNSPD", preset="idq/id281-standard-1550")
+    assert (snspd.efficiency, snspd.dark_count_rate, snspd.dead_time) == (
+        0.80,
+        100.0,
+        30e-9,
+    )
+    assert (snspd.timing_jitter, snspd.pulse_width) == (30e-12, 5e-9)
+    assert snspd.connector == "FC/UPC"  # phoq's default
+    assert snspd.efficiency_at(1310e-9) == snspd.efficiency_at(1550e-9) == 0.80
+    # saturating light: one click per 30 ns, 33 Mcps, the "> 30 Mcps" of the table
+    n, dt = 3000, 1e-9
+    field = np.full(n, math.sqrt(1e-6), dtype=complex)  # 1 µW, ≈ 7800 photons per ns
+    clicks = snspd.detect({1550e-9: field}, dt, np.random.default_rng(1), n)
+    assert clicks.sum() / (n * dt) == pytest.approx(1 / 30e-9, rel=1e-9)
+
+
 def test_spad_presets_set_the_datasheets_10_ns_output_pulse():
     """PDM-IR datasheet v2.1, p. 3, PHOTON OUT: 10 ns typ. SPCM-AQRH Rev 2020-10,
-    Table 1: 10 ns typ for the -1X pulse model, ± 2 ns by note 8."""
+    Table 1: 10 ns typ for the -1X pulse model, ± 2 ns by note 8. ID Qube brochure
+    G.192.0151-PB-1.1, p. 4: Output pulse width 10 ns."""
     ids = ["mpd/pdm-ir", "mpd/pdm-ir-sff"]
+    ids += ["idq/id-qube-nir-fr-ln", "idq/id-qube-nir-fr-uln"]
     ids += [f"excelitas/spcm-aqrh-1{grade}-fc" for grade in range(7)]
     for pid in ids:
         assert presets.get(pid).provenance["pulse_width"].kind == "datasheet-typ"

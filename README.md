@@ -140,9 +140,9 @@ im = IntensityModulator("IM-1", preset="exail/mx-ln-10")
 setup["DET-L"].apply_preset("mpd/pdm-ir")
 ```
 
-phoq ships presets for Exail modulators, Hamamatsu (formerly NKT Photonics) fiber lasers, MPD
-and Excelitas single-photon detectors, Thorlabs photodiodes and balanced detectors, and FS patch
-cords. `phoq presets` lists them, and [src/phoq/presets/README.md](src/phoq/presets/README.md)
+phoq ships presets for Exail modulators, Hamamatsu (formerly NKT Photonics) fiber lasers, MPD,
+IDQ and Excelitas single-photon detectors, Thorlabs photodiodes and balanced detectors, and FS
+patch cords. `phoq presets` lists them, and [src/phoq/presets/README.md](src/phoq/presets/README.md)
 has the table, the file format and how to add your lab's own.
 
 ## Adding a component

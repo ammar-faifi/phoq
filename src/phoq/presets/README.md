@@ -33,6 +33,8 @@ Shipped presets, each citing the datasheet document and revision it was read fro
 | `exail/mxiq-ln-10`, `mxiq-ln-30` | Exail MXIQ-LN-10 and -30 LiNbO₃ IQ modulators, 12 and 25 GHz | `IQModulator` | Vπ of the RF electrodes, of DC1/DC2 and of DC3, insertion loss; maximum optical, RF and bias inputs |
 | `hamamatsu/koheras-mikro-e15`, `-a15` | Hamamatsu (formerly NKT Photonics) Koheras MIKRO E15 and A15 single-frequency DFB fiber lasers, 40 and 10 mW at 1550.12 nm | `Laser` | wavelength, power, CW, the 100 Hz linewidth (120 µs), RIN at 10 MHz (−135 and −120 dBc/Hz), FC/APC; the 0.7 MHz RIN peak and the 1/f-like frequency noise kept as unsupported |
 | `mpd/pdm-ir`, `pdm-ir-sff` | MPD PDM-IR InGaAs/InP SPAD modules with an SMF-28 pigtail: desktop instrument (DI) and small form factor (SFF), 250 and 500 c/s typical dark counts | `SinglePhotonDetector` | PDE at 1550 nm with the PDE-vs-wavelength curve, dark-count rate, hold-off, 200 ps FWHM timing jitter, 10 ns output pulse |
+| `idq/id-qube-nir-fr-ln`, `-uln` | IDQ ID Qube NIR Free-Running InGaAs/InP SPADs with an MMF62.5 fiber input: low-noise (LN) and ultra-low-noise (ULN) models, 2 and 1.2 kHz maximum dark counts at the 25 % efficiency level | `SinglePhotonDetector` | the 25 % efficiency level at 1550 nm with the spectral-response curve, maximum dark-count rate at the 50 µs dead time it is quoted at, 150 ps timing jitter (read as FWHM), 10 ns output pulse |
+| `idq/id281-standard-1550` | IDQ ID281 superconducting nanowire single-photon detector (SNSPD): one standard single pixel at 1550 nm, in its closed-cycle cryostat | `SinglePhotonDetector` | the table's guaranteed ends, 80 % peak SDE and 100 cps (1300 nm to > 1600 nm); the 30 ns recovery time as a hard dead time; 30 ps FWHM timing jitter; 5 ns output pulse. The gradual recovery, the bias-current trade-off, polarization and photon-number resolution kept as unsupported |
 | `excelitas/spcm-aqrh-10-fc` … `-16-fc` | Excelitas SPCM-AQRH Si SPAD modules with FC adaptor, one per dark-count grade (< 1500 … < 25 c/s) | `SinglePhotonDetector` | PDE at 650 nm with the 400–1060 nm curve, dark counts, 22 ns dead time, 10 ns output pulse; maximum 10⁴ photons per pulse |
 | `thorlabs/det08cfc` | Thorlabs DET08CFC 5 GHz InGaAs detector | `Photodiode` | bandwidth, responsivity at 1550 nm with the spectral curve, load, saturation from the 2 V output limit |
 | `thorlabs/dx25cf` | Thorlabs DX25CF 25 GHz GaAs detector | `Photodiode` | GaAs response, 0.5 A/W at 850 nm, 25 GHz, 25 Ω load; 10 dBm input limit |
@@ -40,10 +42,11 @@ Shipped presets, each citing the datasheet document and revision it was read fro
 | `thorlabs/pdb450c`, `pdb450a`, `pdb440c`, `pdb440a` | Thorlabs PDB450C/A (switchable gain 10³–10⁷ V/A, DC–150 MHz … 0.1 MHz) and PDB440C/A (51 × 10³ V/A, 15 MHz) balanced amplified photodetectors, InGaAs (C) and Si (A) | `BalancedPhotodetector` | each gain's bandwidth, NEP and swing; CMRR; responsivity with the spectral curve; monitor gain, bandwidth, swing, impedance and noise; 20 mW per photodiode |
 | `fs/smfcsx-upc-upc`, `-apc-apc`, `-apc-upc` | FS SMFCSX 1 m OS2 (G.657.A1) simplex patch cords, SKUs 40740, 173580 and the 173581 hybrid | `Fiber` | connector A and B, 1 m length; ≤ 0.3 dB and UPC ≥ 50 / APC ≥ 60 dB, the mating table's values |
 
-Every preset also sets the part's connector from its datasheet: FC/PC for the Thorlabs, MPD and
-Excelitas detectors (the balanced detectors' receptacles also take FC/APC, but phoq mates connectors
-as fiber to fiber), FC/APC for the Exail modulators, intensity and IQ (their FA ordering option; the default is
-bare fiber).
+Every preset also sets the part's connector from its datasheet, where the datasheet names one: FC/PC
+for the Thorlabs, MPD, ID Qube and Excelitas detectors (the balanced detectors' receptacles also take
+FC/APC, but phoq mates connectors as fiber to fiber), FC/APC for the Exail modulators, intensity and IQ
+(their FA ordering option; the default is bare fiber). The ID281 brochure names none, so
+`idq/id281-standard-1550` keeps phoq's default FC/UPC.
 
 **Writing one.** A preset is a TOML file whose id is `vendor/part` (the vendor slug and the file
 name, unless `id` is given):

@@ -1,0 +1,55 @@
+# ID Quantique ID281 — superconducting nanowire single-photon detector (SNSPD), one standard single pixel used at 1550 nm.
+# Values are the brochure's, at the conditions quoted next to each one; "p. N" is the brochure's page (the
+# specifications table and its notes are on p. 4).
+schema = 1
+id = "idq/id281-standard-1550"
+component = "SinglePhotonDetector"
+title = "IDQ ID281 SNSPD (standard, 1550 nm)"
+vendor = "ID Quantique"
+description = "Superconducting nanowire SPD in a closed-cycle cryostat: one standard single pixel, 1300 nm to > 1600 nm band, single-mode fiber, latch-free"
+tier = "datasheet"
+tags = ["SNSPD", "superconducting", "free-running", "1550"]
+notes = """
+The ID281 is a system: up to 16 SNSPDs (p. 3, p. 4) in a closed-cycle cryostat, either the ID281 SO (sorption, below
+1 K) or the ID281 CO (continuous operation, above 2 K); both reach the table's performance (notes 5 and 6). The
+brochure gives no ordering codes. This preset is one standard single-pixel detector ("excellent overall performance",
+p. 3) used at 1550 nm, in the 1300 nm to > 1600 nm dark-count row. The Parallel (> 250 Mcps, recovery < 10 ns) and
+Multi-Pixel (> 1 Gcps across all pixels) detectors, which resolve photon numbers, and the polarization-insensitive
+spirals are other designs.
+
+The table gives ranges over designs and wavelengths, with no typical efficiency or dark count. The preset takes the
+guaranteed ends, 80 % peak SDE and 100 cps, and these are not one device's operating point: the only pair the brochure
+gives together is the p. 2 bias sweep of one SNSPD at 1550 nm, ≈ 96 % with ≈ 14 Hz of dark counts on its plateau. The
+efficiency and the dark counts both rise with the bias current, a trade-off phoq does not have: set efficiency and
+dark_count_rate together, at your unit's operating point.
+
+The ID281 is latch-free by design at any detection rate (p. 1, p. 3), and phoq does not model latching, so nothing is
+lost there. The brochure names no fiber connector, so the preset leaves phoq's default (FC/UPC): set connector to your
+system's. It gives no absolute maximum ratings.
+"""
+
+[source]
+title = "ID281 Superconducting Nanowire Series brochure"
+vendor_url = "https://www.idquantique.com"
+document = "ID281_Brochure.pdf"
+revision = "G.192.0112-PB-1.2, specifications as of June 2026"
+accessed = 2026-11-26
+conditions = "One standard single-pixel SNSPD at 1550 nm; the table's ranges cover all designs and wavelengths"
+
+[params]
+efficiency = { value = 0.80, from = "datasheet-min", spec = "p. 4, Peak system detection efficiency (SDE): 80% to 95% (or better)", note = "The low end of a range over designs; p. 1: 'can exceed 95%'. A design's peak over wavelength, taken here as the SDE at 1550 nm, the wavelength of the p. 2 measurements, where one SNSPD's bias sweep plateaus at ≈ 96 %. The model's efficiency is the same at every wavelength" }
+dark_count_rate = { value = 100.0, from = "datasheet-max", spec = "p. 4, Maximum dark count rate, 1300 nm to > 1600 nm: < 100 cps to < 1 cps", note = "The row's worst case; the maximum depends on the detector and the wavelength (note 1). The p. 2 bias sweep reads ≈ 14 Hz on its efficiency plateau" }
+dead_time = { value = 30e-9, from = "derived", spec = "p. 4, Maximum detection rate, Standard SNSPDs: > 30 Mcps (recovery time typ. < 30 ns); note 2: the recovery time is the time for the detection efficiency to recover 50% of the maximum after a detection event", note = "The 50 % recovery time taken as the model's hard dead time: blind for 30 ns, then at full efficiency, where the SNSPD's efficiency climbs back gradually. 1/30 ns = 33 Mcps, in line with the > 30 Mcps maximum detection rate" }
+timing_jitter = { value = 30e-12, from = "datasheet-typ", spec = "p. 4, Timing jitter (FWHM): < 20 ps to < 40 ps (typ. < 30 ps)", max = 40e-12, note = "Note 3: it varies with the wavelength, the detector design and composition. p. 2: one SNSPD at 1550 nm, recorded with an ID1000 Time Controller, raw FWHM 24.4 ps with all instrument jitter included, the SNSPD's own less than 22.3 ps; the histogram is close to the model's Gaussian" }
+pulse_width = { value = 5e-9, from = "datasheet-min", spec = "p. 4, Output pulse width, voltage: > 5 ns, > 100 mV", note = "Only a lower bound is given. The > 100 mV amplitude is not modeled: the model emits 1 V" }
+
+[unsupported]
+efficiency_recovery = "Note 2 (p. 4): after a click the efficiency recovers gradually, and the recovery time is when it is back at 50 % of the maximum. The model's detector is blind for dead_time, then at full efficiency, so clicks at reduced efficiency during the recovery are not modeled. The p. 2 recovery measurement is of a Parallel SNSPD (normalized SDE 0 up to ≈ 10 ns on the plot's time axis, ≈ 0.92 just after, 1.0 from ≈ 30 ns), not of this design"
+bias_current = "p. 2, SDE and dark counts against the bias current of one SNSPD at 1550 nm: the SDE rises from ≈ 1 % at 15 µA to ≈ 93 % at 25 µA and ≈ 96 % at 26.5–27 µA; the dark counts from ≈ 0.5 Hz at 16.5–17 µA to ≈ 10 Hz at 25 µA, ≈ 14 Hz at 26–26.5 µA and ≈ 31 Hz at 27 µA (read off the plot). phoq has no bias current: efficiency and dark_count_rate are separate settings"
+polarization = "p. 3 offers polarization-insensitive spiral detectors and p. 1 a polarization-maintaining fiber option; the brochure gives no polarization dependence for the standard detector. phoq has no polarization"
+photon_number_resolution = "p. 1, p. 2: Parallel and Multi-Pixel SNSPDs resolve up to 8 photons. phoq's detector clicks or not, and this preset is a standard single pixel"
+spectral_response = "p. 2, approximate expected SDE of four designs, as bands: the longest-wavelength one reads ≈ 84–92 % at 1550 nm and ≈ 76–90 % at 1310 nm, where it is still rising. Not used as a curve: the bands are approximate, unlabeled and cut off below 50 %, so the model's efficiency is the same at every wavelength. p. 4: detector wavelengths < 500 nm to > 2000 nm"
+output_pulse = "p. 4: > 100 mV, from built-in cryogenic amplifiers (p. 1); the model emits 1 V pulses. A digital output with an integrated counter is a new option (p. 1)"
+fiber = "p. 4: single-mode fiber; multimode on request (note 4), polarization-maintaining as an option (p. 1). No connector is named"
+cryostat = "p. 4: ID281 SO, below 1 K, at least 24 h at base temperature, with a scheduled helium condensation cycle every day (note 5); ID281 CO, above 2 K, indefinitely (note 6); 63 cm × 45 cm × 30 cm. Not modeled"
+channels = { min = 1, max = 16, note = "p. 4, detector channels per system; one SinglePhotonDetector per channel" }

@@ -1,0 +1,66 @@
+# ID Quantique ID Qube NIR Free-Running, low-noise model (LN) — InGaAs/InP SPAD, fiber-coupled version (MMF).
+# Values are the brochure's, at the conditions quoted next to each one; "p. N" is the brochure's page (the
+# specifications table and its notes are on p. 4).
+schema = 1
+id = "idq/id-qube-nir-fr-ln"
+component = "SinglePhotonDetector"
+title = "IDQ ID Qube NIR FR (low noise)"
+vendor = "ID Quantique"
+part_number = "ID Qube-NIR-FR-MMF-LN"
+description = "Cooled InGaAs/InP SPAD, 900–1700 nm, free-running or gated, MMF62.5 fiber input, low-noise model (LN)"
+tier = "datasheet"
+tags = ["InGaAs", "SPAD", "free-running", "gated", "1550"]
+notes = """
+Ordering code ID Qube-NIR-FR-XX-YY (p. 1): XX = MMF (fiber-coupled, "compatible with SMF and MMF FC/PC couplers") or
+FS (free space), YY = LN (low noise) or ULN (ultra-low noise). This is the MMF version, since phoq's detector takes a
+fiber. The ultra-low-noise model is idq/id-qube-nir-fr-uln: the table (p. 4) gives the two models the same rows except
+the dark counts and the cooling time at power-on.
+
+The efficiency is set in levels calibrated at 1550 nm: 10, 15, 20 and 25 % (p. 4). The preset sets 25 %, the level the
+timing jitter is specified at. Maximum dark count rate at 10, 15, 20 and 25 %: LN 0.5, 1, 1.5 and 2 kHz; ULN 0.3, 0.5,
+0.8 and 1.2 kHz; free running with a 50 µs dead time (note 3). For another level, set efficiency and dark_count_rate
+together. The extended levels, 30 and 35 %, come without a guarantee of the noise performance: above 25 % the
+afterpulsing becomes non-negligible and the dark counts can rise significantly, while the timing jitter has been
+observed to improve (note 2). Further levels can be calibrated on demand (note 1).
+
+The p. 2 figure of dark counts and jitter against efficiency is not used. It has no legend: its "Low-noise" and "Ultra
+Low-noise" labels sit near the markers at 25–26 %. Its upper triangles (≈ 0.56, 1.0, 1.9 and 3.6 kHz at 10, 15, 20 and
+26 %) are at or above the table's LN maxima, clearly above at 20 and 26 %; its lower triangles (≈ 0.20, 0.56, 1.0 and
+1.8 kHz) are above the ULN maxima at 20 and 26 %; a red cross at 25 % reads ≈ 0.9 kHz on the dark-count axis (≈ 200 ps
+on the jitter axis), under the ULN maximum. phoq does not model afterpulsing, so a dead time shorter than the
+dark-count rows' 50 µs adds no afterpulses in the model. The brochure gives no absolute maximum ratings, so no maximum
+optical input either.
+"""
+
+[source]
+title = "ID Qube Free-Running NIR Single Photon Detector brochure"
+vendor_url = "https://www.idquantique.com"
+document = "ID Qube NIR FR_Brochure.pdf"
+revision = "G.192.0151-PB-1.1, specifications as of July 2026"
+accessed = 2026-11-25
+conditions = "Free running, the 25 % efficiency level (calibrated at 1550 nm); dark counts at a 50 µs dead time"
+
+[params]
+connector = { value = "FC/PC", from = "datasheet-typ", spec = "p. 1, Ordering guide: MMF, 'Fiber coupled model, compatible with SMF and MMF FC/PC couplers'", note = "The input fiber is MMF62.5 multimode (p. 4, Optical coupling); phoq mates connectors as fiber to fiber" }
+efficiency = { value = 0.25, from = "datasheet-condition", spec = "p. 4, Efficiency range calibrated at λ = 1550 nm: 10 %, 15 %, 20 %, 25 %; the 25 % level, at which the timing jitter and the last dark-count column are specified", note = "A calibrated setting, not a typical value; the other levels and their dark counts are in the notes" }
+ref_wavelength = { value = 1550e-9, from = "datasheet-condition", spec = "p. 4, the efficiency levels are calibrated at λ = 1550 nm" }
+dark_count_rate = { value = 2000.0, from = "datasheet-max", spec = "p. 4, Noise performance @ 25 % efficiency level, LN model (Max. dark count rate): 2 kHz; note 3, measured in free-running mode with a 50 µs dead time", note = "Only a maximum is specified: 0.5, 1 and 1.5 kHz at the 10, 15 and 20 % levels" }
+dead_time = { value = 50e-6, from = "datasheet-condition", spec = "p. 4, note 3: the dark count rate is measured with a 50 µs dead time; Deadtime range 100 ns to 80 µs, in 100 ns steps", min = 100e-9, max = 80e-6 }
+timing_jitter = { value = 150e-12, from = "datasheet-typ", spec = "p. 4, Timing jitter @ 25 % efficiency level: maximum 200 ps (150 ps typical)", max = 200e-12, note = "The table does not name the measure; the p. 2 histogram (30 % SDE, all other instrument jitter included, recorded with an ID1000 Time Controller) quotes its FWHM, 88(4) ps, so the table's figure is read as a FWHM. The model's jitter is a Gaussian, without the histogram's late tail" }
+pulse_width = { value = 10e-9, from = "datasheet-typ", spec = "p. 4, Output pulse width: 10 ns", note = "p. 3: the photon's arrival time is the pulse's rising edge" }
+
+[curves.efficiency]
+from = "datasheet-graph"
+spec = "p. 2, Spectral response measurement for a typical ID Qube NIR device, the η1550nm = 20 % series (the closest to the 25 % level)"
+note = "Sampled every 10 nm along the plotted line; interpolating between the samples stays within 0.2 percentage points of the line. The series reads 20.1 % at 1550 nm, and the model scales it to the 25 % level. The plot's 10 % series has another shape: relative to 1550 nm it reads 0.97 at 1310 nm and 0.67 at 1000 nm, against this series' 1.03 and 0.78; the 25 % level is not plotted. The plot spans 1000–1650 nm and the brochure's wavelength range is 900–1700 nm (p. 4), so the model, zero outside the curve, does not detect at 900–1000 nm or 1650–1700 nm."
+wavelength_nm = [1000, 1010, 1020, 1030, 1040, 1050, 1060, 1070, 1080, 1090, 1100, 1110, 1120, 1130, 1140, 1150, 1160, 1170, 1180, 1190, 1200, 1210, 1220, 1230, 1240, 1250, 1260, 1270, 1280, 1290, 1300, 1310, 1320, 1330, 1340, 1350, 1360, 1370, 1380, 1390, 1400, 1410, 1420, 1430, 1440, 1450, 1460, 1470, 1480, 1490, 1500, 1510, 1520, 1530, 1540, 1550, 1560, 1570, 1580, 1590, 1600, 1610, 1620, 1630, 1640, 1650]
+value = [0.157, 0.163, 0.17, 0.177, 0.183, 0.187, 0.19, 0.19, 0.177, 0.149, 0.153, 0.157, 0.156, 0.16, 0.169, 0.174, 0.171, 0.182, 0.186, 0.189, 0.184, 0.196, 0.194, 0.195, 0.184, 0.186, 0.197, 0.188, 0.192, 0.199, 0.196, 0.207, 0.218, 0.213, 0.21, 0.218, 0.232, 0.234, 0.224, 0.219, 0.222, 0.222, 0.217, 0.216, 0.215, 0.213, 0.212, 0.215, 0.222, 0.23, 0.235, 0.228, 0.218, 0.211, 0.209, 0.201, 0.196, 0.19, 0.18, 0.163, 0.143, 0.125, 0.109, 0.098, 0.088, 0.077]
+
+[unsupported]
+fiber_input = "p. 4, Optical coupling: optical fiber MMF62.5 (the FS version is free space); p. 1: takes SMF and MMF FC/PC connectors. phoq mates connectors as fiber to fiber; the multimode input is not modeled"
+gating = "p. 4: Gate IN up to 1 MHz, pulses of at least 500 ns, −2 V to 3 V, 50 Ω DC-coupled, threshold −2 V to 2 V in 1 mV steps. p. 3: blind outside a gate; a short Gate IN pulse can trigger an internal gate of adjustable width. Only free-running operation is modeled"
+afterpulsing = "Not quantified: 'especially low' (p. 1), strongly limited by fast quenching (p. 3), non-negligible above the 25 % level (note 2, p. 4). Not modeled"
+output_pulse = "p. 4: LVTTL or NIM, user-selectable (p. 2), on an SMA connector; the model emits 1 V pulses"
+timing_jitter_fwhm_30_percent_s = { value = 88e-12, note = "p. 2: histogram at 30 % SDE, FWHM 88(4) ps, all other instrument jitter included, recorded with an ID1000 Time Controller; not set, as the preset is at the 25 % level" }
+cooling_time_s = { max = 180, note = "p. 4, Cooling time @ power-on: LN model < 3 minutes; not modeled" }
+operating_temperature_c = { min = 10, max = 35, note = "p. 4, max. 60 % humidity; not modeled" }
