@@ -210,22 +210,31 @@ class Transfer(NamedTuple):
 class Component:
     """Base class for every piece of equipment."""
 
-    # source | passive | modulator | detector | instrument | cord
     category: ClassVar[str] = "component"
+    """source | passive | modulator | detector | instrument | cord."""
+
     prefix: ClassVar[str] = "X"
     label: ClassVar[str] = "Component"
     description: ClassVar[str] = ""
-    inputs: ClassVar[tuple[str, ...]] = ()  # port order used by Setup.chain()
+    inputs: ClassVar[tuple[str, ...]] = ()
+    """Port order used by Setup.chain()."""
+
     outputs: ClassVar[tuple[str, ...]] = ()
-    is_cord: ClassVar[bool] = False  # fiber patch cords join optical ports
-    # a mating sleeve: the connectors in its two sides mate
+    is_cord: ClassVar[bool] = False
+    """Fiber patch cords join optical ports."""
+
     is_adaptor: ClassVar[bool] = False
-    # plugs straight into a port or a sleeve, like a cord's end (a terminator)
+    """A mating sleeve: the connectors in its two sides mate."""
+
     is_plug: ClassVar[bool] = False
-    # datasheet curves a preset may give: name → unit
+    """Plugs straight into a port or a sleeve, like a cord's end (a terminator)."""
+
     spectral_curves: ClassVar[dict[str, str]] = {}
+    """Datasheet curves a preset may give: name → unit."""
+
     registry: ClassVar[dict[str, type[Component]]] = {}
-    aliases: ClassVar[dict[str, str]] = {}  # a renamed class's old name → its name now
+    aliases: ClassVar[dict[str, str]] = {}
+    """A renamed class's old name → its name now."""
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)

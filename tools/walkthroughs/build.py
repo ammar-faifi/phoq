@@ -24,7 +24,7 @@ from phoq.loading import import_source
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 WEB = ROOT / "src" / "phoq" / "web" / "walkthroughs"
-PAGES = {  # capture module and template → published page
+PAGES = {
     "engine": "engine.html",
     "spectrum_analyzer": "spectrum-analyzer.html",
     "oscilloscope": "oscilloscope.html",
@@ -32,6 +32,7 @@ PAGES = {  # capture module and template → published page
     "time_stamps": "time-stamps.html",
     "clock_recovery": "clock-recovery.html",
 }
+"""Capture module and template → published page."""
 
 
 def source(ref: str) -> str:

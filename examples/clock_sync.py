@@ -84,19 +84,36 @@ from phoq.engine import trace
 from phoq.timing import plot_sync
 from phoq.units import fmt_si, photon_energy
 
-F_NOM = 100e6  # the symbol rate both sides agreed on (``rate=``)
-PPM = 23.4  # how fast Alice's clock really runs [ppm] (Bob does not know)
-L = 1000  # string length: one frame P = L / f = 10 µs
-CARVE = 4  # AWG samples per symbol: a "1" lights the first, a pulse of 1/4 symbol
-EPOCH = 3.21e-6  # Bob's clock reads this much later than Alice's (Bob does not know)
-# Bob's tagger bin (``resolution=``; phoq's tagger goes down to 20 ps)
+F_NOM = 100e6
+"""The symbol rate both sides agreed on (``rate=``)."""
+
+PPM = 23.4
+"""How fast Alice's clock really runs [ppm] (Bob does not know)."""
+
+L = 1000
+"""String length: one frame P = L / f = 10 µs."""
+
+CARVE = 4
+"""AWG samples per symbol: a "1" lights the first, a pulse of 1/4 symbol."""
+
+EPOCH = 3.21e-6
+"""Bob's clock reads this much later than Alice's (Bob does not know)."""
+
 RESOLUTION = 100e-12
-RECORD = 2e-3  # one acquisition [s] (``record=``)
-DEAD_TIME = 1e-6  # free-running InGaAs hold-off (``dead_time=``)
-MU = 0.2  # photons per "1" pulse at the detector
-SEARCH_PPM = 100.0  # how far from nominal Bob looks for Alice's clock
-# (dead time, μ, record) at 1 ns symbols: saturated, then attenuated until the detector
-# waits ≈ τd/10
+"""Bob's tagger bin (``resolution=``; phoq's tagger goes down to 20 ps)."""
+
+RECORD = 2e-3
+"""One acquisition [s] (``record=``)."""
+
+DEAD_TIME = 1e-6
+"""Free-running InGaAs hold-off (``dead_time=``)."""
+
+MU = 0.2
+"""Photons per "1" pulse at the detector."""
+
+SEARCH_PPM = 100.0
+"""How far from nominal Bob looks for Alice's clock."""
+
 DEAD_CASES = (
     (40e-6, MU, 20e-3),
     (40e-6, 0.002, 2e-3),
@@ -104,12 +121,17 @@ DEAD_CASES = (
     (100e-6, MU, 50e-3),
     (100e-6, 0.0008, 50e-3),
 )
-# 1 ns time bins: an AWG at 4 GS/s carves 250 ps pulses
+"""(dead time, μ, record) at 1 ns symbols: saturated, then attenuated until
+the detector waits ≈ τd/10."""
+
 GHZ = dict(rate=1e9, resolution=20e-12)
-# the same with 250 ps bins: still under half a symbol (see build)
+"""1 ns time bins: an AWG at 4 GS/s carves 250 ps pulses."""
+
 LONG = dict(rate=1e9, resolution=250e-12)
-# the tagger's bins per acquisition; a longer record is several, back to back
+"""The same as GHZ, with 250 ps bins: still under half a symbol (see build)."""
+
 MAX_SLOTS = 100_000_000
+"""The tagger's bins per acquisition; a longer record is several, back to back."""
 
 
 # ---- the bench -----------------------------------------------------------------------

@@ -35,7 +35,9 @@ common = bb84.common
 class Eve(Party):
     name = "EVE"
     port = 5553
-    stage = 1  # she detects before Bob and re-encodes in measure()
+    stage = 1
+    """She detects before Bob and re-encodes in measure()."""
+
     instruments = (
         "EVE-SW",
         "EVE-RX-PM",
@@ -53,13 +55,14 @@ class Eve(Party):
         "EVE-TX-OPM",
     )
     params = common.BB84Params()
-    # share of pulses intercepted
     fraction = float(os.environ.get("PHOQ_EVE_FRACTION", "1.0"))
-    # photons per re-sent pulse at the switch; None: match Alice's mean intensity / her
-    # click probability
+    """Share of pulses intercepted."""
+
     resend_mu = (
         float(os.environ["PHOQ_EVE_MU"]) if "PHOQ_EVE_MU" in os.environ else None
     )
+    """Photons per re-sent pulse at the switch; None: match Alice's mean
+    intensity / her click probability."""
 
     def setup(self) -> None:
         self.blocks: dict[int, dict] = {}

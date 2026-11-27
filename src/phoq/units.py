@@ -6,44 +6,61 @@ import math
 
 import numpy as np
 
-H = 6.62607015e-34  # Planck constant [J s]
-C0 = 299_792_458.0  # speed of light [m/s]
-Q_E = 1.602176634e-19  # elementary charge [C]
-K_B = 1.380649e-23  # Boltzmann constant [J/K]
+H = 6.62607015e-34
+"""Planck constant [J s]."""
 
-N_GROUP = 1.4682  # SMF-28 group index
-N_EFF = 1.4677  # SMF-28 effective (phase) index
-FIBER_DELAY = N_GROUP / C0  # [s/m], about 4.9 ns per meter
-# refractive index of air near 1550 nm (phase and group differ by ~1e-6)
+C0 = 299_792_458.0
+"""Speed of light [m/s]."""
+
+Q_E = 1.602176634e-19
+"""Elementary charge [C]."""
+
+K_B = 1.380649e-23
+"""Boltzmann constant [J/K]."""
+
+N_GROUP = 1.4682
+"""SMF-28 group index."""
+
+N_EFF = 1.4677
+"""SMF-28 effective (phase) index."""
+
+FIBER_DELAY = N_GROUP / C0
+"""[s/m], about 4.9 ns per meter."""
+
 N_AIR = 1.00027
+"""Refractive index of air near 1550 nm (phase and group differ by ~1e-6)."""
 
-# ---- fiber connectors
-# --------------------------------------------------------------------------- End-face
-# polish: PC and UPC are flat (domed, 0°) and mate with each other; APC is angled 8° and
-# mates only with APC. Color code: UPC (and PC) blue, APC green.
+# ---- fiber connectors ----------------------------------------------------------------
 CONNECTORS = ("FC/UPC", "FC/APC", "FC/PC")
+"""End-face polish: PC and UPC are flat (domed, 0°) and mate with each other; APC is
+angled 8° and mates only with APC."""
+
 DEFAULT_CONNECTOR = "FC/UPC"
 CONNECTOR_COLORS = {"FC/UPC": "#2563eb", "FC/PC": "#2563eb", "FC/APC": "#16a34a"}
-# one mated pair of matching connectors (typical; TIA-568 allows 0.75 dB)
+"""Color code: UPC (and PC) blue, APC green."""
+
 CONNECTOR_LOSS_DB = 0.3
-RETURN_LOSS_DB = {
-    "FC/PC": 40.0,
-    "FC/UPC": 50.0,
-    "FC/APC": 60.0,
-}  # typical, per mated pair
-# An angled face against a flat one leaves an air gap, and the beam leaves the APC fiber
-# refracted by ≈ 3.8°: several dB lost depending on ferrule geometry. An assumed typical
-# value.
+"""One mated pair of matching connectors (typical; TIA-568 allows 0.75 dB)."""
+
+RETURN_LOSS_DB = {"FC/PC": 40.0, "FC/UPC": 50.0, "FC/APC": 60.0}
+"""Typical, per mated pair."""
+
 MISMATCH_LOSS_DB = 5.0
-# a flat glass–air face reflects 3.6 % (−14.4 dB)
+"""An angled face against a flat one leaves an air gap, and the beam leaves
+the APC fiber refracted by ≈ 3.8°: several dB lost depending on ferrule
+geometry. An assumed typical value."""
+
 FRESNEL = ((N_EFF - 1) / (N_EFF + 1)) ** 2
+"""A flat glass–air face reflects 3.6 % (−14.4 dB)."""
 
 COMMON_WAVELENGTHS = (635e-9, 780e-9, 850e-9, 1310e-9, 1550e-9)
 
 # ---- timing: a Gaussian of standard deviation σ
-GAUSS_FWHM = 2.0 * math.sqrt(2.0 * math.log(2.0))  # full width at half maximum / σ
-# 10–90 % rise time of its step response, an error-function step, / σ
+GAUSS_FWHM = 2.0 * math.sqrt(2.0 * math.log(2.0))
+"""A Gaussian's full width at half maximum / σ."""
+
 GAUSS_RISE = 2.5631031311
+"""10–90 % rise time of a Gaussian's step response, an error-function step, / σ."""
 
 
 def side_stream(rng: np.random.Generator) -> np.random.Generator:
@@ -72,7 +89,6 @@ def photon_energy(wavelength: float) -> float:
     return H * C0 / wavelength
 
 
-# Photodiode responsivity [A/W] against wavelength [nm] (typical datasheet curves).
 RESPONSIVITY = {
     "InGaAs": (
         [800, 900, 1000, 1100, 1200, 1300, 1400, 1550, 1600, 1650, 1700],
@@ -91,18 +107,16 @@ RESPONSIVITY = {
         [0.12, 0.17, 0.24, 0.31, 0.38, 0.46, 0.53, 0.57, 0.57, 0.52, 0.35, 0.10, 0.00],
     ),
 }
-DARK_CURRENT = {
-    "InGaAs": 1e-9,
-    "Si": 0.3e-9,
-    "Ge": 50e-9,
-    "GaAs": 50e-9,
-}  # GaAs: DX25C maximum
+"""Photodiode responsivity [A/W] against wavelength [nm] (typical datasheet curves)."""
 
-# SMF-28 attenuation [dB/km] against wavelength [nm].
+DARK_CURRENT = {"InGaAs": 1e-9, "Si": 0.3e-9, "Ge": 50e-9, "GaAs": 50e-9}
+"""Photodiode dark current [A]; GaAs: DX25C maximum."""
+
 FIBER_ATTENUATION = (
     [600, 635, 700, 850, 1000, 1310, 1383, 1450, 1550, 1625, 1700],
     [9.0, 8.0, 5.0, 2.2, 0.8, 0.33, 0.35, 0.25, 0.19, 0.21, 0.30],
 )
+"""SMF-28 attenuation [dB/km] against wavelength [nm]."""
 
 
 def angled(connector: str) -> bool:

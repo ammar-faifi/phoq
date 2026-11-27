@@ -34,7 +34,8 @@ from typing import NamedTuple
 import numpy as np
 from scipy.optimize import minimize_scalar
 
-F = 1.1  # the error-correction efficiency of the paper's simulation
+F = 1.1
+"""The error-correction efficiency of the paper's simulation."""
 
 
 class Gains(NamedTuple):

@@ -44,7 +44,9 @@ common = cow.common
 class Eve(Party):
     name = "EVE"
     port = 5563
-    stage = 1  # she detects before Bob and re-encodes in measure()
+    stage = 1
+    """She detects before Bob and re-encodes in measure()."""
+
     instruments = (
         "EVE-SW",
         "EVE-D",
@@ -54,11 +56,15 @@ class Eve(Party):
         "EVE-TX-VOA",
         "EVE-AWG",
     )
-    params = common.COWParams()  # Alice and Bob's public parameters: she knows them too
-    # share of the bits intercepted
+    params = common.COWParams()
+    """Alice and Bob's public parameters: she knows them too."""
+
     fraction = float(os.environ.get("PHOQ_EVE_FRACTION", "1.0"))
-    # what she re-sends when she saw nothing
+    """Share of the bits intercepted."""
+
     inconclusive = os.environ.get("PHOQ_EVE_INCONCLUSIVE", "empty")
+    """What she re-sends when she saw nothing."""
+
     resend_mu = (
         float(os.environ["PHOQ_EVE_MU"]) if "PHOQ_EVE_MU" in os.environ else None
     )

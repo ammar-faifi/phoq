@@ -60,10 +60,12 @@ import numpy as np
 
 from .common import B_X, B_Z, B_ZERO, L0, LNU, LMU, MPQKDParams, pairing_rate_theory
 
-E0 = 0.5  # error rate of vacuum events
+E0 = 0.5
+"""Error rate of vacuum events."""
+
 LEVELS = (L0, LNU, LMU)
-# below this the decoy phase-error bound is reported as unresolved
 MIN_DECOY_X_PAIRS = 100
+"""Below this the decoy phase-error bound is reported as unresolved."""
 
 
 # ---- small math ---------------------------------------------------------------------

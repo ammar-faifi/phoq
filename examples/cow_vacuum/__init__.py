@@ -99,7 +99,9 @@ from .common import (
     windows,
 )
 
-PARTIES = [Alice, Bob]  # left to right on the lab table
+PARTIES = [Alice, Bob]
+"""Left to right on the lab table."""
+
 params = COWParams()
 
 __all__ = [

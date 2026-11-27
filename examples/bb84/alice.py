@@ -47,7 +47,8 @@ class Alice(Party):
         "ALICE-VOA",
         "ALICE-OPM",
     )
-    params = BB84Params()  # public parameters, agreed in advance
+    params = BB84Params()
+    """Public parameters, agreed in advance."""
 
     def setup(self) -> None:
         p = self.params

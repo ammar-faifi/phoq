@@ -213,12 +213,12 @@ def _soft_clip(v: np.ndarray, swing: float) -> np.ndarray:
     return v / (1 + np.minimum(np.abs(v) / swing, 1e6) ** 16) ** (1 / 16)
 
 
-# Generic switch positions (assumed): gain [V/A] : −3 dB bandwidth [Hz] : NEP [W/√Hz] :
-# RF swing [V]
 GENERIC_GAINS = (
     "1e3:100e6:50e-12:4, 1e4:30e6:10e-12:4, 1e5:3e6:2e-12:4, 1e6:300e3:1e-12:4,"
     " 1e7:30e3:1e-12:4"
 )
+"""Generic switch positions (assumed): gain [V/A] : −3 dB bandwidth [Hz] :
+NEP [W/√Hz] : RF swing [V]."""
 
 
 class BalancedPhotodetector(_Responsive, _Detector):

@@ -44,11 +44,15 @@ from phoq import (
 from phoq.engine import report, trace
 from phoq.units import fmt_si
 
-# signal − LO optical frequency: inside the 45 MHz RF bandwidth and the 1 MHz monitors
 BEAT = 400e3
-RIN = 0.05  # the LO's relative intensity noise: 5 % rms, over the band below CORNER
-# its one-pole corner: slow technical wander, not the laser's white rin_db_hz
+"""Signal − LO optical frequency: inside the 45 MHz RF
+bandwidth and the 1 MHz monitors."""
+
+RIN = 0.05
+"""The LO's relative intensity noise: 5 % rms, over the band below CORNER."""
+
 CORNER = 30e3
+"""RIN's one-pole corner: slow technical wander, not the laser's white rin_db_hz."""
 
 
 def lo_noise(

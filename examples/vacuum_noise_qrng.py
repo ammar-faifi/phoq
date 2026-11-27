@@ -63,20 +63,29 @@ from phoq import BalancedPhotodetector, Coupler, Laser, Oscilloscope, Setup
 from phoq.engine import report, trace
 from phoq.units import Q_E, fmt_si
 
-# V/A: 45 MHz, an amplifier noise of 2.2·10⁻²² A²/Hz, ~4 dB under the shot noise of 1.8
-# mA
 GAIN = 1e4
-RIN = -140.0  # dBc/Hz: the LO's own intensity noise, which balancing has to remove
-# The vacuum input: (BS-1's connectors, the cap on it or None for an open port)
+"""V/A: 45 MHz, an amplifier noise of 2.2·10⁻²² A²/Hz, ~4 dB
+under the shot noise of 1.8 mA."""
+
+RIN = -140.0
+"""dBc/Hz: the LO's own intensity noise, which balancing has to remove."""
+
 VACUUM_PORTS = {
     "capped": ("FC/APC", "FC/APC"),
     "open": ("FC/UPC", None),
     "apc-on-upc": ("FC/UPC", "FC/APC"),
 }
-POINTS = 20_000  # samples per sweep
+"""The vacuum input: (BS-1's connectors, the cap on it or None for an open port)."""
+
+POINTS = 20_000
+"""Samples per sweep."""
+
 SWEEPS = 10
-RANGE_SIGMA = 4.0  # the ADC's half range in standard deviations of the signal
-EPS_HASH = 2.0**-64  # the extractor's distance from uniform
+RANGE_SIGMA = 4.0
+"""The ADC's half range in standard deviations of the signal."""
+
+EPS_HASH = 2.0**-64
+"""The extractor's distance from uniform."""
 
 
 # ---- the bench -----------------------------------------------------------------------

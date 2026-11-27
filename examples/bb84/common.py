@@ -36,22 +36,31 @@ from phoq.sources import Laser
 from phoq.timing import clicked_slots
 from phoq.units import FIBER_DELAY, photon_energy
 
-B_Z, B_X = 0, 1  # bases
-I_MU, I_NU, I_VAC = 0, 1, 2  # intensity labels: signal, decoy, vacuum
+B_Z, B_X = 0, 1
+"""Bases."""
+
+I_MU, I_NU, I_VAC = 0, 1, 2
+"""Intensity labels: signal, decoy, vacuum."""
+
 DET_0, DET_1 = 0, 1
-BINS = 3  # time-tagger bins per laser pulse: early | middle (interference) | late
+BINS = 3
+"""Time-tagger bins per laser pulse: early | middle (interference) | late."""
+
 MIDDLE = 1
 
 
 class Topic:
     """Message topics on the classical channel."""
 
-    # Bob → Alice: pulses with a middle-slot click, and his basis for every pulse
     DETECT = "detect"
-    # Alice → Bob: which detections match in basis, their intensity labels, her sent
-    # counts, her X bits, a Z sample
+    """Bob → Alice: pulses with a middle-slot click, and his basis for every pulse."""
+
     SIFT = "sift"
-    ERRORS = "errors"  # Bob → Alice: his bits at the X detections and at the Z sample
+    """Alice → Bob: which detections match in basis, their intensity labels, her sent
+    counts, her X bits, a Z sample."""
+
+    ERRORS = "errors"
+    """Bob → Alice: his bits at the X detections and at the Z sample."""
 
 
 @dataclass

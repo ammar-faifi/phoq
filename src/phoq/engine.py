@@ -45,12 +45,14 @@ from .units import (
 
 MAX_HOPS = 40
 MIN_GAIN = 1e-18
-MAX_REFLECTIONS = 2  # reflections followed per path
-# A path reflected twice is dropped below this power gain (−90 dB): a stray at power
-# ratio r beats with the light it meets at relative amplitude 2√r, and on the
-# vacuum-noise QRNG −80 dB is already invisible next to the shot noise. It drops every
-# double bounce between matching connectors.
+MAX_REFLECTIONS = 2
+"""Reflections followed per path."""
+
 MIN_GAIN_TWICE_REFLECTED = 1e-9
+"""A path reflected twice is dropped below this power gain (−90 dB): a stray at power
+ratio r beats with the light it meets at relative amplitude 2√r, and on the vacuum-noise
+QRNG −80 dB is already invisible next to the shot noise. It drops every double bounce
+between matching connectors."""
 
 
 @dataclass
@@ -573,8 +575,8 @@ def report(setup: Setup, net: Network | None = None) -> dict:
     }
 
 
-# an open port's reflection reaching a detector at −70 dB of its direct light
 STRAY_WARN = 1e-7
+"""An open port's reflection reaching a detector at −70 dB of its direct light."""
 
 
 def _open_port_strays(net: Network, setup: Setup) -> list:

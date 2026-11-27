@@ -23,8 +23,8 @@ import math
 import numpy as np
 from scipy.signal import fftconvolve
 
-# (pass, lo, hi) in the pass's permuted order, hi exclusive
 Block = tuple[int, int, int]
+"""(pass, lo, hi) in the pass's permuted order, hi exclusive."""
 
 
 # ---- shared pieces -------------------------------------------------------------------

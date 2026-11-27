@@ -23,7 +23,6 @@ from phoq.parties import load_protocol
 cv = load_protocol(Path(__file__).resolve().parent)
 P = cv.COWParams
 
-# (row, COWParams, DLI off its fringe [rad], values set on D_T, D_M0 and D_M1)
 SETTINGS = [
     ("Default", P(), 0.0, {}),
     ("No click window", P(click_window=False), 0.0, {}),
@@ -42,11 +41,14 @@ SETTINGS = [
     ("Hold-off of 100 µs, the datasheet's", P(dead_time=100e-6), 0.0, {}),
     ("No timing jitter", P(), 0.0, dict(timing_jitter=0.0)),
 ]
-PARTS = (  # bound.terms' keys, their colors and panel titles
+"""(row, COWParams, DLI off its fringe [rad], values set on D_T, D_M0 and D_M1)."""
+
+PARTS = (
     ("beta", "#3987e5", "beta: the cost of μ"),
     ("M0", "#d95926", r"M0: unexplained at $D_{M0}$"),
     ("M1", "#199e70", r"M1: clicks at $D_{M1}$"),
 )
+"""bound.terms' keys, their colors and panel titles."""
 
 
 def expected(p, detune: float = 0.0, **detectors) -> dict:

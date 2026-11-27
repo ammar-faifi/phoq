@@ -17,8 +17,12 @@ from phoq.runner import Runner
 
 ROOT = Path(__file__).resolve().parents[2]
 SEED = 3
-SLOTS = 20_000  # one block: 20 µs, a couple of hundred clicks to draw
-BLOCK = 1  # the second block, so that its offset shows in start
+SLOTS = 20_000
+"""One block: 20 µs, a couple of hundred clicks to draw."""
+
+BLOCK = 1
+"""The second block, so that its offset shows in start."""
+
 REFS = {
     "measure": "examples/cow_vacuum:bob.Bob.measure",
     "read_tagger": "examples/cow_vacuum:common.read_tagger",

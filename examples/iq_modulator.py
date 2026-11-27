@@ -51,10 +51,11 @@ from phoq import (
 from phoq.engine import trace
 from phoq.units import fmt_si
 
-# symbols/s: 40 ns symbols, far slower than the detectors' 150 MHz at 10³ V/A
 RATE = 25e6
-# square 16-QAM: i, q ∈ {−1, −1/3, 1/3, 1} (Table 2.4)
+"""symbols/s: 40 ns symbols, far slower than the detectors' 150 MHz at 10³ V/A."""
+
 LEVELS = np.array([-1, -1 / 3, 1 / 3, 1])
+"""Square 16-QAM: i, q ∈ {−1, −1/3, 1/3, 1} (Table 2.4)."""
 
 
 def qam16(n: int = 1024, seed: int = 4) -> np.ndarray:

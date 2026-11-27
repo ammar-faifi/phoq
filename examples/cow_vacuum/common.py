@@ -32,7 +32,7 @@ Bob reads his tagger as a bench does: a time stamp per click, which he folds ont
 Alice's slots (``phoq.timing.fold``). A pulse fills half of its slot, so his click
 window can be that half alone: it drops half of the dark counts and the modulator's leak
 in the other half, while a click outside the window still starts a detector's hold-off.
-The detectors' timing jitter stamps some of a pulse's clicks outside the window, and 
+The detectors' timing jitter stamps some of a pulse's clicks outside the window, and
 some of the leak's inside it.
 
 Everything here is public: the parameters are agreed beforehand and both stations run
@@ -63,32 +63,47 @@ from phoq.units import GAUSS_FWHM, fmt_si, photon_energy
 from . import bound
 from .bound import Gains, phase_error, terms
 
-BIT0, BIT1, DECOY1, DECOY2 = 0, 1, 2, 3  # what Alice sends in a pair of slots
-STATES = (BIT0, BIT1, DECOY1, DECOY2)  # in the order of bound.Gains
-# which of a pair's two pulses each state sends
+BIT0, BIT1, DECOY1, DECOY2 = 0, 1, 2, 3
+"""What Alice sends in a pair of slots."""
+
+STATES = (BIT0, BIT1, DECOY1, DECOY2)
+"""In the order of bound.Gains."""
+
 PULSES = ((False, True), (True, False), (True, True), (False, False))
-# tagger channels: data line, monitoring constructive / destructive
+"""Which of a pair's two pulses each state sends."""
+
 DT, DM0, DM1 = "ch1", "ch2", "ch3"
-# a pair's event: the window Bob keeps, or none
+"""Tagger channels: data line, monitoring constructive / destructive."""
+
 NONE, T0, T1, M0, M1 = -1, 0, 1, 2, 3
-# the lab counts a block in the tagger's bins: half a slot, one symbol of the modulator
+"""A pair's event: the window Bob keeps, or none."""
+
 BINS_PER_PAIR = 4
-# sub-bins per bin: a click is stamped where in its half slot the photon arrived, and the
-# detector's timing jitter blurs that, as on a bench
+"""The lab counts a block in the tagger's bins: half a slot,
+one symbol of the modulator."""
+
 SUB_BINS = 2
-FIBER_INPUT = "SPL.p1"  # where μ is defined
+"""Sub-bins per bin: a click is stamped where in its half slot the photon arrived, and
+the detector's timing jitter blurs that, as on a bench."""
+
+FIBER_INPUT = "SPL.p1"
+"""Where μ is defined."""
 
 
 class Topic:
     """Message topics on the classical channel."""
 
-    # Bob → Alice: the pairs with a data-line event (not which slot), the pairs with a
-    # monitoring event and their detector, and the clicks at the boundaries between pairs
     DETECT = "detect"
-    # Alice → Bob: which data-line events are decoys, a sample of her bits, the gains and
-    # the boundary counts
+    """Bob → Alice: the pairs with a data-line event (not which slot), the
+    pairs with a monitoring event and their detector, and the clicks at
+    the boundaries between pairs."""
+
     SIFT = "sift"
-    ERRORS = "errors"  # Bob → Alice: his bits at the sample
+    """Alice → Bob: which data-line events are decoys, a sample of her bits, the
+    gains and the boundary counts."""
+
+    ERRORS = "errors"
+    """Bob → Alice: his bits at the sample."""
 
 
 @dataclass

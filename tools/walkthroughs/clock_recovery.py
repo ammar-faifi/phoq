@@ -24,11 +24,15 @@ REFS = {
     "periodogram": f"{EXAMPLE}:periodogram",
     "symbol_phase": f"{EXAMPLE}:symbol_phase",
 }
-# the second record: with clock_sync's LONG (1 GHz, 250 ps tagger bins), a saturated
-# 40 µs dead time and 5 ms, just over the 2**25 histogram bins
 SATURATED = dict(record=5e-3, dead_time=40e-6, mu=0.2)
-GROUPS = 1000  # points kept of the whole spectrum
-FLOOR_DB = -60.0  # where the spectra's dB scales stop
+"""The second record: with clock_sync's LONG (1 GHz, 250 ps tagger bins), a saturated
+40 µs dead time and 5 ms, just over the 2**25 histogram bins."""
+
+GROUPS = 1000
+"""Points kept of the whole spectrum."""
+
+FLOOR_DB = -60.0
+"""Where the spectra's dB scales stop."""
 
 
 def db(x: np.ndarray, ref: float) -> list[float]:

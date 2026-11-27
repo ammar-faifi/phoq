@@ -38,12 +38,24 @@ from phoq import (
 from phoq.engine import trace
 from phoq.units import fmt_si
 
-RATE = 50e6  # laser repetition rate [Hz]
-PULSE = 100e-12  # laser pulse, FWHM [s]
-HOLD_OFF = 1e-6  # the SPAD's dead time: the preset allows 1 µs to 3 ms
-WAIT = 4e-6  # a live SPAD's mean wait for its next click [s]: sets the light
-STOP = 1.25e9  # the analyzer from DC to here [Hz]
-RBW = 3e3  # [Hz]
+RATE = 50e6
+"""Laser repetition rate [Hz]."""
+
+PULSE = 100e-12
+"""Laser pulse, FWHM [s]."""
+
+HOLD_OFF = 1e-6
+"""The SPAD's dead time: the preset allows 1 µs to 3 ms."""
+
+WAIT = 4e-6
+"""A live SPAD's mean wait for its next click [s]: sets the light."""
+
+STOP = 1.25e9
+"""The analyzer from DC to here [Hz]."""
+
+RBW = 3e3
+"""[Hz]."""
+
 SWEEPS = 20
 
 

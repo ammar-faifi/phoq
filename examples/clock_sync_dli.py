@@ -95,14 +95,27 @@ from clock_sync import (  # noqa: E402
 # the interferometer's two paths to a detector, and its phase lock
 from dli import arms, lock  # noqa: E402
 
-RATE = 1e9  # the agreed symbol rate: 1 ns symbols, as clock_sync.py's ``GHZ``
-# Bob's tagger bin: clock_sync.py's ``LONG``, under half a symbol, for a long record
+RATE = 1e9
+"""The agreed symbol rate: 1 ns symbols, as clock_sync.py's ``GHZ``."""
+
 RESOLUTION = 250e-12
-DEAD_TIME = 10e-6  # the SPADs' hold-off, a free-running InGaAs SPAD's
-KM = 25.0  # the link
-RECORD = 10e-3  # one acquisition [s]: about a thousand clicks per line
-TAP = 0.9  # Bob's tap: 90 % to the direct line, the rest to the DLI, as in COW
-LINES = ("direct", "bright", "dark")  # Bob's SPADs, on tagger channels 1, 2 and 3
+"""Bob's tagger bin: clock_sync.py's ``LONG``, under half
+a symbol, for a long record."""
+
+DEAD_TIME = 10e-6
+"""The SPADs' hold-off, a free-running InGaAs SPAD's."""
+
+KM = 25.0
+"""The link."""
+
+RECORD = 10e-3
+"""One acquisition [s]: about a thousand clicks per line."""
+
+TAP = 0.9
+"""Bob's tap: 90 % to the direct line, the rest to the DLI, as in COW."""
+
+LINES = ("direct", "bright", "dark")
+"""Bob's SPADs, on tagger channels 1, 2 and 3."""
 
 
 # ---- the bench -----------------------------------------------------------------------

@@ -22,8 +22,8 @@ from phoq import Coupler, OpticalDelayLine, PhaseShifter, Setup
 from phoq.engine import trace
 from phoq.units import fmt_si
 
-# pulse rate: T = 10 ns between neighboring pulses, what the cords are chosen for
 RATE = 100e6
+"""Pulse rate: T = 10 ns between neighboring pulses, what the cords are chosen for."""
 
 
 def dli(setup: Setup, tag: str):

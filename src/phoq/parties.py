@@ -249,8 +249,12 @@ class Party:
     hooks."""
 
     name: ClassVar[str] = "PARTY"
-    port: ClassVar[int] = 0  # classical-channel port (0: BASE_PORT + index)
-    instruments: ClassVar[tuple[str, ...]] = ()  # lab instruments this station owns
+    port: ClassVar[int] = 0
+    """Classical-channel port (0: BASE_PORT + index)."""
+
+    instruments: ClassVar[tuple[str, ...]] = ()
+    """Lab instruments this station owns."""
+
     abstract: ClassVar[bool] = False
     seed: ClassVar[int | None] = None
     stage: ClassVar[int] = 0

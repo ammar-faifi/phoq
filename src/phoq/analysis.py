@@ -57,7 +57,8 @@ from .loading import (
 
 ClickBatch = CounterResult
 REGISTRY: list[Task] = []
-MAX_BACKLOG = 2  # batches a slow worker may fall behind before new ones are dropped
+MAX_BACKLOG = 2
+"""Batches a slow worker may fall behind before new ones are dropped."""
 
 
 # ---- registration --------------------------------------------------------------------

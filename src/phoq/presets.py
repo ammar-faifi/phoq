@@ -78,8 +78,6 @@ KIND_DOC = {
     "unstated": "given without provenance",
 }
 TIERS = (GENERIC, "datasheet", "validated", "vendor")
-# [limits] keys the lab checks live (phoq.engine.report); other limits are kept for
-# reference
 CHECKED_LIMITS = frozenset(
     {
         "optical_input_w",
@@ -89,6 +87,9 @@ CHECKED_LIMITS = frozenset(
         "photons_per_pulse",
     }
 )
+"""[limits] keys the lab checks live (phoq.engine.report); other
+limits are kept for reference."""
+
 _ID = re.compile(r"[a-z0-9][a-z0-9.\-]*/[a-z0-9][a-z0-9.\-]*")
 _PARAM_KEYS = {"value", "from", "spec", "min", "typ", "max", "note"}
 _CURVE_KEYS = {"wavelength_nm", "value", "from", "spec", "note"}

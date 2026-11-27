@@ -31,9 +31,6 @@ REFS = {
     "transmission": "phoq.modulators:IntensityModulator.transmission",
     "detect": "phoq.detectors:Photodiode.detect",
 }
-# The lines each step lights up: (function, the first line holds …, the last line
-# holds …, lines past that one). Found in the source as it is now, so they follow
-# edits; a missing anchor stops the build.
 ANCHORS = {
     "run": ("run", "net = trace(self.setup)", "report=report(self.setup, net),", 0),
     "stack": ("trace", "net = Network()", "MIN_GAIN_TWICE_REFLECTED)", 2),
@@ -62,8 +59,15 @@ ANCHORS = {
     "noise": ("detect", "density = (", "[alpha], [1.0, alpha - 1.0], out", 1),
     "acquire": ("run", "inst.acquire(net, self.rng)", "inst.acquire(net, self.rng)", 0),
 }
-EVERY = 10  # the sweep's curves keep every 10th bin
-ZOOM = (2000, 2200)  # 20 ns of bins at full resolution, for the noise
+"""The lines each step lights up: (function, the first line holds …, the last line
+holds …, lines past that one). Found in the source as it is now, so they follow edits;
+a missing anchor stops the build."""
+
+EVERY = 10
+"""The sweep's curves keep every 10th bin."""
+
+ZOOM = (2000, 2200)
+"""20 ns of bins at full resolution, for the noise."""
 
 
 def _source(ref: str) -> list[str]:

@@ -51,8 +51,9 @@ from dli import (
     lock,
 )  # noqa: E402  (the shared interferometer)
 
-# pulse FWHM for the DLI checks: its delay must match to a fraction of this
 WIDTH = 100e-12
+"""Pulse FWHM for the DLI checks: its delay must match to a fraction of this."""
+
 T = 1 / RATE
 
 

@@ -33,14 +33,29 @@ from phoq import (
 from phoq.engine import trace
 from phoq.units import fmt_si
 
-RATE = 50e6  # pulse clock [Hz]
-PULSE = 100e-12  # laser pulse, FWHM [s]
-HOLD_OFF = 40e-6  # the SPAD's dead time [s]
-QUIET = 5e-4  # photons per pulse at the SPAD: W ≈ 4 τd
-BRIGHT = 0.2  # … and saturated: W ≈ τd / 100
-SPAN = 130e3  # the analyzer's view on each side of the clock [Hz]
-RBW = 1e3  # [Hz]
-SWEEPS = 100  # averaged: enough for a converged trace
+RATE = 50e6
+"""Pulse clock [Hz]."""
+
+PULSE = 100e-12
+"""Laser pulse, FWHM [s]."""
+
+HOLD_OFF = 40e-6
+"""The SPAD's dead time [s]."""
+
+QUIET = 5e-4
+"""Photons per pulse at the SPAD: W ≈ 4 τd."""
+
+BRIGHT = 0.2
+"""Photons per pulse at the SPAD, saturated: W ≈ τd / 100."""
+
+SPAN = 130e3
+"""The analyzer's view on each side of the clock [Hz]."""
+
+RBW = 1e3
+"""[Hz]."""
+
+SWEEPS = 100
+"""Averaged: enough for a converged trace."""
 
 
 def build(

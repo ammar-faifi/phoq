@@ -24,16 +24,16 @@ DRIVE_PORTS = ("rf", "bias")
 
 class _Modulator(FiberConnectors, Component):
     category = "modulator"
-    inputs = (
-        "p1",
-        "rf",
-    )  # chain() wires the rf drive; the bias is connected explicitly
+    inputs = ("p1", "rf")
+    """chain() wires the rf drive; the bias is connected explicitly."""
+
     outputs = ("p2",)
 
-    # the drive inputs, checked against rf_input_dbm
     rf_ports: ClassVar[tuple[str, ...]] = ("rf",)
-    # the DC inputs, checked against bias_voltage_v
+    """The drive inputs, checked against rf_input_dbm."""
+
     bias_ports: ClassVar[tuple[str, ...]] = ("bias",)
+    """The DC inputs, checked against bias_voltage_v."""
 
     v_pi = Param(
         4.0, unit="V", label="Vπ", min=0.1, max=20.0, doc="Voltage for a π phase shift"

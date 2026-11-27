@@ -50,29 +50,21 @@ from phoq import (
 from phoq.engine import trace
 from phoq.units import Q_E, fmt_si, photon_energy
 
-# dBc/Hz: intensity noise above the shot noise limit (white), a noisy diode laser
 RIN = -135.0
-# V/A: 4 MHz of bandwidth, and an amplifier noise 21 dB under the shot noise of 1.4 mA
+"""dBc/Hz: intensity noise above the shot noise limit (white), a noisy diode laser."""
+
 GAIN = 1e5
-BAND = (0.2e6, 1.0e6)  # where the noise is read: flat, and well inside the 4 MHz pole
-ONE_INPUT = (
-    13.0,
-    15.0,
-    17.0,
-    19.0,
-    21.0,
-    23.0,
-    25.0,
-)  # VOA [dB]: INPUT+ from 28 µA down to 1.8 µA
-BOTH_INPUTS = (
-    0.0,
-    4.0,
-    8.0,
-    12.0,
-    16.0,
-    20.0,
-    24.0,
-)  # VOA [dB]: 1.2 mA down to 5 µA in all
+"""V/A: 4 MHz of bandwidth, and an amplifier noise 21 dB
+under the shot noise of 1.4 mA."""
+
+BAND = (0.2e6, 1.0e6)
+"""Where the noise is read: flat, and well inside the 4 MHz pole."""
+
+ONE_INPUT = (13.0, 15.0, 17.0, 19.0, 21.0, 23.0, 25.0)
+"""VOA [dB]: INPUT+ from 28 µA down to 1.8 µA."""
+
+BOTH_INPUTS = (0.0, 4.0, 8.0, 12.0, 16.0, 20.0, 24.0)
+"""VOA [dB]: 1.2 mA down to 5 µA in all."""
 
 
 def build(

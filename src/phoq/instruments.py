@@ -19,7 +19,9 @@ from .units import fmt_si, seq125, side_stream
 
 TIMEBASES = seq125(1e-9, 10e-3)
 SCALES = seq125(1e-9, 10.0)
-DIV_Y = 8  # vertical divisions on the scope's screen, which its ADC spans
+DIV_Y = 8
+"""Vertical divisions on the scope's screen, which its ADC spans."""
+
 CH_COLORS = ("#facc15", "#22d3ee", "#f472b6", "#4ade80")
 
 
@@ -844,13 +846,21 @@ class PhotonCounter(Component):
 # --------------------------------------------------------------------------------------
 FREQS = seq125(1e3, 20e9)
 RBWS = seq125(1.0, 10e6)
-# the signal is computed at 4 f_s, anti-alias filtered and decimated to f_s
 DECIMATE = 4
-ZERO_PAD = 4  # FFT zero padding: a tone's level is right wherever it falls between bins
-MAX_SAMPLES = 4_000_000  # per sweep, after decimation
-ATTENUATIONS = tuple(10.0 * k for k in range(8))  # input attenuator steps [dB], generic
-# records per sweep for a video bandwidth: K = VBW_SLOPE · RBW/VBW + VBW_OFFSET
+"""The signal is computed at 4 f_s, anti-alias filtered and decimated to f_s."""
+
+ZERO_PAD = 4
+"""FFT zero padding: a tone's level is right wherever it falls between bins."""
+
+MAX_SAMPLES = 4_000_000
+"""Per sweep, after decimation."""
+
+ATTENUATIONS = tuple(10.0 * k for k in range(8))
+"""Input attenuator steps [dB], generic."""
+
 VBW_SLOPE, VBW_OFFSET = 0.475, 0.62
+"""Records per sweep for a video bandwidth: K = VBW_SLOPE · RBW/VBW + VBW_OFFSET."""
+
 AVERAGES_GONE = (
     "SpectrumAnalyzer.averages is gone: the video bandwidth (vbw, auto_vbw) sets the"
     " records per sweep, as on an analyzer"

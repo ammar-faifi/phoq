@@ -45,7 +45,8 @@ class Alice(Party):
     name = "ALICE"
     port = 5571
     instruments = ("ALICE-LD", "ALICE-IM", "ALICE-AWG", "ALICE-ATT", "ALICE-VOA")
-    params = COWParams()  # public parameters, agreed in advance
+    params = COWParams()
+    """Public parameters, agreed in advance."""
 
     def setup(self) -> None:
         p = self.params

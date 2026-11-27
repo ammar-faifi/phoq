@@ -51,35 +51,36 @@ from phoq.sources import Laser
 from phoq.timing import clicked_slots
 from phoq.units import fmt_si, photon_energy
 
-BIT0, BIT1, DECOY = 0, 1, 2  # what Alice sends in a pair of slots
-NOTHING = 3  # … and what Eve may re-send instead: no light at all
-DB, DM1, DM2 = (
-    "ch1",
-    "ch2",
-    "ch3",
-)  # tagger channels: data line, monitoring constructive / destructive
-MON = (
-    "decoy",
-    "1-0",
-    "other",
-    "dark",
-)  # pulses j−1, j both sent: inside a decoy, across a 1-0
-# boundary, across any other boundary; or neither sent ("dark": a 0-1 boundary, the
-# dark-count reference)
+BIT0, BIT1, DECOY = 0, 1, 2
+"""What Alice sends in a pair of slots."""
+
+NOTHING = 3
+"""What Eve may re-send instead of BIT0, BIT1 or DECOY: no light at all."""
+
+DB, DM1, DM2 = ("ch1", "ch2", "ch3")
+"""Tagger channels: data line, monitoring constructive / destructive."""
+
+MON = ("decoy", "1-0", "other", "dark")
+"""Pulses j−1, j both sent: inside a decoy, across a 1-0 boundary, across any other
+boundary; or neither sent ("dark": a 0-1 boundary, the dark-count reference)."""
+
 INTERFERING = (0, 1, 2)
-# tagger sub-bins per slot: they resolve the half-slot pulses the modulator carves
 SUB_BINS = 4
+"""Tagger sub-bins per slot: they resolve the half-slot pulses the modulator carves."""
 
 
 class Topic:
     """Message topics on the classical channel."""
 
-    # Bob → Alice: bits with a data-line click (not which slot), monitoring clicks
     DETECT = "detect"
-    # Alice → Bob: which detections are decoys, a sample of her bits, the monitoring
-    # counts
+    """Bob → Alice: bits with a data-line click (not which slot), monitoring clicks."""
+
     SIFT = "sift"
-    ERRORS = "errors"  # Bob → Alice: his bits at the sample
+    """Alice → Bob: which detections are decoys, a sample of her
+    bits, the monitoring counts."""
+
+    ERRORS = "errors"
+    """Bob → Alice: his bits at the sample."""
 
 
 @dataclass
@@ -588,10 +589,8 @@ def visibilities(monitor: np.ndarray, rows=INTERFERING) -> tuple[float, float]:
 
 
 # ---- the eavesdropper: intercept-resend in the time basis ----------------------------
-INCONCLUSIVE = (
-    "empty",
-    "decoy",
-)  # what Eve re-sends for a pair of slots where her detector stayed dark
+INCONCLUSIVE = ("empty", "decoy")
+"""What Eve re-sends for a pair of slots where her detector stayed dark."""
 
 
 def intercept(
@@ -717,8 +716,8 @@ def describe(t: Tally) -> str:
     )
 
 
-# blocks in the running ("now") figures: a change on the line shows within them
 WINDOW = 10
+"""Blocks in the running ("now") figures: a change on the line shows within them."""
 
 
 def window(recent) -> Tally:

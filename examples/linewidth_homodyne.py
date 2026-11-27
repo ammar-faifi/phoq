@@ -33,7 +33,8 @@ from phoq import (
 from phoq.engine import trace
 from phoq.units import fmt_si
 
-LINEWIDTH = 100e3  # what the measurement should find
+LINEWIDTH = 100e3
+"""What the measurement should find."""
 
 
 def build(

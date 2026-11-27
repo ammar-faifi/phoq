@@ -28,10 +28,12 @@ from phoq.sources import Laser
 from phoq.timing import clicked_slots
 from phoq.units import photon_energy
 
-# pair basis: vacuum twice / one vacuum / equal bright / unequal
 B_ZERO, B_Z, B_X, B_MIXED = 0, 1, 2, 3
-# intensity levels of a pulse: vacuum, decoy ν, signal μ
+"""Pair basis: vacuum twice / one vacuum / equal bright / unequal."""
+
 L0, LNU, LMU = 0, 1, 2
+"""Intensity levels of a pulse: vacuum, decoy ν, signal μ."""
+
 DET_L, DET_R = 0, 1
 STATIONS = ("ALICE", "BOB")
 
@@ -40,22 +42,36 @@ class Topic:
     """Message topics on the classical channel (see ``examples/mpqkd/reference.py``
     [CLASSICAL #1–#5])."""
 
-    CLICKS = "clicks"  # #1 Charlie → all: single-click rounds and which detector
-    # #3 Alice ↔ Bob: basis label per pair (Z / X / '0'), never the intensities
+    CLICKS = "clicks"
+    """#1 Charlie → all: single-click rounds and which detector."""
+
     BASIS = "basis"
-    THETA = "theta"  # #4 Alice ↔ Bob: alignment angle of each X pair
-    XBITS = "xbits"  # #5 Alice ↔ Bob: X-basis bits, disclosed for error estimation
-    # #6 leader → partner: the chunk to reconcile, Cascade seed, E_Z estimate, first
-    # parities
+    """#3 Alice ↔ Bob: basis label per pair (Z / X / '0'), never the intensities."""
+
+    THETA = "theta"
+    """#4 Alice ↔ Bob: alignment angle of each X pair."""
+
+    XBITS = "xbits"
+    """#5 Alice ↔ Bob: X-basis bits, disclosed for error estimation."""
+
     EC_START = "ec-start"
-    EC_QUERY = "ec-query"  # #6 partner → leader: parities wanted (pass, lo, hi)
-    # #6 leader → partner: those parities (each one a leaked bit)
+    """#6 leader → partner: the chunk to reconcile, Cascade seed,
+    E_Z estimate, first parities."""
+
+    EC_QUERY = "ec-query"
+    """#6 partner → leader: parities wanted (pass, lo, hi)."""
+
     EC_PARITY = "ec-parity"
-    # #6 partner → leader: Cascade finished, verification tag of its key
+    """#6 leader → partner: those parities (each one a leaked bit)."""
+
     EC_DONE = "ec-done"
-    VERIFIED = "verified"  # #6 leader → partner: tag matched (or not: chunk dropped)
-    # #6 leader → partner: Toeplitz seed and output length for the verified chunks
+    """#6 partner → leader: Cascade finished, verification tag of its key."""
+
+    VERIFIED = "verified"
+    """#6 leader → partner: tag matched (or not: chunk dropped)."""
+
     PA = "pa"
+    """#6 leader → partner: Toeplitz seed and output length for the verified chunks."""
 
 
 @dataclass

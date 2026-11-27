@@ -42,9 +42,12 @@ from phoq import (
 from phoq.engine import trace
 from phoq.units import fmt_si
 
-LINEWIDTH = 100.0  # the laser `phoq serve` shows
+LINEWIDTH = 100.0
+"""The laser `phoq serve` shows."""
+
 SPOOL_KM = 500.0
-SWEEPS = 60  # per bias phase at 100 Hz: 5 records each at VBW 1 Hz, 300 in all
+SWEEPS = 60
+"""Per bias phase at 100 Hz: 5 records each at VBW 1 Hz, 300 in all."""
 
 
 def build(

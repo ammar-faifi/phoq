@@ -69,11 +69,15 @@ from .postprocess import (
 
 class Station(Party):
     abstract = True
-    tag = ""  # "ALICE" or "BOB": prefix of this station's instruments
+    tag = ""
+    """Prefix of this station's instruments: "ALICE" or "BOB"."""
+
     partner = ""
-    # the leader starts error correction, picks Cascade's E_Z estimate and sizes PA
     leader = False
-    params = MPQKDParams()  # public parameters, agreed in advance
+    """The leader starts error correction, picks Cascade's E_Z estimate and sizes PA."""
+
+    params = MPQKDParams()
+    """Public parameters, agreed in advance."""
 
     # ---- what differs between Alice and Bob ------------------------------------------
     def z_bit(self, level_front: np.ndarray) -> np.ndarray:

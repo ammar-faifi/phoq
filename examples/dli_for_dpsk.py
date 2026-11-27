@@ -47,7 +47,8 @@ from dli import (
     slot_delay,
 )  # noqa: E402  (the shared interferometer)
 
-N_BITS = 32  # pattern length (even parity, so the differential phase closes on itself)
+N_BITS = 32
+"""Pattern length (even parity, so the differential phase closes on itself)."""
 
 
 def dpsk_bits(n: int = N_BITS, seed: int = 11) -> np.ndarray:

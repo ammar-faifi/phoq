@@ -18,10 +18,11 @@ postprocess.py.
 from dataclasses import dataclass
 import numpy as np
 
-# Basis labels
 B_ZERO, B_Z, B_X = 0, 1, 2
-# Detector labels
+"""Basis labels."""
+
 DET_L, DET_R = 0, 1
+"""Detector labels."""
 
 
 @dataclass

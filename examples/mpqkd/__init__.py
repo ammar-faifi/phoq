@@ -77,7 +77,9 @@ from .postprocess import (
     verification_tag,
 )
 
-PARTIES = [Alice, Charlie, Bob]  # left to right on the lab table
+PARTIES = [Alice, Charlie, Bob]
+"""Left to right on the lab table."""
+
 params = MPQKDParams()
 
 __all__ = [

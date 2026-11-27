@@ -14,7 +14,8 @@ class Charlie(Party):
     name = "CHARLIE"
     port = 5553
     instruments = ("TAGGER", "DET-L", "DET-R", "CHARLIE")
-    params = MPQKDParams()  # public parameters, agreed in advance
+    params = MPQKDParams()
+    """Public parameters, agreed in advance."""
 
     def setup(self) -> None:
         self.totals = dict(blocks=0, rounds=0, single=0, double=0)
