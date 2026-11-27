@@ -162,7 +162,9 @@ class Port:
         self.component = component
         self.name = name
         self.kind = kind
-        self.direction = direction  # "in", "out" or "bidi"
+        self.direction = direction
+        """One of "in", "out" or "bidi"."""
+
         self.label = label or name
         self.peer: Port | None = None
 
@@ -204,7 +206,8 @@ class Transfer(NamedTuple):
     port: Port
     amp: complex
     delay: float = 0.0
-    mod: Any = None  # a modulator applying a time-dependent factor, if any
+    mod: Any = None
+    """A modulator applying a time-dependent factor, if any."""
 
 
 class Component:
@@ -267,7 +270,9 @@ class Component:
         self._values: dict[str, Any] = {
             k: p.default for k, p in self.param_specs().items()
         }
-        self._preset = None  # the applied part preset; None = generic (class defaults)
+        self._preset = None
+        """The applied part preset; None = generic (class defaults)."""
+
         self.ports: dict[str, Port] = {}
         self._build()
         if preset:

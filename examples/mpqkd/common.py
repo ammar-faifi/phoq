@@ -76,29 +76,60 @@ class Topic:
 
 @dataclass
 class MPQKDParams:
-    distance: float = 100e3  # Alice–Bob [m], Charlie in the middle
-    mu: float = 0.4  # signal intensity (photons per pulse into the link)
-    nu: float = 0.1  # weak decoy intensity
-    p_mu: float = 0.25  # probability of sending μ
-    p_nu: float = 0.15  # probability of sending ν (the rest, 0.6, is vacuum)
-    D: int = 16  # number of discrete phases
-    l: int = 1000  # maximal pairing interval (rounds)
-    chunk_bits: int = 1000  # sifted key bits reconciled and amplified together
-    # Cascade's E_Z estimate for the first chunk; every later chunk takes the error rate
-    # corrected in the chunks verified before it
+    distance: float = 100e3
+    """Alice–Bob [m], Charlie in the middle."""
+
+    mu: float = 0.4
+    """Signal intensity (photons per pulse into the link)."""
+
+    nu: float = 0.1
+    """Weak decoy intensity."""
+
+    p_mu: float = 0.25
+    """Probability of sending μ."""
+
+    p_nu: float = 0.15
+    """Probability of sending ν (the rest, 0.6, is vacuum)."""
+
+    D: int = 16
+    """Number of discrete phases."""
+
+    l: int = 1000
+    """Maximal pairing interval (rounds)."""
+
+    chunk_bits: int = 1000
+    """Sifted key bits reconciled and amplified together."""
+
     initial_qber: float = 0.01
-    # the last passes cost 1–2 parities each and catch hidden error pairs
+    """Cascade's E_Z estimate for the first chunk; every later chunk takes the error
+    rate corrected in the chunks verified before it."""
+
     cascade_passes: int = 6
-    verify_bits: int = 32  # universal-hash tag that confirms the corrected chunks agree
-    estimator: str = "model"  # how e_11^X is sized: "model" (see keyrate.py) or "decoy"
-    eps: float = 1e-10  # security parameter of the (labeled) finite-key estimate
-    efficiency: float = 0.5  # detector efficiency
-    dark_count_rate: float = 6.25  # [Hz]; ≈ 1e-8 per 1.6 ns bin
-    linewidth: float = 3e3  # each laser [Hz]
+    """The last passes cost 1–2 parities each and catch hidden error pairs."""
+
+    verify_bits: int = 32
+    """Universal-hash tag that confirms the corrected chunks agree."""
+
+    estimator: str = "model"
+    """How e_11^X is sized: "model" (see keyrate.py) or "decoy"."""
+
+    eps: float = 1e-10
+    """Security parameter of the (labeled) finite-key estimate."""
+
+    efficiency: float = 0.5
+    """Detector efficiency."""
+
+    dark_count_rate: float = 6.25
+    """[Hz]; ≈ 1e-8 per 1.6 ns bin."""
+
+    linewidth: float = 3e3
+    """Each laser [Hz]."""
+
     rep_rate: float = 625e6
     wavelength: float = 1550e-9
     pulse_width: float = 100e-12
-    extinction_db: float = 40.0  # intensity-modulator extinction (vacuum leakage)
+    extinction_db: float = 40.0
+    """Intensity-modulator extinction (vacuum leakage)."""
 
 
 # ---- the hardware (physical layer) ---------------------------------------------------

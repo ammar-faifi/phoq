@@ -152,7 +152,8 @@ class MPQKDResult:
     rounds: int
     single_clicks: int
     double_clicks: int
-    rows: list = field(default_factory=list)  # (l, r_p sim, r_p Eq.4, #Z, E_Z, #X, E_X)
+    rows: list = field(default_factory=list)
+    """(l, r_p sim, r_p Eq.4, #Z, E_Z, #X, E_X)."""
 
     @property
     def p_click(self) -> float:

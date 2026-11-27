@@ -42,10 +42,17 @@ class Gains(NamedTuple):
     """Q_φ^{M_i}: for each state φ Alice sent, the probability per pair that Bob
     announces (D_M0, D_M1)."""
 
-    q0a: tuple[float, float]  # |0⟩|α⟩, bit 0: the paper's Q_0α = Q_0z
-    qa0: tuple[float, float]  # |α⟩|0⟩, bit 1: Q_α0 = Q_1z
-    qaa: tuple[float, float]  # |α⟩|α⟩, decoy sequence 1
-    q00: tuple[float, float]  # |0⟩|0⟩, decoy sequence 2
+    q0a: tuple[float, float]
+    """|0⟩|α⟩, bit 0: the paper's Q_0α = Q_0z."""
+
+    qa0: tuple[float, float]
+    """|α⟩|0⟩, bit 1: Q_α0 = Q_1z."""
+
+    qaa: tuple[float, float]
+    """|α⟩|α⟩, decoy sequence 1."""
+
+    q00: tuple[float, float]
+    """|0⟩|0⟩, decoy sequence 2."""
 
 
 def normalization(mu: float) -> tuple[float, float]:

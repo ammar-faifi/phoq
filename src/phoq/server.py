@@ -133,7 +133,9 @@ class LabSession:
             [] if parties else [TaskWorker(t) for t in tasks]
         )
         self.batch_seq = 0
-        self.console_full = True  # send every console's whole buffer on the next tick
+        self.console_full = True
+        """Send every console's whole buffer on the next tick."""
+
         self.save_path = save_path
         self.rng = np.random.default_rng(seed if seed is not None else setup.seed)
         self.clients: set[WebSocket] = set()
@@ -141,9 +143,12 @@ class LabSession:
         self.state_dirty = True
         self.save_at = 0.0
         self.last_counter = 0.0
-        self.esa_next: dict[str, float] = {}  # when each spectrum analyzer sweeps next
-        # scope → id of the held sweep already streamed
+        self.esa_next: dict[str, float] = {}
+        """When each spectrum analyzer sweeps next."""
+
         self.sent_held: dict[str, int] = {}
+        """Scope → id of the held sweep already streamed."""
+
         setup.on_change(self._changed)
 
     def _changed(self, event, component, param) -> None:

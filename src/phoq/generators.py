@@ -136,7 +136,9 @@ class ArbitraryWaveformGenerator(Component):
     def __init__(self, name: str | None = None, **params):
         self.patterns: dict[str, np.ndarray | None] = {ch: None for ch in CHANNELS}
         self._epoch = 0.0
-        self._jitter_key = 0  # which realization of the edges' jitter
+        self._jitter_key = 0
+        """Which realization of the edges' jitter."""
+
         super().__init__(name, **params)
 
     def _build(self):

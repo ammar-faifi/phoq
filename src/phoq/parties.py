@@ -456,7 +456,9 @@ class PartyWorker(ProcessWorker):
         self.source = source or getattr(cls, "source", None) or cls.__module__
         self.seed = seed
         self.port = peers[cls.name][1]
-        self.prepared = 0  # blocks prepared so far
+        self.prepared = 0
+        """Blocks prepared so far."""
+
         self.net = None
         self.reply_q = None
 
@@ -551,11 +553,18 @@ class Experiment:
         self.block = 0
         self.phase = "prepare"
         self._asked = False
-        self._stage = 1  # the relay stage being recorded (see Party.stage)
-        self._recorded: set[int] = set()  # relay stages already recorded in this block
-        self._results: dict[str, CounterResult] = {}  # this block's batches so far
+        self._stage = 1
+        """The relay stage being recorded (see Party.stage)."""
+
+        self._recorded: set[int] = set()
+        """Relay stages already recorded in this block."""
+
+        self._results: dict[str, CounterResult] = {}
+        """This block's batches so far."""
+
         self.last_acquire = 0.0
-        self.stopped: str | None = None  # why run() ended before its last block
+        self.stopped: str | None = None
+        """Why run() ended before its last block."""
 
     @property
     def workers(self) -> list[ProcessWorker]:

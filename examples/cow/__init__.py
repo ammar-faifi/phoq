@@ -139,7 +139,8 @@ class COWResult:
     expected: dict
     alice_key: np.ndarray
     bob_key: np.ndarray
-    eve: dict = field(default_factory=dict)  # Eve's counts, when she was on the line
+    eve: dict = field(default_factory=dict)
+    """Eve's counts, when she was on the line."""
 
     @property
     def qber(self) -> float:

@@ -60,25 +60,36 @@ class Path:
     source: Laser
     amp: complex
     delay: float
-    mods: tuple = ()  # ((modulator, delay at which the light passes it), ...)
-    port: str = "inp"  # the detector input it enters (a balanced detector has two)
-    # connector reflections on the way: 0 for the route itself, 1–2 for a stray
+    mods: tuple = ()
+    """((modulator, delay at which the light passes it), ...)."""
+
+    port: str = "inp"
+    """The detector input it enters (a balanced detector has two)."""
+
     reflections: int = 0
-    sites: tuple = ()  # (where it reflected, the open port's path or None), in order
+    """Connector reflections on the way: 0 for the route itself, 1–2 for a stray."""
+
+    sites: tuple = ()
+    """(where it reflected, the open port's path or None), in order."""
 
 
 @dataclass
 class Network:
-    paths: dict = field(default_factory=lambda: defaultdict(list))  # detector → [Path]
-    fibers: dict = field(default_factory=dict)  # cord name → flow
+    paths: dict = field(default_factory=lambda: defaultdict(list))
+    """Detector → [Path]."""
+
+    fibers: dict = field(default_factory=dict)
+    """Cord name → flow."""
+
     open_ends: list = field(default_factory=list)
-    # "NAME.port" → W arriving
     port_power: dict = field(default_factory=lambda: defaultdict(float))
-    # laser → {(own light?, reflection site or other laser's name) → W entering its
-    # output}
+    """Power arriving at each port [W], keyed "NAME.port"."""
+
     returned: dict = field(
         default_factory=lambda: defaultdict(lambda: defaultdict(float))
     )
+    """Laser → {(own light?, reflection site or other laser's name)
+    → W entering its output}."""
 
     def delays(self, detector, source=None, reflected: bool = False) -> list[float]:
         """Propagation delays of the routes reaching ``detector``

@@ -86,9 +86,15 @@ class CascadeCorrector:
         self.passes = passes
         self.sizes = block_sizes(self.n, qber, passes)
         self.perms = permutations(seed, self.n, passes)
-        self.known: dict[Block, int] = {}  # the reference's parities, never stale
-        self.active: set[Block] = set()  # blocks whose relative parity is odd
-        self.started = 0  # passes whose top-level parities are known
+        self.known: dict[Block, int] = {}
+        """The reference's parities, never stale."""
+
+        self.active: set[Block] = set()
+        """Blocks whose relative parity is odd."""
+
+        self.started = 0
+        """Passes whose top-level parities are known."""
+
         self.corrected: list[int] = []
         self.leak = 0
         self.done = self.n == 0

@@ -85,24 +85,45 @@ class Topic:
 
 @dataclass
 class COWParams:
-    # pulse clock C1: one slot τ = 2.30 ns; logical bits at half the rate
     rate: float = 434e6
-    mu: float = 0.5  # photons per non-empty pulse into the fiber
-    decoy: float = 0.1  # fraction f of decoy sequences
-    # Bob's tap to the data line (the paper's experiment: a 50/50 coupler)
+    """Pulse clock C1: one slot τ = 2.30 ns; logical bits at half the rate."""
+
+    mu: float = 0.5
+    """Photons per non-empty pulse into the fiber."""
+
+    decoy: float = 0.1
+    """Fraction f of decoy sequences."""
+
     t_b: float = 0.5
-    # Alice–Bob fiber [m]: ≈ 5 dB with its splices, as in the paper
+    """Bob's tap to the data line (the paper's experiment: a 50/50 coupler)."""
+
     distance: float = 25e3
-    efficiency: float = 0.10  # detectors, as in the paper …
-    dark_count_rate: float = 25e3  # … 2.5·10⁻⁵ dark counts per ns
-    # the paper's detectors needed 10 µs against afterpulsing, not modeled
+    """Alice–Bob fiber [m]: ≈ 5 dB with its splices, as in the paper."""
+
+    efficiency: float = 0.10
+    """Detector efficiency, as in the paper."""
+
+    dark_count_rate: float = 25e3
+    """[Hz], as in the paper: 2.5·10⁻⁵ dark counts per ns."""
+
     dead_time: float = 0.0
-    linewidth: float = 1e6  # Alice's laser [Hz] (a DFB; the paper does not say)
-    extinction_db: float = 30.0  # intensity modulator: how dark an empty slot is
-    # "cw" + carving modulator, or "gain-switched" (fresh phase every pulse)
+    """The paper's detectors needed 10 µs against afterpulsing, not modeled."""
+
+    linewidth: float = 1e6
+    """Alice's laser [Hz] (a DFB; the paper does not say)."""
+
+    extinction_db: float = 30.0
+    """Intensity modulator: how dark an empty slot is."""
+
     source: str = "cw"
-    pulse_width: float = 300e-12  # gain-switched pulses only
-    sample_fraction: float = 0.1  # sifted bits disclosed to estimate the QBER
+    """Either "cw" + carving modulator, or "gain-switched" (fresh phase every pulse)."""
+
+    pulse_width: float = 300e-12
+    """Gain-switched pulses only."""
+
+    sample_fraction: float = 0.1
+    """Sifted bits disclosed to estimate the QBER."""
+
     wavelength: float = 1550e-9
 
     @property
@@ -119,17 +140,22 @@ class COWParams:
 class EveParams:
     """Eve's station: she buys the best parts and tells nobody."""
 
-    # where she cuts the fiber, as a fraction of the distance from Alice
     position: float = 0.5
-    # her time-of-arrival detector (a superconducting nanowire, say) …
+    """Where she cuts the fiber, as a fraction of the distance from Alice."""
+
     efficiency: float = 0.9
-    dark_count_rate: float = 100.0  # … [Hz]; dead time not modeled, as for Bob's
-    # her own CW laser [Hz]: Alice's wavelength, an unrelated phase
+    """Her time-of-arrival detector's efficiency (a superconducting nanowire, say)."""
+
+    dark_count_rate: float = 100.0
+    """Her time-of-arrival detector's dark count rate [Hz];
+    dead time not modeled, as for Bob's."""
+
     linewidth: float = 1e6
-    # her intensity modulator, better than Alice's: her re-sent pulses are
+    """Her own CW laser [Hz]: Alice's wavelength, an unrelated phase."""
+
     extinction_db: float = 40.0
-    # brighter, and so is their leak into the pairs she leaves empty — the only QBER she
-    # adds
+    """Her intensity modulator, better than Alice's: her re-sent pulses are brighter,
+    and so is their leak into the pairs she leaves empty — the only QBER she adds."""
 
 
 # ---- encoding ------------------------------------------------------------------------
@@ -640,14 +666,30 @@ def resend_attenuation(att0: float, mu_e: float, p: COWParams) -> float:
 class Tally:
     """Public counts both stations accumulate."""
 
-    bits: int = 0  # logical bits sent
-    detected: int = 0  # bits with a data-line click
-    decoys: int = 0  # … removed as decoys
-    doubles: int = 0  # … clicked in both slots
-    sifted: int = 0  # detected bits that are not decoys
-    sampled: int = 0  # sifted bits disclosed for the QBER …
-    errors: int = 0  # … and wrong
-    key_bits: int = 0  # sifted bits not disclosed
+    bits: int = 0
+    """Logical bits sent."""
+
+    detected: int = 0
+    """Bits with a data-line click."""
+
+    decoys: int = 0
+    """Detected bits removed as decoys."""
+
+    doubles: int = 0
+    """Detected bits that clicked in both slots."""
+
+    sifted: int = 0
+    """Detected bits that are not decoys."""
+
+    sampled: int = 0
+    """Sifted bits disclosed for the QBER."""
+
+    errors: int = 0
+    """Sifted bits disclosed for the QBER and wrong."""
+
+    key_bits: int = 0
+    """Sifted bits not disclosed."""
+
     monitor: np.ndarray = field(
         default_factory=lambda: np.zeros((len(MON), 3), dtype=np.int64)
     )

@@ -106,7 +106,9 @@ class Counts:
     """
 
     rounds: int = 0
-    clicks: int = 0  # single-click rounds Charlie announced
+    clicks: int = 0
+    """Single-click rounds Charlie announced."""
+
     pairs: int = 0
     z: np.ndarray = field(default_factory=lambda: np.zeros((3, 3), dtype=np.int64))
     x: np.ndarray = field(default_factory=lambda: np.zeros((3, 3), dtype=np.int64))
@@ -116,10 +118,14 @@ class Counts:
     x_errors: np.ndarray = field(
         default_factory=lambda: np.zeros((3, 3), dtype=np.int64)
     )
-    # Σ (rear − front) over key pairs, for the phase-drift model
     interval_sum: float = 0.0
-    linewidth: tuple[float, float] = (0.0, 0.0)  # announced laser linewidths [Hz]
-    detuning: float = 0.0  # frequency offset between the lasers [Hz]
+    """Σ (rear − front) over key pairs, for the phase-drift model."""
+
+    linewidth: tuple[float, float] = (0.0, 0.0)
+    """Announced laser linewidths [Hz]."""
+
+    detuning: float = 0.0
+    """Frequency offset between the lasers [Hz]."""
 
     def add_block(
         self,
@@ -325,20 +331,31 @@ class Estimate:
     """What the accumulated counts say, as both stations compute it."""
 
     estimator: str
-    # decoy lower bound on the single-photon-pair fraction of the key pairs
     q11_lower: float
-    e11_model: float  # model phase-error rate of the single-photon pair
-    # rigorous decoy upper bound; NaN while unresolved (needs ~1e9+ pulses)
+    """Decoy lower bound on the single-photon-pair fraction of the key pairs."""
+
+    e11_model: float
+    """Model phase-error rate of the single-photon pair."""
+
     e11_decoy: float
+    """Rigorous decoy upper bound; NaN while unresolved (needs ~1e9+ pulses)."""
+
     e11_used: float
-    e_d: float  # misalignment from the phase walk
+    e_d: float
+    """Misalignment from the phase walk."""
+
     eta_fit: float
-    e_x_measured: float  # E_X of the sifted signal X pairs
+    e_x_measured: float
+    """E_X of the sifted signal X pairs."""
+
     e_x_model: float
-    n_x_decoy: int  # sifted (ν,ν)&(ν,ν) X pairs — why the decoy bound is unresolved
+    n_x_decoy: int
+    """Sifted (ν,ν)&(ν,ν) X pairs — why the decoy bound is unresolved."""
+
     p_click: float
     pairs_per_round: float
-    key_share: float  # key pairs / pairs (r_s)
+    key_share: float
+    """Key pairs / pairs (r_s)."""
 
     @property
     def secret_fraction(self) -> float:
@@ -476,8 +493,12 @@ class Theory:
     e_z: float
     e_x: float
     e_d: float
-    rate: float  # bits per pulse with the ideal (1,1) component, Eq. (D1)
-    rate_bounds: float  # the same with q_11 from the decoy bound the parties use
+    rate: float
+    """Bits per pulse with the ideal (1,1) component, Eq. (D1)."""
+
+    rate_bounds: float
+    """The same as rate, with q_11 from the decoy bound the parties use."""
+
     q11_lower: float
 
 

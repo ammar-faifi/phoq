@@ -27,16 +27,36 @@ DET_L, DET_R = 0, 1
 
 @dataclass
 class Params:
-    N: int = 5_000_000  # number of rounds
-    distance_km: float = 100.0  # total Alice–Bob distance (Charlie in the middle)
-    loss_db_per_km: float = 0.2  # fiber loss
-    mu: float = 0.4  # signal intensity
-    p_mu: float = 0.5  # probability of sending mu (else vacuum)
-    D: int = 16  # number of discrete phases
-    eta_d: float = 0.5  # detector efficiency
-    p_dark: float = 1e-8  # dark-count probability per detector per round
-    linewidth_hz: float = 3e3  # laser linewidth (each laser)
-    rep_rate_hz: float = 625e6  # system repetition rate
+    N: int = 5_000_000
+    """Number of rounds."""
+
+    distance_km: float = 100.0
+    """Total Alice–Bob distance (Charlie in the middle)."""
+
+    loss_db_per_km: float = 0.2
+    """Fiber loss."""
+
+    mu: float = 0.4
+    """Signal intensity."""
+
+    p_mu: float = 0.5
+    """Probability of sending mu (else vacuum)."""
+
+    D: int = 16
+    """Number of discrete phases."""
+
+    eta_d: float = 0.5
+    """Detector efficiency."""
+
+    p_dark: float = 1e-8
+    """Dark-count probability per detector per round."""
+
+    linewidth_hz: float = 3e3
+    """Laser linewidth (each laser)."""
+
+    rep_rate_hz: float = 625e6
+    """System repetition rate."""
+
     seed: int = 2022
 
 

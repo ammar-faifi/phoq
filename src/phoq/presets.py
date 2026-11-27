@@ -111,10 +111,18 @@ class Provenance:
     """Where one parameter value comes from."""
 
     kind: str
-    spec: str = ""  # the datasheet row and its conditions
-    min: float | None = None  # the other columns of that row, for reference
+    spec: str = ""
+    """The datasheet row and its conditions."""
+
+    min: float | None = None
+    """The min column of the datasheet row in spec, for reference."""
+
     typ: float | None = None
+    """The typ column of the datasheet row in spec, for reference."""
+
     max: float | None = None
+    """The max column of the datasheet row in spec, for reference."""
+
     note: str = ""
 
     def to_dict(self) -> dict:
@@ -140,7 +148,9 @@ class Curve:
     outside it."""
 
     name: str
-    wavelength: tuple[float, ...]  # [m], increasing
+    wavelength: tuple[float, ...]
+    """[m], increasing."""
+
     value: tuple[float, ...]
     provenance: Provenance
 

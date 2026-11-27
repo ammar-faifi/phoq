@@ -108,21 +108,45 @@ class Topic:
 
 @dataclass
 class COWParams:
-    rate: float = 1e9  # pulse clock: one slot τ = 1 ns, 500 million pairs a second
-    # photons per non-empty pulse into the fiber: where E_p^u is lowest on this bench
+    rate: float = 1e9
+    """Pulse clock: one slot τ = 1 ns, 500 million pairs a second."""
+
     mu: float = 4e-4
-    decoy1: float = 0.25  # fraction of |α⟩|α⟩ pairs …
-    decoy2: float = 0.25  # … and of |0⟩|0⟩ pairs: the four states are equally likely
-    # Bob's tap to the data line (a standard 50/50 coupler; the paper's model: 0.47)
+    """Photons per non-empty pulse into the fiber: where
+    E_p^u is lowest on this bench."""
+
+    decoy1: float = 0.25
+    """Fraction of |α⟩|α⟩ pairs."""
+
+    decoy2: float = 0.25
+    """Fraction of |0⟩|0⟩ pairs. At the defaults (decoy1 = decoy2 = 0.25) the
+    four states are equally likely."""
+
     t_b: float = 0.5
-    distance: float = 25e3  # Alice–Bob fiber [m]
-    detector: str = "mpd/pdm-ir"  # InGaAs/InP SPADs: the preset's PDE and dark counts …
-    dead_time: float = 40e-6  # … at this hold-off; the paper has none
-    # Bob reads the half of a slot with the pulse, not all of it
+    """Bob's tap to the data line (a standard
+    50/50 coupler; the paper's model: 0.47)."""
+
+    distance: float = 25e3
+    """Alice–Bob fiber [m]."""
+
+    detector: str = "mpd/pdm-ir"
+    """InGaAs/InP SPADs: the preset's PDE and dark counts, at the dead_time hold-off."""
+
+    dead_time: float = 40e-6
+    """The SPADs' hold-off for the preset's PDE and dark counts; the paper has none."""
+
     click_window: bool = True
-    linewidth: float = 1e6  # Alice's laser [Hz] (a DFB; the paper does not say)
-    extinction_db: float = 30.0  # intensity modulator: how dark an empty slot is
-    sample_fraction: float = 0.1  # sifted bits disclosed to estimate E_b
+    """Bob reads the half of a slot with the pulse, not all of it."""
+
+    linewidth: float = 1e6
+    """Alice's laser [Hz] (a DFB; the paper does not say)."""
+
+    extinction_db: float = 30.0
+    """Intensity modulator: how dark an empty slot is."""
+
+    sample_fraction: float = 0.1
+    """Sifted bits disclosed to estimate E_b."""
+
     wavelength: float = 1550e-9
 
     @property
@@ -482,19 +506,35 @@ def counting_error(monitor: np.ndarray, mu: float) -> float:
 class Tally:
     """Public counts both stations accumulate."""
 
-    pairs: int = 0  # pairs sent
-    detected: int = 0  # pairs with a data-line event
-    decoys: int = 0  # … removed as decoys
-    multi: int = 0  # pairs where several windows clicked
-    sifted: int = 0  # data-line events on a bit
-    sampled: int = 0  # sifted bits disclosed for E_b …
-    errors: int = 0  # … and wrong
-    key_bits: int = 0  # sifted bits not disclosed
+    pairs: int = 0
+    """Pairs sent."""
+
+    detected: int = 0
+    """Pairs with a data-line event."""
+
+    decoys: int = 0
+    """Detected pairs removed as decoys."""
+
+    multi: int = 0
+    """Pairs where several windows clicked."""
+
+    sifted: int = 0
+    """Data-line events on a bit."""
+
+    sampled: int = 0
+    """Sifted bits disclosed for E_b."""
+
+    errors: int = 0
+    """Sifted bits disclosed for E_b and wrong."""
+
+    key_bits: int = 0
+    """Sifted bits not disclosed."""
+
     monitor: np.ndarray = field(
         default_factory=lambda: np.zeros((len(STATES), 3), dtype=np.int64)
     )
-    # clicks at D_M0, D_M1 at the boundaries where both pulses were sent
     boundary: np.ndarray = field(default_factory=lambda: np.zeros(2, dtype=np.int64))
+    """Clicks at D_M0, D_M1 at the boundaries where both pulses were sent."""
 
     def __iadd__(self, other: Tally) -> Tally:
         for name in (
@@ -628,16 +668,24 @@ class Port(NamedTuple):
     """A monitoring detector behind the DLI: detected photons per photon at the fiber
     input, in the pair's window."""
 
-    short: float  # of the pair's second pulse, through the short arm
-    long: float  # of its first pulse, through the long arm
-    cross: float  # Re(long* · short): +√(short·long) on a constructive port
+    short: float
+    """Of the pair's second pulse, through the short arm."""
+
+    long: float
+    """Of the pair's first pulse, through the long arm."""
+
+    cross: float
+    """Re(long* · short): +√(short·long) on a constructive port."""
 
 
 class Spill(NamedTuple):
     """What a detector's timing jitter does to a half slot's detections."""
 
-    beyond: float = 0.0  # the share stamped beyond each of its ends …
-    far: float = 0.0  # … of which in the half slot two halves away, the next window
+    beyond: float = 0.0
+    """The share stamped beyond each of the half slot's ends."""
+
+    far: float = 0.0
+    """The part of beyond stamped in the half slot two halves away, the next window."""
 
 
 NO_SPILL = (Spill(), Spill(), Spill())

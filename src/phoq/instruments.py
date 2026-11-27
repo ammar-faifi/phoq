@@ -114,9 +114,14 @@ class ScopeResult:
     channels: dict[str, Trace]
     trigger_source: str = ""
     trigger_level: float = 0.0
-    fs: float = 0.0  # effective sample rate [S/s]
-    bandwidth: float = 0.0  # analog front-end bandwidth [Hz]
-    adc_bits: int = 0  # vertical resolution; 0 = ideal
+    fs: float = 0.0
+    """Effective sample rate [S/s]."""
+
+    bandwidth: float = 0.0
+    """Analog front-end bandwidth [Hz]."""
+
+    adc_bits: int = 0
+    """Vertical resolution; 0 = ideal."""
 
     def __getitem__(self, ch: str) -> Trace:
         return self.channels[ch]
@@ -320,9 +325,12 @@ class Oscilloscope(Component):
     )
 
     def __init__(self, name: str | None = None, **params):
-        self.armed = False  # single shot: waiting for the first trigger
-        # the sweep captured by the last single shot
+        self.armed = False
+        """Single shot: waiting for the first trigger."""
+
         self.held: ScopeResult | None = None
+        """The sweep captured by the last single shot."""
+
         super().__init__(name, **params)
 
     def _build(self):
@@ -609,12 +617,19 @@ class CounterResult:
     instrument: str
     rate: float
     slots: int
-    clicks: dict[str, np.ndarray]  # channel → boolean record, one entry per time bin
+    clicks: dict[str, np.ndarray]
+    """Channel → boolean record, one entry per time bin."""
+
     sources: dict[str, str | None]
-    start: int = 0  # first bin index (continuous across batches)
-    seq: int = 0  # batch number, set by the session streaming it
-    # channel → each click's time from the center of its bin [s], in the clicks' order
+    start: int = 0
+    """First bin index (continuous across batches)."""
+
+    seq: int = 0
+    """Batch number, set by the session streaming it."""
+
     fine: dict[str, np.ndarray] = field(default_factory=dict)
+    """Channel → each click's time from the center of its
+    bin [s], in the clicks' order."""
 
     @property
     def duration(self) -> float:
@@ -773,12 +788,13 @@ class PhotonCounter(Component):
         ]
 
     def __init__(self, name: str | None = None, **params):
-        # next bin index: acquisitions run on from one another like a tagger's clock
         self.position = 0
-        self._blind = (
-            0,
-            {},
-        )  # (bin where the last record ended, dead bins each channel carries on)
+        """Next bin index: acquisitions run on from one
+        another like a tagger's clock."""
+
+        self._blind = (0, {})
+        """(bin where the last record ended, dead bins each channel carries on)."""
+
         super().__init__(name, **params)
 
     def acquire(
@@ -897,27 +913,53 @@ class SpectrumResult:
 
     instrument: str
     source: str | None
-    freq: np.ndarray  # display frequencies [Hz]
-    level: np.ndarray  # displayed level [dBm in the RBW]
-    rbw: float  # resolution (noise) bandwidth actually used [Hz]
-    vbw: float  # video bandwidth actually used [Hz]
+    freq: np.ndarray
+    """Display frequencies [Hz]."""
+
+    level: np.ndarray
+    """Displayed level [dBm in the RBW]."""
+
+    rbw: float
+    """Resolution (noise) bandwidth actually used [Hz]."""
+
+    vbw: float
+    """Video bandwidth actually used [Hz]."""
+
     start: float
     stop: float
-    ref_level: float  # top of the screen [units]
+    ref_level: float
+    """Top of the screen [units]."""
+
     db_per_div: float
     detector: str
-    records: int  # Hann records power-averaged in this sweep: the VBW sets how many
-    sweeps: int  # sweeps in the displayed trace (trace average / max hold)
-    bin_freq: np.ndarray  # FFT bins inside the span [Hz]
-    bin_power: np.ndarray  # power in the RBW at each bin [W], this sweep
+    records: int
+    """Hann records power-averaged in this sweep: the VBW sets how many."""
+
+    sweeps: int
+    """Sweeps in the displayed trace (trace average / max hold)."""
+
+    bin_freq: np.ndarray
+    """FFT bins inside the span [Hz]."""
+
+    bin_power: np.ndarray
+    """Power in the RBW at each bin [W], this sweep."""
+
     bin_spacing: float
-    # V_DC²/R ahead of the DC block [W], the dBc/Hz reference; 0 when the DC is smaller
-    # than the input's AC (the light off, a generator's sine): there is none
     dc_power: float = 0.0
-    units: str = "dBm"  # the screen's: dBm (in the RBW), dBm/Hz or dBc/Hz
-    attenuation: float = 0.0  # input attenuation [dB]: the DANL rose by as much
-    trace: str = "write"  # trace mode: write, average or max hold
-    sweep_count: int = 1  # trace average: where the sweep counter stops
+    """V_DC²/R ahead of the DC block [W], the dBc/Hz reference; 0 when the DC is smaller
+    than the input's AC (the light off, a generator's sine): there is none."""
+
+    units: str = "dBm"
+    """The screen's: dBm (in the RBW), dBm/Hz or dBc/Hz."""
+
+    attenuation: float = 0.0
+    """Input attenuation [dB]: the DANL rose by as much."""
+
+    trace: str = "write"
+    """Trace mode: write, average or max hold."""
+
+    sweep_count: int = 1
+    """Trace average: where the sweep counter stops."""
 
     @property
     def averages(self) -> int:
@@ -1485,11 +1527,16 @@ class SpectrumAnalyzer(Component):
     )
 
     def __init__(self, name: str | None = None, **params):
-        # displayed trace in W, for trace average / max hold
         self._trace: np.ndarray | None = None
+        """Displayed trace in W, for trace average / max hold."""
+
         self._sweeps = 0
-        self._dc_power = 0.0  # the last sweep's, for converting the reference level
-        self._units = None  # the units the reference level is in; None while building
+        self._dc_power = 0.0
+        """The last sweep's, for converting the reference level."""
+
+        self._units = None
+        """The units the reference level is in; None while building."""
+
         super().__init__(name, **params)
         self._units = self.units
 

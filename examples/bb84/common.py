@@ -65,27 +65,51 @@ class Topic:
 
 @dataclass
 class BB84Params:
-    distance: float = 20e3  # Alice–Bob fiber [m]
-    mu: float = 0.5  # signal intensity (photons per pulse into the fiber)
-    nu: float = 0.1  # decoy intensity
-    p_mu: float = 0.7  # probability of sending μ …
-    p_nu: float = 0.2  # … and ν; the rest is vacuum
-    # probability of the Z basis, for Alice and Bob alike; Z bits make the key
+    distance: float = 20e3
+    """Alice–Bob fiber [m]."""
+
+    mu: float = 0.5
+    """Signal intensity (photons per pulse into the fiber)."""
+
+    nu: float = 0.1
+    """Decoy intensity."""
+
+    p_mu: float = 0.7
+    """Probability of sending μ."""
+
+    p_nu: float = 0.2
+    """Probability of sending ν; the rest is vacuum."""
+
     p_z: float = 0.5
-    sample_fraction: float = 0.1  # share of the Z-μ bits disclosed to estimate E_μ^Z
-    efficiency: float = 0.5  # detector efficiency
-    dark_count_rate: float = 100.0  # [Hz]
-    linewidth: float = 100e3  # each laser [Hz]
+    """Probability of the Z basis, for Alice and Bob alike; Z bits make the key."""
+
+    sample_fraction: float = 0.1
+    """Share of the Z-μ bits disclosed to estimate E_μ^Z."""
+
+    efficiency: float = 0.5
+    """Detector efficiency."""
+
+    dark_count_rate: float = 100.0
+    """[Hz]."""
+
+    linewidth: float = 100e3
+    """Each laser [Hz]."""
+
     rep_rate: float = 250e6
     wavelength: float = 1550e-9
     pulse_width: float = 100e-12
-    # intensity-modulator extinction: how dark "vacuum" really is
     extinction_db: float = 30.0
-    # residual phase error of Bob's interferometer [rad]: sin²(0.1) ≈ 1 % optical QBER
+    """Intensity-modulator extinction: how dark "vacuum" really is."""
+
     phase_error: float = 0.2
-    f_ec: float = 1.16  # error-correction inefficiency
-    # where Eve's station cuts the fiber (fraction of the distance)
+    """Residual phase error of Bob's interferometer [rad]:
+    sin²(0.1) ≈ 1 % optical QBER."""
+
+    f_ec: float = 1.16
+    """Error-correction inefficiency."""
+
     eve_position: float = 0.5
+    """Where Eve's station cuts the fiber (fraction of the distance)."""
 
     @property
     def slot(self) -> float:
@@ -399,18 +423,24 @@ class Tally:
     needs."""
 
     pulses: int = 0
-    sent: np.ndarray = field(
-        default_factory=lambda: np.zeros((3, 2), dtype=np.int64)
-        # [intensity, basis]: pulses with that intensity and basis for which Bob chose
-        # the same basis
-    )
+    sent: np.ndarray = field(default_factory=lambda: np.zeros((3, 2), dtype=np.int64))
+    """[intensity, basis]: pulses with that intensity and basis for which Bob chose the
+    same basis."""
+
     detected: np.ndarray = field(
         default_factory=lambda: np.zeros((3, 2), dtype=np.int64)
-    )  # … of which Bob had a middle-slot click
-    # errors among the (all disclosed) X-basis detections, per intensity
+    )
+    """Of the pulses in sent, those where Bob had a middle-slot click."""
+
     x_errors: np.ndarray = field(default_factory=lambda: np.zeros(3, dtype=np.int64))
-    z_sampled: int = 0  # Z-μ bits disclosed …
-    z_errors: int = 0  # … and wrong
+    """Errors among the (all disclosed) X-basis detections, per intensity."""
+
+    z_sampled: int = 0
+    """Z-μ bits disclosed."""
+
+    z_errors: int = 0
+    """Z-μ bits disclosed and wrong."""
+
     doubles: int = 0
     key_bits: int = 0
 
