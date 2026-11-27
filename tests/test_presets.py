@@ -326,21 +326,24 @@ def test_id_qube_low_noise_and_ultra_low_noise_differ_only_in_dark_counts():
     assert spad.efficiency_at(850e-9) == 0.0  # outside 900–1700 nm
 
 
-def test_id281_snspd_takes_the_brochures_guaranteed_ends_and_a_hard_dead_time():
-    """IDQ ID281 brochure G.192.0112-PB-1.2 (June 2026), p. 4: peak SDE 80% to 95% (or
-    better); maximum dark count rate < 100 cps to < 1 cps from 1300 nm to > 1600 nm;
+def test_id281_snspd_takes_the_bias_sweeps_operating_point_and_a_hard_dead_time():
+    """IDQ ID281 brochure G.192.0112-PB-1.2 (June 2026), p. 2: one SNSPD's bias sweep at
+    1550 nm reads 95.6 % SDE with 14 Hz of dark counts at 26.5 µA, entered as 96 %; p. 4:
     timing jitter (FWHM) typ. < 30 ps; standard SNSPDs > 30 Mcps with a recovery time
     typ. < 30 ns (to 50 % of the efficiency, note 2); output pulse > 5 ns."""
     p = presets.get("idq/id281-standard-1550")
     assert p.source["revision"] == "G.192.0112-PB-1.2, specifications as of June 2026"
     assert {k: v.kind for k, v in p.provenance.items()} == {
-        "efficiency": "datasheet-min",
-        "dark_count_rate": "datasheet-max",
+        "efficiency": "datasheet-graph",
+        "dark_count_rate": "datasheet-graph",
         "dead_time": "derived",
         "timing_jitter": "datasheet-typ",
         "pulse_width": "datasheet-min",
     }
     assert all(v.spec.startswith("p. ") for v in p.provenance.values())
+    # efficiency and dark counts at one bias: they trade off against each other
+    for k in ("efficiency", "dark_count_rate"):
+        assert "26.5 µA" in p.provenance[k].spec
     # no connector named and no curve (the p. 2 bands are approximate); what the model
     # cannot do is kept
     assert "connector" not in p.params and not p.curves
@@ -348,13 +351,13 @@ def test_id281_snspd_takes_the_brochures_guaranteed_ends_and_a_hard_dead_time():
 
     snspd = SinglePhotonDetector("SNSPD", preset="idq/id281-standard-1550")
     assert (snspd.efficiency, snspd.dark_count_rate, snspd.dead_time) == (
-        0.80,
-        100.0,
+        0.96,
+        14.0,
         30e-9,
     )
     assert (snspd.timing_jitter, snspd.pulse_width) == (30e-12, 5e-9)
     assert snspd.connector == "FC/UPC"  # phoq's default
-    assert snspd.efficiency_at(1310e-9) == snspd.efficiency_at(1550e-9) == 0.80
+    assert snspd.efficiency_at(1310e-9) == snspd.efficiency_at(1550e-9) == 0.96
     # saturating light: one click per 30 ns, 33 Mcps, the "> 30 Mcps" of the table
     n, dt = 3000, 1e-9
     field = np.full(n, math.sqrt(1e-6), dtype=complex)  # 1 µW, ≈ 7800 photons per ns
